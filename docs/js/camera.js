@@ -53,40 +53,41 @@ export class CameraRig {
     let follow = 5, lookFollow = 7, fov = 60, rigid = false;
     const sp = clamp(speed / 45, 0, 1);
     const fxv = car.fx || 0;                    // hiệu ứng tốc độ cao
+    const slope = Math.tan(car.pitch || 0);     // độ dốc mặt đường (lên dốc > 0)
     const ci = this.cine;
 
     switch (id) {
       case 'chase':
-        p.copy(pos).addScaledVector(f, -(dim.length * 0.5 + 6.2 + 1.4 * fxv + 1.8 * ci)).setY(2.3 + dim.height * 0.4);
-        l.copy(pos).addScaledVector(f, 13).setY(1.75);
+        p.copy(pos).addScaledVector(f, -(dim.length * 0.5 + 6.2 + 1.4 * fxv + 1.8 * ci)).setY(pos.y + 2.3 + dim.height * 0.4);
+        l.copy(pos).addScaledVector(f, 13).setY(pos.y + 1.75 + slope * 10);
         fov = 58 + sp * 4 + fxv * 12 - 7 * ci;
         break;
       case 'low':
-        p.copy(pos).addScaledVector(f, -(dim.length * 0.5 + 4.2)).setY(0.95);
-        l.copy(pos).addScaledVector(f, 10).setY(1.0);
+        p.copy(pos).addScaledVector(f, -(dim.length * 0.5 + 4.2)).setY(pos.y + 0.95);
+        l.copy(pos).addScaledVector(f, 10).setY(pos.y + 1.0 + slope * 10);
         fov = 68 + sp * 4 + fxv * 12;
         break;
       case 'bumper':
-        p.copy(pos).addScaledVector(fc, dim.length * 0.5 + 0.25).setY(0.5);
-        l.copy(p).addScaledVector(fc, 30).setY(1.0);
+        p.copy(pos).addScaledVector(fc, dim.length * 0.5 + 0.25).setY(pos.y + 0.5 + slope * (dim.length * 0.5));
+        l.copy(p).addScaledVector(fc, 30).setY(p.y + 0.5 + slope * 30);
         rigid = true; fov = 74 + sp * 3 + fxv * 10;
         break;
       case 'cockpit': {
         const [ex, ey, ez] = dim.eye;
-        p.copy(pos).addScaledVector(r, ex).addScaledVector(fc, -ez).setY(ey);
-        l.copy(p).addScaledVector(fc, 30).setY(ey - 0.12);
+        p.copy(pos).addScaledVector(r, ex).addScaledVector(fc, -ez).setY(pos.y + ey - slope * ez);
+        l.copy(p).addScaledVector(fc, 30).setY(p.y - 0.12 + slope * 30);
         rigid = true; fov = 72 + sp * 3 + fxv * 10;
         break;
       }
       case 'orbit':
         this.orbit += dt * 0.2;
-        p.set(pos.x + Math.cos(this.orbit) * 8.5, 2.2 + Math.sin(this.orbit * 0.7) * 0.8, pos.z + Math.sin(this.orbit) * 8.5);
-        l.copy(pos).setY(0.8);
+        p.set(pos.x + Math.cos(this.orbit) * 8.5, pos.y + 2.2 + Math.sin(this.orbit * 0.7) * 0.8, pos.z + Math.sin(this.orbit) * 8.5);
+        l.copy(pos).setY(pos.y + 0.8);
         fov = 48 + fxv * 8;
         break;
       case 'drone':
-        p.copy(pos).addScaledVector(f, -15).setY(13);
-        l.copy(pos).addScaledVector(f, 6).setY(0.5);
+        p.copy(pos).addScaledVector(f, -15).setY(pos.y + 13);
+        l.copy(pos).addScaledVector(f, 6).setY(pos.y + 0.5);
         follow = 3.5; fov = 56 + fxv * 10;
         break;
     }
@@ -103,11 +104,11 @@ export class CameraRig {
         const backDist = dim.length * 0.5 + 6.2 + 1.8 * ci;
         const ang = 0.5 + (Math.PI - 0.5) * e;
         const rad = 6.2 + (backDist - 6.2) * e;
-        const hgt = 0.65 + (2.3 + dim.height * 0.4 - 0.65) * e;
+        const hgt = pos.y + 0.65 + (2.3 + dim.height * 0.4 - 0.65) * e;
         const chaseL = l.clone();
         // lia ở phía tim đường (side), bán kính ngang tối đa 3.4 m để camera luôn nằm trên mặt đường, không chui vào cỏ
         p.copy(pos).addScaledVector(fc, Math.cos(ang) * rad).addScaledVector(r, (car.side || 1) * Math.sin(ang) * Math.min(rad, 3.4)).setY(hgt);
-        l.copy(pos).setY(0.7).lerp(chaseL, e);
+        l.copy(pos).setY(pos.y + 0.7).lerp(chaseL, e);
         fov = 36 + (fov - 36) * e;
       }
     } else if (this.intro >= 0) this.intro = -1;
@@ -123,6 +124,11 @@ export class CameraRig {
     this.first = false;
 
     this.camera.position.copy(pos).add(this.relP);
+    // không để camera chui xuống đất (đồi bên đường)
+    if (this.groundAt) {
+      const g = this.groundAt(this.camera.position.x, this.camera.position.z) + 0.6;
+      if (this.camera.position.y < g) this.camera.position.y = g;
+    }
     this._l.copy(pos).add(this.relL);
     this.camera.lookAt(this._l);
     if (Math.abs(this.camera.fov - this.fov) > 0.01) {

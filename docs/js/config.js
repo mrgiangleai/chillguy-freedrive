@@ -17,7 +17,7 @@ export const CARS = [
 
 export const MAPS = [
   { id: 'reed', name: 'Đồng cỏ lau', icon: '🌾' },
-  { id: 'forest', name: 'Rừng thông', icon: '🌲' },
+  { id: 'forest', name: 'Đồi thông', icon: '🌲' },
 ];
 
 export const WEATHERS = [

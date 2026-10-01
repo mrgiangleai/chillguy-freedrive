@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { plumeTexture } from './textures.js';
 import { ROAD } from './road.js';
+import { TP, TERRAIN_GLSL } from './terrain-noise.js';
 
 // Cánh đồng cỏ lau vô tận.
 // - Mỗi "khóm" = vài lá cỏ cong + 1 cặp bông trắng; vẽ bằng instancing (không có cập nhật CPU theo từng khóm).
@@ -81,13 +82,17 @@ attribute vec4 aSeed;
 uniform vec3 uCam;
 uniform float uTime, uWind, uCell, uScale, uIn0, uIn1, uOut0, uOut1, uCorr;
 uniform vec2 uWindDir;
-uniform vec2 uRoad[${ROAD_PTS}];
-float roadDist(vec2 p) {
-  float dm = 1e9;
+uniform vec3 uRoad[${ROAD_PTS}];     // (x, y, z) của tim đường
+uniform float uCarve0, uCarve1;
+${TERRAIN_GLSL}
+// khoảng cách tới đường + độ cao mặt đường tại điểm gần nhất
+float roadDist(vec2 p, out float ry) {
+  float dm = 1e9; ry = 0.0;
   for (int i = 0; i < ${ROAD_PTS - 1}; i++) {
-    vec2 a = uRoad[i], b = uRoad[i + 1], ab = b - a;
+    vec2 a = uRoad[i].xz, b = uRoad[i + 1].xz, ab = b - a;
     float t = clamp(dot(p - a, ab) / dot(ab, ab), 0.0, 1.0);
-    dm = min(dm, length(p - a - ab * t));
+    float d = length(p - a - ab * t);
+    if (d < dm) { dm = d; ry = mix(uRoad[i].y, uRoad[i + 1].y, t); }
   }
   return dm;
 }
@@ -99,7 +104,12 @@ vec2 rel = mod(basePos - uCam.xz + uCell * 0.5, uCell) - uCell * 0.5;
 vec2 wp = uCam.xz + rel;
 float dist = length(rel);
 float vis = smoothstep(uIn0, uIn1, dist) * (1.0 - smoothstep(uOut0, uOut1, dist));
-vis *= smoothstep(uCorr, uCorr + 1.5, roadDist(wp));
+float ry;
+float rd = roadDist(wp, ry);
+vis *= smoothstep(uCorr, uCorr + 1.5, rd);
+// độ cao mặt đất (cùng công thức với lưới địa hình trên CPU, không gồm núi xa)
+float gy = tLow(wp) + tDetail(wp);
+gy = mix(ry - 0.02, gy, smoothstep(uCarve0, uCarve1, rd));
 float h = (0.72 + 0.6 * aSeed.w) * uScale * vis;
 float ang = aSeed.z * 6.2831853;
 float cs = cos(ang), sn = sin(ang);
@@ -114,7 +124,7 @@ float bend = amp * tip * tip;
 transformed.xz += uWindDir * bend * h * 1.15;
 transformed.xz += vec2(sin(uTime * 7.0 + wp.x * 1.7), cos(uTime * 8.3 + wp.y * 1.9)) * 0.035 * uWind * tip * h;
 transformed.y -= bend * bend * 0.4 * h;
-transformed += vec3(wp.x, 0.0, wp.y);
+transformed += vec3(wp.x, gy, wp.y);
 `;
 
 export class ReedField {
@@ -122,7 +132,7 @@ export class ReedField {
     this.group = new THREE.Group();
     scene.add(this.group);
     this.density = 1;
-    this.roadPts = Array.from({ length: ROAD_PTS }, () => new THREE.Vector2());
+    this.roadPts = Array.from({ length: ROAD_PTS }, () => new THREE.Vector3());
     this.shared = {
       uCam: { value: new THREE.Vector3() },
       uTime: { value: 0 },
@@ -130,6 +140,8 @@ export class ReedField {
       uWindDir: { value: new THREE.Vector2(0.78, 0.62).normalize() },
       uRoad: { value: this.roadPts },
       uCorr: { value: ROAD.halfWidth + 1.0 },
+      uCarve0: { value: ROAD.halfWidth + 1.2 }, uCarve1: { value: ROAD.halfWidth + 16 },
+      uTLow: { value: TP.low }, uTDet: { value: TP.det }, uTFine: { value: TP.fine },
     };
 
     this.leafGeo = leafGeometry();
@@ -207,10 +219,11 @@ export class ReedField {
     sh.uCam.value.copy(cam);
     sh.uWind.value = st.wind;
     sh.uWindDir.value.copy(st.windDir);
+    sh.uTLow.value = TP.low; sh.uTDet.value = TP.det; sh.uTFine.value = TP.fine;
     const p = {};
     for (let k = 0; k < ROAD_PTS; k++) {
       road.at(s + (k - 12) * ROAD_PT_GAP, p);
-      this.roadPts[k].set(p.x, p.z);
+      this.roadPts[k].set(p.x, p.y, p.z);
     }
     // ánh sáng "xuyên" ngược nắng: bông & lá ngả vàng cam khi nắng thấp
     const glow = 0.5 * st.dayF * (1 - st.overcast * 0.85) * (0.4 + 0.6 * st.warm);

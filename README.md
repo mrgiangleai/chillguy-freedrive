@@ -2,7 +2,8 @@
 
 Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (JavaScript + HTML thuần, không cần build).
 
-- **Map**: mặc định là **cánh đồng cỏ lau bất tận** 🌾 (cỏ + bông trắng đung đưa theo gió, vẽ bằng GPU instancing); map thứ hai: rừng thông 🌲 (nút 🌾 hoặc phím `N`)
+- **Địa hình đồi núi vô tận** (kiểu slowroads): đồi trập trùng, đường lên dốc/xuống dốc men theo địa hình, núi xa có đá & tuyết mờ trong sương xanh; sinh hoàn toàn bằng code nên tải rất nhanh
+- **Map**: mặc định là **cánh đồng cỏ lau bất tận** 🌾 (cỏ + bông trắng đung đưa theo gió, vẽ bằng GPU instancing); map thứ hai: **đồi thông** 🌲 với rừng mọc trên sườn đồi (nút 🌾 hoặc phím `N`)
 - **Cinematic** 🎬 (bật sẵn, tắt bằng nút 🎬 hoặc phím `K`): dải đen letterbox 2.39:1, bloom quanh mặt trời/đèn, chỉnh màu phim, hạt phim, tối viền, camera hơi rung như quay cầm tay, ống kính tele hơn và cảnh mở đầu camera lia từ thấp ra sau xe
 - **Tốc độ**: mặc định chạy chill **35 km/h** (chỉnh được 10–40 km/h); nút **⚡ Fast drive** (hoặc phím `F`) tăng lên **150 km/h** kèm hiệu ứng blur tốc độ, góc nhìn rộng ra, camera rung nhẹ, gió ù ù; bấm lại để về chill
 - **Xe**: chọn xe bằng nút 🚗 (model glTF miễn phí, đều ≤ 250k triangles)
@@ -45,7 +46,9 @@ docs/              (toàn bộ site, thư mục được GitHub Pages phục v�
   index.html, style.css
   js/main.js      vòng lặp, điều khiển, giao diện
   js/road.js      đường vô tận (hình học đường)
-  js/scenery.js   mặt đường, cây, đèn đường, núi, mặt đất (theo map)
+  js/terrain.js   địa hình đồi núi (quadtree nhiều mức chi tiết), đường xẻ vào sườn đồi, rừng cây
+  js/terrain-noise.js hàm độ cao dùng chung CPU/GPU
+  js/scenery.js   mặt đường, cọc tiêu, đèn đường
   js/reeds.js     cánh đồng cỏ lau vô tận (instancing, gió, tự tránh mặt đường)
   js/world.js     bầu trời + mây, ánh sáng, giờ trong ngày, thời tiết, bão & sét
   js/particles.js mưa / tuyết / bông cỏ bay (shader)
@@ -63,6 +66,6 @@ docs/              (toàn bộ site, thư mục được GitHub Pages phục v�
 - **Car Concept** — Eric Chadwick / Darmstadt Graphics Group, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) · [Khronos glTF Sample Assets](https://github.com/KhronosGroup/glTF-Sample-Assets)
 - **Toy Car** — Guido Odendahl & Eric Chadwick, [CC0](https://creativecommons.org/publicdomain/zero/1.0/) · Khronos glTF Sample Assets (đã bỏ tấm vải trưng bày đi kèm model)
 - **Cesium Milk Truck** — Cesium, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) · Khronos glTF Sample Assets
-- Texture cỏ `grasslight-big.jpg` — three.js examples (thu nhỏ còn 1024px)
-- Cỏ lau, bông cỏ, mây, cây, núi, đường, đèn đường: tạo bằng code / texture vẽ bằng canvas (không dùng asset ngoài)
+- Model xe đã được nén lại (meshopt + texture WebP) bằng glTF-Transform để tải nhanh (~3.7 MB tổng thay vì 17.5 MB)
+- Địa hình, cỏ lau, bông cỏ, mây, cây, núi, đường, đèn đường: tạo bằng code / texture vẽ bằng canvas (không dùng asset ngoài)
 - Nhạc: tự sinh bằng code (không dùng bản ghi âm nào)

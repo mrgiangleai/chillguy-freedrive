@@ -148,3 +148,33 @@ export function plumeTexture() {
   t.anisotropy = 4;
   return t;
 }
+
+// Texture chi tiết xám (nhân với màu địa hình): nét cỏ nhỏ + đốm, trung bình ~0.85, lặp liền mạch
+export function detailTexture(renderer) {
+  const W = 512;
+  const [c, g] = canvas(W, W);
+  const r = rng(23);
+  g.fillStyle = '#d6d6d6';
+  g.fillRect(0, 0, W, W);
+  g.lineCap = 'round';
+  for (let i = 0; i < 16000; i++) {
+    const x = r() * W, y = r() * W;
+    const len = 3 + r() * 11, ang = -Math.PI / 2 + (r() - 0.5) * 1.1;
+    const dx = Math.cos(ang) * len, dy = Math.sin(ang) * len;
+    const v = Math.floor(150 + r() * 105);
+    g.strokeStyle = `rgb(${v},${v},${v})`;
+    g.globalAlpha = 0.35 + r() * 0.5;
+    g.lineWidth = 0.7 + r() * 1.3;
+    for (const ox of [-W, 0, W]) for (const oy of [-W, 0, W]) {
+      const px = x + ox, py = y + oy;
+      if (px < -20 || px > W + 20 || py < -20 || py > W + 20) continue;
+      g.beginPath(); g.moveTo(px, py); g.lineTo(px + dx, py + dy); g.stroke();
+    }
+  }
+  g.globalAlpha = 1;
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return t;
+}

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { CARS } from './config.js';
 import { glowTexture } from './textures.js';
 
@@ -13,6 +14,8 @@ export class Cars {
     scene.add(this.root);
 
     this.loader = new GLTFLoader();
+    this.loader.setMeshoptDecoder(MeshoptDecoder);   // model đã nén meshopt + WebP để tải nhanh
+    this.onProgress = null;
     this.list = [];
     this.cache = new Map();
     this.current = null;
@@ -77,7 +80,7 @@ export class Cars {
   }
 
   async _load(def) {
-    const gltf = await this.loader.loadAsync(def.file);
+    const gltf = await this.loader.loadAsync(def.file, (e) => { if (this.onProgress && e.total) this.onProgress(e.loaded / e.total); });
     const model = gltf.scene;
     const holder = new THREE.Group();
     holder.add(model);
@@ -91,21 +94,21 @@ export class Cars {
     }
     model.rotation.x = def.rotX || 0;
     holder.updateMatrixWorld(true);
-    let box = new THREE.Box3().setFromObject(holder);
+    let box = new THREE.Box3().setFromObject(holder, true);
     let size = box.getSize(new THREE.Vector3());
     // chiều dài xe phải nằm dọc trục Z; đầu xe hướng -Z
     if (size.x > size.z * 1.02) { model.rotation.y += Math.PI / 2; }
     if (def.flip) model.rotation.y += Math.PI;
     holder.updateMatrixWorld(true);
-    box.setFromObject(holder);
+    box.setFromObject(holder, true);
     size = box.getSize(new THREE.Vector3());
     holder.scale.setScalar(def.length / size.z);
     holder.updateMatrixWorld(true);
-    box.setFromObject(holder);
+    box.setFromObject(holder, true);
     const c = box.getCenter(new THREE.Vector3());
     holder.position.set(-c.x, -box.min.y, -c.z);
     car.updateMatrixWorld(true);
-    box.setFromObject(car);
+    box.setFromObject(car, true);
     const dim = { length: box.max.z - box.min.z, width: box.max.x - box.min.x, height: box.max.y - box.min.y };
     dim.eye = def.eye || [-dim.width * 0.2, Math.min(dim.height * 0.8, 1.15), 0];
 
@@ -137,7 +140,7 @@ export class Cars {
     });
     const out = [];
     for (const n of nodes) {
-      const b = new THREE.Box3().setFromObject(n);
+      const b = new THREE.Box3().setFromObject(n, true);
       if (b.isEmpty()) continue;
       const s = b.getSize(new THREE.Vector3());
       const ctr = b.getCenter(new THREE.Vector3());
@@ -171,7 +174,7 @@ export class Cars {
   update(dt, st) {
     this.time += dt;
     this.root.position.copy(st.pos);
-    this.root.rotation.y = st.yaw;
+    this.root.rotation.set(st.pitch || 0, st.yaw, 0, 'YXZ');   // ngóc / chúi đầu theo dốc
 
     // nhún nhẹ khi tăng/giảm tốc & vào cua
     const acc = (st.speed - this.lastSpeed) / Math.max(dt, 1e-3);

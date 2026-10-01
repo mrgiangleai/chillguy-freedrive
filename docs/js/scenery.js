@@ -1,21 +1,11 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ROAD } from './road.js';
-import { roadTexture, glowTexture, dryGrassTexture } from './textures.js';
+import { roadTexture, glowTexture } from './textures.js';
 
 const { halfWidth: HW, chunkLen: L, step: STEP } = ROAD;
-const AHEAD = 7;   // số chunk dựng phía trước xe
+const AHEAD = 7;   // số chunk đường dựng phía trước xe
 const BEHIND = 1;
-
-function rng(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6D2B79F5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 function tint(geo, hex) {
   const c = new THREE.Color(hex);
@@ -27,15 +17,11 @@ function tint(geo, hex) {
 }
 const flat = (g) => (g.index ? g.toNonIndexed() : g);
 function merge(parts) {
-  const geos = parts.map((p) => {
-    const g = flat(p);
-    g.deleteAttribute('uv');
-    return g;
-  });
-  return mergeGeometries(geos);
+  return mergeGeometries(parts.map((p) => { const g = flat(p); g.deleteAttribute('uv'); return g; }));
 }
 
-function pineGeometry() {
+// ---- khối cây (dùng chung cho hệ địa hình) ----
+export function pineGeometry() {
   return merge([
     tint(new THREE.CylinderGeometry(0.18, 0.28, 1.6, 6).translate(0, 0.8, 0), 0x5a3d2b),
     tint(new THREE.ConeGeometry(2.0, 3.2, 7).translate(0, 1.4 + 1.6, 0), 0x2c5a38),
@@ -43,13 +29,25 @@ function pineGeometry() {
     tint(new THREE.ConeGeometry(1.1, 2.4, 7).translate(0, 4.5 + 1.2, 0), 0x3b7546),
   ]);
 }
-
-function broadleafGeometry() {
+export function broadleafGeometry() {
   return merge([
     tint(new THREE.CylinderGeometry(0.22, 0.34, 2.6, 6).translate(0, 1.3, 0), 0x634632),
     tint(new THREE.IcosahedronGeometry(1.9, 1).translate(0, 4.0, 0), 0x5b9448),
     tint(new THREE.IcosahedronGeometry(1.3, 1).translate(1.0, 3.4, 0.5), 0x66a04f),
     tint(new THREE.IcosahedronGeometry(1.2, 1).translate(-0.9, 3.2, -0.6), 0x4f873f),
+  ]);
+}
+// bản ít đa giác cho cây ở xa
+export function pineLowGeometry() {
+  return merge([
+    tint(new THREE.CylinderGeometry(0.2, 0.3, 1.6, 4).translate(0, 0.8, 0), 0x5a3d2b),
+    tint(new THREE.ConeGeometry(1.9, 5.8, 5).translate(0, 1.2 + 2.9, 0), 0x31653f),
+  ]);
+}
+export function broadLowGeometry() {
+  return merge([
+    tint(new THREE.CylinderGeometry(0.22, 0.34, 2.6, 4).translate(0, 1.3, 0), 0x634632),
+    tint(new THREE.IcosahedronGeometry(2.2, 0).translate(0, 3.9, 0), 0x5b9448),
   ]);
 }
 
@@ -62,6 +60,7 @@ function lampGeometry() {
   ]);
 }
 
+// Mặt đường + cọc tiêu + đèn đường, dựng theo từng đoạn (chunk) dọc đường
 export class Scenery {
   constructor(scene, road, renderer) {
     this.scene = scene;
@@ -76,7 +75,6 @@ export class Scenery {
       map: roadTexture(renderer), roughness: 0.9, metalness: 0,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
     });
-    this.treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.95 });
     this.poleMat = new THREE.MeshStandardMaterial({ color: 0x4a4f55, roughness: 0.6, metalness: 0.4 });
     this.postMat = new THREE.MeshStandardMaterial({ color: 0xe8e8e0, roughness: 0.7 });
     this.bulbMat = new THREE.MeshBasicMaterial({ color: 0xffd9a0, toneMapped: false });
@@ -91,17 +89,14 @@ export class Scenery {
       blending: THREE.AdditiveBlending, sizeAttenuation: true,
     });
 
-    this.pineGeo = pineGeometry();
-    this.broadGeo = broadleafGeometry();
     this.lampGeo = lampGeometry();
     this.postGeo = new THREE.BoxGeometry(0.12, 0.95, 0.12).translate(0, 0.475, 0);
     this.poolGeo = new THREE.PlaneGeometry(15, 15).rotateX(-Math.PI / 2);
     this.bulbGeo = new THREE.SphereGeometry(0.2, 8, 6);
   }
 
-  // s = độ dài cung hiện tại của xe
+  // dựng lại toàn bộ (đổi map => đổi độ cao đường)
   setMap(map) {
-    if (map === this.map) return;
     this.map = map;
     for (const c of this.chunks.values()) this._dispose(c);
     this.chunks.clear();
@@ -109,13 +104,13 @@ export class Scenery {
     this.prime(this.lastS);
   }
 
+  // s = độ dài cung hiện tại của xe
   update(s, budget = 2) {
     this.lastS = s;
     const k = Math.floor(s / L);
     for (let i = Math.max(0, k - BEHIND); i <= k + AHEAD; i++) {
       if (!this.chunks.has(i) && !this.queue.includes(i)) this.queue.push(i);
     }
-    // ưu tiên chunk gần xe nhất
     this.queue.sort((a, b) => a - b);
     for (let n = 0; n < budget && this.queue.length; n++) {
       const i = this.queue.shift();
@@ -126,33 +121,26 @@ export class Scenery {
     }
   }
 
-  // dựng sẵn toàn bộ khi bắt đầu để tránh pop-in
   prime(s) { this.update(s, 999); }
 
   apply(st) {
-    // đèn đường + vầng sáng
     const on = st.lamps;
     const c = new THREE.Color(0x8a8a86).lerp(new THREE.Color(0xffd9a0), on);
     this.bulbMat.color.copy(c).multiplyScalar(0.6 + 1.6 * on);
     this.poolMat.opacity = on * 0.55;
     this.glowMat.opacity = on * 0.9;
-    // đường ướt
     this.roadMat.roughness = 0.9 - 0.62 * st.wet;
-    const d = 1 - 0.45 * st.wet;
+    const d = (1 - 0.45 * st.wet) * (1 - 0.25 * st.dark);
     this.roadMat.color.setRGB(d, d, d);
-    // tuyết phủ lên cây
-    const e = 0.2 * st.cover * st.dayF;
-    this.treeMat.emissive.setRGB(e, e * 1.02, e * 1.05);
   }
 
   _build(k) {
     const group = new THREE.Group();
-    const r = rng(k * 7919 + 13);
     const road = this.road;
     const s0 = k * L;
     const p = this.tmp;
 
-    // mặt đường
+    // mặt đường (cao hơn mặt đất 5 cm)
     const N = L / STEP;
     const pos = new Float32Array((N + 1) * 6);
     const uv = new Float32Array((N + 1) * 4);
@@ -161,8 +149,8 @@ export class Scenery {
     for (let i = 0; i <= N; i++) {
       const s = s0 + i * STEP;
       road.at(s, p);
-      const rx = Math.cos(p.th), rz = -Math.sin(p.th);
-      pos.set([p.x - rx * HW, 0.05, p.z - rz * HW, p.x + rx * HW, 0.05, p.z + rz * HW], i * 6);
+      const rx = Math.cos(p.th), rz = -Math.sin(p.th), y = p.y + 0.05;
+      pos.set([p.x - rx * HW, y, p.z - rz * HW, p.x + rx * HW, y, p.z + rz * HW], i * 6);
       uv.set([0, s / 12, 1, s / 12], i * 4);
       nor.set([0, 1, 0, 0, 1, 0], i * 6);
       if (i < N) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
@@ -172,59 +160,28 @@ export class Scenery {
     geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
     geo.setIndex(idx);
+    geo.computeVertexNormals();
     const roadMesh = new THREE.Mesh(geo, this.roadMat);
     roadMesh.receiveShadow = true;
     group.add(roadMesh);
     group.userData.own = [geo];
-
-    // cây (chỉ ở map rừng thông; cánh đồng cỏ lau để trống cho cỏ)
-    if (this.map === 'forest') {
-      const pines = [], broads = [];
-      for (let i = 0; i < 58; i++) {
-        const side = r() < 0.5 ? -1 : 1;
-        const d = HW + 6 + Math.pow(r(), 1.7) * 75;
-        road.at(s0 + r() * L, p);
-        const x = p.x + Math.cos(p.th) * d * side;
-        const z = p.z - Math.sin(p.th) * d * side;
-        (r() < 0.6 ? pines : broads).push([x, z, 0.8 + r() * 0.9, r() * Math.PI * 2, r()]);
-      }
-      const mkTrees = (list, geo) => {
-        if (!list.length) return;
-        const m = new THREE.InstancedMesh(geo, this.treeMat, list.length);
-        const mat = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), ps = new THREE.Vector3();
-        const up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
-        list.forEach(([x, z, s, yaw, c], i) => {
-          q.setFromAxisAngle(up, yaw);
-          sc.set(s, s * (0.9 + c * 0.3), s);
-          ps.set(x, 0, z);
-          mat.compose(ps, q, sc);
-          m.setMatrixAt(i, mat);
-          col.setHSL(0.27 + (c - 0.5) * 0.12, 0.2 + c * 0.2, 0.62 + (c - 0.5) * 0.5);
-          m.setColorAt(i, col);
-        });
-        m.castShadow = true;
-        group.add(m);
-      };
-      mkTrees(pines, this.pineGeo);
-      mkTrees(broads, this.broadGeo);
-    }
 
     // cọc tiêu hai bên đường
     const posts = [];
     for (let s = s0; s < s0 + L; s += 12) {
       road.at(s, p);
       for (const side of [-1, 1]) {
-        posts.push([p.x + Math.cos(p.th) * (HW + 0.7) * side, p.z - Math.sin(p.th) * (HW + 0.7) * side]);
+        posts.push([p.x + Math.cos(p.th) * (HW + 0.7) * side, p.y, p.z - Math.sin(p.th) * (HW + 0.7) * side]);
       }
     }
     const pm = new THREE.InstancedMesh(this.postGeo, this.postMat, posts.length);
     const m4 = new THREE.Matrix4();
-    posts.forEach(([x, z], i) => { m4.makeTranslation(x, 0, z); pm.setMatrixAt(i, m4); });
+    posts.forEach(([x, y, z], i) => { m4.makeTranslation(x, y, z); pm.setMatrixAt(i, m4); });
     group.add(pm);
 
-    // đèn đường (xen kẽ hai bên, cách nhau 30 m)
+    // đèn đường (xen kẽ hai bên)
     const lamps = [], bulbs = [], pools = [];
-    const lampN = this.map === 'reed' ? 2 : 4, lampGap = L / lampN;
+    const lampN = this.map === 'reed' ? 2 : 3, lampGap = L / lampN;
     for (let i = 0; i < lampN; i++) {
       const s = s0 + i * lampGap + 6;
       road.at(s, p);
@@ -234,16 +191,16 @@ export class Scenery {
       const z = p.z - Math.sin(p.th) * off * side;
       // tay đòn hướng về tim đường: side=+1 (bên phải) => local -x => yaw = th ; bên trái => xoay thêm PI
       const yaw = p.th + (side === 1 ? 0 : Math.PI);
-      lamps.push([x, z, yaw]);
+      lamps.push([x, p.y, z, yaw]);
       const ax = -Math.cos(yaw) * 1.75, az = Math.sin(yaw) * 1.75;
-      bulbs.push([x + ax, 7.25, z + az]);
-      pools.push([x + ax * 1.4, z + az * 1.4]);
+      bulbs.push([x + ax, p.y + 7.25, z + az]);
+      pools.push([x + ax * 1.4, p.y + 0.08, z + az * 1.4]);
     }
     const lm = new THREE.InstancedMesh(this.lampGeo, this.poleMat, lamps.length);
     const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
-    lamps.forEach(([x, z, yaw], i) => {
+    lamps.forEach(([x, y, z, yaw], i) => {
       q.setFromAxisAngle(up, yaw);
-      m4.compose(v.set(x, 0, z), q, one);
+      m4.compose(v.set(x, y, z), q, one);
       lm.setMatrixAt(i, m4);
     });
     lm.castShadow = true;
@@ -254,7 +211,7 @@ export class Scenery {
     group.add(bm);
 
     const poolMesh = new THREE.InstancedMesh(this.poolGeo, this.poolMat, pools.length);
-    pools.forEach(([x, z], i) => { m4.makeTranslation(x, 0.08, z); poolMesh.setMatrixAt(i, m4); });
+    pools.forEach(([x, y, z], i) => { m4.makeTranslation(x, y, z); poolMesh.setMatrixAt(i, m4); });
     poolMesh.renderOrder = 2;
     group.add(poolMesh);
 
@@ -265,7 +222,6 @@ export class Scenery {
     glowPts.renderOrder = 3;
     group.add(glowPts);
     group.userData.own.push(gg);
-    group.userData.instanced = [pm, lm, bm, poolMesh];
 
     this.scene.add(group);
     this.chunks.set(k, group);
@@ -275,115 +231,5 @@ export class Scenery {
     this.scene.remove(group);
     group.userData.own.forEach((g) => g.dispose());
     group.traverse((o) => { if (o.isInstancedMesh) o.dispose(); });
-  }
-}
-
-// Mặt đất, lớp tuyết phủ, dãy núi xa — đi theo xe
-export class Backdrop {
-  constructor(scene, renderer) {
-    const aniso = renderer.capabilities.getMaxAnisotropy();
-    const grass = new THREE.TextureLoader().load('assets/grass.jpg');
-    grass.colorSpace = THREE.SRGBColorSpace;
-    grass.wrapS = grass.wrapT = THREE.RepeatWrapping;
-    grass.anisotropy = aniso;
-    const dry = dryGrassTexture(renderer);
-    const size = 4000;
-    this.size = size;
-    this.maps = {
-      forest: { tex: grass, tile: 10, base: [0.66, 0.71, 0.6] },
-      reed: { tex: dry, tile: 8, base: [1.0, 0.97, 0.9] },
-    };
-    for (const m of Object.values(this.maps)) m.tex.repeat.set(size / m.tile, size / m.tile);
-    this.map = 'reed';
-    this.tile = this.maps.reed.tile;
-
-    // chia lưới nhỏ: tam giác khổng lồ làm depth bị sai số gần camera (đường bị mặt đất đè mất)
-    const geo = new THREE.PlaneGeometry(size, size, 100, 100).rotateX(-Math.PI / 2);
-    const gmat = new THREE.MeshStandardMaterial({ map: this.maps.reed.tex, color: 0xffffff, roughness: 1 });
-    // nhiễu màu quy mô lớn theo toạ độ thế giới: mảng cỏ xanh hơn / vàng hơn, đỡ lặp texture
-    gmat.onBeforeCompile = (sh) => {
-      sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nvarying vec2 vWXZ;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWXZ = (modelMatrix * vec4(transformed, 1.0)).xz;');
-      sh.fragmentShader = sh.fragmentShader
-        .replace('#include <common>', `#include <common>
-varying vec2 vWXZ;
-float gh(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-float gn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
-  return mix(mix(gh(i), gh(i+vec2(1,0)), f.x), mix(gh(i+vec2(0,1)), gh(i+vec2(1,1)), f.x), f.y); }`)
-        .replace('#include <map_fragment>', `#include <map_fragment>
-{ float n = gn(vWXZ * 0.018) * 0.6 + gn(vWXZ * 0.07) * 0.4;
-  diffuseColor.rgb *= vec3(0.78 + 0.5 * n, 0.8 + 0.42 * n, 0.74 + 0.36 * n); }`);
-    };
-    this.ground = new THREE.Mesh(geo, gmat);
-    this.ground.receiveShadow = true;
-    scene.add(this.ground);
-
-    this.snow = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-      color: 0xeef3f8, roughness: 1, transparent: true, opacity: 0, depthWrite: false,
-      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
-    }));
-    this.snow.position.y = 0.02;
-    this.snow.receiveShadow = true;
-    this.snow.visible = false;
-    scene.add(this.snow);
-
-    // núi: hình nón bị xô lệch, đỉnh phủ tuyết (tô màu theo đỉnh)
-    const r = rng(42);
-    this.mountMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, fog: false });
-    this.mountains = new THREE.Group();
-    for (let i = 0; i < 44; i++) {
-      const rad = 260 + r() * 420, h = 140 + r() * 320;
-      const g = new THREE.ConeGeometry(rad, h, 7, 3);
-      const p = g.attributes.position;
-      const col = new Float32Array(p.count * 3);
-      const rock = new THREE.Color(0x586070), snowC = new THREE.Color(0xf2f5fa), c = new THREE.Color();
-      for (let j = 0; j < p.count; j++) {
-        const y = p.getY(j) / h + 0.5;           // 0 chân núi .. 1 đỉnh
-        if (y < 0.98) {
-          p.setX(j, p.getX(j) + (r() - 0.5) * rad * 0.28);
-          p.setZ(j, p.getZ(j) + (r() - 0.5) * rad * 0.28);
-          p.setY(j, p.getY(j) + (r() - 0.5) * h * 0.1);
-        }
-        const t = Math.min(1, Math.max(0, (y - 0.62) / 0.2));
-        c.copy(rock).lerp(snowC, t * t * (3 - 2 * t));
-        col.set([c.r, c.g, c.b], j * 3);
-      }
-      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-      const m = new THREE.Mesh(g, this.mountMat);
-      const a = (i / 44) * Math.PI * 2 + r() * 0.1, dist = 1950 + r() * 450;
-      m.position.set(Math.cos(a) * dist, h * 0.5 - 8, Math.sin(a) * dist);
-      m.rotation.y = r() * 6;
-      this.mountains.add(m);
-    }
-    scene.add(this.mountains);
-    this.mountains.visible = false;   // map mặc định: chân trời phẳng, vô tận
-  }
-
-  setMap(map) {
-    this.map = map;
-    const m = this.maps[map];
-    this.tile = m.tile;
-    this.ground.material.map = m.tex;
-    this.mountains.visible = map === 'forest';
-  }
-
-  update(pos) {
-    const t = this.tile;
-    const x = Math.round(pos.x / t) * t, z = Math.round(pos.z / t) * t;
-    this.ground.position.set(x, 0, z);
-    this.snow.position.x = x; this.snow.position.z = z;
-    this.mountains.position.set(pos.x, 0, pos.z);
-  }
-
-  apply(st) {
-    this.snow.visible = st.cover > 0.01;
-    this.snow.material.opacity = st.cover * 0.93;
-    // ban đêm / chiều tối mặt đất tối đi nhờ ánh sáng; chỉ cần ngả màu nhẹ khi trời mù
-    const g = this.ground.material.color;
-    g.setRGB(...this.maps[this.map].base).multiplyScalar((1 - 0.12 * st.wet) * (1 - 0.3 * st.dark));
-    // núi ở xa: ngả theo màu sương mù (không bị đen khi nắng thấp)
-    this.mountMat.color.setRGB(0.8, 0.8, 0.85);
-    this.mountMat.emissive.copy(st.fogColor).multiplyScalar(0.55);
   }
 }

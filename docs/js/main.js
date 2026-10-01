@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { ROAD, Road } from './road.js';
-import { Scenery, Backdrop } from './scenery.js';
+import { Scenery } from './scenery.js';
+import { Terrain } from './terrain.js';
+import { setTerrainMap } from './terrain-noise.js';
 import { Environment } from './world.js';
 import { Cars } from './cars.js';
 import { CameraRig } from './camera.js';
@@ -30,12 +32,13 @@ const camera = new THREE.PerspectiveCamera(60, 1, 0.3, 4000);
 
 const road = new Road();
 const scenery = new Scenery(scene, road, renderer);
-const backdrop = new Backdrop(scene, renderer);
+const terrain = new Terrain(scene, road, renderer);
 const env = new Environment(renderer, scene, camera);
 const reeds = new ReedField(scene, renderer);
 if (window.matchMedia?.('(pointer: coarse)').matches) reeds.setDensity(0.5);   // điện thoại: giảm mật độ cỏ cho nhẹ
 const cars = new Cars(scene);
 const rig = new CameraRig(camera);
+rig.groundAt = (x, z) => terrain.heightAt(x, z);
 const audio = new ChillAudio();
 const post = new Post(renderer);
 
@@ -65,6 +68,7 @@ const drive = {
   fast: false,             // Fast drive bật / tắt
   fx: 0,                   // cường độ hiệu ứng tốc độ 0..1 (theo tốc độ thực tế)
   latVel: 0,
+  pitch: 0,
   pos: new THREE.Vector3(),
   yaw: 0,
 };
@@ -103,8 +107,12 @@ async function chooseCar(i) {
 const nextCar = () => chooseCar(state.car + 1);
 const applyMap = () => {
   const id = MAPS[state.map].id;
+  setTerrainMap(id);            // đổi tham số địa hình (đồi thấp / đồi núi)
+  road.recomputeHeights();      // độ cao đường theo địa hình mới
   scenery.setMap(id);
-  backdrop.setMap(id);
+  terrain.reset();
+  terrain.setCar(drive.s);
+  terrain.prime(camera.position.lengthSq() ? camera.position : drive.pos);
   reeds.visible = id === 'reed';
 };
 const nextMap = () => { state.map = (state.map + 1) % MAPS.length; applyMap(); refreshUI(); };
@@ -225,15 +233,18 @@ function frame(now) {
   const lim = ROAD.halfWidth - 0.9;
   if (Math.abs(drive.d) > lim) { drive.d = Math.sign(drive.d) * lim; drive.latVel = 0; }
 
-  // tư thế xe
+  // tư thế xe (độ cao + độ dốc theo mặt đường)
+  road.ensure(drive.s + 8000);
   road.at(drive.s, roadPt);
-  drive.pos.set(roadPt.x + Math.cos(roadPt.th) * drive.d, 0, roadPt.z - Math.sin(roadPt.th) * drive.d);
+  drive.pos.set(roadPt.x + Math.cos(roadPt.th) * drive.d, roadPt.y, roadPt.z - Math.sin(roadPt.th) * drive.d);
+  const yA = road.at(drive.s - 2.5, {}).y, yB = road.at(drive.s + 2.5, {}).y;
+  drive.pitch += (Math.atan2(yB - yA, 5) - drive.pitch) * (1 - Math.exp(-dt * 6));
   drive.yaw = roadPt.th - Math.atan2(drive.latVel, Math.max(drive.v, 4)) * 0.9;
 
   cineAmt += ((state.cine && state.started ? 1 : 0) - cineAmt) * (1 - Math.exp(-dt * 2.5));
   rig.cine = cineAmt;
-  cars.update(dt, { pos: drive.pos, yaw: drive.yaw, speed: drive.v, latVel: drive.latVel });
-  rig.update(dt, { pos: drive.pos, yaw: drive.yaw, speed: drive.v, dim: cars.dim, fx: drive.fx, side: drive.d >= 0 ? -1 : 1 });
+  cars.update(dt, { pos: drive.pos, yaw: drive.yaw, pitch: drive.pitch, speed: drive.v, latVel: drive.latVel });
+  rig.update(dt, { pos: drive.pos, yaw: drive.yaw, pitch: drive.pitch, speed: drive.v, dim: cars.dim, fx: drive.fx, side: drive.d >= 0 ? -1 : 1 });
 
   // môi trường
   env.update(dt, drive.pos);
@@ -241,8 +252,9 @@ function frame(now) {
   scenery.update(drive.s);
   scenery.apply(st);
   if (reeds.visible) reeds.update(now / 1000, camera.position, road, drive.s, st);
-  backdrop.update(drive.pos);
-  backdrop.apply(st);
+  terrain.setCar(drive.s);
+  terrain.update(camera.position);
+  terrain.apply(st);
   cars.setLights(st.lamps);
   audio.setAmbient({ speed: drive.v, rain: st.rain, snow: st.snow, wind: st.wind, dark: st.dark, fx: drive.fx });
 
@@ -280,14 +292,18 @@ async function init() {
   env.setTime(TIMES[state.time].hour);
   env.hour = TIMES[state.time].hour;
   env.onThunder = (delay, power) => audio.thunder(delay, power);
+  road.ensure(drive.s + 8000);
+  road.at(drive.s, roadPt);
+  drive.pos.set(roadPt.x, roadPt.y, roadPt.z);
   applyMap();
-  scenery.prime(drive.s);
   await cars.probe();
   refreshUI();
   requestAnimationFrame(frame);
-  await chooseCar(0);
+  // cho bấm chơi ngay; xe tải song song (thường chỉ 1–3 MB)
   const start = $('start');
   $('hint').textContent = 'Chạm hoặc nhấn phím bất kỳ để bắt đầu';
+  cars.onProgress = (f) => setBtn(el.car, '🚗', 'Đang tải… ' + Math.round(f * 100) + '%');
+  chooseCar(0);
   const go = () => {
     start.classList.add('gone');
     state.started = true;
@@ -305,4 +321,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { forceCine: (v) => { cineAmt = v; }, post, toggleFast, toggleCine, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, backdrop, reeds };
+window.__app = { forceCine: (v) => { cineAmt = v; }, post, toggleFast, toggleCine, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, road };
