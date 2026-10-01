@@ -15,10 +15,17 @@ export const CARS = [
     wheels: /^Wheels/ },
 ];
 
+export const MAPS = [
+  { id: 'reed', name: 'Đồng cỏ lau', icon: '🌾' },
+  { id: 'forest', name: 'Rừng thông', icon: '🌲' },
+];
+
 export const WEATHERS = [
   { id: 'clear', name: 'Trời nắng', icon: '☀️' },
   { id: 'cloudy', name: 'Nhiều mây', icon: '☁️' },
+  { id: 'windy', name: 'Gió lớn', icon: '💨' },
   { id: 'rain', name: 'Mưa', icon: '🌧️' },
+  { id: 'storm', name: 'Bão', icon: '⛈️' },
   { id: 'snow', name: 'Tuyết', icon: '❄️' },
   { id: 'fog', name: 'Sương mù', icon: '🌫️' },
 ];
@@ -26,6 +33,7 @@ export const WEATHERS = [
 export const TIMES = [
   { id: 'sunrise', name: 'Bình minh', icon: '🌅', hour: 6.4 },
   { id: 'noon', name: 'Ban ngày', icon: '🌤️', hour: 12.5 },
+  { id: 'golden', name: 'Giờ vàng', icon: '🌞', hour: 17.55 },
   { id: 'sunset', name: 'Hoàng hôn', icon: '🌇', hour: 17.85 },
   { id: 'night', name: 'Ban đêm', icon: '🌙', hour: 22.5 },
   { id: 'auto', name: 'Tự động', icon: '🕒', hour: null },

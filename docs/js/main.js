@@ -5,7 +5,8 @@ import { Environment } from './world.js';
 import { Cars } from './cars.js';
 import { CameraRig } from './camera.js';
 import { ChillAudio } from './audio.js';
-import { WEATHERS, TIMES, CAMERAS, MUSIC_MODES } from './config.js';
+import { ReedField } from './reeds.js';
+import { MAPS, WEATHERS, TIMES, CAMERAS, MUSIC_MODES } from './config.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
@@ -25,6 +26,8 @@ const road = new Road();
 const scenery = new Scenery(scene, road, renderer);
 const backdrop = new Backdrop(scene, renderer);
 const env = new Environment(renderer, scene, camera);
+const reeds = new ReedField(scene, renderer);
+if (window.matchMedia?.('(pointer: coarse)').matches) reeds.setDensity(0.5);   // điện thoại: giảm mật độ cỏ cho nhẹ
 const cars = new Cars(scene);
 const rig = new CameraRig(camera);
 const audio = new ChillAudio();
@@ -52,12 +55,13 @@ const keys = new Set();
 const pointer = { active: false, x: 0, y: 0, sx: 0, sy: 0, steer: 0, speedDelta: 0 };
 
 // ---------- giao diện ----------
-const state = { car: 0, cam: 0, weather: 0, time: TIMES.findIndex((t) => t.id === 'sunset'), music: 0 };
-const el = { car: $('b-car'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
+const state = { car: 0, map: 0, cam: 0, weather: 0, time: TIMES.findIndex((t) => t.id === 'golden'), music: 0 };
+const el = { car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
 const setBtn = (btn, icon, text) => { btn.querySelector('b').textContent = icon; btn.querySelector('span').textContent = text; btn.title = text; };
 
 function refreshUI() {
   setBtn(el.car, '🚗', cars.list[state.car]?.name ?? '…');
+  setBtn(el.map, MAPS[state.map].icon, MAPS[state.map].name);
   setBtn(el.cam, '🎥', CAMERAS[state.cam].name);
   setBtn(el.weather, WEATHERS[state.weather].icon, WEATHERS[state.weather].name);
   setBtn(el.time, TIMES[state.time].icon, TIMES[state.time].name);
@@ -76,6 +80,13 @@ async function chooseCar(i) {
   refreshUI();
 }
 const nextCar = () => chooseCar(state.car + 1);
+const applyMap = () => {
+  const id = MAPS[state.map].id;
+  scenery.setMap(id);
+  backdrop.setMap(id);
+  reeds.visible = id === 'reed';
+};
+const nextMap = () => { state.map = (state.map + 1) % MAPS.length; applyMap(); refreshUI(); };
 const nextCam = () => { state.cam = (state.cam + 1) % CAMERAS.length; rig.setMode(state.cam); refreshUI(); };
 const nextWeather = () => { state.weather = (state.weather + 1) % WEATHERS.length; env.setWeather(WEATHERS[state.weather].id); refreshUI(); };
 const nextTime = () => {
@@ -86,6 +97,7 @@ const nextTime = () => {
 const nextMusic = () => { state.music = (state.music + 1) % MUSIC_MODES.length; audio.setMode(state.music); refreshUI(); };
 
 el.car.onclick = nextCar;
+el.map.onclick = nextMap;
 el.cam.onclick = nextCam;
 el.weather.onclick = nextWeather;
 el.time.onclick = nextTime;
@@ -103,6 +115,7 @@ window.addEventListener('keydown', (e) => {
     case 'KeyT': nextTime(); break;
     case 'KeyR': nextWeather(); break;
     case 'KeyV': nextCar(); break;
+    case 'KeyN': nextMap(); break;
   }
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
@@ -144,6 +157,7 @@ function adaptQuality(frameMs) {
     pixelRatio = Math.max(0.7, pixelRatio - 0.25);
     renderer.setPixelRatio(pixelRatio);
     resize();
+    reeds.setDensity(Math.max(0.35, reeds.density * 0.75));
   }
 }
 
@@ -189,10 +203,19 @@ function frame(now) {
   const st = env.state;
   scenery.update(drive.s);
   scenery.apply(st);
+  if (reeds.visible) reeds.update(now / 1000, camera.position, road, drive.s, st);
   backdrop.update(drive.pos);
   backdrop.apply(st);
   cars.setLights(st.lamps);
-  audio.setAmbient({ speed: drive.v, rain: st.rain, snow: st.snow });
+  audio.setAmbient({ speed: drive.v, rain: st.rain, snow: st.snow, wind: st.wind, dark: st.dark });
+
+  // gió mạnh / bão: camera rung nhẹ
+  const shake = 0.028 * Math.max(0, st.wind - 0.55) / 0.45;
+  if (shake > 0) {
+    const t = now / 1000;
+    camera.position.x += (Math.sin(t * 11.3) + Math.sin(t * 17.9) * 0.6) * shake;
+    camera.position.y += (Math.sin(t * 13.7) + Math.sin(t * 23.1) * 0.5) * shake * 0.7;
+  }
 
   uiTimer -= dt;
   if (uiTimer <= 0) {
@@ -209,6 +232,8 @@ function frame(now) {
 async function init() {
   env.setTime(TIMES[state.time].hour);
   env.hour = TIMES[state.time].hour;
+  env.onThunder = (delay, power) => audio.thunder(delay, power);
+  applyMap();
   scenery.prime(drive.s);
   await cars.probe();
   refreshUI();
@@ -228,4 +253,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { env, cars, rig, drive, state, nextCar, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, backdrop };
+window.__app = { env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, backdrop, reeds };

@@ -151,6 +151,13 @@ export class ChillAudio {
     this.rainG = mkNoise('bandpass', 2200, 0.5);
     this.windG = mkNoise('lowpass', 420, 0.7);
     this.tireG = mkNoise('lowpass', 750, 0.6);
+    // gió giật: LFO chậm cộng thêm vào độ lớn tiếng gió
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 0.13;
+    this.gustG = ctx.createGain();
+    this.gustG.gain.value = 0;
+    lfo.connect(this.gustG).connect(this.windG.gain);
+    lfo.start();
 
     // tiếng động cơ êm
     this.engLp = ctx.createBiquadFilter(); this.engLp.type = 'lowpass'; this.engLp.frequency.value = 260;
@@ -161,20 +168,47 @@ export class ChillAudio {
     this.engLp.connect(this.engG).connect(this.ambGain);
   }
 
-  // speed (m/s), rain/snow 0..1
-  setAmbient({ speed, rain, snow }) {
+  // speed (m/s), rain/snow/wind/dark 0..1
+  setAmbient({ speed, rain, snow, wind = 0, dark = 0 }) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime, k = 0.25;
     const on = this.mode === 0 ? 1 : 0;
     this.ambGain.gain.setTargetAtTime(on, t, 0.4);
-    this.rainG.gain.setTargetAtTime(rain * 0.2, t, k);
-    this.windG.gain.setTargetAtTime(0.012 + speed * 0.0016 + snow * 0.05, t, k);
+    this.rainG.gain.setTargetAtTime(rain * 0.2 * (1 + 0.6 * dark), t, k);
+    this.windG.gain.setTargetAtTime(0.012 + speed * 0.0016 + snow * 0.05 + wind * wind * 0.1, t, k);
+    this.gustG.gain.setTargetAtTime(wind * wind * 0.07, t, k);
     this.tireG.gain.setTargetAtTime(Math.min(speed * 0.0011, 0.04) * (1 + rain), t, k);
     const f = 30 + speed * 2.2;
     this.eng[0].frequency.setTargetAtTime(f, t, 0.15);
     this.eng[1].frequency.setTargetAtTime(f * 2, t, 0.15);
     this.engLp.frequency.setTargetAtTime(180 + speed * 7, t, 0.2);
     this.engG.gain.setTargetAtTime(0.02 + Math.min(speed, 40) * 0.0004, t, 0.2);
+  }
+
+  // sấm: tiếng rền trầm (nhiễu nâu qua lowpass) đến sau tia chớp `delay` giây
+  thunder(delay = 1.5, power = 1) {
+    if (!this.ctx || this.mode !== 0) return;
+    const ctx = this.ctx, t = ctx.currentTime + delay;
+    const len = ctx.sampleRate * 5;
+    const b = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = b.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < len; i++) {            // nhiễu nâu: tích phân nhiễu trắng
+      last = (last + (Math.random() * 2 - 1) * 0.06) / 1.02;
+      d[i] = last * 3.5;
+    }
+    const s = ctx.createBufferSource(); s.buffer = b;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(900, t);
+    lp.frequency.exponentialRampToValueAtTime(110, t + 4);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.9 * power, t + 0.12);
+    g.gain.setTargetAtTime(0.0001, t + 0.3, 1.1);
+    s.connect(lp).connect(g).connect(this.ambGain);
+    s.start(t); s.stop(t + 5);
+    // tiếng nổ lách tách ở đầu
+    this._noiseHit(t, 0.25, 'bandpass', 700, 0.3 * power);
   }
 
   // ---- lịch phát nhạc (look-ahead scheduler) ----

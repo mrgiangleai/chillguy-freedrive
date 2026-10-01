@@ -49,8 +49,8 @@ export class CameraRig {
 
     switch (id) {
       case 'chase':
-        p.copy(pos).addScaledVector(f, -(dim.length * 0.5 + 6.2)).setY(2.5 + dim.height * 0.4);
-        l.copy(pos).addScaledVector(f, 7).setY(1.1);
+        p.copy(pos).addScaledVector(f, -(dim.length * 0.5 + 6.2)).setY(2.3 + dim.height * 0.4);
+        l.copy(pos).addScaledVector(f, 13).setY(1.75);
         fov = 58 + sp * 10;
         break;
       case 'low':

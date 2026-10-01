@@ -69,3 +69,82 @@ export function cloudTexture() {
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
+
+function rng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Nền đất phủ cỏ khô: vô số nét cỏ ngắn màu rơm / ô-liu / trắng ngà, lặp liền mạch
+export function dryGrassTexture(renderer) {
+  const W = 1024;
+  const [c, g] = canvas(W, W);
+  const r = rng(11);
+  g.fillStyle = '#8e8556';
+  g.fillRect(0, 0, W, W);
+  const cols = ['#5f6535', '#6f6a3b', '#857c49', '#a39863', '#b9aa72', '#c9bc88', '#d8cfa8', '#ebe5d0'];
+  g.lineCap = 'round';
+  for (let i = 0; i < 30000; i++) {
+    const x = r() * W, y = r() * W;
+    const len = 5 + r() * 20, ang = -Math.PI / 2 + (r() - 0.5) * 1.0;
+    const dx = Math.cos(ang) * len, dy = Math.sin(ang) * len;
+    g.strokeStyle = cols[Math.floor(Math.pow(r(), 1.5) * cols.length)];
+    g.globalAlpha = 0.3 + r() * 0.5;
+    g.lineWidth = 0.8 + r() * 1.6;
+    for (const ox of [-W, 0, W]) for (const oy of [-W, 0, W]) {
+      const px = x + ox, py = y + oy;
+      if (px < -30 || px > W + 30 || py < -30 || py > W + 30) continue;
+      g.beginPath(); g.moveTo(px, py); g.lineTo(px + dx, py + dy); g.stroke();
+    }
+  }
+  g.globalAlpha = 1;
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return t;
+}
+
+// Bông cỏ lau: thân mảnh ở dưới, chùm lông trắng ngà mềm ở trên (nền trong suốt)
+export function plumeTexture() {
+  const W = 128, H = 360;
+  const [c, g] = canvas(W, H);
+  const r = rng(5);
+  const cx = W / 2;
+  g.strokeStyle = '#c9bb8e'; g.lineWidth = 2.2; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(cx, H); g.quadraticCurveTo(cx + 2, H * 0.66, cx, H * 0.46); g.stroke();
+  const top = 4, base = H * 0.5;
+  const half = (t) => 5 + 50 * Math.pow(Math.sin(Math.min(1, t * 1.15) * Math.PI * 0.55), 0.85) * Math.pow(1 - t, 0.6);
+  // lõi mờ để chùm không biến mất khi thu nhỏ
+  g.fillStyle = 'rgba(250,246,234,0.6)';
+  g.beginPath();
+  for (let i = 0; i <= 24; i++) { const t = i / 24; g.lineTo(cx + half(t) * 0.6, base - t * (base - top)); }
+  for (let i = 24; i >= 0; i--) { const t = i / 24; g.lineTo(cx - half(t) * 0.6, base - t * (base - top)); }
+  g.closePath(); g.fill();
+  // lông: rất nhiều nét mảnh, trắng ngà
+  const cs = ['#ffffff', '#fffcf4', '#f6f0df', '#ede5cf', '#fffef9'];
+  for (let i = 0; i < 1500; i++) {
+    const t = Math.pow(r(), 0.85);
+    const y0 = base - t * (base - top) + r() * 6;
+    const hw = half(t);
+    const x1 = cx + (r() * 2 - 1) * hw * (0.4 + 0.7 * r());
+    const y1 = y0 - 6 - r() * 30;
+    g.strokeStyle = cs[Math.floor(r() * cs.length)];
+    g.globalAlpha = 0.35 + r() * 0.55;
+    g.lineWidth = 0.7 + r() * 1.5;
+    g.beginPath();
+    g.moveTo(cx + (r() - 0.5) * 5, y0);
+    g.quadraticCurveTo((cx + x1) / 2 + (r() - 0.5) * 10, (y0 + y1) / 2, x1, y1);
+    g.stroke();
+  }
+  g.globalAlpha = 1;
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}

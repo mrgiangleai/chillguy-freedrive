@@ -26,6 +26,7 @@ export class Road {
   // Vector "bên phải" của đường = (cos th, 0, -sin th).
   at(s, out = {}) {
     const { step } = ROAD;
+    if (s < 0) s = 0;
     const i = Math.floor(s / step);
     this._ensure(i + 1);
     const t = (s - i * step) / step;
