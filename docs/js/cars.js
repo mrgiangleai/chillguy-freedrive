@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { CARS } from './config.js';
 import { glowTexture } from './textures.js';
+import { withMist } from './mist.js';
 
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 
@@ -121,6 +122,7 @@ export class Cars {
         if (m.transmission > 0) { m.transmission = 0; m.transparent = true; m.opacity = 0.32; m.depthWrite = false; glass = true; }
         if (m.transparent && m.opacity < 0.9) glass = true;
         m.envMapIntensity = 1;
+        withMist(m);
       }
       o.castShadow = !glass;
       o.receiveShadow = true;

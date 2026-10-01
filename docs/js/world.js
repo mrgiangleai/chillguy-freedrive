@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { Sky } from 'three/addons/objects/Sky.js';
 import { glowTexture } from './textures.js';
 import { Precip } from './particles.js';
 
@@ -21,8 +20,63 @@ const WEATHER = {
 };
 const NUM_KEYS = ['fog', 'overcast', 'clouds', 'sun', 'rain', 'snow', 'wet', 'cover', 'wind', 'dark'];
 
-const C_SUNSET = new THREE.Color('#f0a070');
-const C_NIGHT = new THREE.Color('#0a1226');
+// Bầu trời gradient: các mốc màu theo độ cao mặt trời e (độ).
+//            e,    đỉnh trời,  giữa,      chân trời, dải ấm phía mặt trời, quầng mặt trời
+const SKY_KEYS = [
+  [-18, '#02050d', '#050a19', '#0a1428', '#0a1428', '#000000'],
+  [-9, '#06102e', '#0e1d47', '#1f2d5a', '#363562', '#24182c'],
+  [-4, '#122052', '#2a3c79', '#67588d', '#d06e7a', '#a24a40'],
+  [0, '#1d3d80', '#4868ab', '#e3987c', '#ff8a48', '#ff7030'],
+  [4, '#2453a0', '#6286c4', '#f0bd92', '#ffb36c', '#ff9a52'],
+  [10, '#2a64b4', '#719fd9', '#f1d9bd', '#ffd59c', '#ffcf88'],
+  [22, '#2468c8', '#5b9be3', '#c6def3', '#e1edf5', '#fff1d6'],
+  [50, '#1e5fc4', '#4f92e0', '#b4d4f2', '#d2e5f3', '#fff7e6'],
+].map(([e, ...c]) => [e, ...c.map((h) => new THREE.Color(h))]);
+const SKY_I = 2.15;   // hệ số HDR (tone mapping ACES sẽ nén lại)
+
+// tone mapping ACES của three.js (r160) + mã hoá sRGB => màu hiển thị thật trên màn hình.
+// Dùng để màu sương xa / dải chân trời khớp đúng màu chân trời của bầu trời.
+function displayColor(c, exposure, out) {
+  const k = exposure / 0.6;
+  const r = c.r * k, g = c.g * k, b = c.b * k;
+  const ir = 0.59719 * r + 0.35458 * g + 0.04823 * b;
+  const ig = 0.076 * r + 0.90834 * g + 0.01566 * b;
+  const ib = 0.0284 * r + 0.13383 * g + 0.83777 * b;
+  const f = (v) => (v * (v + 0.0245786) - 0.000090537) / (v * (0.983729 * v + 0.432951) + 0.238081);
+  const fr = f(ir), fg = f(ig), fb = f(ib);
+  const enc = (v) => { v = Math.min(1, Math.max(0, v)); return v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055; };
+  return out.setRGB(
+    enc(1.60475 * fr - 0.53108 * fg - 0.07367 * fb),
+    enc(-0.10208 * fr + 1.10813 * fg - 0.00605 * fb),
+    enc(-0.00327 * fr - 0.07276 * fg + 1.07602 * fb),
+  );
+}
+
+const SKY_VERT = `
+  varying vec3 vDir;
+  void main() { vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+const SKY_FRAG = `
+  uniform vec3 uZenith, uMid, uHorizon, uBand, uSunCol, uSunDir;
+  uniform float uGlow, uDisc, uBandAmt, uScale;
+  varying vec3 vDir;
+  void main() {
+    vec3 d = normalize(vDir);
+    float h = max(d.y, 0.0);
+    vec3 col = mix(uHorizon, uMid, smoothstep(0.0, 0.24, h));
+    col = mix(col, uZenith, smoothstep(0.16, 0.92, h));
+    col = mix(col, uHorizon * 0.9, smoothstep(0.0, -0.1, d.y));            // dưới chân trời
+    float sd = max(dot(d, uSunDir), 0.0);
+    float band = pow(sd, 2.2) * (1.0 - smoothstep(0.0, 0.34, h));           // dải ấm dọc chân trời phía mặt trời
+    col = mix(col, uBand, clamp(band * uBandAmt, 0.0, 1.0));
+    col += uSunCol * (pow(sd, 5.0) * 0.32 + pow(sd, 42.0) * 0.85) * uGlow;  // quầng sáng
+    col += uSunCol * smoothstep(0.99975, 0.9999, sd) * uDisc;                // đĩa mặt trời
+    gl_FragColor = vec4(col * uScale, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+    // nhiễu rất nhẹ để gradient không bị phân dải
+    gl_FragColor.rgb += (fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0;
+  }`;
+
 const C_SUN_DAY = new THREE.Color('#fff3df');
 const C_SUN_LOW = new THREE.Color('#ff9a50');
 const C_MOON = new THREE.Color('#8fb0ff');
@@ -95,22 +149,25 @@ export class Environment {
     this.target = WEATHER.clear;
     this.windDir = new THREE.Vector2(0.78, 0.62).normalize();
 
-    // --- bầu trời (Sky của three.js) ---
-    this.sky = new Sky();
-    this.sky.scale.setScalar(2400);
+    // --- bầu trời gradient ---
+    this.skyMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uZenith: { value: new THREE.Color() }, uMid: { value: new THREE.Color() }, uHorizon: { value: new THREE.Color() },
+        uBand: { value: new THREE.Color() }, uSunCol: { value: new THREE.Color() }, uSunDir: { value: new THREE.Vector3(0, 1, 0) },
+        uGlow: { value: 1 }, uDisc: { value: 1 }, uBandAmt: { value: 1 }, uScale: { value: 1 },
+      },
+      vertexShader: SKY_VERT, fragmentShader: SKY_FRAG,
+      side: THREE.BackSide, depthWrite: false, fog: false,
+    });
+    this.sky = new THREE.Mesh(new THREE.SphereGeometry(2400, 48, 24), this.skyMat);
     this.sky.renderOrder = -10;
     this.sky.frustumCulled = false;
     scene.add(this.sky);
+    this.skyC = { zen: new THREE.Color(), mid: new THREE.Color(), hor: new THREE.Color(), band: new THREE.Color(), sun: new THREE.Color() };
 
     // bản sao để chụp môi trường (PMREM) -> phản chiếu / ánh sáng nền lên xe, cỏ, mặt đường ướt
     this.envScene = new THREE.Scene();
-    this.envSky = new Sky();
-    this.envSky.scale.setScalar(1000);
-    this.envScene.add(this.envSky);
-    this.envDome = new THREE.Mesh(new THREE.SphereGeometry(900, 16, 8), new THREE.MeshBasicMaterial({
-      color: 0x888888, side: THREE.BackSide, transparent: true, opacity: 0, depthWrite: false, fog: false,
-    }));
-    this.envScene.add(this.envDome);
+    this.envScene.add(new THREE.Mesh(new THREE.SphereGeometry(900, 32, 16), this.skyMat));
     this.pmrem = new THREE.PMREMGenerator(renderer);
     this.envRT = null;
     this.envTimer = 0;
@@ -146,16 +203,6 @@ export class Environment {
     this.moonHalo.scale.setScalar(700);
     this.moon.add(this.moonHalo);
     scene.add(this.moon);
-
-    // quầng sáng quanh mặt trời (Sky shader chỉ có đĩa mặt trời, quầng khá yếu)
-    this.sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: glow, color: 0xffa860, transparent: true, opacity: 0, depthWrite: false,
-      blending: THREE.AdditiveBlending, fog: false,
-    }));
-    this.sunGlow.renderOrder = 2;
-    this.sunGlow2 = this.sunGlow.clone();
-    this.sunGlow2.material = this.sunGlow.material.clone();
-    scene.add(this.sunGlow, this.sunGlow2);
 
     // --- lớp mây (shader) ---
     this.cloudMat = new THREE.ShaderMaterial({
@@ -209,6 +256,7 @@ export class Environment {
     sc.left = -38; sc.right = 38; sc.top = 38; sc.bottom = -38; sc.near = 1; sc.far = 260;
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.04;
+    sc.layers.enable(3);
     scene.add(this.sun, this.sun.target);
     this.moonLight = new THREE.DirectionalLight(C_MOON, 0);
     scene.add(this.moonLight, this.moonLight.target);
@@ -222,7 +270,7 @@ export class Environment {
     this.state = {
       night: 0, lamps: 0, dayF: 1, warm: 0, light: 1, rain: 0, snow: 0, wet: 0, cover: 0, overcast: 0,
       wind: 0.3, dark: 0, drift: 0, flash: 0, windDir: this.windDir,
-      fogColor: new THREE.Color(), sunDir: new THREE.Vector3(), elevation: 0,
+      fogColor: new THREE.Color(), mistColor: new THREE.Color(), sunDir: new THREE.Vector3(), elevation: 0,
     };
     this._c = new THREE.Color();
     this._c2 = new THREE.Color();
@@ -324,25 +372,39 @@ export class Environment {
     const night = 1 - sstep(-12, 0, e);
     const warm = Math.exp(-Math.pow((e - 3) / 10, 2));
 
-    // ---- màu sương mù / chân trời ----
-    const fogC = this.state.fogColor.copy(this.tint).multiplyScalar(0.35 + 0.65 * dayF);
-    fogC.lerp(C_SUNSET, warm * 0.85 * (1 - 0.55 * over) * (1 - night) * (1 - 0.9 * dk));
-    fogC.lerp(C_NIGHT, night);
-    fogC.multiplyScalar(1 - 0.35 * dk);
-    fogC.lerp(this._c.set('#9db0d8'), flash * 0.5);
+    // ---- bầu trời gradient: nội suy mốc màu theo độ cao mặt trời ----
+    const K = SKY_KEYS;
+    let ki = 0;
+    while (ki < K.length - 2 && e > K[ki + 1][0]) ki++;
+    const ka = K[ki], kb = K[ki + 1];
+    const kt = clamp((e - ka[0]) / (kb[0] - ka[0]), 0, 1);
+    const S = this.skyC;
+    ['zen', 'mid', 'hor', 'band', 'sun'].forEach((n, j) => S[n].copy(ka[j + 1]).lerp(kb[j + 1], kt));
+    // trời âm u: chuyển dần sang gradient xám theo màu thời tiết; bão: tối hẳn
+    const light = 0.07 + 0.93 * dayF;
+    const m = clamp(over * 0.92 + dk * 0.08, 0, 1);
+    const oc = this._c.copy(this.tint).multiplyScalar(light).lerp(this._c2.set('#c9997f').multiplyScalar(light), warm * 0.35 * (1 - dk));
+    S.zen.lerp(this._lit.copy(oc).multiplyScalar(0.8), m);
+    S.mid.lerp(this._lit.copy(oc).multiplyScalar(0.92), m);
+    S.hor.lerp(oc, m);
+    S.band.lerp(oc, m);
+    const skyI = SKY_I * (1 - 0.6 * dk);
+    for (const n of ['zen', 'mid', 'hor', 'band']) S[n].multiplyScalar(skyI).add(this._c2.setRGB(0.55, 0.65, 1.0).multiplyScalar(flash * 1.6));
+    const su = this.skyMat.uniforms;
+    su.uZenith.value.copy(S.zen); su.uMid.value.copy(S.mid); su.uHorizon.value.copy(S.hor); su.uBand.value.copy(S.band);
+    su.uSunCol.value.copy(S.sun).multiplyScalar(SKY_I);
+    su.uSunDir.value.copy(sunDir);
+    su.uGlow.value = (1 - over * 0.95) * sstep(-6, 1, e) * (1 - dk);
+    su.uDisc.value = (1 - over) * sstep(-1.5, 0.5, e) * 22;
+    su.uBandAmt.value = (1 - over * 0.85) * (0.25 + 0.75 * warm) * sstep(-11, -2, e);
+    this.renderer.toneMappingExposure = (0.5 + 0.12 * warm) * (1 - 0.5 * dk);
+
+    // ---- màu sương xa = đúng màu hiển thị của chân trời (liền mạch đất - trời) ----
+    const fogC = displayColor(this._lit.copy(S.hor).lerp(S.band, 0.2 * su.uBandAmt.value), this.renderer.toneMappingExposure, this.state.fogColor);
     this.scene.fog.color.copy(fogC);
     this.scene.fog.density = w.fog;
-
-    // ---- Sky shader ----
-    const u = this.sky.material.uniforms;
-    const turb = 2.2 + warm * 5.5 + over * 3;
-    const ray = (2.0 + warm * 1.2) * (1 - over * 0.65);
-    u.turbidity.value = turb;
-    u.rayleigh.value = ray;
-    u.mieCoefficient.value = 0.005 + warm * 0.007 + over * 0.01;
-    u.mieDirectionalG.value = 0.7 + 0.12 * warm;
-    u.sunPosition.value.copy(sunDir);
-    this.renderer.toneMappingExposure = (0.5 + 0.12 * warm) * (1 - 0.5 * dk);
+    // màu sương tầng thấp: sáng hơn sương xa một chút (ban đêm / bão tối theo)
+    this.state.mistColor.copy(fogC).lerp(this._c.setRGB(0.93, 0.95, 0.97).multiplyScalar(0.1 + 0.9 * dayF * (1 - 0.6 * dk)), 0.3);
 
     // ---- ánh sáng chính (mặt trời ban ngày, mặt trăng ban đêm) ----
     this.sun.intensity = 3.4 * sstep(-2, 9, e) * w.sun;
@@ -356,7 +418,7 @@ export class Environment {
     }
     this.hemi.color.copy(fogC).lerp(this._c.set('#6f8cd0'), night * 0.75).lerp(this._c.set('#c4d4ff'), flash);
     this.hemi.groundColor.set('#3a4630').multiplyScalar(0.25 + 0.75 * dayF);
-    this.hemi.intensity = (0.12 + 0.35 * dayF + 0.28 * night) * (1 - 0.4 * over) * (1 - 0.35 * dk) + flash * 3.2;
+    this.hemi.intensity = (0.16 + 0.45 * dayF + 0.28 * night) * (1 - 0.4 * over) * (1 - 0.35 * dk) + flash * 3.2;
 
     // ---- đồ vật trên trời bám theo camera ----
     this.sky.position.copy(cam);
@@ -376,28 +438,16 @@ export class Environment {
     this.moon.material.opacity = (1 - over) * clamp((-e + 4) / 8, 0, 1);
     this.moonHalo.material.opacity = 0.5 * this.moon.material.opacity;
 
-    // quầng sáng mặt trời: mạnh nhất lúc nắng thấp, tắt khi âm u / ban đêm
-    const sg = clamp(e / 4 + 1, 0, 1) * (1 - over * 0.92) * w.sun;
-    const sgPos = this._v.copy(sunDir).multiplyScalar(2900).add(cam);
-    this.sunGlow.position.copy(sgPos);
-    this.sunGlow2.position.copy(sgPos);
-    this.sunGlow.scale.setScalar(1300 + 600 * warm);
-    this.sunGlow2.scale.setScalar(4200);
-    this.sunGlow.material.opacity = sg * (0.28 + 0.55 * warm);
-    this.sunGlow2.material.opacity = sg * (0.1 + 0.25 * warm);
-    this.sunGlow.material.color.set('#ffb070').lerp(this._c.set('#fff2d6'), 1 - warm);
-    this.sunGlow2.material.color.set('#ff8a55').lerp(this._c.set('#ffe9c4'), 1 - warm);
-    this.sunGlow.visible = this.sunGlow2.visible = sg > 0.01;
-
     // ---- mây ----
     // sáng (lit): trắng ban ngày, cam lúc hoàng hôn, xanh nhạt dưới trăng; tối (shade): xanh xám / tím nhạt
     const cw = clamp(warm * 1.1, 0, 1) * (1 - 0.92 * dk);   // bão: mây luôn xám xanh, không ngả cam
     const lit = this._lit.set('#ffffff').lerp(this._c2.set('#ff9d66'), cw).multiplyScalar(2.4 * dayF);
     lit.add(this._c2.set('#7f98d8').multiplyScalar(0.2 * night * (1 - over * 0.6)));
-    const shade = this._shade.set('#6f84a8').lerp(this._c2.set('#a86a7a'), cw * 0.75).multiplyScalar(1.05 * dayF);
-    shade.add(this._c2.set('#101b38').multiplyScalar(0.55 * night));
+    // phần tối của mây lấy theo màu trời (hài hoà với gradient), ngả tím hồng lúc hoàng hôn
+    const shade = this._shade.copy(S.mid).multiplyScalar(0.5).lerp(this._c2.copy(S.hor).multiplyScalar(0.62), 0.45)
+      .lerp(this._c2.set('#a86a7a').multiplyScalar(1.05 * dayF), cw * 0.5);
+    shade.add(this._c2.set('#101b38').multiplyScalar(0.3 * night));
     lit.multiplyScalar(1 - 0.8 * dk);
-    shade.multiplyScalar(1 - 0.7 * dk);
     this.cloudTime += dt;
     const cu = this.cloudMat.uniforms;
     cu.uTime.value = this.cloudTime;
@@ -429,26 +479,24 @@ export class Environment {
     // ---- chụp môi trường (hạn chế tần suất) ----
     this.envTimer -= dt;
     if (this.envTimer <= 0) {
-      const key = [e.toFixed(1), over.toFixed(2), dk.toFixed(2), turb.toFixed(1)].join('|');
+      const key = [e.toFixed(1), over.toFixed(2), dk.toFixed(2)].join('|');
       if (key !== this.envKey || !this.envRT) {
         this.envKey = key;
-        this._captureEnv(sunDir, turb, ray, over, dk, lit, shade);
+        this._captureEnv();
       }
       this.envTimer = 0.5;
     }
   }
 
-  _captureEnv(sunDir, turb, ray, over, dk, lit, shade) {
-    const u = this.envSky.material.uniforms;
-    u.turbidity.value = turb + 4 * over;
-    u.rayleigh.value = ray * (1 - 0.5 * over) + 0.2;
-    u.mieCoefficient.value = 0.005 + over * 0.03;
-    u.mieDirectionalG.value = 0.7;
-    u.sunPosition.value.copy(sunDir);
-    // trời âm u: phủ một vòm xám để ánh sáng nền tối đi theo màu mây
-    this.envDome.material.color.copy(shade).lerp(lit, 0.3).multiplyScalar(0.55);
-    this.envDome.material.opacity = clamp(over * 0.92 + dk * 0.08, 0, 1);
+  _captureEnv() {
+    // ánh sáng nền từ bầu trời: sáng hơn bầu trời hiển thị (giống bầu trời thật toả sáng khắp nơi)
+    const su = this.skyMat.uniforms;
+    const disc = su.uDisc.value;
+    su.uScale.value = 2.1;
+    su.uDisc.value = Math.min(disc, 4);
     const rt = this.pmrem.fromScene(this.envScene, 0, 1, 3000);
+    su.uScale.value = 1;
+    su.uDisc.value = disc;
     if (this.envRT) this.envRT.dispose();
     this.envRT = rt;
     this.scene.environment = rt.texture;

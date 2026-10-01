@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { TP, hLow, hDetail, mountains, vnoise, hash2 } from './terrain-noise.js';
 import { ROAD } from './road.js';
 import { detailTexture } from './textures.js';
+import { withMist } from './mist.js';
 import { pineGeometry, broadleafGeometry, pineLowGeometry, broadLowGeometry } from './scenery.js';
 
 // Địa hình đồi núi vô tận kiểu slowroads:
@@ -17,10 +18,11 @@ const FAR = 1e6;
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const col = (hex) => new THREE.Color(hex);   // hex sRGB -> màu tuyến tính
 const PAL = {
-  forest: { a: col('#71894a'), b: col('#a0a462'), c: col('#566f3c'), snowLine: 215, trees: true },
+  forest: { a: col('#7fa443'), b: col('#a9b85a'), c: col('#5c8036'), snowLine: 215, trees: true },
   reed: { a: col('#ad9b5c'), b: col('#c5b37b'), c: col('#8c8a50'), snowLine: 240, trees: false },
+  mountain: { a: col('#789a45'), b: col('#9eaa5a'), c: col('#557236'), snowLine: 300, trees: true },
 };
-const ROCK = col('#7a766e'), ROCK2 = col('#5f5b55'), SNOW = col('#eef2f6'), GRAVEL = col('#8f887c');
+const ROCK = col('#8a8072'), ROCK2 = col('#6b6259'), SNOW = col('#eef2f6'), GRAVEL = col('#8f887c');
 const KEEP = { 64: 1, 128: 0.5, 256: 0.22, 512: 0.08 };   // tỉ lệ cây giữ lại theo cỡ ô (tập con lồng nhau => ít "nhảy" cây)
 
 export class Terrain {
@@ -44,8 +46,11 @@ export class Terrain {
         .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.89, 0.93), uCover * smoothstep(0.55, 0.8, vUpY));');
     };
     this.treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.95 });
+    withMist(this.mat);
+    withMist(this.treeMat);
     this.geos = { pine: pineGeometry(), broad: broadleafGeometry(), pineLow: pineLowGeometry(), broadLow: broadLowGeometry() };
-    this._nd = FAR; this._ny = 0; this._d = FAR;
+    this._nd = FAR; this._ny = 0; this._nl = 0; this._d = FAR;
+    this._rc = new THREE.Color();
   }
 
   setCar(s) { this.iCar = Math.floor(s / ROAD.step); }
@@ -72,32 +77,52 @@ export class Terrain {
       if (d2 < best) { best = d2; bi = list[k]; }
     }
     if (bi < 0) return false;
-    let bd = Math.sqrt(best), by = pts[bi].y;
+    let bd = Infinity, by = pts[bi].y, bl = 0;
     for (let j = bi - 1; j <= bi; j++) {
       if (j < 0 || j + 1 >= pts.length) continue;
       const a = pts[j], b = pts[j + 1];
-      const abx = b.x - a.x, abz = b.z - a.z;
-      const t = Math.max(0, Math.min(1, ((x - a.x) * abx + (z - a.z) * abz) / (abx * abx + abz * abz)));
-      const d = Math.hypot(x - a.x - abx * t, z - a.z - abz * t);
-      if (d < bd) { bd = d; by = a.y + (b.y - a.y) * t; }
+      const abx = b.x - a.x, abz = b.z - a.z, len2 = abx * abx + abz * abz;
+      const t = Math.max(0, Math.min(1, ((x - a.x) * abx + (z - a.z) * abz) / len2));
+      const ex = x - a.x - abx * t, ez = z - a.z - abz * t;
+      const d = Math.hypot(ex, ez);
+      if (d < bd) { bd = d; by = a.y + (b.y - a.y) * t; bl = (ex * -abz + ez * abx) / Math.sqrt(len2); }
     }
-    this._nd = bd; this._ny = by;
+    this._nd = bd; this._ny = by; this._nl = bl;
     return true;
   }
 
   _height(x, z, fine, coarse) {
     const pts = this.road.pts;
-    let dm2 = Infinity;
+    const side = TP.side;
+    let dm2 = Infinity, sw = 0, swl = 0;
     for (let k = 0; k < coarse.length; k++) {
-      const p = pts[coarse[k]];
+      const i = coarse[k], p = pts[i];
       const dx = x - p.x, dz = z - p.z, d2 = dx * dx + dz * dz;
       if (d2 < dm2) dm2 = d2;
+      if (side && i + 1 < pts.length) {
+        // khoảng cách ngang có dấu (+ = bên phải), nội suy Shepard cho mượt ở khúc cua
+        const q = pts[i + 1], tx = q.x - p.x, tz = q.z - p.z, tl = Math.hypot(tx, tz) || 1;
+        const lat = (dx * -tz + dz * tx) / tl;
+        const wgt = 1 / (d2 * d2 + 1e4);
+        sw += wgt; swl += wgt * lat;
+      }
     }
     const dm = Math.sqrt(dm2);
     let h = hLow(x, z) + hDetail(x, z);
-    if (dm > 500) h += mountains(x, z) * sstep(500, 1600, dm);
     this._d = FAR;
-    if (dm - 40 < CARVE1 && this._nearFine(x, z, fine)) {
+    const near = dm - 70 < CARVE1 && this._nearFine(x, z, fine);
+    if (side) {
+      // đường núi: bên trái (lat < 0) là sườn núi dựng đứng, bên phải đổ xuống thung lũng
+      let lat = sw > 0 ? swl / sw : 0;
+      if (near) lat = this._nl + (lat - this._nl) * sstep(25, 60, this._nd);
+      const u = -lat;
+      const rough = 0.75 + 0.5 * vnoise(x / 220 + 4.4, z / 220 + 9.9);
+      if (u > 0) h += (360 * (1 - Math.exp(-u / 210)) + 0.2 * u) * rough;
+      else h -= 250 * (1 - Math.exp(u / 170));
+      h += hDetail(x * 1.7, z * 1.7) * 0.8;
+      if (Math.abs(u) > 650) h += mountains(x, z) * sstep(650, 1500, Math.abs(u));
+    } else if (dm > 500) h += mountains(x, z) * sstep(500, 1600, dm);
+    if (near) {
       this._d = this._nd;
       const t = sstep(CARVE0, CARVE1, this._nd);
       const ry = this._ny - 0.02;
@@ -108,7 +133,7 @@ export class Terrain {
 
   // độ cao mặt đất tại 1 điểm bất kỳ (dùng cho camera không chui xuống đất)
   heightAt(x, z) {
-    const r = CARVE1 + 30;
+    const r = CARVE1 + 80;
     const fine = this._samples(x - r, z - r, x + r, z + r, 1, this.iCar - 300, this.iCar + 300);
     const coarse = this._samples(x - 1700, z - 1700, x + 1700, z + 1700, 25, this.iCar - 2500, this.iCar + 4000);
     return this._height(x, z, fine, coarse);
@@ -120,7 +145,13 @@ export class Terrain {
     out.copy(pal.a).lerp(pal.b, sstep(0.3, 0.75, n1)).lerp(pal.c, sstep(0.45, 0.9, n2) * 0.55);
     const slope = 1 - ny;
     out.lerp(ROCK2, sstep(110, 220, h) * 0.45);                       // núi cao: ngả màu đá
-    out.lerp(n2 > 0.5 ? ROCK : ROCK2, sstep(0.22, 0.4, slope));       // sườn dốc: đá
+    const rockT = sstep(0.22, 0.4, slope);
+    if (rockT > 0) {
+      // vách đá: vân tầng nằm ngang + loang lổ để không trơn như nhựa
+      const strata = 0.72 + 0.4 * vnoise((x + z) / 9 + 1.3, h / 2.6) + 0.18 * (n2 - 0.5);
+      this._rc.copy(n2 > 0.5 ? ROCK : ROCK2).multiplyScalar(strata);
+      out.lerp(this._rc, rockT);
+    }
     const snow = sstep(pal.snowLine + (n1 - 0.5) * 60, pal.snowLine + 50, h) * (1 - sstep(0.5, 0.75, slope));
     out.lerp(SNOW, snow);
     out.lerp(GRAVEL, 1 - sstep(HW + 1.0, HW + 3.2, d));
@@ -129,7 +160,7 @@ export class Terrain {
 
   _build(x0, z0, size) {
     const n = SEG, st = size / n, N = n + 3;              // +1 vòng ngoài để tính pháp tuyến liền mạch
-    const pad = CARVE1 + 40;
+    const pad = CARVE1 + 80;
     const i0 = this.iCar - 2500, i1 = this.iCar + 4000;
     const fine = this._samples(x0 - pad, z0 - pad, x0 + size + pad, z0 + size + pad, 1, i0, i1);
     const coarse = this._samples(x0 - 1700, z0 - 1700, x0 + size + 1700, z0 + size + 1700, 25, i0, i1);
@@ -199,6 +230,7 @@ export class Terrain {
     geo.computeBoundingSphere();
     const mesh = new THREE.Mesh(geo, this.mat);
     mesh.receiveShadow = size <= 256;
+    mesh.castShadow = size <= 64;
     const tile = new THREE.Group();
     tile.add(mesh);
     const trees = this._trees(x0, z0, size, st, N, H, D, NY);
@@ -253,6 +285,7 @@ export class Terrain {
         m.setColorAt(i, cl);
       });
       m.castShadow = size <= 64;
+      m.layers.set(3);                 // không vẽ trong ảnh phản chiếu vũng nước
       out.push(m);
     };
     mk(pines, low ? this.geos.pineLow : this.geos.pine);

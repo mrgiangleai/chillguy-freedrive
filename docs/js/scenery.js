@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ROAD } from './road.js';
 import { roadTexture, glowTexture } from './textures.js';
+import { withMist } from './mist.js';
 
 const { halfWidth: HW, chunkLen: L, step: STEP } = ROAD;
 const AHEAD = 7;   // số chunk đường dựng phía trước xe
@@ -60,6 +61,57 @@ function lampGeometry() {
   ]);
 }
 
+// ---- shader mặt đường ướt ----
+const ROAD_PARS = `#include <common>
+varying vec3 vRW;
+uniform float uWet, uPuddle, uRain, uRainT, uReflOn, uPlaneY;
+uniform sampler2D uReflTex;
+uniform mat4 uReflMat;
+float rHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float rNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(rHash(i), rHash(i + vec2(1.0, 0.0)), f.x), mix(rHash(i + vec2(0.0, 1.0)), rHash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+// gợn sóng tròn do giọt mưa (trả về độ dốc theo x,z)
+vec2 rRipple(vec2 p, float t) {
+  vec2 g = vec2(0.0);
+  for (int k = 0; k < 2; k++) {
+    vec2 q = p * (k == 0 ? 2.3 : 3.4) + float(k) * 17.0;
+    vec2 cell = floor(q), f = fract(q);
+    vec2 c = vec2(rHash(cell + 1.7), rHash(cell + 3.1)) * 0.6 + 0.2;
+    float ph = fract(t * (0.8 + 0.4 * rHash(cell + 9.3)) + rHash(cell));
+    vec2 dv = f - c;
+    float r = length(dv), rr = ph * 0.5;
+    float ring = sin((r - rr) * 70.0) * (1.0 - ph) * (1.0 - smoothstep(0.0, 0.06, abs(r - rr)));
+    g += dv / max(r, 1e-3) * ring;
+  }
+  return g;
+}`;
+const ROAD_PUDDLE = `
+float across = vMapUv.x;
+float rut = 1.0 - smoothstep(0.0, 0.07, min(abs(across - 0.27), abs(across - 0.73)));
+float edgeW = 1.0 - smoothstep(0.0, 0.12, min(across, 1.0 - across));
+float pn = rNoise(vRW.xz * 0.2) * 0.6 + rNoise(vRW.xz * 0.85 + 3.1) * 0.4;
+float pth = 0.6 - 0.13 * rut - 0.1 * edgeW;
+float puddle = smoothstep(pth, pth + 0.05, pn) * uPuddle;
+diffuseColor.rgb *= mix(1.0, 0.32, puddle);
+vec2 ripG = rRipple(vRW.xz, uRainT) * uRain * puddle;
+`;
+const ROAD_REFL = `
+if (uReflOn > 0.5) {
+  vec4 rc = uReflMat * vec4(vRW, 1.0);
+  vec2 ruv = rc.xy / rc.w + ripG * 0.012;
+  vec3 refl = vec3(0.0);
+  float spread = mix(0.012, 0.004, puddle);                 // đường ướt (không vũng) => phản chiếu kéo dọc, nhoè
+  for (int k = 0; k < 4; k++) refl += texture2D(uReflTex, ruv + vec2(0.0, float(k) * spread)).rgb;
+  refl *= 0.25;
+  vec3 V = normalize(cameraPosition - vRW);
+  float fres = 0.02 + 0.98 * pow(1.0 - clamp(V.y, 0.0, 1.0), 5.0);
+  float fade = (1.0 - smoothstep(1.0, 4.0, abs(vRW.y - uPlaneY))) * (1.0 - smoothstep(90.0, 170.0, length(vRW - cameraPosition)));
+  float kR = clamp((puddle * 0.95 + 0.3 * uWet * (1.0 - puddle)) * fres * fade, 0.0, 1.0);
+  outgoingLight = mix(outgoingLight, refl, kR);
+}`;
+
 // Mặt đường + cọc tiêu + đèn đường, dựng theo từng đoạn (chunk) dọc đường
 export class Scenery {
   constructor(scene, road, renderer) {
@@ -75,6 +127,24 @@ export class Scenery {
       map: roadTexture(renderer), roughness: 0.9, metalness: 0,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
     });
+    // đường ướt: vũng nước + gợn sóng giọt mưa + phản chiếu (planar reflection)
+    this.roadU = {
+      uWet: { value: 0 }, uPuddle: { value: 0 }, uRain: { value: 0 }, uRainT: { value: 0 },
+      uReflTex: { value: null }, uReflMat: { value: new THREE.Matrix4() }, uReflOn: { value: 0 }, uPlaneY: { value: 0 },
+    };
+    this.roadMat.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, this.roadU);
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vRW;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\nvRW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', ROAD_PARS)
+        .replace('#include <map_fragment>', '#include <map_fragment>\n' + ROAD_PUDDLE)
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.03, puddle);')
+        .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize(normal + (viewMatrix * vec4(ripG.x, 0.0, ripG.y, 0.0)).xyz * 0.35);')
+        .replace('#include <opaque_fragment>', ROAD_REFL + '\n#include <opaque_fragment>');
+    };
+    this.railMat = new THREE.MeshStandardMaterial({ color: 0xb9bec4, roughness: 0.35, metalness: 0.75, side: THREE.DoubleSide });
     this.poleMat = new THREE.MeshStandardMaterial({ color: 0x4a4f55, roughness: 0.6, metalness: 0.4 });
     this.postMat = new THREE.MeshStandardMaterial({ color: 0xe8e8e0, roughness: 0.7 });
     this.bulbMat = new THREE.MeshBasicMaterial({ color: 0xffd9a0, toneMapped: false });
@@ -89,7 +159,9 @@ export class Scenery {
       blending: THREE.AdditiveBlending, sizeAttenuation: true,
     });
 
+    for (const m of [this.roadMat, this.poleMat, this.postMat, this.bulbMat, this.poolMat, this.glowMat, this.railMat]) withMist(m);
     this.lampGeo = lampGeometry();
+    this.railPostGeo = new THREE.BoxGeometry(0.12, 0.8, 0.12).translate(0, 0.4, 0);
     this.postGeo = new THREE.BoxGeometry(0.12, 0.95, 0.12).translate(0, 0.475, 0);
     this.poolGeo = new THREE.PlaneGeometry(15, 15).rotateX(-Math.PI / 2);
     this.bulbGeo = new THREE.SphereGeometry(0.2, 8, 6);
@@ -129,9 +201,25 @@ export class Scenery {
     this.bulbMat.color.copy(c).multiplyScalar(0.6 + 1.6 * on);
     this.poolMat.opacity = on * 0.55;
     this.glowMat.opacity = on * 0.9;
-    this.roadMat.roughness = 0.9 - 0.62 * st.wet;
-    const d = (1 - 0.45 * st.wet) * (1 - 0.25 * st.dark);
+    this.roadMat.roughness = 0.9 - 0.55 * st.wet;
+    const d = (1 - 0.4 * st.wet) * (1 - 0.25 * st.dark);
     this.roadMat.color.setRGB(d, d, d);
+    const u = this.roadU;
+    u.uWet.value = st.wet;
+    u.uPuddle.value = Math.min(1, Math.max(0, st.wet * 1.15 - 0.1));
+    u.uRain.value = st.rain;
+  }
+
+  // gắn texture phản chiếu (hoặc tắt) cho mặt đường
+  setReflection(refl, time) {
+    const u = this.roadU;
+    u.uRainT.value = time;
+    u.uReflOn.value = refl.active ? 1 : 0;
+    if (refl.active) {
+      u.uReflTex.value = refl.rt.texture;
+      u.uReflMat.value.copy(refl.texMatrix);
+      u.uPlaneY.value = refl.planeY;
+    }
   }
 
   _build(k) {
@@ -163,6 +251,7 @@ export class Scenery {
     geo.computeVertexNormals();
     const roadMesh = new THREE.Mesh(geo, this.roadMat);
     roadMesh.receiveShadow = true;
+    roadMesh.layers.set(3);
     group.add(roadMesh);
     group.userData.own = [geo];
 
@@ -170,7 +259,7 @@ export class Scenery {
     const posts = [];
     for (let s = s0; s < s0 + L; s += 12) {
       road.at(s, p);
-      for (const side of [-1, 1]) {
+      for (const side of (this.map === 'mountain' ? [-1] : [-1, 1])) {
         posts.push([p.x + Math.cos(p.th) * (HW + 0.7) * side, p.y, p.z - Math.sin(p.th) * (HW + 0.7) * side]);
       }
     }
@@ -179,13 +268,38 @@ export class Scenery {
     posts.forEach(([x, y, z], i) => { m4.makeTranslation(x, y, z); pm.setMatrixAt(i, m4); });
     group.add(pm);
 
+    // hộ lan bên vực (map đường núi): dải thép + cột mỗi 4 m
+    if (this.map === 'mountain') {
+      const RN = L / STEP, rp = new Float32Array((RN + 1) * 6), ri = [];
+      const rposts = [];
+      for (let i = 0; i <= RN; i++) {
+        const s = s0 + i * STEP;
+        road.at(s, p);
+        const x = p.x + Math.cos(p.th) * (HW + 0.55), z = p.z - Math.sin(p.th) * (HW + 0.55);
+        rp.set([x, p.y + 0.5, z, x, p.y + 0.82, z], i * 6);
+        if (i < RN) { const a = i * 2; ri.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+        if (i % 2 === 0) rposts.push([x, p.y, z]);
+      }
+      const rg = new THREE.BufferGeometry();
+      rg.setAttribute('position', new THREE.BufferAttribute(rp, 3));
+      rg.setIndex(ri);
+      rg.computeVertexNormals();
+      const rail = new THREE.Mesh(rg, this.railMat);
+      rail.castShadow = true;
+      group.add(rail);
+      group.userData.own.push(rg);
+      const rpm = new THREE.InstancedMesh(this.railPostGeo, this.poleMat, rposts.length);
+      rposts.forEach(([x, y, z], i) => { m4.makeTranslation(x, y, z); rpm.setMatrixAt(i, m4); });
+      group.add(rpm);
+    }
+
     // đèn đường (xen kẽ hai bên)
     const lamps = [], bulbs = [], pools = [];
-    const lampN = this.map === 'reed' ? 2 : 3, lampGap = L / lampN;
+    const lampN = this.map === 'reed' ? 2 : this.map === 'mountain' ? 1 : 3, lampGap = L / lampN;
     for (let i = 0; i < lampN; i++) {
       const s = s0 + i * lampGap + 6;
       road.at(s, p);
-      const side = (Math.round(s / lampGap) % 2) ? 1 : -1;
+      const side = this.map === 'mountain' ? -1 : (Math.round(s / lampGap) % 2) ? 1 : -1;
       const off = HW + 1.4;
       const x = p.x + Math.cos(p.th) * off * side;
       const z = p.z - Math.sin(p.th) * off * side;

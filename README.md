@@ -3,13 +3,15 @@
 Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (JavaScript + HTML thuần, không cần build).
 
 - **Địa hình đồi núi vô tận** (kiểu slowroads): đồi trập trùng, đường lên dốc/xuống dốc men theo địa hình, núi xa có đá & tuyết mờ trong sương xanh; sinh hoàn toàn bằng code nên tải rất nhanh
-- **Map**: mặc định là **cánh đồng cỏ lau bất tận** 🌾 (cỏ + bông trắng đung đưa theo gió, vẽ bằng GPU instancing); map thứ hai: **đồi thông** 🌲 với rừng mọc trên sườn đồi (nút 🌾 hoặc phím `N`)
+- **Map** (nút 🌾 hoặc phím `N`): **cánh đồng cỏ lau bất tận** 🌾 (mặc định) · **đồi thông** 🌲 rừng trên sườn đồi · **đường núi** ⛰️ men sườn núi: vách đá một bên, vực thung lũng có hộ lan một bên
 - **Cinematic** 🎬 (bật sẵn, tắt bằng nút 🎬 hoặc phím `K`): dải đen letterbox 2.39:1, bloom quanh mặt trời/đèn, chỉnh màu phim, hạt phim, tối viền, camera hơi rung như quay cầm tay, ống kính tele hơn và cảnh mở đầu camera lia từ thấp ra sau xe
 - **Tốc độ**: mặc định chạy chill **35 km/h** (chỉnh được 10–40 km/h); nút **⚡ Fast drive** (hoặc phím `F`) tăng lên **150 km/h** kèm hiệu ứng blur tốc độ, góc nhìn rộng ra, camera rung nhẹ, gió ù ù; bấm lại để về chill
 - **Xe**: chọn xe bằng nút 🚗 (model glTF miễn phí, đều ≤ 250k triangles)
 - **Camera**: sau xe · sát mặt đường · đầu xe · trong xe · quay quanh · từ trên cao
 - **Thời tiết**: nắng · nhiều mây · **gió lớn** · mưa · **bão** (trời âm u tối, mưa xối, sét + sấm) · tuyết · sương mù (chuyển cảnh mượt)
-- **Bầu trời**: lớp mây thật (đổi màu theo giờ & thời tiết), mây ti, quầng sáng mặt trời, sao, trăng
+- **Bầu trời gradient** phối màu theo từng giờ (xanh trong ban ngày, cam–hồng–tím lúc hoàng hôn/bình minh, xanh than ban đêm), lớp mây thật, mây ti, sao, trăng; chân trời khớp màu với sương xa
+- **Sương mù** 🌫️ (nút hoặc phím `G`): chỉnh **Độ phủ** (cao thấp, từng đám hay phủ kín) và **Độ dày**; sương đọng dày ở thung lũng và trôi theo gió
+- **Mưa**: mặt đường ướt có **vũng nước phản chiếu** xe, đèn đường, bầu trời + gợn sóng giọt mưa
 - **Thời gian**: bình minh · ban ngày · giờ vàng · hoàng hôn · ban đêm · tự động chạy hết ngày (đèn pha, đèn đường)
 - **Âm thanh**: nhạc lo-fi chill tự sinh bằng WebAudio + tiếng động cơ / gió / mưa
 
@@ -19,7 +21,7 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 | --- | --- |
 | `A` `D` / `←` `→` | đánh lái sang trái / phải (buông tay xe tự về giữa làn) |
 | `W` `S` / `↑` `↓` | tăng / giảm tốc độ (10–40 km/h) |
-| `F` | bật / tắt **Fast drive** (150 km/h) · `K` bật / tắt Cinematic |
+| `F` | bật / tắt **Fast drive** (150 km/h) · `K` bật / tắt Cinematic · `G` bảng sương mù |
 | `C` | đổi camera · `V` đổi xe · `N` đổi map · `R` đổi thời tiết · `T` đổi giờ · `M` đổi chế độ âm thanh |
 | `H` | ẩn / hiện giao diện |
 
@@ -48,7 +50,9 @@ docs/              (toàn bộ site, thư mục được GitHub Pages phục v�
   js/road.js      đường vô tận (hình học đường)
   js/terrain.js   địa hình đồi núi (quadtree nhiều mức chi tiết), đường xẻ vào sườn đồi, rừng cây
   js/terrain-noise.js hàm độ cao dùng chung CPU/GPU
-  js/scenery.js   mặt đường, cọc tiêu, đèn đường
+  js/scenery.js   mặt đường (vũng nước khi mưa), cọc tiêu, đèn đường, hộ lan
+  js/reflection.js phản chiếu vũng nước (planar reflection)
+  js/mist.js      sương mù tầng thấp chỉnh độ phủ / độ dày
   js/reeds.js     cánh đồng cỏ lau vô tận (instancing, gió, tự tránh mặt đường)
   js/world.js     bầu trời + mây, ánh sáng, giờ trong ngày, thời tiết, bão & sét
   js/particles.js mưa / tuyết / bông cỏ bay (shader)

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { plumeTexture } from './textures.js';
 import { ROAD } from './road.js';
 import { TP, TERRAIN_GLSL } from './terrain-noise.js';
+import { withMist } from './mist.js';
 
 // Cánh đồng cỏ lau vô tận.
 // - Mỗi "khóm" = vài lá cỏ cong + 1 cặp bông trắng; vẽ bằng instancing (không có cập nhật CPU theo từng khóm).
@@ -198,8 +199,10 @@ export class ReedField {
         // phát sáng nhẹ theo albedo (giả lập xuyên sáng ngược nắng)
         .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance = emissive * diffuseColor.rgb;');
     };
+    withMist(material);
     const mesh = new THREE.Mesh(g, material);
     mesh.frustumCulled = false;
+    mesh.layers.set(3);                // không vẽ trong ảnh phản chiếu vũng nước
     this.group.add(mesh);
     return mesh;
   }

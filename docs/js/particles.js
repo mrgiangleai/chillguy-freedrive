@@ -81,6 +81,7 @@ export class Precip {
         void main() { gl_FragColor = vec4(vec3(0.78, 0.84, 0.92) * uLight, uOpacity * vA); }`,
     }));
     this.rain.frustumCulled = false;
+    this.rain.layers.set(3);
     this.rain.renderOrder = 10;
     this.rain.visible = false;
     scene.add(this.rain);
@@ -95,6 +96,7 @@ export class Precip {
         transparent: true, depthWrite: false, vertexShader: POINT_VERT, fragmentShader: POINT_FRAG,
       }));
       o.frustumCulled = false;
+      o.layers.set(3);
       o.renderOrder = 10;
       o.visible = false;
       scene.add(o);

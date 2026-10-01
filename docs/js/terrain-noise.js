@@ -6,9 +6,11 @@
 export const TERRAIN_MAPS = {
   reed: { low: 9, det: 2.2, fine: 0.4, mount: 330 },
   forest: { low: 24, det: 6.5, fine: 1.1, mount: 440 },
+  // đường núi: đường leo dốc dài hơn; địa hình bên trái dựng thành núi, bên phải đổ xuống thung lũng (xem terrain.js)
+  mountain: { low: 34, det: 5.5, fine: 1.2, mount: 520, side: true },
 };
 export const TP = { id: 'reed', ...TERRAIN_MAPS.reed };
-export function setTerrainMap(id) { Object.assign(TP, TERRAIN_MAPS[id], { id }); }
+export function setTerrainMap(id) { Object.assign(TP, { side: false }, TERRAIN_MAPS[id], { id }); }
 
 export function hash2(ix, iz) {
   let h = (Math.imul(ix, 374761393) + Math.imul(iz, 668265263)) | 0;

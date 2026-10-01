@@ -9,6 +9,10 @@ import { CameraRig } from './camera.js';
 import { ChillAudio } from './audio.js';
 import { ReedField } from './reeds.js';
 import { Post } from './post.js';
+import { installMist, MIST } from './mist.js';
+import { WetReflection } from './reflection.js';
+
+installMist();   // thay shader sương của three.js (phải chạy trước khi vật liệu được biên dịch)
 import { MAPS, WEATHERS, TIMES, CAMERAS, MUSIC_MODES } from './config.js';
 
 const $ = (id) => document.getElementById(id);
@@ -29,6 +33,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, 1, 0.3, 4000);
+camera.layers.enable(3);   // layer 3: mặt đường, cỏ, cây, mưa — chỉ vẽ ở camera chính (không vẽ trong ảnh phản chiếu)
 
 const road = new Road();
 const scenery = new Scenery(scene, road, renderer);
@@ -41,6 +46,7 @@ const rig = new CameraRig(camera);
 rig.groundAt = (x, z) => terrain.heightAt(x, z);
 const audio = new ChillAudio();
 const post = new Post(renderer);
+const refl = new WetReflection(renderer);
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -48,6 +54,7 @@ function resize() {
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   post.resize();
+  refl.resize();
   layoutBars();
 }
 // dải đen letterbox: tỉ lệ khung ~2.39:1 (tối đa 13.5% chiều cao mỗi dải; màn hình rất rộng thì không có dải)
@@ -76,8 +83,8 @@ const keys = new Set();
 const pointer = { active: false, x: 0, y: 0, sx: 0, sy: 0, steer: 0, speedDelta: 0 };
 
 // ---------- giao diện ----------
-const state = { car: 0, map: 0, cam: 0, weather: 0, time: TIMES.findIndex((t) => t.id === 'golden'), music: 0, cine: true, started: false };
-const el = { cine: $('b-cine'), fast: $('b-fast'), car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
+const state = { car: 0, map: 0, cam: 0, weather: 0, time: TIMES.findIndex((t) => t.id === 'golden'), music: 0, cine: true, started: false, mistCover: 0.35, mistDens: 0.2 };
+const el = { mist: $('b-mist'), cine: $('b-cine'), fast: $('b-fast'), car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
 const setBtn = (btn, icon, text) => { btn.querySelector('b').textContent = icon; btn.querySelector('span').textContent = text; btn.title = text; };
 
 function refreshUI() {
@@ -90,6 +97,8 @@ function refreshUI() {
   setBtn(el.fast, '⚡', 'Fast drive');
   el.fast.classList.toggle('on', drive.fast);
   setBtn(el.cine, '🎬', 'Cinematic');
+  setBtn(el.mist, '🌫️', 'Sương ' + Math.round(state.mistDens * 100) + '%');
+  el.mist.classList.toggle('on', !$('mistpanel').hidden);
   el.cine.classList.toggle('on', state.cine);
 }
 
@@ -130,6 +139,16 @@ const nextMusic = () => { state.music = (state.music + 1) % MUSIC_MODES.length; 
 
 el.fast.onclick = toggleFast;
 el.cine.onclick = toggleCine;
+// bảng chỉnh sương mù: độ phủ + độ dày
+const toggleMistPanel = () => { $('mistpanel').hidden = !$('mistpanel').hidden; refreshUI(); };
+el.mist.onclick = toggleMistPanel;
+for (const [id, key] of [['mist-cover', 'mistCover'], ['mist-dens', 'mistDens']]) {
+  const input = $(id);
+  input.value = Math.round(state[key] * 100);
+  $(id + '-v').textContent = input.value;
+  input.addEventListener('input', () => { state[key] = input.value / 100; $(id + '-v').textContent = input.value; refreshUI(); });
+  input.addEventListener('change', () => input.blur());   // trả phím mũi tên lại cho việc lái xe
+}
 el.car.onclick = nextCar;
 el.map.onclick = nextMap;
 el.cam.onclick = nextCam;
@@ -152,6 +171,7 @@ window.addEventListener('keydown', (e) => {
     case 'KeyN': nextMap(); break;
     case 'KeyF': toggleFast(); break;
     case 'KeyK': toggleCine(); break;
+    case 'KeyG': toggleMistPanel(); break;
   }
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
@@ -192,6 +212,8 @@ function adaptQuality(frameMs) {
   if (avg > 34 && state.cine) {
     state.cine = false;                            // máy yếu: tắt hậu kỳ cinematic trước
     applyCine(); refreshUI();
+  } else if (avg > 34 && refl.enabled) {
+    refl.enabled = false;                          // rồi tới phản chiếu vũng nước
   } else if (avg > 34 && pixelRatio > 0.7) {
     pixelRatio = Math.max(0.7, pixelRatio - 0.25);
     renderer.setPixelRatio(pixelRatio);
@@ -281,6 +303,20 @@ function frame(now) {
     uiTimer = 0.25;
   }
 
+  // sương mù tầng thấp: theo thanh trượt, gốc theo độ cao mặt đường chỗ xe, trôi theo gió
+  MIST.uMistD.value = 0.05 * state.mistDens * state.mistDens;
+  MIST.uMistH.value = 3 + 70 * Math.pow(state.mistCover, 1.4);
+  MIST.uMistCover.value = state.mistCover;
+  MIST.uMistBase.value = drive.pos.y - 1.5;
+  MIST.uMistT.value = now / 1000;
+  MIST.uMistWind.value.copy(st.windDir).multiplyScalar(0.0012 + 0.006 * st.wind);
+  MIST.uMistColor.value.copy(st.mistColor);
+
+  // đường ướt: vẽ ảnh phản chiếu cho vũng nước (chỉ khi mưa)
+  if (st.wet > 0.05) refl.render(scene, camera, drive.pos.y + 0.05);
+  else refl.active = false;
+  scenery.setReflection(refl, now / 1000);
+
   renderer.render(scene, camera);
   // hậu kỳ (bloom/chỉnh màu/hạt phim + blur tốc độ); bỏ qua hẳn khi cả hai đều tắt
   if (cineAmt > 0.01 || drive.fx > 0.015) post.render(now / 1000, cineAmt, drive.fx);
@@ -321,4 +357,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { forceCine: (v) => { cineAmt = v; }, post, toggleFast, toggleCine, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, road };
+window.__app = { refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, toggleCine, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, road };
