@@ -22,31 +22,32 @@ Trên điện thoại: kéo ngón tay sang trái/phải để lái, kéo lên/xu
 ## Chạy trên GitHub Pages
 
 1. Vào **Settings → Pages**.
-2. **Source**: *Deploy from a branch* → chọn branch chứa code này, thư mục **/ (root)** → Save.
+2. **Source**: *Deploy from a branch* → chọn branch chứa code này, thư mục **/docs** → Save.
 3. Chờ ~1 phút, mở `https://<tên-user>.github.io/chillguy-freedrive/`.
 
-Chạy thử trên máy: `npx http-server -p 8080` (hoặc `python3 -m http.server 8080`) rồi mở `http://localhost:8080`.
+Chạy thử trên máy: `npx http-server docs -p 8080` (hoặc `python3 -m http.server 8080 -d docs`) rồi mở `http://localhost:8080`.
 (Phải chạy qua server, mở thẳng file `index.html` sẽ không tải được module.)
 
 ## Thêm xe Mustang 1967
 
-Slot Mustang đã được cấu hình sẵn: tải file `.glb` về, đặt tên **`assets/models/mustang.glb`** là app tự nhận và đặt làm xe đầu tiên (mặc định).
+Slot Mustang đã được cấu hình sẵn: tải file `.glb` về, đặt tên **`docs/assets/models/mustang.glb`** là app tự nhận và đặt làm xe đầu tiên (mặc định).
 Nếu xe bị quay ngược đầu/đuôi, đặt `flip: true` trong `js/config.js`.
 
 ## Cấu trúc
 
 ```
-index.html, style.css
-js/main.js      vòng lặp, điều khiển, giao diện
-js/road.js      đường vô tận (hình học đường)
-js/scenery.js   mặt đường, cây, đèn đường, núi, mặt đất
-js/world.js     bầu trời, ánh sáng, giờ trong ngày, thời tiết
-js/particles.js mưa / tuyết (shader)
-js/cars.js      tải & chuẩn hoá model xe, bánh xe quay, đèn pha
-js/camera.js    các chế độ camera
-js/audio.js     nhạc lo-fi + âm thanh môi trường
-vendor/three    three.js r160 (đã đóng gói sẵn, chạy được không cần mạng ngoài)
-assets/         model xe + texture
+docs/              (toàn bộ site, thư mục được GitHub Pages phục vụ)
+  index.html, style.css
+  js/main.js      vòng lặp, điều khiển, giao diện
+  js/road.js      đường vô tận (hình học đường)
+  js/scenery.js   mặt đường, cây, đèn đường, núi, mặt đất
+  js/world.js     bầu trời, ánh sáng, giờ trong ngày, thời tiết
+  js/particles.js mưa / tuyết (shader)
+  js/cars.js      tải & chuẩn hoá model xe, bánh xe quay, đèn pha
+  js/camera.js    các chế độ camera
+  js/audio.js     nhạc lo-fi + âm thanh môi trường
+  vendor/three    three.js r160 (đã đóng gói sẵn, chạy được không cần mạng ngoài)
+  assets/         model xe + texture
 ```
 
 ## Credits & giấy phép
