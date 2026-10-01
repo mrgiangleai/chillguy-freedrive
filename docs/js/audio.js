@@ -169,15 +169,15 @@ export class ChillAudio {
   }
 
   // speed (m/s), rain/snow/wind/dark 0..1
-  setAmbient({ speed, rain, snow, wind = 0, dark = 0 }) {
+  setAmbient({ speed, rain, snow, wind = 0, dark = 0, fx = 0 }) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime, k = 0.25;
     const on = this.mode === 0 ? 1 : 0;
     this.ambGain.gain.setTargetAtTime(on, t, 0.4);
     this.rainG.gain.setTargetAtTime(rain * 0.2 * (1 + 0.6 * dark), t, k);
-    this.windG.gain.setTargetAtTime(0.012 + speed * 0.0016 + snow * 0.05 + wind * wind * 0.1, t, k);
+    this.windG.gain.setTargetAtTime(0.012 + speed * 0.0016 + snow * 0.05 + wind * wind * 0.1 + fx * 0.085, t, k);
     this.gustG.gain.setTargetAtTime(wind * wind * 0.07, t, k);
-    this.tireG.gain.setTargetAtTime(Math.min(speed * 0.0011, 0.04) * (1 + rain), t, k);
+    this.tireG.gain.setTargetAtTime(Math.min(speed * 0.0011, 0.05) * (1 + rain), t, k);
     const f = 30 + speed * 2.2;
     this.eng[0].frequency.setTargetAtTime(f, t, 0.15);
     this.eng[1].frequency.setTargetAtTime(f * 2, t, 0.15);

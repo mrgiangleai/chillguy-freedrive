@@ -6,10 +6,16 @@ import { Cars } from './cars.js';
 import { CameraRig } from './camera.js';
 import { ChillAudio } from './audio.js';
 import { ReedField } from './reeds.js';
+import { Post } from './post.js';
 import { MAPS, WEATHERS, TIMES, CAMERAS, MUSIC_MODES } from './config.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+
+// tốc độ (m/s). Chill: 10–40 km/h (mặc định 35). Fast drive: 150 km/h.
+const KMH = 1 / 3.6;
+const CHILL_DEFAULT = 35 * KMH, CHILL_MIN = 10 * KMH, CHILL_MAX = 40 * KMH, FAST_SPEED = 150 * KMH;
 
 // ---------- renderer / scene ----------
 const canvas = $('c');
@@ -31,12 +37,21 @@ if (window.matchMedia?.('(pointer: coarse)').matches) reeds.setDensity(0.5);   /
 const cars = new Cars(scene);
 const rig = new CameraRig(camera);
 const audio = new ChillAudio();
+const post = new Post(renderer);
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  post.resize();
+  layoutBars();
+}
+// dải đen letterbox: tỉ lệ khung ~2.39:1 (tối đa 13.5% chiều cao mỗi dải; màn hình rất rộng thì không có dải)
+function layoutBars() {
+  const w = window.innerWidth, h = window.innerHeight;
+  const bar = Math.min(h * 0.135, Math.max(0, (h - w / 2.39) / 2));
+  document.documentElement.style.setProperty('--bar', bar.toFixed(1) + 'px');
 }
 window.addEventListener('resize', resize);
 resize();
@@ -45,8 +60,10 @@ resize();
 const drive = {
   s: 150,          // độ dài cung trên đường
   d: 0,            // lệch ngang so với tim đường (m, + = bên phải)
-  v: 20,           // tốc độ (m/s)
-  target: 22,      // tốc độ mong muốn (~80 km/h)
+  v: CHILL_DEFAULT,        // tốc độ (m/s)
+  target: CHILL_DEFAULT,   // tốc độ mong muốn ở chế độ chill
+  fast: false,             // Fast drive bật / tắt
+  fx: 0,                   // cường độ hiệu ứng tốc độ 0..1 (theo tốc độ thực tế)
   latVel: 0,
   pos: new THREE.Vector3(),
   yaw: 0,
@@ -55,8 +72,8 @@ const keys = new Set();
 const pointer = { active: false, x: 0, y: 0, sx: 0, sy: 0, steer: 0, speedDelta: 0 };
 
 // ---------- giao diện ----------
-const state = { car: 0, map: 0, cam: 0, weather: 0, time: TIMES.findIndex((t) => t.id === 'golden'), music: 0 };
-const el = { car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
+const state = { car: 0, map: 0, cam: 0, weather: 0, time: TIMES.findIndex((t) => t.id === 'golden'), music: 0, cine: true, started: false };
+const el = { cine: $('b-cine'), fast: $('b-fast'), car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
 const setBtn = (btn, icon, text) => { btn.querySelector('b').textContent = icon; btn.querySelector('span').textContent = text; btn.title = text; };
 
 function refreshUI() {
@@ -66,6 +83,10 @@ function refreshUI() {
   setBtn(el.weather, WEATHERS[state.weather].icon, WEATHERS[state.weather].name);
   setBtn(el.time, TIMES[state.time].icon, TIMES[state.time].name);
   setBtn(el.music, MUSIC_MODES[state.music].icon, MUSIC_MODES[state.music].name);
+  setBtn(el.fast, '⚡', 'Fast drive');
+  el.fast.classList.toggle('on', drive.fast);
+  setBtn(el.cine, '🎬', 'Cinematic');
+  el.cine.classList.toggle('on', state.cine);
 }
 
 async function chooseCar(i) {
@@ -94,8 +115,13 @@ const nextTime = () => {
   env.setTime(TIMES[state.time].hour);
   refreshUI();
 };
+const applyCine = () => document.body.classList.toggle('cine', state.cine && state.started);
+const toggleCine = () => { state.cine = !state.cine; applyCine(); refreshUI(); };
+const toggleFast = () => { drive.fast = !drive.fast; refreshUI(); };
 const nextMusic = () => { state.music = (state.music + 1) % MUSIC_MODES.length; audio.setMode(state.music); refreshUI(); };
 
+el.fast.onclick = toggleFast;
+el.cine.onclick = toggleCine;
 el.car.onclick = nextCar;
 el.map.onclick = nextMap;
 el.cam.onclick = nextCam;
@@ -116,6 +142,8 @@ window.addEventListener('keydown', (e) => {
     case 'KeyR': nextWeather(); break;
     case 'KeyV': nextCar(); break;
     case 'KeyN': nextMap(); break;
+    case 'KeyF': toggleFast(); break;
+    case 'KeyK': toggleCine(); break;
   }
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
@@ -153,7 +181,10 @@ function adaptQuality(frameMs) {
   if (perf.n < 90) return;
   const avg = perf.sum / perf.n;
   perf.sum = 0; perf.n = 0;
-  if (avg > 34 && pixelRatio > 0.7) {
+  if (avg > 34 && state.cine) {
+    state.cine = false;                            // máy yếu: tắt hậu kỳ cinematic trước
+    applyCine(); refreshUI();
+  } else if (avg > 34 && pixelRatio > 0.7) {
     pixelRatio = Math.max(0.7, pixelRatio - 0.25);
     renderer.setPixelRatio(pixelRatio);
     resize();
@@ -165,6 +196,7 @@ function adaptQuality(frameMs) {
 const _right = new THREE.Vector3();
 let last = performance.now();
 let uiTimer = 0;
+let cineAmt = 0;
 const roadPt = {};
 
 function frame(now) {
@@ -176,15 +208,18 @@ function frame(now) {
   const left = keys.has('ArrowLeft') || keys.has('KeyA');
   const right = keys.has('ArrowRight') || keys.has('KeyD');
   const steer = clamp((right ? 1 : 0) - (left ? 1 : 0) + pointer.steer, -1, 1);
-  if (keys.has('ArrowUp') || keys.has('KeyW')) drive.target += 12 * dt;
-  if (keys.has('ArrowDown') || keys.has('KeyS')) drive.target -= 18 * dt;
-  drive.target = clamp(drive.target + pointer.speedDelta * 14 * dt, 0, 55);
-  drive.v += clamp(drive.target - drive.v, -10 * dt, 5 * dt);
+  if (keys.has('ArrowUp') || keys.has('KeyW')) drive.target += 2.5 * dt;
+  if (keys.has('ArrowDown') || keys.has('KeyS')) drive.target -= 2.5 * dt;
+  drive.target = clamp(drive.target + pointer.speedDelta * 2.5 * dt, CHILL_MIN, CHILL_MAX);
+  const goal = drive.fast ? FAST_SPEED : drive.target;
+  drive.v += clamp(goal - drive.v, -8 * dt, 6 * dt);
   drive.s += drive.v * dt;
+  // hiệu ứng tốc độ tăng dần theo tốc độ thực tế (không có gì dưới ~55 km/h)
+  drive.fx += (sstep(55 * KMH, FAST_SPEED, drive.v) - drive.fx) * (1 - Math.exp(-dt * 4));
 
   // lệch ngang: lái tay, hoặc tự về giữa làn khi buông tay
   const lane = drive.d >= 0 ? ROAD.halfWidth / 2 : -ROAD.halfWidth / 2;
-  const wantLat = steer !== 0 ? steer * (3.4 + drive.v * 0.05) : (lane - drive.d) * 0.8;
+  const wantLat = steer !== 0 ? steer * (2.2 + drive.v * 0.06) : (lane - drive.d) * 0.8;
   drive.latVel += (wantLat - drive.latVel) * (1 - Math.exp(-dt * 5));
   drive.d += drive.latVel * dt;
   const lim = ROAD.halfWidth - 0.9;
@@ -195,8 +230,10 @@ function frame(now) {
   drive.pos.set(roadPt.x + Math.cos(roadPt.th) * drive.d, 0, roadPt.z - Math.sin(roadPt.th) * drive.d);
   drive.yaw = roadPt.th - Math.atan2(drive.latVel, Math.max(drive.v, 4)) * 0.9;
 
+  cineAmt += ((state.cine && state.started ? 1 : 0) - cineAmt) * (1 - Math.exp(-dt * 2.5));
+  rig.cine = cineAmt;
   cars.update(dt, { pos: drive.pos, yaw: drive.yaw, speed: drive.v, latVel: drive.latVel });
-  rig.update(dt, { pos: drive.pos, yaw: drive.yaw, speed: drive.v, dim: cars.dim });
+  rig.update(dt, { pos: drive.pos, yaw: drive.yaw, speed: drive.v, dim: cars.dim, fx: drive.fx, side: drive.d >= 0 ? -1 : 1 });
 
   // môi trường
   env.update(dt, drive.pos);
@@ -207,14 +244,22 @@ function frame(now) {
   backdrop.update(drive.pos);
   backdrop.apply(st);
   cars.setLights(st.lamps);
-  audio.setAmbient({ speed: drive.v, rain: st.rain, snow: st.snow, wind: st.wind, dark: st.dark });
+  audio.setAmbient({ speed: drive.v, rain: st.rain, snow: st.snow, wind: st.wind, dark: st.dark, fx: drive.fx });
 
-  // gió mạnh / bão: camera rung nhẹ
-  const shake = 0.028 * Math.max(0, st.wind - 0.55) / 0.45;
+  // gió mạnh / bão / tốc độ cao: camera rung nhẹ
+  const shake = Math.max(0.028 * Math.max(0, st.wind - 0.55) / 0.45, 0.016 * drive.fx * drive.fx);
   if (shake > 0) {
     const t = now / 1000;
     camera.position.x += (Math.sin(t * 11.3) + Math.sin(t * 17.9) * 0.6) * shake;
     camera.position.y += (Math.sin(t * 13.7) + Math.sin(t * 23.1) * 0.5) * shake * 0.7;
+  }
+
+  // cinematic: camera hơi "thở" và nghiêng nhẹ như quay cầm tay
+  if (cineAmt > 0.01) {
+    const t = now / 1000;
+    camera.position.x += Math.sin(t * 0.37) * 0.014 * cineAmt;
+    camera.position.y += Math.sin(t * 0.53) * 0.012 * cineAmt;
+    camera.rotateZ((Math.sin(t * 0.31) * 0.0045 + Math.sin(t * 0.83) * 0.002) * cineAmt);
   }
 
   uiTimer -= dt;
@@ -225,6 +270,8 @@ function frame(now) {
   }
 
   renderer.render(scene, camera);
+  // hậu kỳ (bloom/chỉnh màu/hạt phim + blur tốc độ); bỏ qua hẳn khi cả hai đều tắt
+  if (cineAmt > 0.01 || drive.fx > 0.015) post.render(now / 1000, cineAmt, drive.fx);
   requestAnimationFrame(frame);
 }
 
@@ -243,6 +290,11 @@ async function init() {
   $('hint').textContent = 'Chạm hoặc nhấn phím bất kỳ để bắt đầu';
   const go = () => {
     start.classList.add('gone');
+    state.started = true;
+    applyCine();
+    rig.startIntro();                              // camera lia vòng ra sau xe
+    document.body.classList.add('intro');
+    setTimeout(() => document.body.classList.remove('intro'), 6000);
     audio.start().catch((e) => console.warn('Audio:', e));
     window.removeEventListener('keydown', go);
     start.removeEventListener('pointerdown', go);
@@ -253,4 +305,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, backdrop, reeds };
+window.__app = { forceCine: (v) => { cineAmt = v; }, post, toggleFast, toggleCine, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, backdrop, reeds };

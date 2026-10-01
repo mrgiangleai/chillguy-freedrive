@@ -3,6 +3,8 @@
 Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (JavaScript + HTML thuần, không cần build).
 
 - **Map**: mặc định là **cánh đồng cỏ lau bất tận** 🌾 (cỏ + bông trắng đung đưa theo gió, vẽ bằng GPU instancing); map thứ hai: rừng thông 🌲 (nút 🌾 hoặc phím `N`)
+- **Cinematic** 🎬 (bật sẵn, tắt bằng nút 🎬 hoặc phím `K`): dải đen letterbox 2.39:1, bloom quanh mặt trời/đèn, chỉnh màu phim, hạt phim, tối viền, camera hơi rung như quay cầm tay, ống kính tele hơn và cảnh mở đầu camera lia từ thấp ra sau xe
+- **Tốc độ**: mặc định chạy chill **35 km/h** (chỉnh được 10–40 km/h); nút **⚡ Fast drive** (hoặc phím `F`) tăng lên **150 km/h** kèm hiệu ứng blur tốc độ, góc nhìn rộng ra, camera rung nhẹ, gió ù ù; bấm lại để về chill
 - **Xe**: chọn xe bằng nút 🚗 (model glTF miễn phí, đều ≤ 250k triangles)
 - **Camera**: sau xe · sát mặt đường · đầu xe · trong xe · quay quanh · từ trên cao
 - **Thời tiết**: nắng · nhiều mây · **gió lớn** · mưa · **bão** (trời âm u tối, mưa xối, sét + sấm) · tuyết · sương mù (chuyển cảnh mượt)
@@ -15,7 +17,8 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 | Phím | Tác dụng |
 | --- | --- |
 | `A` `D` / `←` `→` | đánh lái sang trái / phải (buông tay xe tự về giữa làn) |
-| `W` `S` / `↑` `↓` | tăng / giảm tốc độ |
+| `W` `S` / `↑` `↓` | tăng / giảm tốc độ (10–40 km/h) |
+| `F` | bật / tắt **Fast drive** (150 km/h) · `K` bật / tắt Cinematic |
 | `C` | đổi camera · `V` đổi xe · `N` đổi map · `R` đổi thời tiết · `T` đổi giờ · `M` đổi chế độ âm thanh |
 | `H` | ẩn / hiện giao diện |
 
@@ -48,6 +51,7 @@ docs/              (toàn bộ site, thư mục được GitHub Pages phục v�
   js/particles.js mưa / tuyết / bông cỏ bay (shader)
   js/cars.js      tải & chuẩn hoá model xe, bánh xe quay, đèn pha
   js/camera.js    các chế độ camera
+  js/post.js      hậu kỳ: bloom, chỉnh màu phim, grain (Cinematic) + blur tốc độ (Fast drive)
   js/audio.js     nhạc lo-fi + âm thanh môi trường
   vendor/three    three.js r160 (đã đóng gói sẵn, chạy được không cần mạng ngoài)
   assets/         model xe + texture

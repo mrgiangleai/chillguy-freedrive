@@ -12,6 +12,7 @@
 </head>
 <body>
   <canvas id="c"></canvas>
+  <div id="bars"><div></div><div></div></div>
 
   <div id="start">
     <div class="title">Chill Drive</div>
@@ -21,12 +22,14 @@
   <div id="hud">
     <div id="stats"><span id="speed">0</span> km/h <i>·</i> <span id="clock">--:--</span></div>
     <nav id="bar">
+      <button id="b-fast"><b>⚡</b><span></span></button>
       <button id="b-car"><b>🚗</b><span></span></button>
       <button id="b-map"><b>🌾</b><span></span></button>
       <button id="b-cam"><b>🎥</b><span></span></button>
       <button id="b-weather"><b>☀️</b><span></span></button>
       <button id="b-time"><b>🌇</b><span></span></button>
       <button id="b-music"><b>🎵</b><span></span></button>
+      <button id="b-cine"><b>🎬</b><span></span></button>
     </nav>
     <button id="b-info" aria-label="Credits">ⓘ</button>
   </div>
@@ -39,7 +42,7 @@
       <li>Cesium Milk Truck — Cesium, CC BY 4.0 (Khronos glTF Sample Assets)</li>
       <li>Texture cỏ — three.js examples (MIT)</li>
     </ul>
-    <p class="keys">A/D hoặc ←/→ lái · W/S hoặc ↑/↓ tốc độ · C camera · N map · H ẩn giao diện</p>
+    <p class="keys">A/D hoặc ←/→ lái · W/S hoặc ↑/↓ tốc độ · C camera · N map · F fast drive · K cinematic · H ẩn giao diện</p>
   </div>
 
   <script type="module" src="js/main.js"></script>
