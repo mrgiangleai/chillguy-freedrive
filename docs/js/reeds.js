@@ -53,6 +53,34 @@ function leafGeometry() {
   return g;
 }
 
+// búi cỏ xanh thấp (map đồi cỏ kiểu slowroads)
+function grassGeometry() {
+  const r = rng(11);
+  const pos = [], nor = [], col = [], idx = [];
+  const cBase = new THREE.Color(0x3c5a20), cMid = new THREE.Color(0x6f9434), cTip = new THREE.Color(0xb9cc62);
+  const push = (x, y, z, c, n) => { pos.push(x, y, z); col.push(c.r, c.g, c.b); nor.push(n[0], n[1], n[2]); };
+  const BL = 5;
+  for (let b = 0; b < BL; b++) {
+    const a = (b / BL) * Math.PI * 2 + (r() - 0.5) * 0.9;
+    const dx = Math.cos(a), dz = Math.sin(a), px = -dz, pz = dx;
+    const H = 0.32 + r() * 0.45, L = 0.05 + r() * 0.18, ox = (r() - 0.5) * 0.25, oz = (r() - 0.5) * 0.25;
+    const n = new THREE.Vector3(dx * 0.3, 1, dz * 0.3).normalize().toArray();
+    const v0 = pos.length / 3;
+    push(ox - px * 0.03, 0, oz - pz * 0.03, cBase, n);
+    push(ox + px * 0.03, 0, oz + pz * 0.03, cBase, n);
+    push(ox + dx * L * 0.4 - px * 0.024, H * 0.55, oz + dz * L * 0.4 - pz * 0.024, cMid, n);
+    push(ox + dx * L * 0.4 + px * 0.024, H * 0.55, oz + dz * L * 0.4 + pz * 0.024, cMid, n);
+    push(ox + dx * L, H, oz + dz * L, cTip, n);
+    idx.push(v0, v0 + 1, v0 + 2, v0 + 1, v0 + 3, v0 + 2, v0 + 2, v0 + 3, v0 + 4);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
+  return g;
+}
+
 function plumeGeometry() {
   const pos = [], nor = [], uv = [], idx = [];
   const quad = (yaw, top, w, h, lean) => {
@@ -84,7 +112,7 @@ uniform vec3 uCam;
 uniform float uTime, uWind, uCell, uScale, uIn0, uIn1, uOut0, uOut1, uCorr;
 uniform vec2 uWindDir;
 uniform vec3 uRoad[${ROAD_PTS}];     // (x, y, z) của tim đường
-uniform float uCarve0, uCarve1;
+uniform float uCarve0, uCarve1, uTipH;
 ${TERRAIN_GLSL}
 // khoảng cách tới đường + độ cao mặt đường tại điểm gần nhất
 float roadDist(vec2 p, out float ry) {
@@ -114,7 +142,7 @@ gy = mix(ry - 0.02, gy, smoothstep(uCarve0, uCarve1, rd));
 float h = (0.72 + 0.6 * aSeed.w) * uScale * vis;
 float ang = aSeed.z * 6.2831853;
 float cs = cos(ang), sn = sin(ang);
-float tip = clamp(position.y / 1.95, 0.0, 1.0);
+float tip = clamp(position.y / uTipH, 0.0, 1.0);
 vec3 transformed = vec3(position.x * cs - position.z * sn, position.y, position.x * sn + position.z * cs) * h;
 // gió: sóng chạy theo hướng gió + sóng ngang + rung
 float phase = dot(wp, uWindDir) * 0.07 - uTime * (1.1 + uWind * 1.7);
@@ -129,7 +157,10 @@ transformed += vec3(wp.x, gy, wp.y);
 `;
 
 export class ReedField {
-  constructor(scene, renderer) {
+  // kind: 'reed' (cỏ lau cao có bông) | 'grass' (búi cỏ xanh thấp)
+  constructor(scene, renderer, kind = 'reed') {
+    this.kind = kind;
+    const grass = kind === 'grass';
     this.group = new THREE.Group();
     scene.add(this.group);
     this.density = 1;
@@ -140,18 +171,22 @@ export class ReedField {
       uWind: { value: 0.3 },
       uWindDir: { value: new THREE.Vector2(0.78, 0.62).normalize() },
       uRoad: { value: this.roadPts },
-      uCorr: { value: ROAD.halfWidth + 1.0 },
+      uCorr: { value: ROAD.halfWidth + (grass ? 0.3 : 1.0) },
+      uTipH: { value: grass ? 0.8 : 1.95 },
       uCarve0: { value: ROAD.halfWidth + 1.2 }, uCarve1: { value: ROAD.halfWidth + 16 },
       uTLow: { value: TP.low }, uTDet: { value: TP.det }, uTFine: { value: TP.fine },
     };
 
-    this.leafGeo = leafGeometry();
-    this.plumeGeo = plumeGeometry();
-    const plumeMap = plumeTexture();
-    plumeMap.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+    this.leafGeo = grass ? grassGeometry() : leafGeometry();
+    this.plumeGeo = grass ? null : plumeGeometry();
+    const plumeMap = grass ? null : plumeTexture();
+    if (plumeMap) plumeMap.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
 
     // [cell (m), số khóm, thang tỉ lệ, vào mờ, vào đủ, ra đầu, ra hết]
-    const layers = [
+    const layers = grass ? [
+      { cell: 64, count: 16000, scale: 1.0, in0: -1, in1: 0, out0: 22, out1: 32, seed: 3 },
+      { cell: 220, count: 8000, scale: 1.8, in0: 20, in1: 34, out0: 75, out1: 105, seed: 4 },
+    ] : [
       { cell: 86, count: 19000, scale: 1.0, in0: -1, in1: 0, out0: 30, out1: 43, seed: 1 },
       { cell: 340, count: 11000, scale: 1.55, in0: 27, in1: 46, out0: 118, out1: 165, seed: 2 },
     ];
@@ -167,6 +202,7 @@ export class ReedField {
       const leaves = this._mesh(this.leafGeo, attr, L.count, uni, new THREE.MeshLambertMaterial({
         vertexColors: true, side: THREE.DoubleSide,
       }), true);
+      if (grass) return { max: L.count, meshes: [leaves] };
       const plumes = this._mesh(this.plumeGeo, attr, L.count, uni, new THREE.MeshLambertMaterial({
         map: plumeMap, side: THREE.DoubleSide, alphaTest: 0.2, alphaToCoverage: true,
       }), false);
@@ -229,7 +265,7 @@ export class ReedField {
       this.roadPts[k].set(p.x, p.y, p.z);
     }
     // ánh sáng "xuyên" ngược nắng: bông & lá ngả vàng cam khi nắng thấp
-    const glow = 0.5 * st.dayF * (1 - st.overcast * 0.85) * (0.4 + 0.6 * st.warm);
+    const glow = (this.kind === 'grass' ? 0.28 : 0.5) * st.dayF * (1 - st.overcast * 0.85) * (0.4 + 0.6 * st.warm);
     const e = new THREE.Color(1.0, 0.72 + 0.2 * (1 - st.warm), 0.42 + 0.45 * (1 - st.warm)).multiplyScalar(glow);
     // Lambert không dùng ánh sáng môi trường => thêm một ít sáng nền để cỏ không đen kịt khi âm u / ban đêm
     const amb = (0.2 * st.dayF * (1 - 0.55 * st.dark) + 0.05 * st.night) * (0.6 + 0.4 * st.overcast) + st.flash * 0.9;
@@ -237,7 +273,7 @@ export class ReedField {
     const wet = 1 - 0.28 * st.wet;
     for (const l of this.layers) {
       l.meshes[0].material.emissive.copy(e);
-      l.meshes[1].material.emissive.copy(e).multiplyScalar(1.7);   // bông trắng phát sáng mạnh hơn lá
+      if (l.meshes[1]) l.meshes[1].material.emissive.copy(e).multiplyScalar(1.7);   // bông trắng phát sáng mạnh hơn lá
     }
     for (const m of this.mats) m.color.setScalar(wet * (1 - 0.15 * st.dark));
   }

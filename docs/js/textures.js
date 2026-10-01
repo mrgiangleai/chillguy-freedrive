@@ -178,3 +178,51 @@ export function detailTexture(renderer) {
   t.anisotropy = renderer.capabilities.getMaxAnisotropy();
   return t;
 }
+
+// Atlas lá cây (512x256): trái = tán cây lá rộng, giữa = cây thông, góc phải trên = vỏ cây.
+// Nền trong suốt => dùng alphaTest trên các tấm phẳng (kiểu "cây tấm" như slowroads).
+export function foliageAtlas() {
+  const W = 512, H = 256;
+  const [c, g] = canvas(W, H);
+  const r = rng(77);
+  // --- tán lá rộng: nhiều chùm lá tròn gom thành khối không đều ---
+  const blobs = [];
+  for (let i = 0; i < 9; i++) {
+    const a = r() * Math.PI * 2, d = r() * 62;
+    blobs.push([128 + Math.cos(a) * d * 1.15, 120 + Math.sin(a) * d * 0.85, 38 + r() * 34]);
+  }
+  const inside = (x, y) => blobs.some(([bx, by, br]) => (x - bx) ** 2 + (y - by) ** 2 < br * br);
+  const leafCols = ['#2f5522', '#3d6a2a', '#4c7d32', '#5c9038', '#6fa443', '#87b851'];
+  for (let i = 0; i < 2600; i++) {
+    const x = 8 + r() * 240, y = 8 + r() * 230;
+    if (!inside(x, y)) continue;
+    const top = 1 - y / 256;                                     // phía trên sáng hơn
+    const k = Math.min(leafCols.length - 1, Math.floor((r() * 0.7 + top * 0.55) * leafCols.length));
+    g.fillStyle = leafCols[k];
+    g.beginPath();
+    g.ellipse(x, y, 3 + r() * 5, 2 + r() * 3.5, r() * Math.PI, 0, Math.PI * 2);
+    g.fill();
+  }
+  // --- cây thông: các tầng cành rủ xuống, hẹp dần lên ngọn ---
+  const px = 320;
+  const needle = ['#22402a', '#2b4f31', '#355e39', '#3f6d41', '#4d7d4a'];
+  for (let i = 0; i < 2400; i++) {
+    const t = Math.pow(r(), 0.8);                                // 0 = ngọn, 1 = gốc
+    const y = 6 + t * 236;
+    const tier = (t * 7) % 1;                                    // mỗi tầng cành rộng dần rồi thu lại
+    const hw = (6 + t * 58) * (0.55 + 0.45 * tier);
+    const x0 = px + (r() * 2 - 1) * hw * 0.25;
+    const x1 = px + (r() * 2 - 1) * hw;
+    const y1 = y + 4 + Math.abs(x1 - px) * 0.18 + r() * 6;       // cành rủ xuống ở ngoài mép
+    g.strokeStyle = needle[Math.min(needle.length - 1, Math.floor((r() * 0.8 + (1 - t) * 0.4) * needle.length))];
+    g.lineWidth = 1 + r() * 2.2;
+    g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y1); g.stroke();
+  }
+  // --- vỏ cây ---
+  g.fillStyle = '#5a4434';
+  g.fillRect(448, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}

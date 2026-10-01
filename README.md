@@ -3,7 +3,7 @@
 Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (JavaScript + HTML thuần, không cần build).
 
 - **Địa hình đồi núi vô tận** (kiểu slowroads): đồi trập trùng, đường lên dốc/xuống dốc men theo địa hình, núi xa có đá & tuyết mờ trong sương xanh; sinh hoàn toàn bằng code nên tải rất nhanh
-- **Map** (nút 🌾 hoặc phím `N`): **cánh đồng cỏ lau bất tận** 🌾 (mặc định) · **đồi thông** 🌲 rừng trên sườn đồi · **đường núi** ⛰️ men sườn núi: vách đá một bên, vực thung lũng có hộ lan một bên
+- **Map** (nút 🌾 hoặc phím `N`): **cánh đồng cỏ lau bất tận** 🌾 (mặc định) · **đồi thông** 🌲 kiểu slowroads: đồi cỏ xanh với búi cỏ mọc dày sát mép đường, cây có tán lá kết cấu, mảng rừng sẫm trên đồi xa · **đường núi** ⛰️ men sườn núi: vách đá một bên, vực thung lũng có hộ lan một bên
 - **Cinematic** 🎬 (bật sẵn, tắt bằng nút 🎬 hoặc phím `K`): dải đen letterbox 2.39:1, bloom quanh mặt trời/đèn, chỉnh màu phim, hạt phim, tối viền, camera hơi rung như quay cầm tay, ống kính tele hơn và cảnh mở đầu camera lia từ thấp ra sau xe
 - **Tốc độ**: mặc định chạy chill **35 km/h** (chỉnh được 10–40 km/h); nút **⚡ Fast drive** (hoặc phím `F`) tăng lên **150 km/h** kèm hiệu ứng blur tốc độ, góc nhìn rộng ra, camera rung nhẹ, gió ù ù; bấm lại để về chill
 - **Xe**: chọn xe bằng nút 🚗 (model glTF miễn phí, đều ≤ 250k triangles)
@@ -48,12 +48,12 @@ docs/              (toàn bộ site, thư mục được GitHub Pages phục v�
   index.html, style.css
   js/main.js      vòng lặp, điều khiển, giao diện
   js/road.js      đường vô tận (hình học đường)
-  js/terrain.js   địa hình đồi núi (quadtree nhiều mức chi tiết), đường xẻ vào sườn đồi, rừng cây
+  js/terrain.js   địa hình đồi núi (quadtree nhiều mức chi tiết), đường xẻ vào sườn đồi, vách đá, rừng cây "tấm lá"
   js/terrain-noise.js hàm độ cao dùng chung CPU/GPU
   js/scenery.js   mặt đường (vũng nước khi mưa), cọc tiêu, đèn đường, hộ lan
   js/reflection.js phản chiếu vũng nước (planar reflection)
   js/mist.js      sương mù tầng thấp chỉnh độ phủ / độ dày
-  js/reeds.js     cánh đồng cỏ lau vô tận (instancing, gió, tự tránh mặt đường)
+  js/reeds.js     cỏ lau / búi cỏ vô tận (instancing, gió, tự tránh mặt đường, mọc theo địa hình)
   js/world.js     bầu trời + mây, ánh sáng, giờ trong ngày, thời tiết, bão & sét
   js/particles.js mưa / tuyết / bông cỏ bay (shader)
   js/cars.js      tải & chuẩn hoá model xe, bánh xe quay, đèn pha
@@ -71,5 +71,5 @@ docs/              (toàn bộ site, thư mục được GitHub Pages phục v�
 - **Toy Car** — Guido Odendahl & Eric Chadwick, [CC0](https://creativecommons.org/publicdomain/zero/1.0/) · Khronos glTF Sample Assets (đã bỏ tấm vải trưng bày đi kèm model)
 - **Cesium Milk Truck** — Cesium, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) · Khronos glTF Sample Assets
 - Model xe đã được nén lại (meshopt + texture WebP) bằng glTF-Transform để tải nhanh (~3.7 MB tổng thay vì 17.5 MB)
-- Địa hình, cỏ lau, bông cỏ, mây, cây, núi, đường, đèn đường: tạo bằng code / texture vẽ bằng canvas (không dùng asset ngoài)
+- Địa hình, cỏ lau, búi cỏ, bông cỏ, tán lá cây (vẽ bằng canvas), mây, núi, đường, đèn đường, hộ lan: tạo bằng code / texture vẽ bằng canvas (không dùng asset ngoài)
 - Nhạc: tự sinh bằng code (không dùng bản ghi âm nào)

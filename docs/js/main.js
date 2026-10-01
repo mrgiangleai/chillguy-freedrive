@@ -40,7 +40,8 @@ const scenery = new Scenery(scene, road, renderer);
 const terrain = new Terrain(scene, road, renderer);
 const env = new Environment(renderer, scene, camera);
 const reeds = new ReedField(scene, renderer);
-if (window.matchMedia?.('(pointer: coarse)').matches) reeds.setDensity(0.5);   // điện thoại: giảm mật độ cỏ cho nhẹ
+const grass = new ReedField(scene, renderer, 'grass');   // búi cỏ cho map đồi thông
+if (window.matchMedia?.('(pointer: coarse)').matches) { reeds.setDensity(0.5); grass.setDensity(0.5); }   // điện thoại: giảm mật độ cỏ cho nhẹ
 const cars = new Cars(scene);
 const rig = new CameraRig(camera);
 rig.groundAt = (x, z) => terrain.heightAt(x, z);
@@ -123,6 +124,7 @@ const applyMap = () => {
   terrain.setCar(drive.s);
   terrain.prime(camera.position.lengthSq() ? camera.position : drive.pos);
   reeds.visible = id === 'reed';
+  grass.visible = id === 'forest';
 };
 const nextMap = () => { state.map = (state.map + 1) % MAPS.length; applyMap(); refreshUI(); };
 const nextCam = () => { state.cam = (state.cam + 1) % CAMERAS.length; rig.setMode(state.cam); refreshUI(); };
@@ -219,6 +221,7 @@ function adaptQuality(frameMs) {
     renderer.setPixelRatio(pixelRatio);
     resize();
     reeds.setDensity(Math.max(0.35, reeds.density * 0.75));
+    grass.setDensity(Math.max(0.35, grass.density * 0.75));
   }
 }
 
@@ -274,6 +277,8 @@ function frame(now) {
   scenery.update(drive.s);
   scenery.apply(st);
   if (reeds.visible) reeds.update(now / 1000, camera.position, road, drive.s, st);
+  grass.group.visible = MAPS[state.map].id === 'forest' && st.cover < 0.5;   // tuyết phủ thì ẩn cỏ
+  if (grass.visible) grass.update(now / 1000, camera.position, road, drive.s, st);
   terrain.setCar(drive.s);
   terrain.update(camera.position);
   terrain.apply(st);
@@ -357,4 +362,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, toggleCine, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, road };
+window.__app = { refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, toggleCine, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

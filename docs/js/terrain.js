@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { TP, hLow, hDetail, mountains, vnoise, hash2 } from './terrain-noise.js';
 import { ROAD } from './road.js';
-import { detailTexture } from './textures.js';
+import { detailTexture, foliageAtlas } from './textures.js';
 import { withMist } from './mist.js';
-import { pineGeometry, broadleafGeometry, pineLowGeometry, broadLowGeometry } from './scenery.js';
+import { cardPineGeometry, cardBroadleafGeometry } from './scenery.js';
 
 // Địa hình đồi núi vô tận kiểu slowroads:
 // - Cây tứ phân (quadtree) quanh camera: ô gần 64 m (lưới 2 m), càng xa ô càng to (tới 8 km) => xa ~4 km.
@@ -22,6 +22,7 @@ const PAL = {
   reed: { a: col('#ad9b5c'), b: col('#c5b37b'), c: col('#8c8a50'), snowLine: 240, trees: false },
   mountain: { a: col('#789a45'), b: col('#9eaa5a'), c: col('#557236'), snowLine: 300, trees: true },
 };
+const FOREST = col('#3e5d2b');
 const ROCK = col('#8a8072'), ROCK2 = col('#6b6259'), SNOW = col('#eef2f6'), GRAVEL = col('#8f887c');
 const KEEP = { 64: 1, 128: 0.5, 256: 0.22, 512: 0.08 };   // tỉ lệ cây giữ lại theo cỡ ô (tập con lồng nhau => ít "nhảy" cây)
 
@@ -35,22 +36,34 @@ export class Terrain {
     this.queued = new Set();
     this.iCar = 0;
     this.uCover = { value: 0 };
-    this.mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: detailTexture(renderer), roughness: 0.96, metalness: 0 });
+    this.mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: detailTexture(renderer), roughness: 0.96, metalness: 0, envMapIntensity: 0.8 });
     this.mat.onBeforeCompile = (sh) => {
       sh.uniforms.uCover = this.uCover;
       sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nvarying float vUpY;')
-        .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nvUpY = objectNormal.y;');
+        .replace('#include <common>', '#include <common>\nvarying float vUpY;\nvarying vec3 vTW;')
+        .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nvUpY = objectNormal.y;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\nvTW = transformed;');
       sh.fragmentShader = sh.fragmentShader
-        .replace('#include <common>', '#include <common>\nvarying float vUpY;\nuniform float uCover;')
-        .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.89, 0.93), uCover * smoothstep(0.55, 0.8, vUpY));');
+        .replace('#include <common>', '#include <common>\nvarying float vUpY;\nvarying vec3 vTW;\nuniform float uCover;')
+        // chi tiết: mặt phẳng chiếu từ trên xuống; vách dốc chiếu ngang (vân đá dọc thay vì bị kéo dãn)
+        .replace('#include <map_fragment>', `
+          float flatK = smoothstep(0.5, 0.78, vUpY);
+          vec4 dTex = mix(texture2D(map, vec2(vTW.x + vTW.z, vTW.y * 1.6) / 6.0), texture2D(map, vTW.xz / 6.0), flatK);
+          diffuseColor *= dTex;
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.89, 0.93), uCover * smoothstep(0.55, 0.8, vUpY));`);
     };
-    this.treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.95 });
+    // cây tấm: atlas lá + alphaTest; bỏ đảo pháp tuyến mặt sau để tán lá sáng đều
+    this.treeMat = new THREE.MeshStandardMaterial({ map: foliageAtlas(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.92 });
+    this.treeMat.onBeforeCompile = (sh) => {
+      sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>',
+        THREE.ShaderChunk.normal_fragment_begin.replace('normal *= faceDirection;', ''));
+    };
     withMist(this.mat);
     withMist(this.treeMat);
-    this.geos = { pine: pineGeometry(), broad: broadleafGeometry(), pineLow: pineLowGeometry(), broadLow: broadLowGeometry() };
+    this.geos = { pine: cardPineGeometry(), broad: cardBroadleafGeometry() };
     this._nd = FAR; this._ny = 0; this._nl = 0; this._d = FAR;
     this._rc = new THREE.Color();
+    this._white = new THREE.Color(1, 1, 1);
   }
 
   setCar(s) { this.iCar = Math.floor(s / ROAD.step); }
@@ -143,6 +156,7 @@ export class Terrain {
     const pal = PAL[TP.id];
     const n1 = vnoise(x / 150 + 2.3, z / 150 + 6.1), n2 = vnoise(x / 37 + 8.8, z / 37 + 1.2);
     out.copy(pal.a).lerp(pal.b, sstep(0.3, 0.75, n1)).lerp(pal.c, sstep(0.45, 0.9, n2) * 0.55);
+    if (pal.trees) out.lerp(FOREST, sstep(0.44, 0.66, vnoise(x / 260 + 3.1, z / 260 + 8.7)) * 0.6);
     const slope = 1 - ny;
     out.lerp(ROCK2, sstep(110, 220, h) * 0.45);                       // núi cao: ngả màu đá
     const rockT = sstep(0.22, 0.4, slope);
@@ -154,7 +168,7 @@ export class Terrain {
     }
     const snow = sstep(pal.snowLine + (n1 - 0.5) * 60, pal.snowLine + 50, h) * (1 - sstep(0.5, 0.75, slope));
     out.lerp(SNOW, snow);
-    out.lerp(GRAVEL, 1 - sstep(HW + 1.0, HW + 3.2, d));
+    out.lerp(GRAVEL, 1 - (TP.id === 'forest' ? sstep(HW + 0.2, HW + 1.1, d) : sstep(HW + 1.0, HW + 3.2, d)));
     return out;
   }
 
@@ -270,7 +284,6 @@ export class Terrain {
         (pine ? pines : broads).push([x, h - 0.2, z, sc, hash2(ci + 17, cj + 19) * 6.283, hash2(ci + 23, cj + 29)]);
       }
     }
-    const low = size >= 256;
     const out = [];
     const mk = (list, geo) => {
       if (!list.length) return;
@@ -281,15 +294,15 @@ export class Terrain {
         q.setFromAxisAngle(up, yaw);
         mat.compose(ps.set(x, y, z), q, sc.set(s, s * (0.9 + cv * 0.3), s));
         m.setMatrixAt(i, mat);
-        cl.setHSL(0.27 + (cv - 0.5) * 0.1, 0.18 + cv * 0.2, 0.6 + (cv - 0.5) * 0.4);
+        cl.setHSL(0.2 + (cv - 0.5) * 0.12, 0.45, 0.62 + cv * 0.2).lerp(this._white, 0.55);
         m.setColorAt(i, cl);
       });
       m.castShadow = size <= 64;
       m.layers.set(3);                 // không vẽ trong ảnh phản chiếu vũng nước
       out.push(m);
     };
-    mk(pines, low ? this.geos.pineLow : this.geos.pine);
-    mk(broads, low ? this.geos.broadLow : this.geos.broad);
+    mk(pines, this.geos.pine);
+    mk(broads, this.geos.broad);
     return out;
   }
 

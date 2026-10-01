@@ -52,6 +52,47 @@ export function broadLowGeometry() {
   ]);
 }
 
+// ---- cây "tấm" kiểu slowroads: thân trụ + các tấm lá đan chéo dùng atlas foliageAtlas() ----
+function cardTree(crown, trunk) {
+  const pos = [], nor = [], uv = [], idx = [];
+  const [cx, cy, cz] = crown.center;
+  const push = (x, y, z, u, v) => {
+    const n = new THREE.Vector3(x - cx, (y - cy) * 0.7, z - cz).normalize().add(new THREE.Vector3(0, 0.35, 0)).normalize();
+    pos.push(x, y, z); nor.push(n.x, n.y, n.z); uv.push(u, v);
+  };
+  for (const yaw of crown.yaws) {
+    const cs = Math.cos(yaw), sn = Math.sin(yaw), b = pos.length / 3, w = crown.w / 2, h = crown.h / 2;
+    push(cx - w * cs, cy - h, cz - w * sn, crown.u0, 0);
+    push(cx + w * cs, cy - h, cz + w * sn, crown.u1, 0);
+    push(cx + w * cs, cy + h, cz + w * sn, crown.u1, 1);
+    push(cx - w * cs, cy + h, cz - w * sn, crown.u0, 1);
+    idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+  }
+  if (crown.top) {                                   // tấm nằm ngang để nhìn từ trên xuống không bị thủng
+    const b = pos.length / 3, w = crown.top / 2, y = crown.topY;
+    push(cx - w, y, cz - w, crown.u0, 0); push(cx + w, y, cz - w, crown.u1, 0);
+    push(cx + w, y, cz + w, crown.u1, 1); push(cx - w, y, cz + w, crown.u0, 1);
+    idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  const t = new THREE.CylinderGeometry(trunk.r0, trunk.r1, trunk.h, 6).translate(0, trunk.h / 2, 0);
+  const tuv = t.attributes.uv;
+  for (let i = 0; i < tuv.count; i++) tuv.setXY(i, 0.94, 0.88);   // vùng màu vỏ cây trong atlas
+  return mergeGeometries([t, g]);
+}
+export function cardBroadleafGeometry() {
+  return cardTree({ center: [0, 4.7, 0], w: 5.4, h: 5.0, yaws: [0, Math.PI / 3, (2 * Math.PI) / 3], u0: 0, u1: 0.5, top: 4.4, topY: 5.0 },
+    { r0: 0.16, r1: 0.26, h: 3.0 });
+}
+export function cardPineGeometry() {
+  return cardTree({ center: [0, 5.1, 0], w: 3.8, h: 8.2, yaws: [0, Math.PI / 3, (2 * Math.PI) / 3], u0: 0.5, u1: 0.75 },
+    { r0: 0.13, r1: 0.22, h: 1.8 });
+}
+
 function lampGeometry() {
   // cột đèn: cột + tay đòn kéo về phía -x (hướng vào đường)
   return merge([
@@ -202,6 +243,7 @@ export class Scenery {
     this.poolMat.opacity = on * 0.55;
     this.glowMat.opacity = on * 0.9;
     this.roadMat.roughness = 0.9 - 0.55 * st.wet;
+    this.roadMat.envMapIntensity = 0.45 + 0.55 * st.wet;   // đường khô: ít phản chiếu trời (không bị ngả xanh)
     const d = (1 - 0.4 * st.wet) * (1 - 0.25 * st.dark);
     this.roadMat.color.setRGB(d, d, d);
     const u = this.roadU;
@@ -295,7 +337,7 @@ export class Scenery {
 
     // đèn đường (xen kẽ hai bên)
     const lamps = [], bulbs = [], pools = [];
-    const lampN = this.map === 'reed' ? 2 : this.map === 'mountain' ? 1 : 3, lampGap = L / lampN;
+    const lampN = this.map === 'reed' ? 2 : 1, lampGap = L / lampN;
     for (let i = 0; i < lampN; i++) {
       const s = s0 + i * lampGap + 6;
       road.at(s, p);
