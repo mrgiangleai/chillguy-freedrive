@@ -1,0 +1,300 @@
+// Nhạc lo-fi chill được sinh trực tiếp bằng WebAudio (không cần file mp3, không dính bản quyền):
+// piano điện + bass + trống nhẹ + tiếng đĩa than, kèm âm thanh động cơ / gió / mưa.
+const midi = (n) => 440 * Math.pow(2, (n - 69) / 12);
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+// r = nốt bass, n = các nốt hợp âm (key C)
+const PROGRESSIONS = [
+  [{ r: 41, n: [53, 57, 60, 64] }, { r: 40, n: [52, 55, 59, 62] }, { r: 38, n: [50, 53, 57, 60] }, { r: 36, n: [52, 55, 59, 62] }],
+  [{ r: 38, n: [50, 53, 57, 60] }, { r: 43, n: [53, 55, 59, 62] }, { r: 36, n: [52, 55, 59, 62] }, { r: 45, n: [55, 57, 60, 64] }],
+  [{ r: 36, n: [52, 55, 59, 62] }, { r: 45, n: [55, 57, 60, 64] }, { r: 38, n: [50, 53, 57, 60] }, { r: 43, n: [53, 55, 59, 62] }],
+  [{ r: 45, n: [55, 57, 60, 64] }, { r: 38, n: [50, 53, 57, 60] }, { r: 43, n: [53, 55, 59, 62] }, { r: 36, n: [52, 55, 59, 62] }],
+];
+const COMP_PATTERNS = [[0, 6, 10], [0, 7, 10, 14], [0, 10], [0, 3, 8, 11]];
+const PENTA = [72, 74, 76, 79, 81, 84];
+
+export class ChillAudio {
+  constructor() {
+    this.ctx = null;
+    this.mode = 0;            // 0: nhạc + âm thanh, 1: chỉ nhạc, 2: tắt
+    this.bpm = 74;
+    this.step = 0; this.bar = 0;
+    this.prog = PROGRESSIONS[0]; this.pattern = COMP_PATTERNS[0];
+    this.lastMel = -99;
+  }
+
+  // phải gọi trong một thao tác của người dùng (trình duyệt chặn autoplay)
+  async start() {
+    if (this.ctx) { await this.ctx.resume(); return; }
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = this.ctx = new Ctx();
+
+    this.master = ctx.createGain();
+    this.master.gain.value = 0;
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -16; comp.ratio.value = 3;
+    this.master.connect(comp).connect(ctx.destination);
+
+    // bus nhạc
+    this.musicGain = ctx.createGain();
+    const lofi = ctx.createBiquadFilter();
+    lofi.type = 'lowpass'; lofi.frequency.value = 4800; lofi.Q.value = 0.4;
+    this.musicGain.connect(lofi).connect(this.master);
+
+    this.pianoBus = ctx.createGain();
+    const tone = ctx.createBiquadFilter();
+    tone.type = 'lowpass'; tone.frequency.value = 2400;
+    this.pianoBus.connect(tone).connect(this.musicGain);
+
+    this.drumBus = ctx.createGain();
+    const drumLp = ctx.createBiquadFilter();
+    drumLp.type = 'lowpass'; drumLp.frequency.value = 3400;
+    this.drumBus.connect(drumLp).connect(this.musicGain);
+
+    // reverb tự tạo
+    const len = ctx.sampleRate * 2.6;
+    const ir = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = ir.getChannelData(c);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2);
+    }
+    this.reverb = ctx.createConvolver();
+    this.reverb.buffer = ir;
+    const wet = ctx.createGain();
+    wet.gain.value = 0.38;
+    this.reverbIn = ctx.createGain();
+    this.reverbIn.connect(this.reverb).connect(wet).connect(this.musicGain);
+    tone.connect(this.reverbIn);
+
+    // echo cho giai điệu
+    this.echo = ctx.createDelay(2);
+    this.echo.delayTime.value = (60 / this.bpm) * 0.75;
+    const fb = ctx.createGain(); fb.gain.value = 0.34;
+    const echoLp = ctx.createBiquadFilter(); echoLp.type = 'lowpass'; echoLp.frequency.value = 1800;
+    this.echo.connect(echoLp).connect(fb).connect(this.echo);
+    echoLp.connect(this.musicGain);
+
+    // "wow" của băng cassette: LFO nhỏ điều biến cao độ
+    this.wow = ctx.createOscillator();
+    this.wow.frequency.value = 0.55;
+    this.wowGain = ctx.createGain();
+    this.wowGain.gain.value = 9;
+    this.wow.connect(this.wowGain);
+    this.wow.start();
+
+    // noise dùng chung
+    const nb = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const nd = nb.getChannelData(0);
+    for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+    this.noise = nb;
+
+    this._vinyl();
+    this._ambient();
+
+    this.nextTime = ctx.currentTime + 0.15;
+    this.timer = setInterval(() => this._tick(), 50);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) ctx.suspend(); else if (this.mode !== 2) ctx.resume();
+    });
+    this.setMode(this.mode);
+  }
+
+  setMode(m) {
+    this.mode = m;
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.master.gain.setTargetAtTime(m === 2 ? 0 : 0.9, t, 0.4);
+  }
+
+  _src(buffer, loop = true) {
+    const s = this.ctx.createBufferSource();
+    s.buffer = buffer; s.loop = loop;
+    s.loopStart = Math.random();
+    return s;
+  }
+
+  _vinyl() {
+    const ctx = this.ctx;
+    const len = ctx.sampleRate * 4;
+    const b = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = b.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * 0.012;
+    for (let n = 0; n < 70; n++) {
+      const p = Math.floor(Math.random() * (len - 10));
+      d[p] += rand(0.25, 0.8) * (Math.random() < 0.5 ? -1 : 1);
+      d[p + 1] -= rand(0.1, 0.4);
+    }
+    const s = ctx.createBufferSource();
+    s.buffer = b; s.loop = true;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1300;
+    const g = ctx.createGain(); g.gain.value = 0.16;
+    s.connect(hp).connect(g).connect(this.musicGain);
+    s.start();
+  }
+
+  _ambient() {
+    const ctx = this.ctx;
+    this.ambGain = ctx.createGain();
+    this.ambGain.gain.value = 1;
+    this.ambGain.connect(this.master);
+
+    const mkNoise = (type, freq, q) => {
+      const s = this._src(this.noise);
+      const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+      const g = ctx.createGain(); g.gain.value = 0;
+      s.connect(f).connect(g).connect(this.ambGain);
+      s.start();
+      return g;
+    };
+    this.rainG = mkNoise('bandpass', 2200, 0.5);
+    this.windG = mkNoise('lowpass', 420, 0.7);
+    this.tireG = mkNoise('lowpass', 750, 0.6);
+
+    // tiếng động cơ êm
+    this.engLp = ctx.createBiquadFilter(); this.engLp.type = 'lowpass'; this.engLp.frequency.value = 260;
+    this.engG = ctx.createGain(); this.engG.gain.value = 0;
+    this.eng = [ctx.createOscillator(), ctx.createOscillator()];
+    this.eng[0].type = 'sawtooth'; this.eng[1].type = 'triangle';
+    this.eng.forEach((o) => { o.frequency.value = 40; o.connect(this.engLp); o.start(); });
+    this.engLp.connect(this.engG).connect(this.ambGain);
+  }
+
+  // speed (m/s), rain/snow 0..1
+  setAmbient({ speed, rain, snow }) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime, k = 0.25;
+    const on = this.mode === 0 ? 1 : 0;
+    this.ambGain.gain.setTargetAtTime(on, t, 0.4);
+    this.rainG.gain.setTargetAtTime(rain * 0.2, t, k);
+    this.windG.gain.setTargetAtTime(0.012 + speed * 0.0016 + snow * 0.05, t, k);
+    this.tireG.gain.setTargetAtTime(Math.min(speed * 0.0011, 0.04) * (1 + rain), t, k);
+    const f = 30 + speed * 2.2;
+    this.eng[0].frequency.setTargetAtTime(f, t, 0.15);
+    this.eng[1].frequency.setTargetAtTime(f * 2, t, 0.15);
+    this.engLp.frequency.setTargetAtTime(180 + speed * 7, t, 0.2);
+    this.engG.gain.setTargetAtTime(0.02 + Math.min(speed, 40) * 0.0004, t, 0.2);
+  }
+
+  // ---- lịch phát nhạc (look-ahead scheduler) ----
+  _tick() {
+    const ctx = this.ctx;
+    if (!ctx || ctx.state !== 'running') return;
+    const sixteenth = 60 / this.bpm / 4;
+    while (this.nextTime < ctx.currentTime + 0.3) {
+      const swing = this.step % 2 ? sixteenth * 0.2 : 0;
+      this._step(this.step, this.nextTime + swing);
+      this.nextTime += sixteenth;
+      if (++this.step === 16) { this.step = 0; this.bar++; }
+    }
+  }
+
+  _step(i, t) {
+    if (i === 0 && this.bar % 4 === 0) {
+      this.prog = pick(PROGRESSIONS);
+      this.pattern = pick(COMP_PATTERNS);
+    }
+    const c = this.prog[this.bar % 4];
+
+    if (this.pattern.includes(i)) {
+      const vel = i === 0 ? 1 : rand(0.55, 0.8);
+      c.n.forEach((n, j) => this._epiano(n, t + j * 0.014 + rand(0, 0.008), vel, i === 0 ? 2.4 : 1.2));
+    }
+    if (i === 0) this._bass(c.r, t, 1.7);
+    if (i === 10 || (i === 14 && Math.random() < 0.4)) this._bass(c.r + (Math.random() < 0.5 ? 0 : 7), t, 0.8);
+
+    // trống
+    if (i === 0 || i === 10 || (i === 7 && Math.random() < 0.3)) this._kick(t);
+    if (i === 4 || i === 12) this._snare(t);
+    if (i % 2 === 0) this._hat(t, i % 4 === 2 ? 0.8 : 0.5, i === 14 && Math.random() < 0.25);
+
+    // giai điệu thưa
+    if (i % 2 === 0 && this.bar - this.lastMel > 0 && Math.random() < 0.16) {
+      this._pluck(pick(PENTA), t, rand(0.5, 0.9));
+      this.lastMel = this.bar + (Math.random() < 0.5 ? 0 : -1);
+    }
+  }
+
+  _osc(type, f, t, dur, detune = 0) {
+    const o = this.ctx.createOscillator();
+    o.type = type; o.frequency.value = f; o.detune.value = detune;
+    this.wowGain.connect(o.detune);
+    o.start(t); o.stop(t + dur);
+    return o;
+  }
+
+  _epiano(note, t, vel, dur) {
+    const ctx = this.ctx, f = midi(note);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vel * 0.075, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(vel * 0.03, t + 0.4);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    this._osc('sine', f, t, dur + 0.1).connect(g);
+    this._osc('triangle', f, t, dur + 0.1, rand(3, 8)).connect(g);
+    const tg = ctx.createGain();
+    tg.gain.setValueAtTime(vel * 0.022, t);
+    tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+    this._osc('sine', f * 4, t, 0.3).connect(tg).connect(this.pianoBus);
+    g.connect(this.pianoBus);
+  }
+
+  _bass(note, t, dur) {
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.2, t + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 380;
+    this._osc('sine', midi(note), t, dur + 0.1).connect(g);
+    this._osc('triangle', midi(note), t, dur + 0.1).connect(g);
+    g.connect(lp).connect(this.musicGain);
+  }
+
+  _pluck(note, t, vel) {
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vel * 0.06, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+    const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2200;
+    this._osc('triangle', midi(note), t, 1.2).connect(g);
+    g.connect(lp);
+    lp.connect(this.pianoBus);
+    const send = this.ctx.createGain(); send.gain.value = 0.6;
+    lp.connect(send).connect(this.echo);
+  }
+
+  _kick(t) {
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.frequency.setValueAtTime(130, t);
+    o.frequency.exponentialRampToValueAtTime(42, t + 0.14);
+    g.gain.setValueAtTime(0.5, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+    o.connect(g).connect(this.drumBus);
+    o.start(t); o.stop(t + 0.35);
+  }
+
+  _noiseHit(t, dur, type, freq, gain) {
+    const s = this._src(this.noise, false);
+    const f = this.ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f).connect(g).connect(this.drumBus);
+    s.start(t, Math.random()); s.stop(t + dur + 0.02);
+  }
+
+  _snare(t) {
+    this._noiseHit(t, 0.16, 'bandpass', 1900, 0.28);
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.frequency.value = 185;
+    g.gain.setValueAtTime(0.16, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+    o.connect(g).connect(this.drumBus);
+    o.start(t); o.stop(t + 0.12);
+  }
+
+  _hat(t, vel, open) {
+    this._noiseHit(t, open ? 0.2 : 0.045, 'highpass', 7500, 0.12 * vel * rand(0.7, 1));
+  }
+}

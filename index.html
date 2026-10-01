@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1020">
+  <title>Chill Drive</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three/build/three.module.js", "three/addons/": "./vendor/three/jsm/" } }
+  </script>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div id="start">
+    <div class="title">Chill Drive</div>
+    <div class="hint" id="hint">Đang tải xe…</div>
+  </div>
+
+  <div id="hud">
+    <div id="stats"><span id="speed">0</span> km/h <i>·</i> <span id="clock">--:--</span></div>
+    <nav id="bar">
+      <button id="b-car"><b>🚗</b><span></span></button>
+      <button id="b-cam"><b>🎥</b><span></span></button>
+      <button id="b-weather"><b>☀️</b><span></span></button>
+      <button id="b-time"><b>🌇</b><span></span></button>
+      <button id="b-music"><b>🎵</b><span></span></button>
+    </nav>
+    <button id="b-info" aria-label="Credits">ⓘ</button>
+  </div>
+
+  <div id="credits" hidden>
+    <p><b>Chill Drive</b> — three.js · WebAudio (nhạc lo-fi tự sinh)</p>
+    <ul>
+      <li>Car Concept — Eric Chadwick / Darmstadt Graphics Group, CC BY 4.0 (Khronos glTF Sample Assets)</li>
+      <li>Toy Car — Guido Odendahl, Eric Chadwick, CC0 (Khronos glTF Sample Assets)</li>
+      <li>Cesium Milk Truck — Cesium, CC BY 4.0 (Khronos glTF Sample Assets)</li>
+      <li>Texture cỏ — three.js examples (MIT)</li>
+    </ul>
+    <p class="keys">A/D hoặc ←/→ lái · W/S hoặc ↑/↓ tốc độ · C camera · H ẩn giao diện</p>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
