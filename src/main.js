@@ -181,6 +181,7 @@ function warmShaders(delay = 500) {
 const applyMap = () => {
   const id = MAPS[state.map].id;
   setTerrainMap(id);            // đổi tham số địa hình (đồi thấp / đồi núi)
+  road.dirt = id === 'forest';  // đồi thông: có đoạn đường đất xuyên rừng
   road.recomputeHeights();      // độ cao đường theo địa hình mới
   scenery.setMap(id);
   terrain.reset();
@@ -391,7 +392,7 @@ function frame(now) {
 
   cineAmt += ((state.cine && state.started ? 1 : 0) - cineAmt) * (1 - Math.exp(-dt * 2.5));
   rig.cine = cineAmt;
-  cars.update(dt, { pos: drive.pos, yaw: drive.yaw, pitch: drive.pitch, speed: drive.v, latVel: drive.latVel });
+  cars.update(dt, { pos: drive.pos, yaw: drive.yaw, pitch: drive.pitch, speed: drive.v, latVel: drive.latVel, rough: road.dirtAt(drive.s) });
   // người lái: ngồi trong xe (ẩn khi camera trong xe), cảnh dừng xe điều khiển khi đang dừng
   if (person.ready) {
     person.root.visible = stop.active || CAMERAS[state.cam].id !== 'cockpit';

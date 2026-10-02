@@ -226,3 +226,16 @@ export function foliageAtlas() {
   t.anisotropy = 4;
   return t;
 }
+
+// texture ảnh thật (đã nén WebP, trong docs/assets/tex): đất, sỏi đá vụn, vách đá + normal map của đá
+// Nguồn: Babylon.js Assets (CC BY 4.0) — dirt, rockyGround; Godot demo projects (MIT) — rock
+const _photo = {};
+export function photoTexture(name, renderer, { srgb = true, repeat = true } = {}) {
+  if (_photo[name]) return _photo[name];
+  const t = new THREE.TextureLoader().load('assets/tex/' + name + '.webp');
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  _photo[name] = t;
+  return t;
+}

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ROAD } from './road.js';
-import { roadTexture, glowTexture } from './textures.js';
+import { roadTexture, glowTexture , photoTexture } from './textures.js';
 import { withMist } from './mist.js';
 
 const { halfWidth: HW, chunkLen: L, step: STEP } = ROAD;
@@ -106,7 +106,9 @@ function lampGeometry() {
 const ROAD_PARS = `#include <common>
 varying vec3 vRW;
 uniform float uWet, uPuddle, uRain, uRainT, uReflOn, uPlaneY;
-uniform sampler2D uReflTex;
+uniform sampler2D uReflTex, uDirtTex;
+uniform vec3 uGrassCol;
+varying float vDirt;
 uniform mat4 uReflMat;
 float rHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float rNoise(vec2 p) {
@@ -130,6 +132,16 @@ vec2 rRipple(vec2 p, float t) {
 }`;
 const ROAD_PUDDLE = `
 float across = vMapUv.x;
+// đường đất xuyên rừng: đất có vệt bánh xe, mép cỏ lấn vào (lòng đường hẹp lại), không vạch kẻ
+if (vDirt > 0.001) {
+  vec3 dirt = texture2D(uDirtTex, vRW.xz / 3.2).rgb * (0.82 + 0.36 * rNoise(vRW.xz * 0.35));
+  float rut = min(abs(across - 0.37), abs(across - 0.63));
+  dirt *= 1.0 - 0.3 * (1.0 - smoothstep(0.0, 0.06, rut));
+  float en = (rNoise(vRW.xz * 0.55) - 0.5) * 0.12 + (rNoise(vRW.xz * 2.1) - 0.5) * 0.05;
+  float grassK = smoothstep(0.29, 0.36, abs(across - 0.5) + en);
+  vec3 grass = uGrassCol * (0.7 + 0.6 * rNoise(vRW.xz * 1.9)) * (0.85 + 0.3 * rNoise(vRW.xz * 0.21));
+  diffuseColor.rgb = mix(diffuseColor.rgb, mix(dirt, grass, grassK) * diffuse, vDirt);
+}
 float rut = 1.0 - smoothstep(0.0, 0.07, min(abs(across - 0.27), abs(across - 0.73)));
 float edgeW = 1.0 - smoothstep(0.0, 0.12, min(across, 1.0 - across));
 float pn = rNoise(vRW.xz * 0.2) * 0.6 + rNoise(vRW.xz * 0.85 + 3.1) * 0.4;
@@ -172,16 +184,17 @@ export class Scenery {
     this.roadU = {
       uWet: { value: 0 }, uPuddle: { value: 0 }, uRain: { value: 0 }, uRainT: { value: 0 },
       uReflTex: { value: null }, uReflMat: { value: new THREE.Matrix4() }, uReflOn: { value: 0 }, uPlaneY: { value: 0 },
+      uDirtTex: { value: photoTexture('dirt', renderer) }, uGrassCol: { value: new THREE.Color('#5c6b34') },
     };
     this.roadMat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, this.roadU);
       sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nvarying vec3 vRW;')
-        .replace('#include <project_vertex>', '#include <project_vertex>\nvRW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+        .replace('#include <common>', '#include <common>\nvarying vec3 vRW;\nattribute float aDirt;\nvarying float vDirt;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\nvRW = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvDirt = aDirt;');
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', ROAD_PARS)
         .replace('#include <map_fragment>', '#include <map_fragment>\n' + ROAD_PUDDLE)
-        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.03, puddle);')
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, max(roughnessFactor, 0.97 - 0.45 * uWet), vDirt);\nroughnessFactor = mix(roughnessFactor, 0.03, puddle);')
         .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize(normal + (viewMatrix * vec4(ripG.x, 0.0, ripG.y, 0.0)).xyz * 0.35);')
         .replace('#include <opaque_fragment>', ROAD_REFL + '\n#include <opaque_fragment>');
     };
@@ -275,6 +288,7 @@ export class Scenery {
     const pos = new Float32Array((N + 1) * 6);
     const uv = new Float32Array((N + 1) * 4);
     const nor = new Float32Array((N + 1) * 6);
+    const dirt = new Float32Array((N + 1) * 2);
     const idx = [];
     for (let i = 0; i <= N; i++) {
       const s = s0 + i * STEP;
@@ -283,12 +297,15 @@ export class Scenery {
       pos.set([p.x - rx * HW, y, p.z - rz * HW, p.x + rx * HW, y, p.z + rz * HW], i * 6);
       uv.set([0, s / 12, 1, s / 12], i * 4);
       nor.set([0, 1, 0, 0, 1, 0], i * 6);
+      const dk = road.dirtAt(s);
+      dirt[i * 2] = dirt[i * 2 + 1] = dk;
       if (i < N) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    geo.setAttribute('aDirt', new THREE.BufferAttribute(dirt, 1));
     geo.setIndex(idx);
     geo.computeVertexNormals();
     const roadMesh = new THREE.Mesh(geo, this.roadMat);
@@ -300,6 +317,7 @@ export class Scenery {
     // cọc tiêu hai bên đường
     const posts = [];
     for (let s = s0; s < s0 + L; s += 12) {
+      if (road.dirtAt(s) > 0.05) continue;          // đường đất: không có cọc tiêu
       road.at(s, p);
       for (const side of (this.map === 'mountain' ? [-1] : [-1, 1])) {
         posts.push([p.x + Math.cos(p.th) * (HW + 0.7) * side, p.y, p.z - Math.sin(p.th) * (HW + 0.7) * side]);
@@ -340,6 +358,7 @@ export class Scenery {
     const lampN = this.map === 'reed' ? 2 : 1, lampGap = L / lampN;
     for (let i = 0; i < lampN; i++) {
       const s = s0 + i * lampGap + 6;
+      if (road.dirtAt(s) > 0.05) continue;          // đường đất: không có đèn đường
       road.at(s, p);
       const side = this.map === 'mountain' ? -1 : (Math.round(s / lampGap) % 2) ? 1 : -1;
       const off = HW + 1.4;

@@ -266,6 +266,13 @@ export class Cars {
     const f = clamp(st.speed / 20, 0, 1);
     this.tilt.rotation.set(this.pitch, 0, this.roll);
     this.tilt.position.y = (0.005 * Math.sin(this.time * 7.3) + 0.004 * Math.sin(this.time * 12.1)) * f;
+    // đường đất: rung xóc nhẹ thêm (thân xe nảy + lắc ngang)
+    const r = (st.rough || 0) * f;
+    if (r > 0.001) {
+      this.tilt.position.y += r * (0.014 * Math.sin(this.time * 19.3) + 0.01 * Math.sin(this.time * 31.7 + 1.1));
+      this.tilt.rotation.z += r * (0.006 * Math.sin(this.time * 13.1) + 0.004 * Math.sin(this.time * 23.9));
+      this.tilt.rotation.x += r * 0.004 * Math.sin(this.time * 17.7 + 0.4);
+    }
 
     if (this.current) {
       for (const w of this.current.wheels) w.pivot.rotation.x -= (st.speed * dt) / w.radius;

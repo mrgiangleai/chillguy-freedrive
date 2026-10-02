@@ -59,15 +59,16 @@ export function installMist() {
   vec3 fogMix = fogColor;
   if ( uMistD > 0.0 ) {
     float mDist = length( vFogWorld - cameraPosition );
-    float h0 = clamp( ( cameraPosition.y - uMistBase ) / uMistH, -2.5, 40.0 );
-    float h1 = clamp( ( vFogWorld.y - uMistBase ) / uMistH, -2.5, 40.0 );
+    float h0 = clamp( ( cameraPosition.y - uMistBase ) / uMistH, -1.2, 40.0 );
+    float h1 = clamp( ( vFogWorld.y - uMistBase ) / uMistH, -1.2, 40.0 );
     float dh = h1 - h0;
     float e1 = exp( - h1 );
     float avg = abs( dh ) > 1e-3 ? ( exp( - h0 ) - e1 ) / dh : e1;     // mật độ trung bình dọc tia nhìn
     float mn = mistNoise( vFogWorld.xz * 0.0045 + uMistWind * uMistT ) * 0.65
              + mistNoise( vFogWorld.xz * 0.017 - uMistWind * uMistT * 1.7 + 7.3 ) * 0.35;
     float patchy = smoothstep( 0.78 - 0.78 * uMistCover, 1.02 - 0.55 * uMistCover, mn );
-    float mist = 1.0 - exp( - uMistD * mDist * clamp( avg, 0.0, 12.0 ) * patchy );
+    float mist = 1.0 - exp( - uMistD * mDist * clamp( avg, 0.0, 4.0 ) * patchy );
+    mist *= 1.0 - 0.7 * smoothstep( 30.0, 220.0, uMistBase - vFogWorld.y );   // thung lũng rất sâu: sương mỏng dần, vẫn thấy đáy
     float keep = ( 1.0 - fogFactor ) * ( 1.0 - mist );
     fogMix = mix( uMistColor, fogColor, fogFactor / max( 1.0 - keep, 1e-4 ) );
     fogFactor = 1.0 - keep;
