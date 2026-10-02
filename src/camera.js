@@ -30,7 +30,7 @@ export class CameraRig {
     this._dl = new THREE.Vector3();
     this._eye = new THREE.Vector3();
     this.eyeAt = null;               // (out) => true nếu có vị trí mắt người lái thật (toạ độ thế giới)
-    // nhìn xung quanh khi bấm giữ + rê (radian); thả ra thì tự xoay về
+    // nhìn xung quanh khi bấm giữ + rê (radian); thả ra vẫn giữ nguyên góc đã xoay (đổi camera thì về 0)
     this.look = { yaw: 0, pitch: 0, hold: false, idle: 0 };
     this.sideSign = 0;                 // camera bên hông: -1 trái / +1 phải (0 = chưa chọn)
     this.sidePref = 0;                 // ưu tiên bên (đường núi: phía thung lũng)
@@ -66,6 +66,7 @@ export class CameraRig {
     this.intro = -1;
     this.sideSign = 0;
     this.blend = 0.7;
+    this.look.yaw = this.look.pitch = 0;
     const rigid = CAMERAS[this.mode].id === 'cockpit';
     this.camera.near = rigid ? 0.04 : 0.3;
     this.camera.updateProjectionMatrix();
@@ -129,7 +130,7 @@ export class CameraRig {
 
     // ống kính: zoom mượt; chạy nhanh thì góc rộng ra một chút (28 -> ~20 mm khi Fast drive)
     this.focalS += (this.focal - this.focalS) * (1 - Math.exp(-dt * 8));
-    this.focalEff = this.focalS * (1 - 0.04 * sp) * (1 - 0.27 * fxv);
+    this.focalEff = this.focalS * (1 - 0.04 * sp);    // (180 km/h: góc rộng do đổi sang 16 mm, xem setGear)
     let fov = this.fovFor(this.focalEff);
 
     // cảnh mở đầu: lia vòng quanh xe (chỉ khi đang ở camera sau xe)
@@ -165,11 +166,6 @@ export class CameraRig {
 
     // nhìn xung quanh: camera ngoài bay vòng quanh xe, camera trong xe thì quay đầu
     const lk = this.look;
-    if (lk.hold) lk.idle = 0;
-    else if ((lk.idle += dt) > 0.8) {
-      const k = 1 - Math.exp(-dt * 2.5);
-      lk.yaw -= lk.yaw * k; lk.pitch -= lk.pitch * k;
-    }
     const cp = this._cp.copy(this.relP), cl = this._cl.copy(this.relL);
     if (Math.abs(lk.yaw) > 1e-4 || Math.abs(lk.pitch) > 1e-4) {
       if (rigid) {

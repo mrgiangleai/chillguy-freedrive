@@ -68,7 +68,7 @@ export const MUSIC_MODES = [
 
 // khẩu độ ống kính (f-number) cho hiệu ứng xoá phông; mặc định f/2
 export const FSTOPS = [1.4, 1.8, 2, 2.8, 4, 5.6, 8, 11, 16];
-export const FSTOP_DEFAULT = 2;
+export const FSTOP_DEFAULT = 0;     // f/1.4 lúc vào game
 
 // mức chất lượng (người chơi tự chọn, không tự đổi theo máy). Mặc định Mid: bật đủ mọi hiệu ứng.
 // ratio: độ phân giải so với màn hình (không vượt quá mật độ điểm ảnh thật của màn hình, trừ Low)

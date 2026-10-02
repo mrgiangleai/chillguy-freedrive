@@ -119,7 +119,10 @@ const pointer = { active: false, id: -1, x: 0, y: 0 };
 
 // ---------- giao diện ----------
 // mặc định vào game: đồi thông, sương mù, hoàng hôn
-const state = { car: 0, map: MAPS.findIndex((m) => m.id === 'forest'), cam: 0, weather: WEATHERS.findIndex((w) => w.id === 'fog'), time: TIMES.findIndex((t) => t.id === 'sunset'), music: 0, cine: true, started: false, mistCover: 0.35, mistDens: 0.2, fstop: FSTOP_DEFAULT, quality: loadQuality() };
+// mặc định lúc vào game: map núi, camera quay quanh, mưa, hoàng hôn, 16 mm f/1.4
+const state = { car: 0, map: MAPS.findIndex((m) => m.id === 'mountain'), cam: CAMERAS.findIndex((c) => c.id === 'orbit'), weather: WEATHERS.findIndex((w) => w.id === 'rain'), time: TIMES.findIndex((t) => t.id === 'sunset'), music: 0, cine: true, started: false, mistCover: 0.35, mistDens: 0.2, fstop: FSTOP_DEFAULT, quality: loadQuality() };
+rig.setMode(state.cam);
+rig.focal = rig.focalS = 16;
 const el = { stop: $('b-stop'), quality: $('b-quality'), lens: $('b-lens'), mist: $('b-mist'), fast: $('b-fast'), car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
 const setBtn = (btn, icon, text) => { btn.querySelector('b').textContent = icon; btn.querySelector('span').textContent = text; btn.title = text; };
 
@@ -230,17 +233,15 @@ const applyMap = () => {
 };
 const nextMap = () => { state.map = (state.map + 1) % MAPS.length; applyMap(); refreshUI(); };
 // camera trong xe: ống kính 16 mm, khẩu độ f/16 (nét sâu), lấy nét ở taplo; ra ngoài thì trả lại như cũ
-let lensBeforeCockpit = null;
+// camera ngoài xe: 24 mm f/5.6 (đang chạy 180 km/h thì 16 mm)
+const OUT_FOCAL = 24, FAST_FOCAL = 16, OUT_FSTOP = FSTOPS.indexOf(5.6);
 function onCamChange() {
-  const inCar = CAMERAS[state.cam].id === 'cockpit';
-  if (inCar && !lensBeforeCockpit) {
-    lensBeforeCockpit = { focal: rig.focal, fstop: state.fstop };
+  if (CAMERAS[state.cam].id === 'cockpit') {
     rig.focal = rig.focalS = 16;
     state.fstop = FSTOPS.indexOf(16);
-  } else if (!inCar && lensBeforeCockpit) {
-    rig.focal = lensBeforeCockpit.focal;
-    state.fstop = lensBeforeCockpit.fstop;
-    lensBeforeCockpit = null;
+  } else {
+    rig.focal = drive.fast ? FAST_FOCAL : OUT_FOCAL;
+    state.fstop = OUT_FSTOP;
   }
   syncLens();
 }
@@ -262,7 +263,12 @@ function setMist(cover, dens) {
 }
 // Cinematic luôn bật (letterbox, xoá phông, bloom, chỉnh màu...) — không còn nút tắt
 const applyCine = () => document.body.classList.toggle('cine', state.cine && state.started);
-function setGear(g) { drive.gear = g; drive.fast = g === 2; drive.target = GEARS[Math.min(g, 1)]; }
+function setGear(g) {
+  const was = drive.fast;
+  drive.gear = g; drive.fast = g === 2; drive.target = GEARS[Math.min(g, 1)];
+  // 180 km/h: camera ngoài xe mở rộng góc về 16 mm; thôi chạy nhanh thì về 24 mm (camera trong xe không đổi)
+  if (drive.fast !== was && CAMERAS[state.cam].id !== 'cockpit') { rig.focal = drive.fast ? FAST_FOCAL : OUT_FOCAL; syncLens(); }
+}
 const toggleFast = () => { if (stop.active) return; setGear((drive.gear + 1) % GEARS.length); refreshUI(); };
 const nextMusic = () => { state.music = (state.music + 1) % MUSIC_MODES.length; audio.setMode(state.music); refreshUI(); };
 

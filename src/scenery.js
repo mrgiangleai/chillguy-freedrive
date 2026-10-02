@@ -162,7 +162,7 @@ if (uReflOn > 0.5) {
   vec3 V = normalize(cameraPosition - vRW);
   float fres = 0.02 + 0.98 * pow(1.0 - clamp(V.y, 0.0, 1.0), 5.0);
   float fade = (1.0 - smoothstep(1.0, 4.0, abs(vRW.y - uPlaneY))) * (1.0 - smoothstep(90.0, 170.0, length(vRW - cameraPosition)));
-  float kR = clamp((puddle * 0.95 + 0.3 * uWet * (1.0 - puddle)) * fres * fade, 0.0, 1.0);
+  float kR = clamp((puddle * 0.95 + 0.15 * uWet * (1.0 - puddle)) * fres * fade, 0.0, 1.0);   // ngoài vũng: chỉ loáng nhẹ
   outgoingLight = mix(outgoingLight, refl, kR);
 }`;
 
@@ -195,8 +195,24 @@ export class Scenery {
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', ROAD_PARS)
         .replace('#include <map_fragment>', '#include <map_fragment>\n' + ROAD_PUDDLE)
-        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, max(roughnessFactor, 0.97 - 0.45 * uWet), vDirt);\nroughnessFactor = mix(roughnessFactor, 0.03, puddle);')
-        .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize(normal + (viewMatrix * vec4(ripG.x, 0.0, ripG.y, 0.0)).xyz * 0.35);')
+        .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+          // nhựa đường sần: hạt nhám làm độ nhám lốm đốm (không trơn bóng đều), vũng nước vẫn nhẵn
+          float agg = rNoise(vRW.xz * 26.0) * 0.6 + rNoise(vRW.xz * 83.0) * 0.4;
+          roughnessFactor = clamp(roughnessFactor + (agg - 0.5) * 0.35, 0.45, 1.0);
+          roughnessFactor = mix(roughnessFactor, max(roughnessFactor, 0.97 - 0.45 * uWet), vDirt);
+          roughnessFactor = mix(roughnessFactor, 0.03, puddle);`)
+        .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+          normal = normalize(normal + (viewMatrix * vec4(ripG.x, 0.0, ripG.y, 0.0)).xyz * 0.35);
+          // vân hạt nhựa đường (bump theo đạo hàm màn hình, mờ dần ở xa để không lấp lánh)
+          {
+            float gh = rNoise(vRW.xz * 26.0) * 0.55 + rNoise(vRW.xz * 83.0) * 0.45;
+            vec3 dpx = dFdx(-vViewPosition), dpy = dFdy(-vViewPosition);
+            vec3 r1 = cross(dpy, normal), r2 = cross(normal, dpx);
+            float det = dot(dpx, r1);
+            float fade = (1.0 - smoothstep(0.25, 0.9, fwidth(vRW.x * 83.0) + fwidth(vRW.z * 83.0))) * (1.0 - puddle);
+            vec3 grad = sign(det) * (dFdx(gh) * r1 + dFdy(gh) * r2);
+            normal = normalize(abs(det) * normal - grad * 0.22 * fade);
+          }`)
         .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n// trời âm u / mưa: mặt trời bị mây che => vũng nước không loé sáng như soi mặt trời\nreflectedLight.directSpecular *= 1.0 - uSunHide * puddle;')
         .replace('#include <opaque_fragment>', ROAD_REFL + '\n#include <opaque_fragment>');
     };
@@ -257,8 +273,8 @@ export class Scenery {
     this.bulbMat.color.copy(c).multiplyScalar(0.6 + 1.6 * on);
     this.poolMat.opacity = on * 0.55;
     this.glowMat.opacity = on * 0.9;
-    this.roadMat.roughness = 0.9 - 0.55 * st.wet;
-    this.roadMat.envMapIntensity = 0.45 + 0.55 * st.wet;   // đường khô: ít phản chiếu trời (không bị ngả xanh)
+    this.roadMat.roughness = 0.92 - 0.3 * st.wet;          // ướt vẫn sần (chỉ vũng nước mới nhẵn bóng)
+    this.roadMat.envMapIntensity = 0.38 + 0.3 * st.wet;    // đường khô: ít phản chiếu trời (không bị ngả xanh)
     const d = (1 - 0.4 * st.wet) * (1 - 0.25 * st.dark);
     this.roadMat.color.setRGB(d, d, d);
     const u = this.roadU;
