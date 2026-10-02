@@ -310,6 +310,13 @@ export class Environment {
     this._v = new THREE.Vector3();
   }
 
+  // đặt thời tiết ngay lập tức (không chuyển dần) — dùng lúc vào game
+  snapWeather(id) {
+    this.setWeather(id);
+    Object.assign(this.w, this.target);
+    this.tint.set(this.target.tint);
+  }
+
   setWeather(id) {
     this.weather = id;
     this.target = WEATHER[id];

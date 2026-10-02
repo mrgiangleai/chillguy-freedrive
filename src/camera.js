@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CAMERAS } from './config.js';
 
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
-export const FOCAL_MIN = 20, FOCAL_MAX = 70;
+export const FOCAL_MIN = 16, FOCAL_MAX = 35;
 const lerpAngle = (a, b, t) => {
   let d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
   return a + d * t;
@@ -31,7 +31,7 @@ export class CameraRig {
     this.look = { yaw: 0, pitch: 0, hold: false, idle: 0 };
     this.sideSign = 0;                 // camera bên hông: -1 trái / +1 phải (0 = chưa chọn)
     this.sidePref = 0;                 // ưu tiên bên (đường núi: phía thung lũng)
-    // ống kính (quy đổi full-frame 36x24 mm): mặc định 28 mm, zoom ra tới 20 mm, zoom vào tới 70 mm
+    // ống kính (quy đổi full-frame 36x24 mm): mặc định 28 mm, zoom trong khoảng 16–35 mm
     this.focal = 28;                   // tiêu cự đặt (mm)
     this.focalS = 28;                  // đã làm mượt
     this.focalEff = 28;                // tiêu cự thực tế khung hình này (Fast drive mở rộng góc)

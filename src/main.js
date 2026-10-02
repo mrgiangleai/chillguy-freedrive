@@ -88,7 +88,8 @@ const keys = new Set();
 const pointer = { active: false, id: -1, x: 0, y: 0 };
 
 // ---------- giao diện ----------
-const state = { car: 0, map: 0, cam: 0, weather: 0, time: TIMES.findIndex((t) => t.id === 'golden'), music: 0, cine: true, started: false, mistCover: 0.35, mistDens: 0.2, fstop: FSTOP_DEFAULT, quality: loadQuality() };
+// mặc định vào game: đồi thông, sương mù, hoàng hôn
+const state = { car: 0, map: MAPS.findIndex((m) => m.id === 'forest'), cam: 0, weather: WEATHERS.findIndex((w) => w.id === 'fog'), time: TIMES.findIndex((t) => t.id === 'sunset'), music: 0, cine: true, started: false, mistCover: 0.35, mistDens: 0.2, fstop: FSTOP_DEFAULT, quality: loadQuality() };
 const el = { stop: $('b-stop'), quality: $('b-quality'), lens: $('b-lens'), mist: $('b-mist'), cine: $('b-cine'), fast: $('b-fast'), car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
 const setBtn = (btn, icon, text) => { btn.querySelector('b').textContent = icon; btn.querySelector('span').textContent = text; btn.title = text; };
 
@@ -479,6 +480,7 @@ async function init() {
   applyQuality();
   env.setTime(TIMES[state.time].hour);
   env.hour = TIMES[state.time].hour;
+  env.snapWeather(WEATHERS[state.weather].id);
   env.onThunder = (delay, power) => audio.thunder(delay, power);
   road.ensure(drive.s + 8000);
   road.at(drive.s, roadPt);
