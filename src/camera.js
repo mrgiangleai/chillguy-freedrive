@@ -27,6 +27,9 @@ export class CameraRig {
     this._r = new THREE.Vector3();
     this._cp = new THREE.Vector3();
     this._cl = new THREE.Vector3();
+    this._dl = new THREE.Vector3();
+    this._eye = new THREE.Vector3();
+    this.eyeAt = null;               // (out) => true nếu có vị trí mắt người lái thật (toạ độ thế giới)
     // nhìn xung quanh khi bấm giữ + rê (radian); thả ra thì tự xoay về
     this.look = { yaw: 0, pitch: 0, hold: false, idle: 0 };
     this.sideSign = 0;                 // camera bên hông: -1 trái / +1 phải (0 = chưa chọn)
@@ -64,7 +67,7 @@ export class CameraRig {
     this.sideSign = 0;
     this.blend = 0.7;
     const rigid = CAMERAS[this.mode].id === 'cockpit';
-    this.camera.near = rigid ? 0.1 : 0.3;
+    this.camera.near = rigid ? 0.04 : 0.3;
     this.camera.updateProjectionMatrix();
   }
 
@@ -104,9 +107,11 @@ export class CameraRig {
         break;
       }
       case 'cockpit': {
+        // mắt người lái (xương đầu của người đang ngồi lái); nhìn hơi chúc xuống để thấy hai tay trên vô lăng
         const [ex, ey, ez] = dim.eye;
-        p.copy(pos).addScaledVector(r, ex).addScaledVector(fc, -ez).setY(pos.y + ey - slope * ez);
-        l.copy(p).addScaledVector(fc, 30).setY(p.y - 0.12 + slope * 30);
+        if (this.eyeAt && this.eyeAt(this._eye)) p.copy(this._eye);
+        else p.copy(pos).addScaledVector(r, ex).addScaledVector(fc, -ez).setY(pos.y + ey - slope * ez);
+        l.copy(p).addScaledVector(fc, 30).setY(p.y - 30 * Math.tan(0.24) + slope * 30);
         rigid = true;
         break;
       }
@@ -168,7 +173,7 @@ export class CameraRig {
     const cp = this._cp.copy(this.relP), cl = this._cl.copy(this.relL);
     if (Math.abs(lk.yaw) > 1e-4 || Math.abs(lk.pitch) > 1e-4) {
       if (rigid) {
-        const d = cl.sub(cp), len = d.length();
+        const d = this._dl.copy(cl).sub(cp), len = d.length();   // (vector riêng: trước đây ghi đè lên cl => camera nhảy loạn)
         const az = Math.atan2(d.x, d.z) - lk.yaw;
         const el = clamp(Math.atan2(d.y, Math.hypot(d.x, d.z)) + lk.pitch, -1.2, 1.2);
         d.set(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)).multiplyScalar(len);

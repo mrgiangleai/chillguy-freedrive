@@ -48,6 +48,21 @@ export class Cars {
     this.headGlow = [mk(0xfff0d0, 1.0), mk(0xfff0d0, 1.0)];
     this.tailGlow = [mk(0xff2a1a, 1.0), mk(0xff2a1a, 1.0)];
     this.lampLevel = 0;
+    this.brake = 0;
+
+    // bóng mờ giả dưới gầm xe (để góc ngang / góc thấp thấy xe "đặt" trên đường)
+    this.contact = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({
+      alphaMap: contactShadowTexture(), color: 0x000000, transparent: true, opacity: 0.72, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6, fog: false,
+    }));
+    this.contact.position.y = 0.06;
+    this.contact.renderOrder = 1;
+    this.root.add(this.contact);
+
+    // đèn trần cabin (luôn có trong cảnh để không phải dịch lại shader; chỉ sáng khi nhìn từ trong xe)
+    this.cabin = new THREE.PointLight(0xfff2e0, 0, 2.6, 2);
+    this.tilt.add(this.cabin);
+    this.cabinLevel = 0;
   }
 
   // chỉ những xe có file thật mới được đưa vào danh sách (Mustang là tuỳ chọn)
@@ -134,6 +149,7 @@ export class Cars {
     }
 
     // vật liệu: bỏ transmission (tốn kém) -> kính trong suốt thường; bật đổ bóng
+    const tailMats = [];
     model.traverse((o) => {
       if (!o.isMesh) return;
       const mats = Array.isArray(o.material) ? o.material : [o.material];
@@ -143,6 +159,7 @@ export class Cars {
         if (m.transparent && m.opacity < 0.9) glass = true;
         if (def.doubleSide && !m.transparent) m.side = THREE.DoubleSide;   // model thiếu mặt trong (mui, cột A) => nhìn từ trong xe vẫn thấy
         if (def.mats && def.mats[m.name]) Object.assign(m, def.mats[m.name]);   // sửa vật liệu bị chuyển đổi sai
+        if (/tail|brake|emissivered|rear.?light/i.test(m.name) && m.emissive) { m.emissive.set(0xff1a0a); tailMats.push(m); }
         this._env(m);
         withMist(m);
       }
@@ -152,7 +169,7 @@ export class Cars {
 
     const wheels = def.wheels ? this._wheels(car, def, dim) : [];
     const door = def.door ? this._door(car, def) : null;
-    return { def, group: car, dim, wheels, door, anim: null };
+    return { def, group: car, dim, wheels, door, tailMats, anim: null };
   }
 
   // môi trường phản chiếu riêng cho xe (có mặt đất tối), cập nhật mỗi lần bầu trời được chụp lại
@@ -247,6 +264,8 @@ export class Cars {
     });
     this.headGlow.forEach((g, i) => g.position.set(i ? x : -x, y, -d.length / 2 - 0.05));
     this.tailGlow.forEach((g, i) => g.position.set(i ? x : -x, y + 0.05, d.length / 2 + 0.05));
+    this.contact.scale.set(d.width * 1.12, 1, d.length * 1.06);
+    this.cabin.position.set(d.eye[0] * 0.5, d.eye[1] + 0.05, d.eye[2] - 0.45);
   }
 
   setLights(level) { this.lampLevel = level; }
@@ -259,6 +278,7 @@ export class Cars {
 
     // nhún nhẹ khi tăng/giảm tốc & vào cua
     const acc = (st.speed - this.lastSpeed) / Math.max(dt, 1e-3);
+    this.brakeAcc = acc;
     this.lastSpeed = st.speed;
     const k = 1 - Math.exp(-dt * 4);
     this.pitch += (clamp(acc * 0.004, -0.04, 0.04) - this.pitch) * k;
@@ -281,6 +301,30 @@ export class Cars {
     const L = this.lampLevel;
     this.spots.forEach((s) => { s.intensity = 1800 * L; });
     this.headGlow.forEach((g) => { g.material.opacity = 0.9 * L; });
-    this.tailGlow.forEach((g) => { g.material.opacity = 0.85 * L; });
+    // đèn hậu: luôn sáng nhẹ, bật đèn thì sáng hẳn; giảm tốc thì sáng thêm (đèn phanh)
+    const acc0 = this.brakeAcc || 0;
+    this.brake += ((acc0 < -1.2 ? 1 : 0) - this.brake) * (1 - Math.exp(-dt * 8));
+    const tail = 0.3 + 0.7 * L + 0.6 * this.brake;
+    this.tailGlow.forEach((g) => { g.material.opacity = Math.min(1, 0.95 * tail); g.scale.setScalar(1.15 + 0.5 * tail); });
+    for (const m of this.current?.tailMats || []) m.emissiveIntensity = 0.8 + 2.6 * tail;
+    this.cabin.intensity = this.cabinLevel;
   }
+}
+
+// bóng gầm xe: hình chữ nhật bo góc nhoè (đậm ở giữa, mờ dần ra mép)
+function contactShadowTexture() {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 256;
+  const g = c.getContext('2d');
+  g.filter = 'blur(14px)';
+  g.fillStyle = '#fff';
+  g.beginPath();
+  g.roundRect ? g.roundRect(26, 30, 76, 196, 26) : g.rect(26, 30, 76, 196);
+  g.fill();
+  g.filter = 'blur(6px)';
+  g.globalAlpha = 0.5;
+  g.fillRect(36, 44, 56, 168);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.NoColorSpace;
+  return t;
 }

@@ -107,6 +107,7 @@ const ROAD_PARS = `#include <common>
 varying vec3 vRW;
 uniform float uWet, uPuddle, uRain, uRainT, uReflOn, uPlaneY;
 uniform sampler2D uReflTex, uDirtTex;
+uniform float uSunHide;
 uniform vec3 uGrassCol;
 varying float vDirt;
 uniform mat4 uReflMat;
@@ -184,7 +185,7 @@ export class Scenery {
     this.roadU = {
       uWet: { value: 0 }, uPuddle: { value: 0 }, uRain: { value: 0 }, uRainT: { value: 0 },
       uReflTex: { value: null }, uReflMat: { value: new THREE.Matrix4() }, uReflOn: { value: 0 }, uPlaneY: { value: 0 },
-      uDirtTex: { value: photoTexture('dirt', renderer) }, uGrassCol: { value: new THREE.Color('#5c6b34') },
+      uSunHide: { value: 0 }, uDirtTex: { value: photoTexture('dirt', renderer) }, uGrassCol: { value: new THREE.Color('#5c6b34') },
     };
     this.roadMat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, this.roadU);
@@ -196,6 +197,7 @@ export class Scenery {
         .replace('#include <map_fragment>', '#include <map_fragment>\n' + ROAD_PUDDLE)
         .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, max(roughnessFactor, 0.97 - 0.45 * uWet), vDirt);\nroughnessFactor = mix(roughnessFactor, 0.03, puddle);')
         .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize(normal + (viewMatrix * vec4(ripG.x, 0.0, ripG.y, 0.0)).xyz * 0.35);')
+        .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n// trời âm u / mưa: mặt trời bị mây che => vũng nước không loé sáng như soi mặt trời\nreflectedLight.directSpecular *= 1.0 - uSunHide * puddle;')
         .replace('#include <opaque_fragment>', ROAD_REFL + '\n#include <opaque_fragment>');
     };
     this.railMat = new THREE.MeshStandardMaterial({ color: 0xb9bec4, roughness: 0.35, metalness: 0.75, side: THREE.DoubleSide });
@@ -263,6 +265,7 @@ export class Scenery {
     u.uWet.value = st.wet;
     u.uPuddle.value = st.wet;                               // vũng nước giữ nguyên hình, chỉ hiện dần (crossfade)
     u.uRain.value = st.rain;
+    u.uSunHide.value = Math.min(1, st.overcast * 1.2 + st.rain);
   }
 
   // gắn texture phản chiếu (hoặc tắt) cho mặt đường

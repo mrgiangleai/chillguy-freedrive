@@ -49,6 +49,16 @@ const meadow = new ReedField(scene, renderer, 'meadow'); // cỏ cao cho map đ�
 const cars = new Cars(scene);
 const rig = new CameraRig(camera);
 rig.groundAt = (x, z) => terrain.heightAt(x, z);
+// mắt người lái thật: xương đầu + 9 cm lên, 4 cm về sau (toạ độ thế giới)
+const _eyeF = new THREE.Vector3(), _eyeU = new THREE.Vector3();
+rig.eyeAt = (out) => {
+  if (!person.ready || stop.active) return false;
+  person.head.getWorldPosition(out);
+  _eyeF.set(0, 0, -1).applyQuaternion(cars.root.quaternion);
+  _eyeU.set(0, 1, 0).applyQuaternion(cars.root.quaternion);
+  out.addScaledVector(_eyeU, 0.09).addScaledVector(_eyeF, -0.04);
+  return true;
+};
 const audio = new ChillAudio();
 const post = new Post(renderer, QUALITY[QUALITY_DEFAULT].msaa);
 const refl = new WetReflection(renderer);
@@ -201,7 +211,22 @@ const applyMap = () => {
   warmShaders();
 };
 const nextMap = () => { state.map = (state.map + 1) % MAPS.length; applyMap(); refreshUI(); };
-const nextCam = () => { state.cam = (state.cam + 1) % CAMERAS.length; rig.setMode(state.cam); refreshUI(); };
+// camera trong xe: ống kính 16 mm, khẩu độ f/16 (nét sâu), lấy nét ở taplo; ra ngoài thì trả lại như cũ
+let lensBeforeCockpit = null;
+function onCamChange() {
+  const inCar = CAMERAS[state.cam].id === 'cockpit';
+  if (inCar && !lensBeforeCockpit) {
+    lensBeforeCockpit = { focal: rig.focal, fstop: state.fstop };
+    rig.focal = rig.focalS = 16;
+    state.fstop = FSTOPS.indexOf(16);
+  } else if (!inCar && lensBeforeCockpit) {
+    rig.focal = lensBeforeCockpit.focal;
+    state.fstop = lensBeforeCockpit.fstop;
+    lensBeforeCockpit = null;
+  }
+  syncLens();
+}
+const nextCam = () => { state.cam = (state.cam + 1) % CAMERAS.length; rig.setMode(state.cam); onCamChange(); refreshUI(); };
 const nextWeather = () => { state.weather = (state.weather + 1) % WEATHERS.length; env.setWeather(WEATHERS[state.weather].id); refreshUI(); };
 const nextTime = () => {
   state.time = (state.time + 1) % TIMES.length;
@@ -342,7 +367,7 @@ function dofParams(dt) {
   const inCar = CAMERAS[state.cam].id === 'cockpit';
   _focusP.copy(drive.pos).y += 0.6;
   if (stop.active) _focusP.copy(stop.cam.focus);
-  const target = inCar && !stop.active ? 25 : Math.max(1, camera.position.distanceTo(_focusP));
+  const target = inCar && !stop.active ? 0.8 : Math.max(0.5, camera.position.distanceTo(_focusP));
   dof.focus += (target - dof.focus) * (dof.amt > 0.01 ? 1 - Math.exp(-dt * 6) : 1);
   const f = rig.focalEff, N = FSTOPS[state.fstop], F = dof.focus * 1000;
   dof.cocK = ((f * f) / (N * Math.max(F - f, 1))) * (post.longSide / 36) * BOKEH;
@@ -400,9 +425,12 @@ function frame(now) {
   cineAmt += ((state.cine && state.started ? 1 : 0) - cineAmt) * (1 - Math.exp(-dt * 2.5));
   rig.cine = cineAmt;
   cars.update(dt, { pos: drive.pos, yaw: drive.yaw, pitch: drive.pitch, speed: drive.v, latVel: drive.latVel, rough: road.dirtAt(drive.s) });
-  // người lái: ngồi trong xe (ẩn khi camera trong xe), cảnh dừng xe điều khiển khi đang dừng
+  // người lái: luôn ngồi trong xe; camera trong xe nhìn từ mắt người lái => thu nhỏ đầu (không nhìn xuyên vào đầu)
   if (person.ready) {
-    person.root.visible = stop.active || CAMERAS[state.cam].id !== 'cockpit';
+    person.root.visible = true;
+    const inCar = CAMERAS[state.cam].id === 'cockpit' && !stop.active;
+    person.head.scale.setScalar(inCar ? 0.001 : 1);
+    cars.cabinLevel = inCar ? 0.35 + 0.45 * env.state.dayF : 0;      // đèn cabin để taplo / tay không tối om
     person.update(dt);
   }
   if (stop.active) {
