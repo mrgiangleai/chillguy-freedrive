@@ -9,7 +9,7 @@ import * as THREE from 'three';
 //     - nửa độ phân giải: gom mẫu theo đĩa (bokeh), mẫu ở trước "phủ" lên điểm đang xét nếu vòng nhoè của nó đủ lớn
 //  2) lọc vùng sáng -> làm mờ ở 1/4 độ phân giải (bloom kéo dãn ngang kiểu anamorphic)
 //  3) quad cuối: blur tốc độ + tone mapping ACES (giống hệt three.js) + bloom + chỉnh màu + vignette + grain.
-// Khi cả Cinematic lẫn Fast drive đều tắt thì không dùng pass này (vẽ thẳng ra màn hình như bình thường).
+// Cảnh luôn đi qua đây (màu tuyến tính -> tone mapping); Cinematic tắt thì chỉ còn tone mapping (+ blur tốc độ nếu Fast drive).
 const VERT = `
   varying vec2 vUv;
   void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;

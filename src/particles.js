@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { DISPLAY_TO_LINEAR } from './colorspace.js';
 
 // Mưa / tuyết / bông cỏ bay: toàn bộ chuyển động tính trong vertex shader quanh vị trí camera nên gần như không tốn CPU.
 function seeds(n, perVertex = 1) {
@@ -33,10 +34,11 @@ const POINT_VERT = `
   }`;
 const POINT_FRAG = `
   uniform float uOpacity, uLight; uniform vec3 uColor; varying float vA;
+  ${DISPLAY_TO_LINEAR}
   void main() {
     float r = length(gl_PointCoord - 0.5) * 2.0;
     float a = smoothstep(1.0, 0.25, r);
-    gl_FragColor = vec4(uColor * uLight, a * uOpacity * vA);
+    gl_FragColor = vec4(dispToLin(uColor * uLight), a * uOpacity * vA);
   }`;
 
 export class Precip {
@@ -46,7 +48,7 @@ export class Precip {
     // mỗi vật liệu phải có object uniform riêng (dùng chung sẽ bị ghi đè lẫn nhau)
     const common = () => ({
       uTime: { value: 0 }, uCam: { value: new THREE.Vector3() }, uBox: { value: box.clone() },
-      uOpacity: { value: 0 }, uLight: { value: 1 },
+      uOpacity: { value: 0 }, uLight: { value: 1 }, uExposure: { value: 0.6 },
     });
 
     // --- mưa: các đoạn thẳng, nghiêng theo gió ---
@@ -78,7 +80,8 @@ export class Precip {
         }`,
       fragmentShader: `
         uniform float uOpacity, uLight; varying float vA;
-        void main() { gl_FragColor = vec4(vec3(0.78, 0.84, 0.92) * uLight, uOpacity * vA); }`,
+        ${DISPLAY_TO_LINEAR}
+        void main() { gl_FragColor = vec4(dispToLin(vec3(0.78, 0.84, 0.92) * uLight), uOpacity * vA); }`,
     }));
     this.rain.frustumCulled = false;
     this.rain.layers.set(3);
@@ -114,6 +117,7 @@ export class Precip {
       u.uTime.value = this.time;
       u.uCam.value.copy(cam);
       u.uLight.value = st.light;
+      u.uExposure.value = st.exposure || 0.6;
     }
     const ru = this.rain.material.uniforms;
     ru.uOpacity.value = 0.55 * st.rain * (1 + 0.25 * st.dark);

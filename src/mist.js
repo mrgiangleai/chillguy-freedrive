@@ -14,7 +14,7 @@ export const MIST = {
   uMistCover: { value: 0.5 },                 // 0..1
   uMistT: { value: 0 },
   uMistWind: { value: new THREE.Vector2() },
-  uMistColor: { value: new THREE.Color() },   // màu đã ở không gian hiển thị (như fogColor)
+  uMistColor: { value: new THREE.Color() },   // màu tuyến tính (cảnh vẽ tuyến tính, hậu kỳ mới tone mapping)
 };
 
 export function installMist() {

@@ -25,7 +25,8 @@ const CHILL_DEFAULT = 35 * KMH, CHILL_MIN = 10 * KMH, CHILL_MAX = 40 * KMH, FAST
 
 // ---------- renderer / scene ----------
 const canvas = $('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+// cảnh luôn vẽ vào render target của hậu kỳ (có MSAA riêng) => canvas không cần khử răng cưa
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
 let pixelRatio = 1;
 renderer.setPixelRatio(pixelRatio);
 renderer.shadowMap.enabled = true;
@@ -155,11 +156,11 @@ function compileFor(target, cam, obj = scene) {
 // xe mới tải: dịch shader (cả biến thể vẽ vào render target: hậu kỳ / phản chiếu vũng nước) trước khi gắn vào cảnh
 env.onCarEnv = (tex) => cars.setEnvMap(tex);
 if (env.carEnvRT) cars.setEnvMap(env.carEnvRT.texture);
-cars.prepare = (group) => Promise.all([compileFor(null, camera, group), compileFor(post.sceneRT, camera, group)]);
+cars.prepare = (group) => compileFor(post.sceneRT, camera, group);
 function warmShaders(delay = 500) {
   clearTimeout(warmTimer);
   warmTimer = setTimeout(() => {
-    compileFor(post.sceneRT, camera).then(() => compileFor(null, camera)).catch((e) => console.warn('warmup', e));
+    compileFor(post.sceneRT, camera).catch((e) => console.warn('warmup', e));
   }, delay);
 }
 const applyMap = () => {
@@ -419,17 +420,17 @@ function frame(now) {
   MIST.uMistT.value = now / 1000;
   MIST.uMistWind.value.copy(st.windDir).multiplyScalar(0.0012 + 0.006 * st.wind);
   MIST.uMistColor.value.copy(st.mistColor);
+  env.mistCover = state.mistCover; env.mistDens = state.mistDens;   // sương phủ cả bầu trời
 
   // đường ướt: vẽ ảnh phản chiếu cho vũng nước (chỉ khi mưa)
   if (st.wet > 0.001) refl.render(scene, camera, drive.pos.y + 0.05);
   else refl.active = false;
   scenery.setReflection(refl, now / 1000);
 
-  // hậu kỳ (xoá phông/bloom/chỉnh màu/hạt phim + blur tốc độ): cảnh vẽ vào render target; tắt cả hai thì vẽ thẳng ra màn hình
-  const usePost = cineAmt > 0.01 || drive.fx > 0.015;
-  if (usePost) post.begin();
+  // cảnh luôn vẽ vào render target (màu tuyến tính + độ sâu); hậu kỳ tone mapping + xoá phông/bloom/chỉnh màu (Cinematic) + blur tốc độ
+  post.begin();
   renderer.render(scene, camera);
-  if (usePost) post.render(now / 1000, cineAmt, drive.fx, dofParams(dt));
+  post.render(now / 1000, cineAmt, drive.fx, dofParams(dt));
   requestAnimationFrame(frame);
 }
 

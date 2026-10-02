@@ -53,6 +53,22 @@ function displayColor(c, exposure, out) {
   );
 }
 
+// ngược lại: màu hiển thị -> màu tuyến tính (HDR) mà sau tone mapping cho đúng màu đó.
+// Cả cảnh vẽ tuyến tính rồi hậu kỳ mới tone mapping, nên màu sương / mù phải ở dạng tuyến tính.
+const _dl = new THREE.Color();
+function linearFromDisplay(d, exposure, out) {
+  const dec = (v) => { v = Math.min(0.985, Math.max(0, v)); return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  const inv = (x) => { const A = 1 - 0.983729 * x, B = 0.0245786 - 0.432951 * x, C = -(0.000090537 + 0.238081 * x); return ((-B + Math.sqrt(B * B - 4 * A * C)) / (2 * A)) * 0.6 / exposure; };
+  const t = [dec(d.r), dec(d.g), dec(d.b)];
+  out.setRGB(inv(t[0]), inv(t[1]), inv(t[2]));
+  for (let i = 0; i < 4; i++) {                      // tinh chỉnh cho đúng cả ma trận màu của ACES
+    displayColor(out, exposure, _dl);
+    const g = [dec(_dl.r), dec(_dl.g), dec(_dl.b)];
+    out.setRGB(out.r * t[0] / Math.max(g[0], 1e-5), out.g * t[1] / Math.max(g[1], 1e-5), out.b * t[2] / Math.max(g[2], 1e-5));
+  }
+  return out;
+}
+
 const SKY_VERT = `
   varying vec3 vDir;
   void main() { vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
@@ -60,6 +76,7 @@ const SKY_FRAG = `
   uniform vec3 uZenith, uMid, uHorizon, uBand, uSunCol, uSunDir;
   uniform float uGlow, uDisc, uBandAmt, uScale;
   uniform vec4 uGround;                                                     // rgb + độ phủ: mặt đất tối dưới chân trời (chỉ khi chụp môi trường cho xe)
+  uniform vec3 uVeilCol; uniform vec2 uVeil;                                // sương phủ bầu trời: (độ đậm, độ cao)
   varying vec3 vDir;
   void main() {
     vec3 d = normalize(vDir);
@@ -73,6 +90,7 @@ const SKY_FRAG = `
     col = mix(col, uBand, clamp(band * uBandAmt, 0.0, 1.0));
     col += uSunCol * (pow(sd, 5.0) * 0.32 + pow(sd, 42.0) * 0.85) * uGlow;  // quầng sáng
     col += uSunCol * smoothstep(0.99975, 0.9999, sd) * uDisc;                // đĩa mặt trời
+    col = mix(col, uVeilCol, uVeil.x * exp(-max(d.y, 0.0) / uVeil.y));      // sương mù phủ lên trời
     gl_FragColor = vec4(col * uScale, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -92,6 +110,7 @@ const CLOUD_FRAG = `
   uniform float uTime, uCover, uFlash, uSoft;
   uniform vec2 uDrift;
   uniform vec3 uSunDir, uLit, uShade, uFlashCol;
+  uniform vec3 uVeilCol; uniform vec2 uVeil;
   varying vec3 vDir;
   float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
   float noise(vec2 p) {
@@ -132,6 +151,7 @@ const CLOUD_FRAG = `
     float ci = smoothstep(0.5, 0.88, fbm(q + 3.7)) * (1.0 - uSoft) * 0.55 * (1.0 - dens);
     col = mix(col, uLit * (0.85 + 0.6 * sunAlign), ci / max(dens + ci, 1e-3));
     float alpha = (dens + ci) * smoothstep(0.0, 0.07, d.y);
+    col = mix(col, uVeilCol, uVeil.x * exp(-d.y / uVeil.y));               // mây cũng chìm trong sương
     gl_FragColor = vec4(col, alpha);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -152,9 +172,15 @@ export class Environment {
     this.target = WEATHER.clear;
     this.windDir = new THREE.Vector2(0.78, 0.62).normalize();
 
+    // sương phủ trời + mây (dùng chung)
+    this._fogDisp = new THREE.Color();
+    this.veil = { uVeilCol: { value: new THREE.Color() }, uVeil: { value: new THREE.Vector2(0, 0.2) } };
+    this.mistCover = 0.35; this.mistDens = 0.2;   // theo thanh trượt sương (main.js gán)
+
     // --- bầu trời gradient ---
     this.skyMat = new THREE.ShaderMaterial({
       uniforms: {
+        ...this.veil,
         uZenith: { value: new THREE.Color() }, uMid: { value: new THREE.Color() }, uHorizon: { value: new THREE.Color() },
         uBand: { value: new THREE.Color() }, uSunCol: { value: new THREE.Color() }, uSunDir: { value: new THREE.Vector3(0, 1, 0) },
         uGlow: { value: 1 }, uDisc: { value: 1 }, uBandAmt: { value: 1 }, uScale: { value: 1 },
@@ -211,6 +237,7 @@ export class Environment {
     // --- lớp mây (shader) ---
     this.cloudMat = new THREE.ShaderMaterial({
       uniforms: {
+        ...this.veil,
         uTime: { value: 0 }, uCover: { value: 0.4 }, uFlash: { value: 0 }, uSoft: { value: 0 },
         uDrift: { value: new THREE.Vector2() },
         uSunDir: { value: new THREE.Vector3(0, 1, 0) },
@@ -408,11 +435,24 @@ export class Environment {
     this.renderer.toneMappingExposure = (0.5 + 0.12 * warm) * (1 - 0.5 * dk);
 
     // ---- màu sương xa = đúng màu hiển thị của chân trời (liền mạch đất - trời) ----
-    const fogC = displayColor(this._lit.copy(S.hor).lerp(S.band, 0.2 * su.uBandAmt.value), this.renderer.toneMappingExposure, this.state.fogColor);
-    this.scene.fog.color.copy(fogC);
+    // (màu tuyến tính = đúng radiance chân trời; fogC = màu hiển thị của nó, dùng cho ánh sáng nền)
+    const exposure = this.renderer.toneMappingExposure;
+    this.state.exposure = exposure;
+    this.state.fogColor.copy(this._lit.copy(S.hor).lerp(S.band, 0.2 * su.uBandAmt.value));
+    const fogC = displayColor(this.state.fogColor, exposure, this._fogDisp);
+    this.scene.fog.color.copy(this.state.fogColor);
     this.scene.fog.density = w.fog;
-    // màu sương tầng thấp: sáng hơn sương xa một chút (ban đêm / bão tối theo)
-    this.state.mistColor.copy(fogC).lerp(this._c.setRGB(0.93, 0.95, 0.97).multiplyScalar(0.1 + 0.9 * dayF * (1 - 0.6 * dk)), 0.3);
+    // màu sương tầng thấp: sáng hơn sương xa một chút (ban đêm / bão tối theo) — chọn ở dạng hiển thị rồi đổi về tuyến tính
+    this._c2.copy(fogC).lerp(this._c.setRGB(0.93, 0.95, 0.97).multiplyScalar(0.1 + 0.9 * dayF * (1 - 0.6 * dk)), 0.3);
+    linearFromDisplay(this._c2, exposure, this.state.mistColor);
+    // sương phủ bầu trời: theo thanh trượt sương (độ dày -> độ đậm, độ phủ -> lên cao tới đâu) và thời tiết sương mù
+    {
+      const mistAmt = sstep(0, 0.6, this.mistDens) * (0.35 + 0.65 * this.mistCover);
+      const fogAmt = sstep(0.0012, 0.0075, w.fog) * 0.85;
+      const v = this.veil;
+      v.uVeil.value.set(Math.max(mistAmt, fogAmt), Math.max(0.05 + 0.5 * Math.pow(this.mistCover, 1.5), fogAmt > mistAmt ? 0.3 : 0));
+      v.uVeilCol.value.copy(this.state.mistColor);
+    }
 
     // ---- ánh sáng chính (mặt trời ban ngày, mặt trăng ban đêm) ----
     this.sun.intensity = 3.4 * sstep(-2, 9, e) * w.sun;
@@ -436,7 +476,7 @@ export class Environment {
     const hazeH = 150 + w.fog * 100000;
     this.haze.scale.y = hazeH;
     this.haze.position.y = hazeH / 2 - 60;
-    this.haze.material.uniforms.uColor.value.copy(fogC);
+    this.haze.material.uniforms.uColor.value.copy(this.state.fogColor);
 
     this.stars.material.opacity = night * (1 - over * 0.95);
     this.stars.visible = this.stars.material.opacity > 0.01;
