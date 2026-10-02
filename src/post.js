@@ -143,6 +143,105 @@ const RAY_BLUR = `
     gl_FragColor = vec4(s / tot, 1.0);
   }`;
 
+// --- mưa trên kính lái (khi ngồi trong xe): tia nhìn cắt mặt phẳng kính => toạ độ trên kính (m),
+// chỉ vẽ ở điểm ảnh nhìn xuyên qua kính (độ sâu cảnh xa hơn kính). Giọt nước đọng dần sau mỗi lần lưỡi gạt quét qua
+// (tính đúng thời điểm quét qua từng điểm), giọt mới bắn toé lúc chạm kính, vài giọt chảy thành vệt (lên trên khi xe chạy nhanh).
+// Giọt nước như thấu kính nhỏ: ảnh phía sau bị lật ngược + viền tối + đốm sáng.
+const RAIN_GLASS = `
+  uniform float uGlass, uNear, uFar, uTanF;
+  uniform sampler2D tDepth;
+  uniform mat4 uInvVP;
+  uniform vec3 uCamPos, uCamFwd, uGC, uGN, uGU, uGV, uBlade;
+  uniform vec4 uGB, uPiv, uWipe;
+  uniform vec2 uFlow;
+  // tuổi lớp nước (giây kể từ lần lưỡi gạt quét qua điểm g); side 1 = cần trái, -1 = cần phải. blade: khoảng cách tới lưỡi / cần gạt
+  float wipeAge(vec2 g, vec2 piv, float side, inout float blade) {
+    vec2 d = (g - piv) * vec2(side, 1.0);
+    float th = uBlade.z * 0.5 * (1.0 - cos(uWipe.x));
+    vec2 bd = vec2(cos(th), sin(th));
+    float along = dot(d, bd), perp = d.y * bd.x - d.x * bd.y;
+    if (along > uBlade.x && along < uBlade.y) blade = min(blade, abs(perp + 0.002) / 0.0065);           // lưỡi cao su
+    if (along > 0.0 && along < uBlade.y * 0.96) blade = min(blade, abs(perp - 0.012) / 0.0035);          // cần gạt
+    float r = length(d), phi = atan(d.y, d.x);
+    if (r < uBlade.x || r > uBlade.y || phi < 0.0 || phi > uBlade.z) return 1e3;
+    float a = acos(clamp(1.0 - 2.0 * phi / uBlade.z, -1.0, 1.0));
+    float ps = uWipe.x;
+    float last = ps >= 6.2831853 - a ? 6.2831853 - a : (ps >= a ? a : -a);
+    return (ps - last) / uWipe.y + uWipe.z;
+  }
+  // một lớp giọt tĩnh trên lưới ô cỡ cell (m): vec4(toạ độ trong giọt, độ phủ, tia bắn toé)
+  vec4 drops(vec2 g, float cell, vec2 rr, float seed, float age, float dens) {
+    vec2 id = floor(g / cell), f = fract(g / cell) - 0.5;
+    float h1 = hash12(id + seed), h2 = hash12(id + seed + 17.3), h3 = hash12(id + seed + 41.9), h4 = hash12(id + seed + 73.1);
+    if (h4 > dens) return vec4(0.0);
+    float r = mix(rr.x, rr.y, h2 * h2) / cell;
+    vec2 c = (vec2(h1, h3) - 0.5) * max(1.0 - 2.0 * r, 0.0);
+    float t = age - h1 * 2.6 / (0.35 + dens);               // lúc giọt này rơi xuống (sau lần gạt)
+    if (t < 0.0) return vec4(0.0);
+    float sp = 1.0 - smoothstep(0.0, 0.14, t);              // vừa chạm kính: loang rộng rồi co lại
+    vec2 q = (f - c) / r / (1.0 + 0.45 * sp);
+    float l = length(q);
+    float ring = sp * smoothstep(0.14, 0.0, abs(l - 1.2 - 1.5 * (1.0 - sp))) * step(0.55, fract(atan(q.y, q.x) * 0.955 + h3 * 7.0));
+    return vec4(q, smoothstep(1.0, 0.8, l), ring);
+  }
+  // giọt chảy thành vệt theo từng cột: vec4(toạ độ trong giọt, độ phủ đầu giọt, vệt nước phía sau)
+  vec4 runs(vec2 g, float w, float seed, float dens) {
+    float cid = floor(g.x / w);
+    float h1 = hash12(vec2(cid, seed)), h2 = hash12(vec2(cid, seed + 9.7)), h3 = hash12(vec2(cid, seed + 23.1));
+    if (h3 > dens * 0.55) return vec4(0.0);
+    float L = 0.3 + 0.45 * h2;
+    float a = fract(((g.y - uFlow.x * (0.6 + 0.8 * h1)) / L + h2) * uFlow.y) * L;   // quãng theo hướng chảy
+    float wob = sin(g.y * 31.0 + h1 * 6.0) * 0.004 + sin(g.y * 83.0 + h2 * 3.0) * 0.0015;
+    float fx = (fract(g.x / w) - 0.5 - (h2 - 0.5) * 0.4) * w + wob;
+    float rd = 0.005 + 0.004 * h1, ah = 0.93 * L, tl = 0.3 * L;
+    vec2 q = vec2(fx, (a - ah) * uFlow.y) / rd;
+    float head = smoothstep(1.0, 0.8, length(q * vec2(1.0, 0.75)));
+    float k = clamp((a - ah + tl) / tl, 0.0, 1.0);
+    float trail = step(a, ah) * k * smoothstep(rd * 0.4 * k + 1e-4, rd * 0.15 * k, abs(fx));
+    return vec4(q, head, trail);
+  }
+  vec3 rainGlass(vec3 col, vec2 uv) {
+    vec4 wp = uInvVP * vec4(uv * 2.0 - 1.0, 1.0, 1.0);
+    vec3 dir = normalize(wp.xyz / wp.w - uCamPos);
+    float dn = dot(dir, uGN);
+    if (dn > -1e-3) return col;
+    float t = dot(uGC - uCamPos, uGN) / dn;
+    if (t <= 0.0) return col;
+    vec3 hit = uCamPos + dir * t - uGC;
+    vec2 g = vec2(dot(hit, uGU), dot(hit, uGV));
+    float inB = smoothstep(uGB.x, uGB.x + 0.04, g.x) * smoothstep(uGB.y, uGB.y - 0.04, g.x)
+              * smoothstep(uGB.z, uGB.z + 0.02, g.y) * smoothstep(uGB.w, uGB.w - 0.03, g.y);
+    float zs = uNear * uFar / (uFar - texture2D(tDepth, uv).x * (uFar - uNear));
+    float zg = t * dot(dir, uCamFwd);
+    float m = inB * smoothstep(zg - 0.06, zg - 0.01, zs);
+    if (m <= 0.001) return col;
+    float blade = 1e3;
+    float age = min(wipeAge(g, uPiv.xy, 1.0, blade), wipeAge(g, uPiv.zw, -1.0, blade));
+    vec4 A = drops(g, 0.056, vec2(0.008, 0.017), 1.0, age, uGlass * 0.7);
+    vec4 B = drops(g + 0.013, 0.026, vec2(0.0035, 0.0075), 5.0, age, uGlass * 0.85);
+    vec4 C = drops(g + vec2(0.009, 0.027), 0.04, vec2(0.0055, 0.012), 9.0, age, uGlass * 0.65);
+    vec4 R = age > 0.7 ? runs(g, 0.06, 3.0, uGlass) : vec4(0.0);
+    vec4 D = A; float rd = 0.011;
+    if (B.z > D.z) { D = B; rd = 0.005; }
+    if (C.z > D.z) { D = C; rd = 0.008; }
+    if (R.z > D.z) { D = vec4(R.xy, R.z, 0.0); rd = 0.007; }
+    vec2 k = vec2(1.0 / uAspect, 1.0) / (2.0 * uTanF * zg);     // uv màn hình trên mỗi mét mặt kính
+    vec3 o = col;
+    if (R.w > 0.0) o = mix(o, sceneAt(clamp(uv + vec2(0.0, 0.006), 0.0, 1.0)) * 0.85, R.w * 0.7);
+    if (D.z > 0.0) {
+      vec2 q = D.xy;
+      float h = sqrt(max(1.0 - dot(q, q), 0.0));
+      vec3 refr = sceneAt(clamp(uv - q * rd * 3.0 * k, 0.0, 1.0));
+      float l = dot(refr, vec3(0.3, 0.59, 0.11));
+      vec3 dc = refr * (0.12 + 1.0 * smoothstep(0.05, 0.75, h));                 // viền giọt tối, giữa sáng
+      dc += vec3(0.92, 0.96, 1.0) * (0.3 + l) * 1.5 * smoothstep(0.36, 0.0, length(q - vec2(-0.3, 0.42)));   // đốm sáng
+      o = mix(o, dc, D.z);
+    }
+    o += vec3(0.6) * max(max(A.w, B.w), C.w) * (0.15 + dot(col, vec3(0.3, 0.59, 0.11)));
+    o = mix(o, vec3(0.012), 1.0 - smoothstep(0.7, 1.0, blade));              // lưỡi gạt + cần gạt
+    return mix(col, o, m);
+  }`;
+
 const FINAL = `
   uniform sampler2D tScene, tBloom, tDof, tRays;
   uniform vec3 uRayCol;
@@ -158,6 +257,7 @@ const FINAL = `
     if (uDof > 0.0) { vec4 d = texture2D(tDof, uv); s = mix(s, d.rgb, clamp(d.a, 0.0, 1.0) * uDof); }
     return s;
   }
+  ${RAIN_GLASS}
   void main() {
     vec2 d = vUv - vec2(0.5);
     vec2 da = d * vec2(uAspect, 1.0);
@@ -185,6 +285,7 @@ const FINAL = `
       col.r = mix(col.r, sceneAt(vUv - d * (amt + ca)).r, 0.5);
       col.b = mix(col.b, sceneAt(vUv - d * max(amt - ca, 0.0)).b, 0.5);
     }
+    if (uGlass > 0.0) col = rainGlass(col, vUv);              // (sau quang sai: không bị viền tím quanh giọt)
     col = toDisplay(col);
     // bloom
     col += texture2D(tBloom, vUv).rgb * 0.45 * uCine;
@@ -232,6 +333,12 @@ export class Post {
     this.final = mk({
       tScene: { value: null }, tBloom: { value: null }, tDof: { value: null }, uDof: { value: 0 }, uExposure: exposure,
       tRays: { value: null }, uRayCol: { value: new THREE.Color(0, 0, 0) },
+      // mưa trên kính lái (Wipers.apply gán)
+      uGlass: { value: 0 }, tDepth: { value: null }, uNear: { value: 0.1 }, uFar: { value: 1000 }, uTanF: { value: 1 },
+      uInvVP: { value: new THREE.Matrix4() }, uCamPos: { value: new THREE.Vector3() }, uCamFwd: { value: new THREE.Vector3() },
+      uGC: { value: new THREE.Vector3() }, uGN: { value: new THREE.Vector3() }, uGU: { value: new THREE.Vector3() }, uGV: { value: new THREE.Vector3() },
+      uBlade: { value: new THREE.Vector3() }, uGB: { value: new THREE.Vector4() }, uPiv: { value: new THREE.Vector4() }, uWipe: { value: new THREE.Vector4() },
+      uFlow: { value: new THREE.Vector2() },
       uFx: { value: 0 }, uCine: { value: 0 }, uTime: { value: 0 }, uAspect: { value: 1 }, uRes: { value: new THREE.Vector2(1, 1) },
     }, FINAL);
     this.rayMask = mk({
@@ -358,6 +465,7 @@ export class Post {
     const u = this.final.uniforms;
     u.tScene.value = src;
     u.tRays.value = this.rts.rayA.texture;
+    u.tDepth.value = this.sceneRT.depthTexture;
     if (rayOn) u.uRayCol.value.copy(ray.color); else u.uRayCol.value.setRGB(0, 0, 0);
     u.tBloom.value = this.rts.bloomA.texture;
     u.tDof.value = this.rts.dof.texture;

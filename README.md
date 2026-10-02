@@ -10,9 +10,10 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 - **Ống kính** 📷 (nút hoặc phím `L`): tiêu cự mặc định **28 mm** (zoom trong khoảng 16–35 mm), khẩu độ mặc định **f/2** (chỉnh f/1.4–f/16); độ xoá phông tính theo cảm biến full-frame
 - **Camera**: sau xe · sát mặt đường · bên hông (ngang hông, lùi xa ~11 m, xe chiếm ~1/3 khung hình) · trong xe · quay quanh · từ trên cao; **bấm giữ + rê chuột / vuốt** để nhìn quanh 360° (thả tay camera tự về), **lăn chuột / chụm 2 ngón / phím `+` `-`** để zoom (đổi tiêu cự)
 - **Thời tiết**: nắng · nhiều mây · **gió lớn** · mưa · **bão** (trời âm u tối, mưa xối, sét + sấm) · tuyết · **sương mù** (mặc định) (chuyển cảnh mượt)
-- **Bầu trời gradient** phối màu theo từng giờ (xanh trong ban ngày, cam–hồng–tím lúc hoàng hôn/bình minh, xanh than ban đêm), lớp mây thật, mây ti, sao, trăng; chân trời khớp màu với sương xa
+- **Bầu trời gradient** phối màu theo từng giờ (xanh trong ban ngày, cam–hồng–tím lúc hoàng hôn/bình minh, xanh than ban đêm), lớp mây thật, mây ti, sao; chân trời khớp màu với sương xa. **Mặt trời** lặn gần hướng đường chạy (vẫn lấp ló qua sương) + **tia nắng** xuyên qua hàng cây / mép đồi; **ban đêm** có **trăng** sáng (vân trăng, quầng sáng) chiếu sáng cảnh và đổ bóng
 - **Sương mù** 🌫️ (nút hoặc phím `G`): chỉnh **Độ phủ** (cao thấp, từng đám hay phủ kín) và **Độ dày**; sương đọng dày ở thung lũng và trôi theo gió
-- **Mưa**: mặt đường ướt có **vũng nước phản chiếu** xe, đèn đường, bầu trời + gợn sóng giọt mưa
+- **Mưa**: mặt đường ướt có **vũng nước phản chiếu** xe, đèn đường, bầu trời + gợn sóng giọt mưa; xe **tự bật gạt mưa** (bão gạt nhanh hơn) — ngồi trong xe thấy giọt mưa bắn vào kính, đọng lại, chảy thành vệt, lưỡi gạt quét sạch từng lượt
+- **Trong xe**: nhìn từ mắt người lái (thấy 2 tay trên vô lăng), mặc định 16 mm f/16 lấy nét gần taplo, cabin có đèn nên không tối om, kính có phản xạ, **gương chiếu hậu soi thật** cảnh phía sau
 - **Thời gian**: bình minh · ban ngày · giờ vàng · **hoàng hôn** (mặc định) · ban đêm · tự động chạy hết ngày (đèn pha, đèn đường)
 - **Chất lượng** ⚙️ (nút hoặc phím `Q`): **Low / Mid / Good / Ultra** do người chơi chọn (mặc định **Mid**, bật đủ mọi hiệu ứng; lựa chọn được nhớ trên máy). Low: độ phân giải 0.75, tắt xoá phông + phản chiếu vũng nước, cỏ thưa, chỉ cây tấm; Mid / Good / Ultra: cây / bụi / đá model chi tiết trong bán kính 25 / 35 / 50 m quanh camera; Good/Ultra: độ phân giải cao hơn (tới mật độ điểm ảnh thật của màn hình), khử răng cưa 4x, cỏ dày, bóng đổ nét hơn, xoá phông mịn hơn
 - **Dừng xe** 🅿️ (nút hoặc phím `P`): cận cảnh bánh xe chậm dần rồi dừng, cửa mở, người lái bước ra đi lên đầu xe đứng dựa vào xe, camera lùi ra toàn cảnh rồi quay chậm quanh xe; bấm lần nữa (▶️) người quay lại xe, đóng cửa, chạy tiếp. Người lái ngồi sẵn trong xe khi chạy (ẩn ở camera trong xe)
@@ -72,12 +73,14 @@ src/               mã nguồn (gộp bằng esbuild: build.mjs)
   reeds.js        cỏ lau / búi cỏ vô tận (instancing, gió, tự tránh mặt đường, mọc theo địa hình)
   world.js        bầu trời + mây, ánh sáng, giờ trong ngày, thời tiết, bão & sét
   particles.js    mưa / tuyết / bông cỏ bay (shader)
-  cars.js         tải & chuẩn hoá model xe, bánh xe quay, cửa tài xế, đèn pha
+  cars.js         tải & chuẩn hoá model xe, bánh xe quay, cửa tài xế, đèn pha, dò mặt phẳng kính lái
+  mirror.js       gương chiếu hậu trong xe (vẽ cảnh phía sau vào texture)
+  wipers.js       gạt mưa tự động + lớp nước trên kính lái
   person.js       người lái (animation, quần áo vẽ bằng shader)
   stopscene.js    cảnh dừng xe: cận bánh xe, mở cửa, người bước ra, camera quay quanh
   colorspace.js   đổi màu hiển thị -> tuyến tính cho shader tự tô màu
   camera.js       các chế độ camera
-  post.js         hậu kỳ: bloom, chỉnh màu phim, grain (Cinematic) + blur tốc độ (Fast drive)
+  post.js         hậu kỳ: xoá phông, bloom, tia nắng, mưa trên kính, chỉnh màu phim, grain (Cinematic) + blur tốc độ (Fast drive)
   audio.js        nhạc lo-fi + âm thanh môi trường
   style.css
 docs/              site GitHub Pages phục vụ

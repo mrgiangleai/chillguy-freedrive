@@ -98,6 +98,7 @@ export class Cars {
     this.tilt.add(entry.group);
     this.current = entry;
     this.dim = entry.dim;
+    this.shield = entry.shield;
     this._placeLights(entry.dim);
     return true;
   }
@@ -149,8 +150,9 @@ export class Cars {
     }
 
     // vật liệu: bỏ transmission (tốn kém) -> kính trong suốt thường; bật đổ bóng
-    const tailMats = [];
+    const tailMats = [], glassMeshes = [], wipers = [];
     model.traverse((o) => {
+      if (/^wiper/i.test(o.name)) wipers.push(o);
       if (!o.isMesh) return;
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       let glass = false;
@@ -166,11 +168,14 @@ export class Cars {
       }
       o.castShadow = !glass;
       o.receiveShadow = true;
+      if (glass) glassMeshes.push(o);
     });
 
     const wheels = def.wheels ? this._wheels(car, def, dim) : [];
     const door = def.door ? this._door(car, def) : null;
-    return { def, group: car, dim, wheels, door, tailMats, anim: null };
+    car.updateMatrixWorld(true);
+    const shield = windshield(glassMeshes, dim);
+    return { def, group: car, dim, wheels, door, tailMats, wipers, shield, anim: null };
   }
 
   // môi trường phản chiếu riêng cho xe (có mặt đất tối), cập nhật mỗi lần bầu trời được chụp lại
@@ -331,6 +336,63 @@ function contactShadowTexture() {
 }
 
 // kính: chỗ phản chiếu trời sáng thì kính "đục" hơn => thấy rõ bóng phản chiếu (Fresnel: nhìn xiên phản chiếu mạnh)
+// kính lái: gom các tam giác kính phía trước mắt người lái, quay mặt về phía người lái (bỏ kính hông, kính sau, đèn)
+// => mặt phẳng xấp xỉ (tâm, pháp tuyến hướng vào trong xe, trục ngang / dọc theo kính) + kích thước.
+// Dùng cho giọt mưa + cần gạt mưa vẽ ở hậu kỳ khi ngồi trong xe. Toạ độ trong hệ của xe.
+function windshield(meshes, dim) {
+  const [ex, ey, ez] = dim.eye;
+  const eye = new THREE.Vector3(ex, ey, ez);
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3(), m = new THREE.Vector3();
+  const N = new THREE.Vector3(), C = new THREE.Vector3(), pts = [];
+  let area = 0;
+  for (const o of meshes) {
+    const pos = o.geometry.attributes.position, idx = o.geometry.index;
+    const count = (idx ? idx.count : pos.count) / 3;
+    for (let i = 0; i < count; i++) {
+      const i0 = idx ? idx.getX(i * 3) : i * 3, i1 = idx ? idx.getX(i * 3 + 1) : i * 3 + 1, i2 = idx ? idx.getX(i * 3 + 2) : i * 3 + 2;
+      a.fromBufferAttribute(pos, i0).applyMatrix4(o.matrixWorld);
+      b.fromBufferAttribute(pos, i1).applyMatrix4(o.matrixWorld);
+      c.fromBufferAttribute(pos, i2).applyMatrix4(o.matrixWorld);
+      m.copy(a).add(b).add(c).multiplyScalar(1 / 3);
+      if (m.z > ez - 0.25 || m.y < ey - 0.3) continue;
+      n.subVectors(b, a).cross(c.clone().sub(a));
+      const ar = n.length() / 2;
+      if (ar < 1e-7) continue;
+      n.normalize();
+      if (n.dot(c.subVectors(eye, m)) < 0) n.negate();
+      if (Math.abs(n.x) > 0.5 || n.z < 0.25 || n.y > -0.2) continue;   // kính lái nghiêng: pháp tuyến hướng ra sau + xuống
+      N.addScaledVector(n, ar); C.addScaledVector(m, ar); area += ar;
+      pts.push(a.clone(), b.clone(), m.clone());
+    }
+  }
+  const sh = { center: new THREE.Vector3(), normal: new THREE.Vector3(), right: new THREE.Vector3(), up: new THREE.Vector3(), bounds: [0, 0, 0, 0] };
+  if (area < 0.1) {      // không tìm thấy kính: mặt phẳng mặc định trước mắt
+    sh.center.set(0, ey + 0.1, ez - 0.62);
+    sh.normal.set(0, -0.6, 0.8);
+    sh.bounds = [-dim.width * 0.38, dim.width * 0.38, -0.3, 0.3];
+  } else {
+    sh.center.copy(C).multiplyScalar(1 / area);
+    sh.normal.copy(N).normalize();
+  }
+  sh.right.set(1, 0, 0).addScaledVector(sh.normal, -sh.normal.x).normalize();
+  sh.up.crossVectors(sh.normal, sh.right);
+  if (sh.up.y < 0) sh.up.negate();
+  if (pts.length) {
+    const B = [1e9, -1e9, 1e9, -1e9];
+    for (const p of pts) {
+      p.sub(sh.center);
+      const u = p.dot(sh.right), v = p.dot(sh.up);
+      B[0] = Math.min(B[0], u); B[1] = Math.max(B[1], u); B[2] = Math.min(B[2], v); B[3] = Math.max(B[3], v);
+    }
+    sh.bounds = B;
+  }
+  // cần gạt: trục quay ở 2 mép dưới kính, lúc nghỉ nằm ngang hướng vào giữa, quét lên ~95°
+  const hw = (sh.bounds[1] - sh.bounds[0]) / 2, mid = (sh.bounds[0] + sh.bounds[1]) / 2;
+  sh.pivots = [mid - hw * 0.76, sh.bounds[2] + 0.03, mid + hw * 0.76, sh.bounds[2] + 0.03];
+  sh.blade = [hw * 0.1, hw * 0.68, 1.62];     // bán kính trong / ngoài của lưỡi gạt, góc quét (rad)
+  return sh;
+}
+
 function glassReflect(m) {
   m.userData.glass = true;
   m.metalness = 0;

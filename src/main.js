@@ -15,6 +15,7 @@ import { Person } from './person.js';
 import { StopScene } from './stopscene.js';
 import { Nature } from './nature.js';
 import { RearMirror } from './mirror.js';
+import { Wipers } from './wipers.js';
 
 installMist();   // thay shader sương của three.js (phải chạy trước khi vật liệu được biên dịch)
 import { MAPS, WEATHERS, TIMES, CAMERAS, MUSIC_MODES, FSTOPS, FSTOP_DEFAULT, QUALITY, QUALITY_DEFAULT } from './config.js';
@@ -67,6 +68,7 @@ const person = new Person();
 const stop = new StopScene(cars, person);
 const nature = new Nature(scene);
 const mirror = new RearMirror(renderer);
+const wipers = new Wipers();
 cars.tilt.add(mirror.group);
 
 function resize() {
@@ -448,7 +450,7 @@ function frame(now) {
     person.root.visible = true;
     const inCar = CAMERAS[state.cam].id === 'cockpit' && !stop.active;
     person.head.scale.setScalar(inCar ? 0.001 : 1);
-    cars.cabinLevel = inCar ? 0.35 + 0.45 * env.state.dayF : 0;      // đèn cabin để taplo / tay không tối om
+    cars.cabinLevel = inCar ? (0.35 + 0.45 * env.state.dayF) * (1 + env.state.dark) : 0;   // đèn cabin để taplo / tay không tối om (bão: bù độ phơi sáng bị giảm)
     person.update(dt);
   }
   if (stop.active) {
@@ -530,9 +532,14 @@ function frame(now) {
   const inCabin = CAMERAS[state.cam].id === 'cockpit' && !stop.active;
   mirror.group.visible = inCabin;
   if (inCabin) mirror.render(scene, cars.tilt);
+  // gạt mưa tự bật khi mưa / bão; trong xe thấy nước mưa trên kính (cần gạt vẽ ở hậu kỳ => giấu cần gạt 3D của model)
+  wipers.update(dt, stop.active ? 0 : st.rain, drive.v);
+  const glassAmt = inCabin ? wipers.wet : 0;
+  if (cars.current) for (const w of cars.current.wipers) w.visible = glassAmt < 0.01;
   post.begin();
   renderer.render(scene, camera);
   rayParams();
+  wipers.apply(post.final.uniforms, glassAmt > 0.01 ? glassAmt : 0, camera, cars.tilt, cars.shield, now / 1000);
   post.render(now / 1000, cineAmt, drive.fx, dofParams(dt));
   requestAnimationFrame(frame);
 }
@@ -587,4 +594,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, toggleCine, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, toggleCine, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

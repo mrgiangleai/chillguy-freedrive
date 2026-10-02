@@ -461,7 +461,7 @@ export class Environment {
     su.uMoonDir.value.copy(moonDir);
     su.uMoon.value = moonUp * clamp(1 - over * 1.05, 0, 1) * (1 - dk);
     // ban đêm phơi sáng nhiều hơn (mắt quen bóng tối) => cảnh dưới trăng rõ hơn
-    this.renderer.toneMappingExposure = (0.5 + 0.12 * warm) * (1 - 0.5 * dk) * (1 + 0.45 * night);
+    this.renderer.toneMappingExposure = (0.5 + 0.12 * warm) * (1 - 0.5 * dk) * (1 + 0.3 * night);
 
     // ---- màu sương xa = đúng màu hiển thị của chân trời (liền mạch đất - trời) ----
     // (màu tuyến tính = đúng radiance chân trời; fogC = màu hiển thị của nó, dùng cho ánh sáng nền)
@@ -488,7 +488,7 @@ export class Environment {
     const byMoon = e < -2.5;
     const lightDir = this.state.lightDir.copy(byMoon ? moonLightDir : sunDir);
     if (byMoon) {
-      this.sun.intensity = 0.6 * moonUp * (1 - 0.8 * over) * (1 - dk);
+      this.sun.intensity = 0.38 * moonUp * (1 - 0.8 * over) * (1 - dk);
       this.sun.color.copy(C_MOON);
     } else {
       this.sun.intensity = 3.4 * sstep(-2, 9, e) * w.sun;
@@ -500,7 +500,7 @@ export class Environment {
     }
     this.hemi.color.copy(fogC).lerp(this._c.set('#6f8cd0'), night * 0.75).lerp(this._c.set('#c4d4ff'), flash);
     this.hemi.groundColor.set('#3a4630').multiplyScalar(0.25 + 0.75 * dayF);
-    this.hemi.intensity = (0.16 + 0.45 * dayF + 0.4 * night) * (1 - 0.4 * over) * (1 - 0.35 * dk) + flash * 3.2;
+    this.hemi.intensity = (0.16 + 0.45 * dayF + 0.34 * night) * (1 - 0.4 * over) * (1 - 0.35 * dk) + flash * 3.2;
 
     // ---- đồ vật trên trời bám theo camera ----
     this.sky.position.copy(cam);
