@@ -28,6 +28,7 @@ const PAL = {
 const FOREST = col('#3e5d2b');
 const ROCK = col('#8a8072'), ROCK2 = col('#6b6259'), SNOW = col('#eef2f6'), GRAVEL = col('#8f887c'), FLOOR = col('#5f6c36');
 const KEEP = { 64: 1, 128: 0.5, 256: 0.22, 512: 0.08 };   // tỉ lệ cây giữ lại theo cỡ ô (tập con lồng nhau => ít "nhảy" cây)
+const KEEP_FAR = { 64: 1, 128: 0.7, 256: 0.4, 512: 0.16 };  // phạm vi hiển thị rộng (Ultra): rừng ở xa rậm hơn
 
 export class Terrain {
   constructor(scene, road, renderer) {
@@ -35,6 +36,8 @@ export class Terrain {
     this.group = new THREE.Group();
     scene.add(this.group);
     this.tiles = new Map();
+    this.view = 1;               // hệ số phạm vi hiển thị: ô chi tiết giữ tới khoảng cách size·view
+    this.keep = KEEP;
     this.queue = [];
     this.queued = new Set();
     this.iCar = 0;
@@ -352,7 +355,7 @@ export class Terrain {
 
   _trees(x0, z0, size, st, N, H, D, NY, SA, tile) {
     const pal = PAL[TP.id];
-    const keep = KEEP[size] || 0;
+    const keep = this.keep[size] || 0;
     if (!keep) return [];
     const n = SEG, mountain = TP.id === 'mountain';
     const pines = [], broads = [], rocks = [];
@@ -495,7 +498,7 @@ export class Terrain {
     const visit = (x0, z0, size) => {
       const cx = Math.min(Math.max(cam.x, x0), x0 + size), cz = Math.min(Math.max(cam.z, z0), z0 + size);
       const dist = Math.hypot(cam.x - cx, cam.z - cz);
-      if (size > MIN && dist < size) {
+      if (size > MIN && dist < size * this.view) {
         const h = size / 2;
         visit(x0, z0, h); visit(x0 + h, z0, h); visit(x0, z0 + h, h); visit(x0 + h, z0 + h, h);
       } else want.set(size + '|' + x0 + '|' + z0, [x0, z0, size, dist]);
@@ -521,6 +524,16 @@ export class Terrain {
   }
 
   prime(cam) { this.update(cam, 1e9); }
+
+  // đổi phạm vi hiển thị (theo mức chất lượng): dựng lại các ô
+  setView(v, cam) {
+    if (v === this.view) return;
+    this.view = v;
+    this.keep = v > 1 ? KEEP_FAR : KEEP;
+    if (!this.tiles.size) return;
+    this.reset();
+    if (cam) this.prime(cam);
+  }
 
   apply(st) {
     this.uCover.value = st.cover;

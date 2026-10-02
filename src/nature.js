@@ -14,7 +14,9 @@ const KINDS = {
   plant: ['Fern_1', 'Fern_1', 'Fern_1', 'Plant_1_Big'],   // (bụi Bush_Common lá đỏ mùa thu => không dùng)
 };
 const CARD_H = { broad: 7.2, pine: 9.2 };      // chiều cao cây tấm (để model chi tiết to bằng cây tấm nó thay thế)
-const MAX_PER = 220;                            // tối đa số cây mỗi model
+const MAX_NEAR = 240;                           // tối đa số cây mỗi model trong vùng có đổ bóng
+const MAX_FAR = 1100;                           // ... ngoài vùng đổ bóng (Ultra: bán kính lớn)
+const SHADOW_R = 55;                            // cây trong bán kính này mới đổ bóng (bóng chỉ phủ ~±38 m quanh xe)
 
 export class Nature {
   constructor(scene) {
@@ -22,7 +24,7 @@ export class Nature {
     scene.add(this.group);
     this.ready = false;
     this.radius = 0;
-    this.models = {};          // tên -> { parts: [{ mesh: InstancedMesh }], h }
+    this.models = {};          // tên -> { parts: [[InstancedMesh gần (đổ bóng), InstancedMesh xa]], h }
     this.rockGeos = null;      // hình khối đá (đã chuẩn hoá ~1 m) cho cụm đá của địa hình
     this._last = new THREE.Vector3(1e9, 0, 0);
     this._m4 = new THREE.Matrix4(); this._q = new THREE.Quaternion(); this._s = new THREE.Vector3(); this._p = new THREE.Vector3();
@@ -51,14 +53,18 @@ export class Nature {
         if (m.map && /leaf|leaves|grass/i.test(m.name + m.map.name)) { m.alphaTest = 0.4; m.transparent = false; }
         m.envMapIntensity = 0.7;
         withMist(m);
-        const im = new THREE.InstancedMesh(geo, m, MAX_PER);
-        im.count = 0;
-        im.castShadow = true;
-        im.receiveShadow = true;
-        im.frustumCulled = false;
-        im.layers.set(3);
-        this.group.add(im);
-        parts.push(im);
+        // 2 bộ instance: gần (đổ bóng) và xa (không đổ bóng — bản đồ bóng không phủ tới, đỡ tốn)
+        const pair = [MAX_NEAR, MAX_FAR].map((max, i) => {
+          const im = new THREE.InstancedMesh(geo, m, max);
+          im.count = 0;
+          im.castShadow = i === 0;
+          im.receiveShadow = true;
+          im.frustumCulled = false;
+          im.layers.set(3);
+          this.group.add(im);
+          return im;
+        });
+        parts.push(pair);
       });
       if (parts.length) this.models[name] = { parts, h };
     }
@@ -79,7 +85,7 @@ export class Nature {
     this.radius = r;
     NEAR.uNearR.value = this.ready ? r : 0;
     this._last.set(1e9, 0, 0);
-    if (!r) for (const k in this.models) for (const p of this.models[k].parts) p.count = 0;
+    if (!r) for (const k in this.models) for (const p of this.models[k].parts) { p[0].count = 0; p[1].count = 0; }
   }
 
   // gom cây / bụi trong bán kính quanh camera từ danh sách của các ô địa hình gần
@@ -89,8 +95,8 @@ export class Nature {
     if (this._last.distanceToSquared(cam) < 4) return;          // camera đi > 2 m mới tính lại
     this._last.copy(cam);
     const R = this.radius, R2 = R * R;
-    const lists = {};
-    for (const name in this.models) lists[name] = [];
+    const lists = {}, S2 = SHADOW_R * SHADOW_R;
+    for (const name in this.models) lists[name] = [[], []];
     for (const tile of terrain.tiles.values()) {
       const near = tile.userData.near;
       if (!near) continue;
@@ -98,11 +104,13 @@ export class Nature {
       const dx = Math.max(b[0] - cam.x, 0, cam.x - b[2]), dz = Math.max(b[1] - cam.z, 0, cam.z - b[3]);
       if (dx * dx + dz * dz > R2) continue;
       for (const t of near) {
-        const ex = t[1] - cam.x, ez = t[3] - cam.z;
-        if (ex * ex + ez * ez > R2) continue;
+        const ex = t[1] - cam.x, ez = t[3] - cam.z, d2 = ex * ex + ez * ez;
+        if (d2 > R2) continue;
         const names = KINDS[t[0]];
         const name = names[Math.floor(t[6] * 4.999) % names.length];
-        if (lists[name] && lists[name].length < MAX_PER) lists[name].push(t);
+        if (!lists[name]) continue;
+        const far = d2 > S2 ? 1 : 0, l = lists[name][far];
+        if (l.length < (far ? MAX_FAR : MAX_NEAR)) l.push(t);
       }
     }
     const m4 = this._m4, q = this._q, s = this._s, p = this._p;
@@ -111,15 +119,17 @@ export class Nature {
       const list = lists[name];
       const kind = name.startsWith('Pine') ? 'pine' : name.startsWith('Common') ? 'broad' : 'plant';
       const k = kind === 'plant' ? 1 : CARD_H[kind] / h;
-      for (const im of parts) {
-        list.forEach((t, i) => {
-          q.setFromAxisAngle(this._up, t[5]);
-          const sc = t[4] * k;
-          m4.compose(p.set(t[1], t[2], t[3]), q, s.set(sc, sc * (0.92 + t[6] * 0.16), sc));
-          im.setMatrixAt(i, m4);
+      for (const pair of parts) {
+        pair.forEach((im, j) => {
+          list[j].forEach((t, i) => {
+            q.setFromAxisAngle(this._up, t[5]);
+            const sc = t[4] * k;
+            m4.compose(p.set(t[1], t[2], t[3]), q, s.set(sc, sc * (0.92 + t[6] * 0.16), sc));
+            im.setMatrixAt(i, m4);
+          });
+          im.count = list[j].length;
+          im.instanceMatrix.needsUpdate = true;
         });
-        im.count = list.length;
-        im.instanceMatrix.needsUpdate = true;
       }
     }
   }

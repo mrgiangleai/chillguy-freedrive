@@ -11,6 +11,7 @@ import { withMist } from './mist.js';
 // - Khóm cỏ tự thu nhỏ về 0 khi tới gần mặt đường (đường được truyền dưới dạng đường gấp khúc).
 export const ROAD_PTS = 27;
 export const ROAD_PT_GAP = 12;
+const VIEW_MAX = 2;          // phạm vi hiển thị tối đa (Ultra)
 
 function rng(seed) {
   let a = seed >>> 0;
@@ -227,9 +228,12 @@ export class ReedField {
       { cell: 86, count: 19000, scale: 1.0, in0: -1, in1: 0, out0: 30, out1: 43, seed: 1 },
       { cell: 340, count: 11000, scale: 1.55, in0: 27, in1: 46, out0: 118, out1: 165, seed: 2 },
     ];
-    this.layers = layers.map((L) => {
+    // lớp xa nhất: chừa sẵn chỗ cho phạm vi hiển thị ×VIEW_MAX (ô lưới, khoảng cách ×k => số khóm ×k²)
+    this.layers = layers.map((L, li) => {
+      const far = li === layers.length - 1;
+      const alloc = far ? L.count * VIEW_MAX * VIEW_MAX : L.count;
       const r = rng(L.seed * 977);
-      const seeds = new Float32Array(L.count * 4);
+      const seeds = new Float32Array(alloc * 4);
       for (let i = 0; i < seeds.length; i++) seeds[i] = r();
       const attr = new THREE.InstancedBufferAttribute(seeds, 4);
       const uni = {
@@ -239,11 +243,11 @@ export class ReedField {
       const leaves = this._mesh(this.leafGeo, attr, L.count, uni, new THREE.MeshLambertMaterial({
         vertexColors: true, side: THREE.DoubleSide,
       }), true);
-      if (grass) return { max: L.count, meshes: [leaves] };
+      if (grass) return { max: L.count, far, L, uni, meshes: [leaves] };
       const plumes = this._mesh(this.plumeGeo, attr, L.count, uni, new THREE.MeshLambertMaterial({
         map: plumeMap, side: THREE.DoubleSide, alphaTest: 0.2, alphaToCoverage: true,
       }), false);
-      return { max: L.count, meshes: [leaves, plumes] };
+      return { max: L.count, far, L, uni, meshes: [leaves, plumes] };
     });
     this.mats = this.layers.flatMap((l) => l.meshes.map((m) => m.material));
     this.group.visible = true;
@@ -285,7 +289,20 @@ export class ReedField {
 
   setDensity(f) {
     this.density = f;
-    for (const l of this.layers) for (const m of l.meshes) m.geometry.instanceCount = Math.floor(l.max * f);
+    const k = this.view || 1;
+    for (const l of this.layers) for (const m of l.meshes) m.geometry.instanceCount = Math.floor(l.max * f * (l.far ? k * k : 1));
+  }
+
+  // phạm vi hiển thị (1..VIEW_MAX): lớp xa trải rộng ×k, số khóm ×k² để giữ nguyên độ dày
+  setView(k) {
+    this.view = Math.min(Math.max(k, 1), VIEW_MAX);
+    for (const l of this.layers) {
+      if (!l.far) continue;
+      l.uni.uCell.value = l.L.cell * this.view;
+      l.uni.uOut0.value = l.L.out0 * this.view;
+      l.uni.uOut1.value = l.L.out1 * this.view;
+    }
+    this.setDensity(this.density ?? 1);
   }
 
   // road: đối tượng Road, s: độ dài cung của xe
@@ -298,7 +315,7 @@ export class ReedField {
     sh.uTLow.value = TP.low; sh.uTDet.value = TP.det; sh.uTFine.value = TP.fine;
     const p = {};
     for (let k = 0; k < ROAD_PTS; k++) {
-      road.at(s + (k - 12) * ROAD_PT_GAP, p);
+      road.at(s + (k - 12) * ROAD_PT_GAP * (this.view || 1), p);   // phạm vi rộng: giãn các điểm (đường cong rất thoải)
       this.roadPts[k].set(p.x, p.y, p.z);
     }
     // ánh sáng "xuyên" ngược nắng: bông & lá ngả vàng cam khi nắng thấp

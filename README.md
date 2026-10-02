@@ -15,7 +15,7 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 - **Mưa**: mặt đường ướt có **vũng nước phản chiếu** xe, đèn đường, bầu trời + gợn sóng giọt mưa; xe **tự bật gạt mưa** (bão gạt nhanh hơn; cần gạt quay thật, nhìn từ ngoài cũng thấy) — ngồi trong xe thấy giọt mưa bắn vào kính, đọng lại, chảy thành vệt, lưỡi gạt quét sạch từng lượt
 - **Trong xe**: nhìn từ mắt người lái (2 tay cầm vành vô lăng), mặc định 16 mm f/16 lấy nét gần taplo, cabin có đèn nên không tối om, kính có phản xạ, **gương chiếu hậu soi thật** cảnh phía sau
 - **Thời gian**: bình minh · ban ngày · giờ vàng · **hoàng hôn** (mặc định) · ban đêm · tự động chạy hết ngày (đèn pha, đèn đường)
-- **Chất lượng** ⚙️ (nút hoặc phím `Q`): **Low / Mid / Good / Ultra** do người chơi chọn (mặc định **Mid**, bật đủ mọi hiệu ứng; lựa chọn được nhớ trên máy). Low: độ phân giải 0.75, tắt xoá phông + phản chiếu vũng nước, cỏ thưa, chỉ cây tấm; Mid / Good / Ultra: cây / bụi / đá model chi tiết trong bán kính 25 / 35 / 50 m quanh camera; Good/Ultra: độ phân giải cao hơn (tới mật độ điểm ảnh thật của màn hình), khử răng cưa 4x, cỏ dày, bóng đổ nét hơn, xoá phông mịn hơn
+- **Chất lượng** ⚙️ (nút hoặc phím `Q`): **Low / Good / Ultra** do người chơi chọn (mặc định **Good**; lựa chọn được nhớ trên máy). Low: độ phân giải 0.75, tắt xoá phông + phản chiếu vũng nước, cỏ thưa, chỉ cây tấm. Good: độ phân giải cao (tới mật độ điểm ảnh thật của màn hình), khử răng cưa 4x, cỏ dày, cây / bụi / đá model chi tiết trong bán kính 35 m. Ultra: **phạm vi hiển thị rộng gấp nhiều lần** — cây chi tiết tới 200 m, địa hình chi tiết xa gấp đôi, rừng xa rậm hơn, cỏ / lau trải xa gấp đôi; bóng đổ nét hơn, xoá phông mịn hơn
 - **Dừng xe** 🅿️ (nút hoặc phím `P`): cận cảnh bánh xe chậm dần rồi dừng, cửa mở, người lái bước ra đi lên đầu xe đứng dựa vào xe, camera lùi ra toàn cảnh rồi quay chậm quanh xe; bấm lần nữa (▶️) người quay lại xe, đóng cửa, chạy tiếp. Người lái ngồi sẵn trong xe khi chạy (ẩn ở camera trong xe)
 - **Âm thanh**: nhạc lo-fi chill tự sinh bằng WebAudio + tiếng động cơ / gió / mưa
 
@@ -28,7 +28,7 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 | `F` | bật / tắt **Fast drive** (150 km/h) · `G` bảng sương mù |
 | `C` | đổi camera · `V` đổi xe · `N` đổi map · `R` đổi thời tiết · `T` đổi giờ · `M` đổi chế độ âm thanh |
 | `+` `-` | zoom (tiêu cự 16–35 mm) · `L` bảng ống kính (tiêu cự + khẩu độ) |
-| `Q` | đổi mức chất lượng Low / Mid / Good / Ultra |
+| `Q` | đổi mức chất lượng Low / Good / Ultra |
 | `P` | dừng xe (cảnh người bước ra) / đi tiếp |
 | `H` | ẩn / hiện giao diện |
 

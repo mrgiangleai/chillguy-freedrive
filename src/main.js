@@ -140,9 +140,8 @@ function applyQuality() {
   renderer.setPixelRatio(pixelRatio);
   post.setSamples(q.msaa);
   resize();
-  reeds.setDensity(q.veg);
-  grass.setDensity(q.veg);
-  meadow.setDensity(q.veg);
+  for (const f of [reeds, grass, meadow]) { f.setView(q.view); f.setDensity(q.veg); }
+  terrain.setView(q.view, camera.position);       // phạm vi hiển thị (Ultra: xa gấp đôi) — đổi lúc đang chạy thì dựng lại địa hình
   env.setShadowSize(q.shadow);
   refl.enabled = q.refl;
   nature.setRadius(q.trees);
