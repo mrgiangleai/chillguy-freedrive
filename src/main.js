@@ -63,7 +63,7 @@ rig.eyeAt = (out) => {
   person.head.getWorldPosition(out);
   _eyeF.set(0, 0, -1).applyQuaternion(cars.root.quaternion);
   _eyeU.set(0, 1, 0).applyQuaternion(cars.root.quaternion);
-  out.addScaledVector(_eyeU, 0.09).addScaledVector(_eyeF, -0.04);
+  out.addScaledVector(_eyeU, 0.15).addScaledVector(_eyeF, -0.04);   // mắt cao hơn xương đầu một chút
   return true;
 };
 const audio = new ChillAudio();
@@ -235,7 +235,7 @@ function onCamChange() {
   const inCar = CAMERAS[state.cam].id === 'cockpit';
   if (inCar && !lensBeforeCockpit) {
     lensBeforeCockpit = { focal: rig.focal, fstop: state.fstop };
-    rig.focal = rig.focalS = 20;
+    rig.focal = rig.focalS = 16;
     state.fstop = FSTOPS.indexOf(16);
   } else if (!inCar && lensBeforeCockpit) {
     rig.focal = lensBeforeCockpit.focal;
@@ -421,7 +421,8 @@ function stopLook(pos, look) {
   if (camera.position.y < g) camera.position.y = g;
 }
 
-// camera trong xe: góc chúc xuống vừa đủ để mép dưới vành vô lăng chạm mép dưới khung hình (trong dải letterbox)
+// camera trong xe: góc chúc xuống vừa đủ để mép dưới vành vô lăng chạm mép dưới khung hình (trong dải letterbox),
+// nhưng không chúc quá mức làm mất mép trên gương chiếu hậu (ưu tiên thấy trọn gương)
 const _ck = new THREE.Vector3();
 function cockpitPitch() {
   const sw = cars.current?.def.steer;
@@ -433,7 +434,10 @@ function cockpitPitch() {
   const by = sw.c[1] - (uy / ul) * r, bz = sw.c[2] - (uz / ul) * r;     // mép dưới vành (hệ xe; đầu xe -Z)
   const down = Math.atan2(_ck.y - by, _ck.z - bz);
   const half = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * (1 - 2 * barFrac * cineAmt));
-  return clamp(down - half, 0.02, 0.6);
+  const mp = mirror.group.position;                                     // mép trên gương (hệ xe)
+  const up = Math.atan2(mp.y + 0.05 - _ck.y, _ck.z - mp.z);
+  const lo = down - half + 0.01, hi = half - up - 0.015;
+  return clamp(lo <= hi ? lo : hi, -0.1, 0.6);
 }
 
 // hai tay đặt lên vành vô lăng (animation lái gốc dùng vô lăng to/thấp hơn => tay lơ lửng ngoài vành)

@@ -155,6 +155,7 @@ export class Cars {
     const tailMats = [], glassMeshes = [];
     model.traverse((o) => {
       if (!o.isMesh) return;
+      if (def.steerMesh && def.steerMesh.test(o.name)) o.material = leatherMaterial();   // vô lăng bọc da đen
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       let glass = false;
       for (const m of mats) {
@@ -477,6 +478,43 @@ function wiperRig(car, model, sh) {
     }
   }
   return rig;
+}
+
+// da đen có vân sần (vân nổi tạo bằng nhiễu theo toạ độ của chính vật => không trôi khi xe chạy)
+let _leather = null;
+function leatherMaterial() {
+  if (_leather) return _leather;
+  const m = new THREE.MeshStandardMaterial({ name: 'Leather', color: 0x131212, roughness: 0.58, metalness: 0 });
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vLP;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        vLP = position * vec3(length(modelMatrix[0].xyz), length(modelMatrix[1].xyz), length(modelMatrix[2].xyz));`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+        varying vec3 vLP;
+        float lHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+        float lNoise(vec3 x) {
+          vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(mix(lHash(i), lHash(i + vec3(1, 0, 0)), f.x), mix(lHash(i + vec3(0, 1, 0)), lHash(i + vec3(1, 1, 0)), f.x), f.y),
+                     mix(mix(lHash(i + vec3(0, 0, 1)), lHash(i + vec3(1, 0, 1)), f.x), mix(lHash(i + vec3(0, 1, 1)), lHash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+        }`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        // vân da: hạt sần ~3 mm + vân lớn; nghiêng pháp tuyến theo đạo hàm màn hình (mờ dần khi hạt nhỏ hơn điểm ảnh)
+        float lg = lNoise(vLP * 330.0) * 0.7 + lNoise(vLP * 95.0) * 0.3;
+        vec3 dpx = dFdx(-vViewPosition), dpy = dFdy(-vViewPosition);
+        float hx = dFdx(lg), hy = dFdy(lg);
+        float fade = 1.0 - smoothstep(0.08, 0.3, fwidth(vLP.x * 330.0) + fwidth(vLP.y * 330.0) + fwidth(vLP.z * 330.0));
+        vec3 r1 = cross(dpy, normal), r2 = cross(normal, dpx);
+        float det = dot(dpx, r1);
+        vec3 grad = sign(det) * (hx * r1 + hy * r2);
+        normal = normalize(abs(det) * normal - grad * 0.16 * fade);`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+        roughnessFactor = clamp(roughnessFactor + (lNoise(vLP * 330.0) - 0.5) * 0.25, 0.3, 1.0);`);
+  };
+  m.customProgramCacheKey = () => 'leather';
+  _leather = m;
+  return m;
 }
 
 function glassReflect(m) {
