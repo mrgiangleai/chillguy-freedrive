@@ -9,11 +9,12 @@
 // doubleSide: vẽ cả mặt sau của vật liệu (cho model không dựng mặt trong cabin)
 // mats    : sửa thông số vật liệu theo tên (model tải về hay bị gắn sai kim loại / độ bóng)
 // basicMetal: thay mọi vật liệu (trừ kính) bằng kim loại cơ bản với thông số này
+// door    : regex tên node cửa tài xế (tách sẵn trong model) để mở cửa khi dừng xe
 export const CARS = [
-  { id: 'mustang', name: "Mustang '67", file: 'assets/models/mustang.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true,
+  { id: 'mustang', name: "Mustang '67", file: 'assets/models/mustang.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true, door: /^DriverDoor/,
     wheels: /^(Wheel|BrakeDisc)/,   // vành + đĩa phanh quay; lốp (dựng bẹt ở đáy) đứng yên
     mats: { Interior: { metalness: 0, roughness: 0.62 }, BlackPolished: { roughness: 0.18 }, Paint: { clearcoatRoughness: 0.08 } } },
-  { id: 'mustang-blue', name: "Mustang '67 Xanh", file: 'assets/models/mustang-blue.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true,
+  { id: 'mustang-blue', name: "Mustang '67 Xanh", file: 'assets/models/mustang-blue.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true, door: /^DriverDoor/,
     wheels: /^(Wheel|BrakeDisc)/,   // vành + đĩa phanh quay; lốp (dựng bẹt ở đáy) đứng yên
     mats: { Interior: { metalness: 0, roughness: 0.62 }, BlackPolished: { roughness: 0.18 }, Body: { clearcoatRoughness: 0.08 } } },
   { id: 'divo', name: 'Bugatti Divo', file: 'assets/models/bugatti-divo.glb', length: 4.64, flip: true, wheels: /^(4_3|5_17)$/,

@@ -151,7 +151,8 @@ export class Cars {
     });
 
     const wheels = def.wheels ? this._wheels(car, def, dim) : [];
-    return { def, group: car, dim, wheels, anim: null };
+    const door = def.door ? this._door(car, def) : null;
+    return { def, group: car, dim, wheels, door, anim: null };
   }
 
   // môi trường phản chiếu riêng cho xe (có mặt đất tối), cập nhật mỗi lần bầu trời được chụp lại
@@ -168,6 +169,45 @@ export class Cars {
         for (const m of Array.isArray(o.material) ? o.material : [o.material]) this._env(m);
       });
     }
+  }
+
+  // cửa tài xế (node tách sẵn trong model): gắn vào bản lề ở mép trước, phía ngoài
+  _door(car, def) {
+    const nodes = [];
+    car.traverse((o) => {
+      if (o === car || !def.door.test(o.name || '')) return;
+      for (let p = o.parent; p && p !== car; p = p.parent) if (def.door.test(p.name || '')) return;
+      nodes.push(o);
+    });
+    if (!nodes.length) return null;
+    car.updateMatrixWorld(true);
+    const b = new THREE.Box3();
+    for (const n of nodes) b.expandByObject(n, true);
+    const pivot = new THREE.Object3D();
+    pivot.position.set(b.min.x + 0.04, 0, b.min.z + 0.06);
+    car.add(pivot);
+    car.updateMatrixWorld(true);
+    for (const n of nodes) pivot.attach(n);
+    return { pivot, amount: 0 };
+  }
+
+  // 0 = đóng, 1 = mở hết (~60°, mép sau xoay ra ngoài)
+  setDoor(a) {
+    const d = this.current?.door;
+    if (!d) return;
+    d.amount = a;
+    const e = a * a * (3 - 2 * a);
+    d.pivot.rotation.y = -1.05 * e;
+  }
+
+  // bánh trước phía tài xế (cho cảnh cận bánh xe): toạ độ trong xe
+  frontWheel(out) {
+    const c = this.current;
+    let best = null;
+    for (const w of c?.wheels || []) if (!best || w.pivot.position.z < best.pivot.position.z) best = w;
+    const d = this.dim;
+    if (!best) return out.set(-d.width / 2, 0.33, -d.length * 0.32);
+    return out.set(-d.width / 2 + 0.12, best.pivot.position.y, best.pivot.position.z);
   }
 
   // gom node bánh xe vào "pivot" đặt đúng tâm bánh để quay quanh trục X (trục bánh xe)

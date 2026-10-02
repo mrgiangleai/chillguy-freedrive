@@ -11,6 +11,8 @@ import { ReedField } from './reeds.js';
 import { Post } from './post.js';
 import { installMist, MIST } from './mist.js';
 import { WetReflection } from './reflection.js';
+import { Person } from './person.js';
+import { StopScene } from './stopscene.js';
 
 installMist();   // thay shader sương của three.js (phải chạy trước khi vật liệu được biên dịch)
 import { MAPS, WEATHERS, TIMES, CAMERAS, MUSIC_MODES, FSTOPS, FSTOP_DEFAULT, QUALITY, QUALITY_DEFAULT } from './config.js';
@@ -48,6 +50,8 @@ rig.groundAt = (x, z) => terrain.heightAt(x, z);
 const audio = new ChillAudio();
 const post = new Post(renderer, QUALITY[QUALITY_DEFAULT].msaa);
 const refl = new WetReflection(renderer);
+const person = new Person();
+const stop = new StopScene(cars, person);
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -85,7 +89,7 @@ const pointer = { active: false, id: -1, x: 0, y: 0 };
 
 // ---------- giao diện ----------
 const state = { car: 0, map: 0, cam: 0, weather: 0, time: TIMES.findIndex((t) => t.id === 'golden'), music: 0, cine: true, started: false, mistCover: 0.35, mistDens: 0.2, fstop: FSTOP_DEFAULT, quality: loadQuality() };
-const el = { quality: $('b-quality'), lens: $('b-lens'), mist: $('b-mist'), cine: $('b-cine'), fast: $('b-fast'), car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
+const el = { stop: $('b-stop'), quality: $('b-quality'), lens: $('b-lens'), mist: $('b-mist'), cine: $('b-cine'), fast: $('b-fast'), car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
 const setBtn = (btn, icon, text) => { btn.querySelector('b').textContent = icon; btn.querySelector('span').textContent = text; btn.title = text; };
 
 function refreshUI() {
@@ -103,6 +107,7 @@ function refreshUI() {
   el.cine.classList.toggle('on', state.cine);
   setBtn(el.lens, '📷', lensLabel());
   setBtn(el.quality, '⚙️', QUALITY[state.quality].name);
+  setBtn(el.stop, stop.state === 'parked' ? '▶️' : stop.state === 'off' ? '🅿️' : '⏳', stop.state === 'parked' ? 'Đi tiếp' : stop.state === 'off' ? 'Dừng xe' : '…');
   el.lens.classList.toggle('on', !$('lenspanel').hidden);
 }
 function loadQuality() {
@@ -126,6 +131,7 @@ const nextQuality = () => { state.quality = (state.quality + 1) % QUALITY.length
 function lensLabel() { return Math.round(rig.focal) + 'mm f/' + FSTOPS[state.fstop]; }
 
 async function chooseCar(i) {
+  if (stop.active) return;                        // đang dừng xe: không đổi xe
   state.car = (i + cars.list.length) % cars.list.length;
   setBtn(el.car, '🚗', 'Đang tải…');
   try {
@@ -134,10 +140,18 @@ async function chooseCar(i) {
     console.error('Không tải được xe', cars.list[state.car].name, e);
     if (cars.list.length > 1) { cars.list.splice(state.car, 1); return chooseCar(state.car); }
   }
+  if (person.ready && !stop.active) { stop.place(cars.dim); stop.sit(); }
   warmShaders();
   refreshUI();
 }
 const nextCar = () => chooseCar(state.car + 1);
+
+// dừng xe / đi tiếp (cảnh người bước ra khỏi xe)
+function toggleStop() {
+  if (!person.ready || !state.started) return;
+  if (stop.state === 'off') { drive.fast = false; stop.place(cars.dim); }
+  if (stop.toggle(drive.v)) refreshUI();
+}
 
 // Biên dịch trước các shader chưa dùng tới (vật liệu khi vẽ ảnh phản chiếu vũng nước,
 // mưa/tuyết/sét, sao/trăng) để lúc đổi thời tiết không bị khựng vì GPU phải dịch shader.
@@ -187,7 +201,7 @@ const nextTime = () => {
 };
 const applyCine = () => document.body.classList.toggle('cine', state.cine && state.started);
 const toggleCine = () => { state.cine = !state.cine; applyCine(); refreshUI(); };
-const toggleFast = () => { drive.fast = !drive.fast; refreshUI(); };
+const toggleFast = () => { if (stop.active) return; drive.fast = !drive.fast; refreshUI(); };
 const nextMusic = () => { state.music = (state.music + 1) % MUSIC_MODES.length; audio.setMode(state.music); refreshUI(); };
 
 el.fast.onclick = toggleFast;
@@ -199,6 +213,7 @@ el.mist.onclick = toggleMistPanel;
 const toggleLensPanel = () => { $('lenspanel').hidden = !$('lenspanel').hidden; $('mistpanel').hidden = true; refreshUI(); };
 el.lens.onclick = toggleLensPanel;
 el.quality.onclick = nextQuality;
+el.stop.onclick = toggleStop;
 const focalIn = $('lens-focal'), fstopIn = $('lens-fstop');
 focalIn.min = FOCAL_MIN; focalIn.max = FOCAL_MAX;
 fstopIn.max = FSTOPS.length - 1;
@@ -242,6 +257,7 @@ window.addEventListener('keydown', (e) => {
     case 'KeyG': toggleMistPanel(); break;
     case 'KeyL': toggleLensPanel(); break;
     case 'KeyQ': nextQuality(); break;
+    case 'KeyP': toggleStop(); break;
   }
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
@@ -316,13 +332,15 @@ const _focusP = new THREE.Vector3();
 function dofParams(dt) {
   const inCar = CAMERAS[state.cam].id === 'cockpit';
   _focusP.copy(drive.pos).y += 0.6;
-  const target = inCar ? 25 : Math.max(2, camera.position.distanceTo(_focusP));
+  if (stop.active) _focusP.copy(stop.cam.focus);
+  const target = inCar && !stop.active ? 25 : Math.max(1, camera.position.distanceTo(_focusP));
   dof.focus += (target - dof.focus) * (dof.amt > 0.01 ? 1 - Math.exp(-dt * 6) : 1);
   const f = rig.focalEff, N = FSTOPS[state.fstop], F = dof.focus * 1000;
   dof.cocK = ((f * f) / (N * Math.max(F - f, 1))) * (post.longSide / 36) * BOKEH;
   dof.maxCoc = Math.max(6, post.longSide * 0.0125);
   // cả chiếc xe nằm trong vùng nét: nửa bề dày xe theo hướng nhìn
-  if (inCar) dof.range = 0;
+  if (stop.active) dof.range = stop.cam.range;
+  else if (inCar) dof.range = 0;
   else {
     const dx = camera.position.x - _focusP.x, dz = camera.position.z - _focusP.z, h = Math.hypot(dx, dz) || 1;
     const s = Math.sin(drive.yaw), c = Math.cos(drive.yaw);
@@ -348,14 +366,15 @@ function frame(now) {
   if (keys.has('Minus') || keys.has('NumpadSubtract')) rig.zoomBy(Math.exp(1.2 * dt));
   drive.target = clamp(drive.target, CHILL_MIN, CHILL_MAX);
   const goal = drive.fast ? FAST_SPEED : drive.target;
-  drive.v += clamp(goal - drive.v, -8 * dt, 6 * dt);
+  if (stop.active) drive.v = stop.speed(drive.v, dt);    // cảnh dừng xe: giảm tốc đều tới khi dừng hẳn
+  else drive.v += clamp(goal - drive.v, -8 * dt, 6 * dt);
   drive.s += drive.v * dt;
   // hiệu ứng tốc độ tăng dần theo tốc độ thực tế (không có gì dưới ~55 km/h)
   drive.fx += (sstep(55 * KMH, FAST_SPEED, drive.v) - drive.fx) * (1 - Math.exp(-dt * 4));
 
   // lệch ngang: lái tay, hoặc tự về giữa làn khi buông tay
   const lane = drive.d >= 0 ? ROAD.halfWidth / 2 : -ROAD.halfWidth / 2;
-  const wantLat = steer !== 0 ? steer * (2.2 + drive.v * 0.06) : (lane - drive.d) * 0.8;
+  const wantLat = stop.active ? 0 : steer !== 0 ? steer * (2.2 + drive.v * 0.06) : (lane - drive.d) * 0.8 * Math.min(1, drive.v / 3);
   drive.latVel += (wantLat - drive.latVel) * (1 - Math.exp(-dt * 5));
   drive.d += drive.latVel * dt;
   const lim = ROAD.halfWidth - 0.9;
@@ -372,7 +391,28 @@ function frame(now) {
   cineAmt += ((state.cine && state.started ? 1 : 0) - cineAmt) * (1 - Math.exp(-dt * 2.5));
   rig.cine = cineAmt;
   cars.update(dt, { pos: drive.pos, yaw: drive.yaw, pitch: drive.pitch, speed: drive.v, latVel: drive.latVel });
-  rig.update(dt, { pos: drive.pos, yaw: drive.yaw, pitch: drive.pitch, speed: drive.v, dim: cars.dim, fx: drive.fx, side: drive.d >= 0 ? -1 : 1 });
+  // người lái: ngồi trong xe (ẩn khi camera trong xe), cảnh dừng xe điều khiển khi đang dừng
+  if (person.ready) {
+    person.root.visible = stop.active || CAMERAS[state.cam].id !== 'cockpit';
+    person.update(dt);
+  }
+  if (stop.active) {
+    const prev = stop.state;
+    stop.update(dt, cars.root, drive.v);
+    const c = stop.cam;
+    camera.position.copy(c.pos);
+    camera.lookAt(c.look);
+    const fov = rig.fovFor(c.focal);
+    if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
+    if (stop.state === 'off') {                    // xong cảnh: trả camera cho chế độ đang chọn, lướt mượt về
+      rig.relP.copy(camera.position).sub(drive.pos);
+      rig.relL.copy(c.look).sub(drive.pos);
+      rig.fov = camera.fov;
+    }
+    if (stop.state !== prev) refreshUI();
+  } else {
+    rig.update(dt, { pos: drive.pos, yaw: drive.yaw, pitch: drive.pitch, speed: drive.v, dim: cars.dim, fx: drive.fx, side: drive.d >= 0 ? -1 : 1 });
+  }
 
   // môi trường
   env.update(dt, drive.pos);
@@ -451,7 +491,13 @@ async function init() {
   const start = $('start');
   $('hint').textContent = 'Chạm hoặc nhấn phím bất kỳ để bắt đầu';
   cars.onProgress = (f) => setBtn(el.car, '🚗', 'Đang tải… ' + Math.round(f * 100) + '%');
-  chooseCar(0);
+  chooseCar(0).then(() => person.load('assets/models/person.glb')).then(() => {
+    cars.tilt.add(person.root);
+    stop.place(cars.dim);
+    stop.sit();
+    compileFor(post.sceneRT, camera, person.root).catch(() => {});
+    refreshUI();
+  }).catch((e) => console.warn('Không tải được người lái', e));
   const go = () => {
     start.classList.add('gone');
     state.started = true;
@@ -469,4 +515,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, toggleCine, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, toggleCine, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

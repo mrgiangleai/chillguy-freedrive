@@ -15,6 +15,7 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 - **Mưa**: mặt đường ướt có **vũng nước phản chiếu** xe, đèn đường, bầu trời + gợn sóng giọt mưa
 - **Thời gian**: bình minh · ban ngày · giờ vàng · hoàng hôn · ban đêm · tự động chạy hết ngày (đèn pha, đèn đường)
 - **Chất lượng** ⚙️ (nút hoặc phím `Q`): **Low / Mid / Good / Ultra** do người chơi chọn (mặc định **Mid**, bật đủ mọi hiệu ứng; lựa chọn được nhớ trên máy). Low: độ phân giải 0.75, tắt xoá phông + phản chiếu vũng nước, cỏ thưa; Good/Ultra: độ phân giải cao hơn (tới mật độ điểm ảnh thật của màn hình), khử răng cưa 4x, cỏ dày, bóng đổ nét hơn, xoá phông mịn hơn
+- **Dừng xe** 🅿️ (nút hoặc phím `P`): cận cảnh bánh xe chậm dần rồi dừng, cửa mở, người lái bước ra đi lên đầu xe đứng dựa vào xe, camera lùi ra toàn cảnh rồi quay chậm quanh xe; bấm lần nữa (▶️) người quay lại xe, đóng cửa, chạy tiếp. Người lái ngồi sẵn trong xe khi chạy (ẩn ở camera trong xe)
 - **Âm thanh**: nhạc lo-fi chill tự sinh bằng WebAudio + tiếng động cơ / gió / mưa
 
 ## Điều khiển
@@ -27,6 +28,7 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 | `C` | đổi camera · `V` đổi xe · `N` đổi map · `R` đổi thời tiết · `T` đổi giờ · `M` đổi chế độ âm thanh |
 | `+` `-` | zoom (tiêu cự 20–70 mm) · `L` bảng ống kính (tiêu cự + khẩu độ) |
 | `Q` | đổi mức chất lượng Low / Mid / Good / Ultra |
+| `P` | dừng xe (cảnh người bước ra) / đi tiếp |
 | `H` | ẩn / hiện giao diện |
 
 Chuột / màn hình cảm ứng: **bấm giữ rồi rê** (vuốt) để nhìn xung quanh 360°, thả tay camera tự quay về; **lăn chuột** hoặc **chụm / mở 2 ngón** để zoom.
@@ -70,7 +72,10 @@ src/               mã nguồn (gộp bằng esbuild: build.mjs)
   reeds.js        cỏ lau / búi cỏ vô tận (instancing, gió, tự tránh mặt đường, mọc theo địa hình)
   world.js        bầu trời + mây, ánh sáng, giờ trong ngày, thời tiết, bão & sét
   particles.js    mưa / tuyết / bông cỏ bay (shader)
-  cars.js         tải & chuẩn hoá model xe, bánh xe quay, đèn pha
+  cars.js         tải & chuẩn hoá model xe, bánh xe quay, cửa tài xế, đèn pha
+  person.js       người lái (animation, quần áo vẽ bằng shader)
+  stopscene.js    cảnh dừng xe: cận bánh xe, mở cửa, người bước ra, camera quay quanh
+  colorspace.js   đổi màu hiển thị -> tuyến tính cho shader tự tô màu
   camera.js       các chế độ camera
   post.js         hậu kỳ: bloom, chỉnh màu phim, grain (Cinematic) + blur tốc độ (Fast drive)
   audio.js        nhạc lo-fi + âm thanh môi trường
@@ -87,6 +92,7 @@ docs/              site GitHub Pages phục vụ
 - **'67 Mustang (High poly)** và **'67 Mustang** — [Nick Broad](https://sketchfab.com/nickbroad), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) · Sketchfab
 - **Bugati Divo** — [Jonrss](https://sketchfab.com/huy14320000006), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) · Sketchfab (đã giảm từ 332k xuống 194k triangles)
 - **Cesium Milk Truck** — Cesium, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) · Khronos glTF Sample Assets
+- **Người lái** — [Quaternius](https://quaternius.com): Universal Base Characters (Superhero Male) + 6 clip từ Universal Animation Library, [CC0](https://creativecommons.org/publicdomain/zero/1.0/); quần áo vẽ thêm bằng shader
 - Model xe đã được nén lại (meshopt + texture WebP ≤ 1024px) bằng glTF-Transform để tải nhanh (~4.9 MB tổng thay vì ~37 MB)
 - Địa hình, cỏ lau, búi cỏ, bông cỏ, tán lá cây (vẽ bằng canvas), mây, núi, đường, đèn đường, hộ lan: tạo bằng code / texture vẽ bằng canvas (không dùng asset ngoài)
 - Nhạc: tự sinh bằng code (không dùng bản ghi âm nào)
