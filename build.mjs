@@ -11,8 +11,8 @@ await build({
   outfile: 'docs/app.js',
   format: 'esm',
   target: 'es2020',
-  // three's ESM build is tree-shakeable; drop dev-only console noise.
   drop: ['debugger'],
+  legalComments: 'eof',           // giữ dòng giấy phép MIT của three.js
 });
 
 await build({ ...common, entryPoints: ['src/style.css'], outfile: 'docs/style.css' });
