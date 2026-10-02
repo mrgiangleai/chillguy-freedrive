@@ -1,16 +1,18 @@
-// Danh sách xe. Mustang là "slot" tuỳ chọn: thả file vào assets/models/mustang.glb là app tự nhận và đặt làm xe đầu tiên.
+// Danh sách xe (xe đầu tiên là xe mặc định). Model đã nén meshopt + WebP, đặt trong docs/assets/models/.
 // length  : chiều dài xe (m) sau khi chuẩn hoá kích thước
 // rotX    : xoay model về trục Y-up nếu cần (radian)
 // flip    : true nếu model quay ngược đầu/đuôi
 // wheels  : regex tên node bánh xe (để quay bánh)
 // eye     : vị trí mắt người lái [x, y, z] trong hệ toạ độ xe (z âm = về phía trước); mặc định: ghế trái
 // hide    : regex tên node cần bỏ (đạo cụ trưng bày đi kèm model)
+// optional: chỉ hiện nếu có file (kiểm tra trước khi tải)
+// doubleSide: vẽ cả mặt sau của vật liệu (cho model không dựng mặt trong cabin)
 export const CARS = [
-  { id: 'mustang', name: "Mustang '67", file: 'assets/models/mustang.glb', length: 4.75, optional: true,
-    wheels: /wheel|tire|tyre/i },
-  { id: 'carconcept', name: 'Car Concept', file: 'assets/models/carconcept.glb', length: 4.3, flip: true, eye: [0, 1.1, -0.4],
-    wheels: /^Wheel(Front|Rear)[LR]$/ },
-  { id: 'toycar', name: 'Toy Car', file: 'assets/models/toycar.glb', length: 3.9, flip: true, eye: [-0.35, 0.9, 0.15], hide: /^Fabric$/ },
+  { id: 'mustang', name: "Mustang '67", file: 'assets/models/mustang.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true,
+    wheels: /^(Wheel|Tyre)/ },
+  { id: 'mustang-blue', name: "Mustang '67 Xanh", file: 'assets/models/mustang-blue.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true,
+    wheels: /^(Wheel|Tyre)/ },
+  { id: 'divo', name: 'Bugatti Divo', file: 'assets/models/bugatti-divo.glb', length: 4.64, flip: true, wheels: /^(4_3|5_17)$/ },
   { id: 'milktruck', name: 'Milk Truck', file: 'assets/models/milktruck.glb', length: 5.0, flip: true, eye: [-0.6, 1.8, -1.3],
     wheels: /^Wheels/ },
 ];
@@ -43,7 +45,7 @@ export const TIMES = [
 export const CAMERAS = [
   { id: 'chase', name: 'Sau xe' },
   { id: 'low', name: 'Sát mặt đường' },
-  { id: 'bumper', name: 'Đầu xe' },
+  { id: 'side', name: 'Bên hông' },
   { id: 'cockpit', name: 'Trong xe' },
   { id: 'orbit', name: 'Quay quanh' },
   { id: 'drone', name: 'Từ trên cao' },

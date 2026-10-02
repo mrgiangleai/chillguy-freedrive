@@ -1,13 +1,13 @@
 # Chill Drive 🚗🌇
 
-Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (JavaScript + HTML thuần, không cần build).
+Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (JavaScript + HTML thuần).
 
 - **Địa hình đồi núi vô tận** (kiểu slowroads): đồi trập trùng, đường lên dốc/xuống dốc men theo địa hình, núi xa có đá & tuyết mờ trong sương xanh; sinh hoàn toàn bằng code nên tải rất nhanh
 - **Map** (nút 🌾 hoặc phím `N`): **cánh đồng cỏ lau bất tận** 🌾 (mặc định) · **đồi thông** 🌲 kiểu slowroads: đồi cỏ xanh với búi cỏ mọc dày sát mép đường, cây có tán lá kết cấu, mảng rừng sẫm trên đồi xa · **đường núi** ⛰️ men sườn núi: vách đá một bên, vực thung lũng có hộ lan một bên
 - **Cinematic** 🎬 (bật sẵn, tắt bằng nút 🎬 hoặc phím `K`): dải đen letterbox 2.39:1, bloom quanh mặt trời/đèn, chỉnh màu phim, hạt phim, tối viền, camera hơi rung như quay cầm tay, ống kính tele hơn và cảnh mở đầu camera lia từ thấp ra sau xe
 - **Tốc độ**: mặc định chạy chill **35 km/h** (chỉnh được 10–40 km/h); nút **⚡ Fast drive** (hoặc phím `F`) tăng lên **150 km/h** kèm hiệu ứng blur tốc độ, góc nhìn rộng ra, camera rung nhẹ, gió ù ù; bấm lại để về chill
-- **Xe**: chọn xe bằng nút 🚗 (model glTF miễn phí, đều ≤ 250k triangles)
-- **Camera**: sau xe · sát mặt đường · đầu xe · trong xe · quay quanh · từ trên cao
+- **Xe**: chọn xe bằng nút 🚗: **Mustang '67** (mặc định) · Mustang '67 Xanh · Bugatti Divo · Milk Truck (model glTF miễn phí, đều ≤ 250k triangles)
+- **Camera**: sau xe · sát mặt đường · bên hông (ngang hông, thấy trọn xe) · trong xe · quay quanh · từ trên cao; **bấm giữ + rê chuột / vuốt** để nhìn quanh 360° (thả tay camera tự về), **lăn chuột / chụm 2 ngón / phím `+` `-`** để zoom
 - **Thời tiết**: nắng · nhiều mây · **gió lớn** · mưa · **bão** (trời âm u tối, mưa xối, sét + sấm) · tuyết · sương mù (chuyển cảnh mượt)
 - **Bầu trời gradient** phối màu theo từng giờ (xanh trong ban ngày, cam–hồng–tím lúc hoàng hôn/bình minh, xanh than ban đêm), lớp mây thật, mây ti, sao, trăng; chân trời khớp màu với sương xa
 - **Sương mù** 🌫️ (nút hoặc phím `G`): chỉnh **Độ phủ** (cao thấp, từng đám hay phủ kín) và **Độ dày**; sương đọng dày ở thung lũng và trôi theo gió
@@ -23,9 +23,10 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 | `W` `S` / `↑` `↓` | tăng / giảm tốc độ (10–40 km/h) |
 | `F` | bật / tắt **Fast drive** (150 km/h) · `K` bật / tắt Cinematic · `G` bảng sương mù |
 | `C` | đổi camera · `V` đổi xe · `N` đổi map · `R` đổi thời tiết · `T` đổi giờ · `M` đổi chế độ âm thanh |
+| `+` `-` | zoom gần / xa (camera trong xe: thu hẹp / mở rộng góc nhìn) |
 | `H` | ẩn / hiện giao diện |
 
-Trên điện thoại: kéo ngón tay sang trái/phải để lái, kéo lên/xuống để tăng/giảm tốc.
+Chuột / màn hình cảm ứng: **bấm giữ rồi rê** (vuốt) để nhìn xung quanh 360°, thả tay camera tự quay về; **lăn chuột** hoặc **chụm / mở 2 ngón** để zoom.
 
 ## Chạy trên GitHub Pages
 
@@ -47,9 +48,9 @@ npm run build      # src/ -> docs/app.js + docs/style.css
 npm run dev        # build + mở server ở http://localhost:8080
 ```
 
-## Thêm xe Mustang 1967
+## Thay / thêm xe
 
-Slot Mustang đã được cấu hình sẵn: tải file `.glb` về, đặt tên **`docs/assets/models/mustang.glb`** là app tự nhận và đặt làm xe đầu tiên (mặc định).
+Đã có sẵn: `docs/assets/models/mustang.glb` (xe mặc định). Muốn thay/thêm xe: upload file `.glb` vào `docs/assets/models/` rồi khai báo trong `src/config.js` (nên nén lại bằng glTF-Transform trước).
 Nếu xe bị quay ngược đầu/đuôi, đặt `flip: true` trong `src/config.js` rồi `npm run build`.
 
 ## Cấu trúc
@@ -80,9 +81,9 @@ docs/              site GitHub Pages phục vụ
 ## Credits & giấy phép
 
 - [three.js](https://threejs.org) r160 — MIT (gồm `Sky.js`, `GLTFLoader.js`, `BufferGeometryUtils.js`)
-- **Car Concept** — Eric Chadwick / Darmstadt Graphics Group, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) · [Khronos glTF Sample Assets](https://github.com/KhronosGroup/glTF-Sample-Assets)
-- **Toy Car** — Guido Odendahl & Eric Chadwick, [CC0](https://creativecommons.org/publicdomain/zero/1.0/) · Khronos glTF Sample Assets (đã bỏ tấm vải trưng bày đi kèm model)
+- **'67 Mustang (High poly)** và **'67 Mustang** — [Nick Broad](https://sketchfab.com/nickbroad), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) · Sketchfab
+- **Bugati Divo** — [Jonrss](https://sketchfab.com/huy14320000006), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) · Sketchfab (đã giảm từ 332k xuống 194k triangles)
 - **Cesium Milk Truck** — Cesium, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) · Khronos glTF Sample Assets
-- Model xe đã được nén lại (meshopt + texture WebP) bằng glTF-Transform để tải nhanh (~3.7 MB tổng thay vì 17.5 MB)
+- Model xe đã được nén lại (meshopt + texture WebP ≤ 1024px) bằng glTF-Transform để tải nhanh (~4.9 MB tổng thay vì ~37 MB)
 - Địa hình, cỏ lau, búi cỏ, bông cỏ, tán lá cây (vẽ bằng canvas), mây, núi, đường, đèn đường, hộ lan: tạo bằng code / texture vẽ bằng canvas (không dùng asset ngoài)
 - Nhạc: tự sinh bằng code (không dùng bản ghi âm nào)

@@ -81,7 +81,7 @@ const drive = {
   yaw: 0,
 };
 const keys = new Set();
-const pointer = { active: false, x: 0, y: 0, sx: 0, sy: 0, steer: 0, speedDelta: 0 };
+const pointer = { active: false, id: -1, x: 0, y: 0 };
 
 // ---------- giao diện ----------
 const state = { car: 0, map: 0, cam: 0, weather: 0, time: TIMES.findIndex((t) => t.id === 'golden'), music: 0, cine: true, started: false, mistCover: 0.35, mistDens: 0.2 };
@@ -121,16 +121,18 @@ const nextCar = () => chooseCar(state.car + 1);
 // mưa/tuyết/sét, sao/trăng) để lúc đổi thời tiết không bị khựng vì GPU phải dịch shader.
 // compileAsync dùng KHR_parallel_shader_compile => trình duyệt dịch ở luồng nền.
 let warmTimer = 0;
-function compileFor(target, cam) {
+function compileFor(target, cam, obj = scene) {
   const off = [];
-  scene.traverse((o) => { if (o.material && !o.layers.test(cam.layers)) { off.push(o, o.material); o.material = null; } });
+  obj.traverse((o) => { if (o.material && !o.layers.test(cam.layers)) { off.push(o, o.material); o.material = null; } });
   const prev = renderer.getRenderTarget();
   renderer.setRenderTarget(target);
-  const p = renderer.compileAsync(scene, cam);
+  const p = renderer.compileAsync(obj, cam, scene);
   renderer.setRenderTarget(prev);
   for (let i = 0; i < off.length; i += 2) off[i].material = off[i + 1];
   return p;
 }
+// xe mới tải: dịch shader (cả biến thể phản chiếu vũng nước) trước khi gắn vào cảnh
+cars.prepare = (group) => Promise.all([compileFor(null, camera, group), compileFor(refl.rt, refl.cam, group)]);
 function warmShaders(delay = 500) {
   clearTimeout(warmTimer);
   warmTimer = setTimeout(() => {
@@ -203,18 +205,47 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => keys.delete(e.code));
 window.addEventListener('blur', () => keys.clear());
 
+// bấm giữ + rê chuột / vuốt màn hình: nhìn xung quanh 360° (thả ra camera tự về vị trí cũ)
+// lăn chuột / chụm-mở 2 ngón / phím + -: zoom
+const touches = new Map();                         // pointerId -> {x, y}
+let pinchDist = 0;
+const spread = () => { const [a, b] = [...touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
 canvas.addEventListener('pointerdown', (e) => {
-  pointer.active = true; pointer.sx = e.clientX; pointer.sy = e.clientY;
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   canvas.setPointerCapture(e.pointerId);
+  if (touches.size === 1) {
+    pointer.active = true; pointer.id = e.pointerId; pointer.x = e.clientX; pointer.y = e.clientY;
+    rig.look.hold = true;
+  } else if (touches.size === 2) {
+    pointer.active = false;                        // 2 ngón: chuyển sang zoom
+    pinchDist = spread();
+  }
 });
 canvas.addEventListener('pointermove', (e) => {
-  if (!pointer.active) return;
-  pointer.steer = clamp((e.clientX - pointer.sx) / (window.innerWidth * 0.18), -1, 1);
-  pointer.speedDelta = clamp(-(e.clientY - pointer.sy) / (window.innerHeight * 0.25), -1, 1);
+  const t = touches.get(e.pointerId);
+  if (!t) return;
+  t.x = e.clientX; t.y = e.clientY;
+  if (touches.size === 2) {
+    const d = spread();
+    if (pinchDist > 0 && d > 0) rig.zoomBy(pinchDist / d);
+    pinchDist = d;
+  } else if (pointer.active && e.pointerId === pointer.id) {
+    rig.lookBy((e.clientX - pointer.x) * 4.7 / window.innerWidth, (e.clientY - pointer.y) * 2.2 / window.innerHeight);
+    pointer.x = e.clientX; pointer.y = e.clientY;
+  }
 });
-const endPointer = () => { pointer.active = false; pointer.steer = 0; pointer.speedDelta = 0; };
+const endPointer = (e) => {
+  touches.delete(e.pointerId);
+  if (touches.size < 2) pinchDist = 0;
+  if (touches.size === 0) { pointer.active = false; rig.look.hold = false; }
+};
 canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const dy = e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1);
+  rig.zoomBy(Math.exp(clamp(dy, -200, 200) * 0.0012));
+}, { passive: false });
 
 // ẩn giao diện khi không thao tác
 let idleTimer = 0;
@@ -263,10 +294,12 @@ function frame(now) {
   // điều khiển
   const left = keys.has('ArrowLeft') || keys.has('KeyA');
   const right = keys.has('ArrowRight') || keys.has('KeyD');
-  const steer = clamp((right ? 1 : 0) - (left ? 1 : 0) + pointer.steer, -1, 1);
+  const steer = (right ? 1 : 0) - (left ? 1 : 0);
   if (keys.has('ArrowUp') || keys.has('KeyW')) drive.target += 2.5 * dt;
   if (keys.has('ArrowDown') || keys.has('KeyS')) drive.target -= 2.5 * dt;
-  drive.target = clamp(drive.target + pointer.speedDelta * 2.5 * dt, CHILL_MIN, CHILL_MAX);
+  if (keys.has('Equal') || keys.has('NumpadAdd')) rig.zoomBy(Math.exp(-1.2 * dt));
+  if (keys.has('Minus') || keys.has('NumpadSubtract')) rig.zoomBy(Math.exp(1.2 * dt));
+  drive.target = clamp(drive.target, CHILL_MIN, CHILL_MAX);
   const goal = drive.fast ? FAST_SPEED : drive.target;
   drive.v += clamp(goal - drive.v, -8 * dt, 6 * dt);
   drive.s += drive.v * dt;

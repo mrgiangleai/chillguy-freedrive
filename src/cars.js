@@ -17,6 +17,7 @@ export class Cars {
     this.loader = new GLTFLoader();
     this.loader.setMeshoptDecoder(MeshoptDecoder);   // model đã nén meshopt + WebP để tải nhanh
     this.onProgress = null;
+    this.prepare = null;             // async (group) => {} : biên dịch trước shader của xe mới
     this.list = [];
     this.cache = new Map();
     this.current = null;
@@ -72,6 +73,11 @@ export class Cars {
       this.cache.set(def.id, entry);
     }
     if (token !== this.token) return false;            // đã chọn xe khác trong lúc tải
+    if (this.prepare && !entry.ready) {                 // dịch sẵn shader ở luồng nền trước khi cho xe xuất hiện
+      try { await this.prepare(entry.group); } catch (e) { console.warn('prepare', e); }
+      entry.ready = true;
+      if (token !== this.token) return false;
+    }
     if (this.current) this.tilt.remove(this.current.group);
     this.tilt.add(entry.group);
     this.current = entry;
@@ -121,7 +127,8 @@ export class Cars {
       for (const m of mats) {
         if (m.transmission > 0) { m.transmission = 0; m.transparent = true; m.opacity = 0.32; m.depthWrite = false; glass = true; }
         if (m.transparent && m.opacity < 0.9) glass = true;
-        m.envMapIntensity = 1;
+        if (def.doubleSide && !m.transparent) m.side = THREE.DoubleSide;   // model thiếu mặt trong (mui, cột A) => nhìn từ trong xe vẫn thấy
+        m.envMapIntensity = 0.5;   // bản đồ môi trường được chụp sáng gấp ~2 lần trời thật (để soi sáng mặt đất); sơn xe phản chiếu đúng độ sáng trời
         withMist(m);
       }
       o.castShadow = !glass;
