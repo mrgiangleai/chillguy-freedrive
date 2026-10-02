@@ -59,6 +59,7 @@ const SKY_VERT = `
 const SKY_FRAG = `
   uniform vec3 uZenith, uMid, uHorizon, uBand, uSunCol, uSunDir;
   uniform float uGlow, uDisc, uBandAmt, uScale;
+  uniform vec4 uGround;                                                     // rgb + độ phủ: mặt đất tối dưới chân trời (chỉ khi chụp môi trường cho xe)
   varying vec3 vDir;
   void main() {
     vec3 d = normalize(vDir);
@@ -66,6 +67,7 @@ const SKY_FRAG = `
     vec3 col = mix(uHorizon, uMid, smoothstep(0.0, 0.24, h));
     col = mix(col, uZenith, smoothstep(0.16, 0.92, h));
     col = mix(col, uHorizon * 0.9, smoothstep(0.0, -0.1, d.y));            // dưới chân trời
+    col = mix(col, uGround.rgb, uGround.a * smoothstep(-0.004, -0.05, d.y));
     float sd = max(dot(d, uSunDir), 0.0);
     float band = pow(sd, 2.2) * (1.0 - smoothstep(0.0, 0.34, h));           // dải ấm dọc chân trời phía mặt trời
     col = mix(col, uBand, clamp(band * uBandAmt, 0.0, 1.0));
@@ -156,6 +158,7 @@ export class Environment {
         uZenith: { value: new THREE.Color() }, uMid: { value: new THREE.Color() }, uHorizon: { value: new THREE.Color() },
         uBand: { value: new THREE.Color() }, uSunCol: { value: new THREE.Color() }, uSunDir: { value: new THREE.Vector3(0, 1, 0) },
         uGlow: { value: 1 }, uDisc: { value: 1 }, uBandAmt: { value: 1 }, uScale: { value: 1 },
+        uGround: { value: new THREE.Vector4(0, 0, 0, 0) },
       },
       vertexShader: SKY_VERT, fragmentShader: SKY_FRAG,
       side: THREE.BackSide, depthWrite: false, fog: false,
@@ -501,10 +504,18 @@ export class Environment {
     su.uScale.value = 2.1;
     su.uDisc.value = Math.min(disc, 4);
     const rt = this.pmrem.fromScene(this.envScene, 0, 1, 3000);
+    // bản riêng cho xe: trời đúng độ sáng thật + mặt đất tối phía dưới
+    // (xe thật phản chiếu mặt đường ở nửa dưới thân => không bị bóng loáng như nhựa)
     su.uScale.value = 1;
+    su.uGround.value.set(su.uHorizon.value.r * 0.13, su.uHorizon.value.g * 0.13, su.uHorizon.value.b * 0.12, 1);
+    const crt = this.pmrem.fromScene(this.envScene, 0, 1, 3000);
+    su.uGround.value.w = 0;
     su.uDisc.value = disc;
     if (this.envRT) this.envRT.dispose();
+    if (this.carEnvRT) this.carEnvRT.dispose();
     this.envRT = rt;
+    this.carEnvRT = crt;
     this.scene.environment = rt.texture;
+    if (this.onCarEnv) this.onCarEnv(crt.texture);
   }
 }

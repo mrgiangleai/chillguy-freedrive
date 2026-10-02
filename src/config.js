@@ -7,12 +7,17 @@
 // hide    : regex tên node cần bỏ (đạo cụ trưng bày đi kèm model)
 // optional: chỉ hiện nếu có file (kiểm tra trước khi tải)
 // doubleSide: vẽ cả mặt sau của vật liệu (cho model không dựng mặt trong cabin)
+// mats    : sửa thông số vật liệu theo tên (model tải về hay bị gắn sai kim loại / độ bóng)
+// basicMetal: thay mọi vật liệu (trừ kính) bằng kim loại cơ bản với thông số này
 export const CARS = [
   { id: 'mustang', name: "Mustang '67", file: 'assets/models/mustang.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true,
-    wheels: /^(Wheel|Tyre)/ },
+    wheels: /^(Wheel|Tyre)/,
+    mats: { Interior: { metalness: 0, roughness: 0.62 }, BlackPolished: { roughness: 0.18 }, Paint: { clearcoatRoughness: 0.08 } } },
   { id: 'mustang-blue', name: "Mustang '67 Xanh", file: 'assets/models/mustang-blue.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true,
-    wheels: /^(Wheel|Tyre)/ },
-  { id: 'divo', name: 'Bugatti Divo', file: 'assets/models/bugatti-divo.glb', length: 4.64, flip: true, wheels: /^(4_3|5_17)$/ },
+    wheels: /^(Wheel|Tyre)/,
+    mats: { Interior: { metalness: 0, roughness: 0.62 }, BlackPolished: { roughness: 0.18 }, Body: { clearcoatRoughness: 0.08 } } },
+  { id: 'divo', name: 'Bugatti Divo', file: 'assets/models/bugatti-divo.glb', length: 4.64, flip: true, wheels: /^(4_3|5_17)$/,
+    basicMetal: { metalness: 0.6, roughness: 0.38 } },   // vật liệu gốc bị chuyển đổi sai => kim loại bóng nhẹ cơ bản
   { id: 'milktruck', name: 'Milk Truck', file: 'assets/models/milktruck.glb', length: 5.0, flip: true, eye: [-0.6, 1.8, -1.3],
     wheels: /^Wheels/ },
 ];

@@ -17,7 +17,8 @@ export class Cars {
     this.loader = new GLTFLoader();
     this.loader.setMeshoptDecoder(MeshoptDecoder);   // model đã nén meshopt + WebP để tải nhanh
     this.onProgress = null;
-    this.prepare = null;             // async (group) => {} : biên dịch trước shader của xe mới
+    this.prepare = null;
+    this.envMap = null;             // async (group) => {} : biên dịch trước shader của xe mới
     this.list = [];
     this.cache = new Map();
     this.current = null;
@@ -119,6 +120,19 @@ export class Cars {
     const dim = { length: box.max.z - box.min.z, width: box.max.x - box.min.x, height: box.max.y - box.min.y };
     dim.eye = def.eye || [-dim.width * 0.2, Math.min(dim.height * 0.8, 1.15), 0];
 
+    // tuỳ chọn: thay toàn bộ vật liệu bằng kim loại bóng nhẹ cơ bản (giữ màu / ảnh màu gốc, kính vẫn trong suốt)
+    if (def.basicMetal) {
+      model.traverse((o) => {
+        if (!o.isMesh || Array.isArray(o.material)) return;
+        const m = o.material;
+        if (m.transmission > 0 || (m.transparent && m.opacity < 0.9)) return;
+        o.material = new THREE.MeshStandardMaterial({
+          name: m.name, color: m.color, map: m.map, side: m.side, ...def.basicMetal,
+        });
+        m.dispose();
+      });
+    }
+
     // vật liệu: bỏ transmission (tốn kém) -> kính trong suốt thường; bật đổ bóng
     model.traverse((o) => {
       if (!o.isMesh) return;
@@ -128,7 +142,8 @@ export class Cars {
         if (m.transmission > 0) { m.transmission = 0; m.transparent = true; m.opacity = 0.32; m.depthWrite = false; glass = true; }
         if (m.transparent && m.opacity < 0.9) glass = true;
         if (def.doubleSide && !m.transparent) m.side = THREE.DoubleSide;   // model thiếu mặt trong (mui, cột A) => nhìn từ trong xe vẫn thấy
-        m.envMapIntensity = 0.5;   // bản đồ môi trường được chụp sáng gấp ~2 lần trời thật (để soi sáng mặt đất); sơn xe phản chiếu đúng độ sáng trời
+        if (def.mats && def.mats[m.name]) Object.assign(m, def.mats[m.name]);   // sửa vật liệu bị chuyển đổi sai
+        this._env(m);
         withMist(m);
       }
       o.castShadow = !glass;
@@ -137,6 +152,22 @@ export class Cars {
 
     const wheels = def.wheels ? this._wheels(car, def, dim) : [];
     return { def, group: car, dim, wheels, anim: null };
+  }
+
+  // môi trường phản chiếu riêng cho xe (có mặt đất tối), cập nhật mỗi lần bầu trời được chụp lại
+  _env(m) {
+    m.envMap = this.envMap;
+    m.envMapIntensity = this.envMap ? 1 : 0.5;     // chưa có: dùng env chung (sáng gấp ~2 lần trời thật)
+  }
+
+  setEnvMap(tex) {
+    this.envMap = tex;
+    for (const e of this.cache.values()) {
+      e.group.traverse((o) => {
+        if (!o.isMesh) return;
+        for (const m of Array.isArray(o.material) ? o.material : [o.material]) this._env(m);
+      });
+    }
   }
 
   // gom node bánh xe vào "pivot" đặt đúng tâm bánh để quay quanh trục X (trục bánh xe)

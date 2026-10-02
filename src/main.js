@@ -132,6 +132,8 @@ function compileFor(target, cam, obj = scene) {
   return p;
 }
 // xe mới tải: dịch shader (cả biến thể phản chiếu vũng nước) trước khi gắn vào cảnh
+env.onCarEnv = (tex) => cars.setEnvMap(tex);
+if (env.carEnvRT) cars.setEnvMap(env.carEnvRT.texture);
 cars.prepare = (group) => Promise.all([compileFor(null, camera, group), compileFor(refl.rt, refl.cam, group)]);
 function warmShaders(delay = 500) {
   clearTimeout(warmTimer);
