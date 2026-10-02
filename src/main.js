@@ -249,8 +249,17 @@ const nextWeather = () => { state.weather = (state.weather + 1) % WEATHERS.lengt
 const nextTime = () => {
   state.time = (state.time + 1) % TIMES.length;
   env.setTime(TIMES[state.time].hour);
+  if (TIMES[state.time].id === 'night') setMist(0.6, 0.6);     // ban đêm: sương phủ + dày 60%
   refreshUI();
 };
+// đặt độ phủ / độ dày sương (0..1) và cập nhật thanh trượt
+function setMist(cover, dens) {
+  state.mistCover = cover; state.mistDens = dens;
+  for (const [id, key] of [['mist-cover', 'mistCover'], ['mist-dens', 'mistDens']]) {
+    $(id).value = Math.round(state[key] * 100);
+    $(id + '-v').textContent = $(id).value;
+  }
+}
 // Cinematic luôn bật (letterbox, xoá phông, bloom, chỉnh màu...) — không còn nút tắt
 const applyCine = () => document.body.classList.toggle('cine', state.cine && state.started);
 function setGear(g) { drive.gear = g; drive.fast = g === 2; drive.target = GEARS[Math.min(g, 1)]; }
