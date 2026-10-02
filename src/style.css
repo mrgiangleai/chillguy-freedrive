@@ -66,14 +66,14 @@ body.intro #hud { opacity: 0 !important; }
 @media (max-width: 1000px) { #bar span { display: none; } #bar b { font-size: 19px; } #bar button { padding: 10px 12px; } }
 
 /* ---- bảng chỉnh sương mù ---- */
-#mistpanel { position: fixed; z-index: 6; left: 50%; transform: translateX(-50%); bottom: 78px; width: min(320px, calc(100vw - 32px));
+#mistpanel, #lenspanel { position: fixed; z-index: 6; left: 50%; transform: translateX(-50%); bottom: 78px; width: min(320px, calc(100vw - 32px));
   padding: 12px 16px; border-radius: 14px; background: rgba(12, 16, 28, .78); border: 1px solid var(--line);
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); display: grid; gap: 8px; }
-#mistpanel[hidden] { display: none; }
-#mistpanel label { display: grid; grid-template-columns: 64px 1fr 34px; align-items: center; gap: 10px; font-size: 12px; letter-spacing: .04em; }
-#mistpanel input { width: 100%; accent-color: #ffd36e; }
-#mistpanel output { text-align: right; opacity: .75; font-variant-numeric: tabular-nums; }
-body.cine #mistpanel { bottom: calc(max(14px, calc(var(--bar) / 2 - 23px)) + 60px); }
+#mistpanel[hidden], #lenspanel[hidden] { display: none; }
+#mistpanel label, #lenspanel label { display: grid; grid-template-columns: 64px 1fr 46px; align-items: center; gap: 10px; font-size: 12px; letter-spacing: .04em; }
+#mistpanel input, #lenspanel input { width: 100%; accent-color: #ffd36e; }
+#mistpanel output, #lenspanel output { text-align: right; opacity: .75; font-variant-numeric: tabular-nums; }
+body.cine #mistpanel, body.cine #lenspanel { bottom: calc(max(14px, calc(var(--bar) / 2 - 23px)) + 60px); }
 /* màn hình hẹp: nút gọn hơn; nếu vẫn thiếu chỗ thì vuốt ngang được */
 #bar { overflow-x: auto; scrollbar-width: none; }
 #bar::-webkit-scrollbar { display: none; }

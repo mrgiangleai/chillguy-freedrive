@@ -61,3 +61,7 @@ export const MUSIC_MODES = [
   { id: 'music', name: 'Chỉ nhạc', icon: '🎶' },
   { id: 'off', name: 'Tắt tiếng', icon: '🔇' },
 ];
+
+// khẩu độ ống kính (f-number) cho hiệu ứng xoá phông; mặc định f/2
+export const FSTOPS = [1.4, 1.8, 2, 2.8, 4, 5.6, 8, 11, 16];
+export const FSTOP_DEFAULT = 2;

@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0b1020">
   <title>Chill Drive</title>
-  <link rel="stylesheet" href="style.css?v=b1dcb13c">
-  <link rel="modulepreload" href="app.js?v=aca9e69b">
+  <link rel="stylesheet" href="style.css?v=d9071c7a">
+  <link rel="modulepreload" href="app.js?v=d4ba3f8d">
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -28,6 +28,7 @@
       <button id="b-time"><b>🌇</b><span></span></button>
       <button id="b-music"><b>🎵</b><span></span></button>
       <button id="b-mist"><b>🌫️</b><span></span></button>
+      <button id="b-lens"><b>📷</b><span></span></button>
       <button id="b-cine"><b>🎬</b><span></span></button>
     </nav>
     <button id="b-info" aria-label="Credits">ⓘ</button>
@@ -38,6 +39,11 @@
     <label><span>Độ dày</span><input id="mist-dens" type="range" min="0" max="100"><output id="mist-dens-v"></output></label>
   </div>
 
+  <div id="lenspanel" hidden>
+    <label><span>Tiêu cự</span><input id="lens-focal" type="range" step="1"><output id="lens-focal-v"></output></label>
+    <label><span>Khẩu độ</span><input id="lens-fstop" type="range" min="0" step="1"><output id="lens-fstop-v"></output></label>
+  </div>
+
   <div id="credits" hidden>
     <p><b>Chill Drive</b> — three.js · WebAudio (nhạc lo-fi tự sinh)</p>
     <ul>
@@ -45,9 +51,9 @@
       <li>Bugati Divo — Jonrss (sketchfab.com/huy14320000006), CC BY 4.0</li>
       <li>Cesium Milk Truck — Cesium, CC BY 4.0 (Khronos glTF Sample Assets)</li>
     </ul>
-    <p class="keys">A/D hoặc ←/→ lái · W/S hoặc ↑/↓ tốc độ · giữ chuột/vuốt: nhìn 360° · lăn chuột/chụm 2 ngón hoặc + −: zoom · C camera · N map · F fast drive · K cinematic · G sương mù · H ẩn giao diện</p>
+    <p class="keys">A/D hoặc ←/→ lái · W/S hoặc ↑/↓ tốc độ · giữ chuột/vuốt: nhìn 360° · lăn chuột/chụm 2 ngón hoặc + −: zoom (20–70mm) · L ống kính · C camera · N map · F fast drive · K cinematic · G sương mù · H ẩn giao diện</p>
   </div>
 
-  <script type="module" src="app.js?v=aca9e69b"></script>
+  <script type="module" src="app.js?v=d4ba3f8d"></script>
 </body>
 </html>

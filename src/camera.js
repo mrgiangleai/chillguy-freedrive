@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CAMERAS } from './config.js';
 
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+export const FOCAL_MIN = 20, FOCAL_MAX = 70;
 const lerpAngle = (a, b, t) => {
   let d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
   return a + d * t;
@@ -28,11 +29,22 @@ export class CameraRig {
     this._cl = new THREE.Vector3();
     // nhìn xung quanh khi bấm giữ + rê (radian); thả ra thì tự xoay về
     this.look = { yaw: 0, pitch: 0, hold: false, idle: 0 };
-    this.zoom = 1;                     // <1: lại gần (camera trong xe: thu hẹp góc nhìn), >1: ra xa
-    this.zoomS = 1;                    // giá trị đã làm mượt
+    this.sideSign = 0;                 // camera bên hông: -1 trái / +1 phải (0 = chưa chọn)
+    this.sidePref = 0;                 // ưu tiên bên (đường núi: phía thung lũng)
+    // ống kính (quy đổi full-frame 36x24 mm): mặc định 28 mm, zoom ra tới 20 mm, zoom vào tới 70 mm
+    this.focal = 28;                   // tiêu cự đặt (mm)
+    this.focalS = 28;                  // đã làm mượt
+    this.focalEff = 28;                // tiêu cự thực tế khung hình này (Fast drive mở rộng góc)
   }
 
-  zoomBy(f) { this.zoom = clamp(this.zoom * f, 0.4, 3); }
+  // f > 1: zoom ra (góc rộng hơn), f < 1: zoom vào
+  zoomBy(f) { this.focal = clamp(this.focal / f, FOCAL_MIN, FOCAL_MAX); }
+
+  // góc nhìn dọc (độ) của ống kính tiêu cự f mm: cạnh dài khung hình ứng với cạnh 36 mm của cảm biến
+  fovFor(f) {
+    const half = Math.atan(18 / f), aspect = this.camera.aspect || 1.6;
+    return ((aspect >= 1 ? 2 * Math.atan(Math.tan(half) / aspect) : 2 * half) * 180) / Math.PI;
+  }
 
   // dx > 0: rê sang phải, dy > 0: rê xuống (kiểu "nắm kéo cảnh": cảnh chạy theo tay)
   lookBy(dx, dy) {
@@ -49,6 +61,7 @@ export class CameraRig {
   setMode(i) {
     this.mode = i % CAMERAS.length;
     this.intro = -1;
+    this.sideSign = 0;
     this.blend = 0.7;
     const rigid = CAMERAS[this.mode].id === 'cockpit';
     this.camera.near = rigid ? 0.1 : 0.3;
@@ -65,7 +78,7 @@ export class CameraRig {
     const f = fwd(this.yaw, this._f), fc = new THREE.Vector3(-Math.sin(car.yaw), 0, -Math.cos(car.yaw));
     const r = rgt(car.yaw, this._r);
     const p = this._p, l = this._l;
-    let follow = 5, lookFollow = 7, fov = 60, rigid = false;
+    let follow = 5, lookFollow = 7, rigid = false;
     const sp = clamp(speed / 45, 0, 1);
     const fxv = car.fx || 0;                    // hiệu ứng tốc độ cao
     const slope = Math.tan(car.pitch || 0);     // độ dốc mặt đường (lên dốc > 0)
@@ -75,21 +88,18 @@ export class CameraRig {
       case 'chase':
         p.copy(pos).addScaledVector(f, -(dim.length * 0.5 + 6.2 + 1.4 * fxv + 1.8 * ci)).setY(pos.y + 2.3 + dim.height * 0.4);
         l.copy(pos).addScaledVector(f, 13).setY(pos.y + 1.75 + slope * 10);
-        fov = 58 + sp * 4 + fxv * 12 - 7 * ci;
         break;
       case 'low':
         p.copy(pos).addScaledVector(f, -(dim.length * 0.5 + 4.2)).setY(pos.y + 0.95);
         l.copy(pos).addScaledVector(f, 10).setY(pos.y + 1.0 + slope * 10);
-        fov = 68 + sp * 4 + fxv * 12;
         break;
       case 'side': {
-        // ngang hông xe, phía tim đường (không chui vào cỏ), chọn góc nhìn sao cho thấy trọn chiếc xe
-        const D = Math.max(4.4, dim.width * 0.5 + 3.6);
-        p.copy(pos).addScaledVector(r, (car.side || 1) * D).setY(pos.y + 0.85);
+        // ngang hông xe, cách ~11 m (ống kính 28 mm => xe chiếm ~1/3 bề ngang khung hình). Chọn bên một lần khi vào chế độ
+        // (phía tim đường; đường núi: phía thung lũng) để camera không nhảy qua lại khi xe đổi làn
+        if (!this.sideSign) this.sideSign = this.sidePref || car.side || 1;
+        const D = 11;
+        p.copy(pos).addScaledVector(r, this.sideSign * D).setY(pos.y + 1.5);
         l.copy(pos).setY(pos.y + dim.height * 0.42);
-        const half = Math.atan((dim.length * 0.5 + 0.9) / D);              // nửa góc ngang cần có
-        const aspect = this.camera.aspect || 1.6;
-        fov = Math.max(34, (2 * Math.atan(Math.tan(half) / aspect) * 180) / Math.PI) + fxv * 6;
         follow = 9; lookFollow = 12;
         break;
       }
@@ -97,21 +107,25 @@ export class CameraRig {
         const [ex, ey, ez] = dim.eye;
         p.copy(pos).addScaledVector(r, ex).addScaledVector(fc, -ez).setY(pos.y + ey - slope * ez);
         l.copy(p).addScaledVector(fc, 30).setY(p.y - 0.12 + slope * 30);
-        rigid = true; fov = 72 + sp * 3 + fxv * 10;
+        rigid = true;
         break;
       }
       case 'orbit':
         this.orbit += dt * 0.2;
         p.set(pos.x + Math.cos(this.orbit) * 8.5, pos.y + 2.2 + Math.sin(this.orbit * 0.7) * 0.8, pos.z + Math.sin(this.orbit) * 8.5);
         l.copy(pos).setY(pos.y + 0.8);
-        fov = 48 + fxv * 8;
         break;
       case 'drone':
         p.copy(pos).addScaledVector(f, -15).setY(pos.y + 13);
         l.copy(pos).addScaledVector(f, 6).setY(pos.y + 0.5);
-        follow = 3.5; fov = 56 + fxv * 10;
+        follow = 3.5;
         break;
     }
+
+    // ống kính: zoom mượt; chạy nhanh thì góc rộng ra một chút (28 -> ~20 mm khi Fast drive)
+    this.focalS += (this.focal - this.focalS) * (1 - Math.exp(-dt * 8));
+    this.focalEff = this.focalS * (1 - 0.04 * sp) * (1 - 0.27 * fxv);
+    let fov = this.fovFor(this.focalEff);
 
     // cảnh mở đầu: lia vòng quanh xe (chỉ khi đang ở camera sau xe)
     let intro = false;
@@ -170,13 +184,6 @@ export class CameraRig {
       }
     }
 
-    this.zoomS += (this.zoom - this.zoomS) * (1 - Math.exp(-dt * 8));
-    if (!rigid) {
-      cp.multiplyScalar(this.zoomS);
-      const minR = dim.length * 0.55 + 1.2, R = cp.length();   // zoom sát nhất vẫn ở ngoài thân xe
-      if (R < minR) cp.multiplyScalar(minR / Math.max(R, 1e-3));
-    }
-
     this.camera.position.copy(pos).add(cp);
     // không để camera chui xuống đất (đồi bên đường)
     if (this.groundAt) {
@@ -185,9 +192,8 @@ export class CameraRig {
     }
     this._l.copy(pos).add(cl);
     this.camera.lookAt(this._l);
-    const fovZ = rigid ? this.fov * clamp(this.zoomS, 0.35, 1.3) : this.fov;
-    if (Math.abs(this.camera.fov - fovZ) > 0.01) {
-      this.camera.fov = fovZ;
+    if (Math.abs(this.camera.fov - this.fov) > 0.01) {
+      this.camera.fov = this.fov;
       this.camera.updateProjectionMatrix();
     }
   }

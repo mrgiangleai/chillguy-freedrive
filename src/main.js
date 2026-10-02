@@ -5,7 +5,7 @@ import { Terrain } from './terrain.js';
 import { setTerrainMap } from './terrain-noise.js';
 import { Environment } from './world.js';
 import { Cars } from './cars.js';
-import { CameraRig } from './camera.js';
+import { CameraRig, FOCAL_MIN, FOCAL_MAX } from './camera.js';
 import { ChillAudio } from './audio.js';
 import { ReedField } from './reeds.js';
 import { Post } from './post.js';
@@ -13,7 +13,7 @@ import { installMist, MIST } from './mist.js';
 import { WetReflection } from './reflection.js';
 
 installMist();   // thay shader sương của three.js (phải chạy trước khi vật liệu được biên dịch)
-import { MAPS, WEATHERS, TIMES, CAMERAS, MUSIC_MODES } from './config.js';
+import { MAPS, WEATHERS, TIMES, CAMERAS, MUSIC_MODES, FSTOPS, FSTOP_DEFAULT } from './config.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
@@ -46,7 +46,7 @@ const cars = new Cars(scene);
 const rig = new CameraRig(camera);
 rig.groundAt = (x, z) => terrain.heightAt(x, z);
 const audio = new ChillAudio();
-const post = new Post(renderer);
+const post = new Post(renderer, window.matchMedia?.('(pointer: coarse)').matches ? 2 : 4);
 const refl = new WetReflection(renderer);
 
 function resize() {
@@ -84,8 +84,8 @@ const keys = new Set();
 const pointer = { active: false, id: -1, x: 0, y: 0 };
 
 // ---------- giao diện ----------
-const state = { car: 0, map: 0, cam: 0, weather: 0, time: TIMES.findIndex((t) => t.id === 'golden'), music: 0, cine: true, started: false, mistCover: 0.35, mistDens: 0.2 };
-const el = { mist: $('b-mist'), cine: $('b-cine'), fast: $('b-fast'), car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
+const state = { car: 0, map: 0, cam: 0, weather: 0, time: TIMES.findIndex((t) => t.id === 'golden'), music: 0, cine: true, started: false, mistCover: 0.35, mistDens: 0.2, fstop: FSTOP_DEFAULT };
+const el = { lens: $('b-lens'), mist: $('b-mist'), cine: $('b-cine'), fast: $('b-fast'), car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
 const setBtn = (btn, icon, text) => { btn.querySelector('b').textContent = icon; btn.querySelector('span').textContent = text; btn.title = text; };
 
 function refreshUI() {
@@ -101,7 +101,10 @@ function refreshUI() {
   setBtn(el.mist, '🌫️', 'Sương ' + Math.round(state.mistDens * 100) + '%');
   el.mist.classList.toggle('on', !$('mistpanel').hidden);
   el.cine.classList.toggle('on', state.cine);
+  setBtn(el.lens, '📷', lensLabel());
+  el.lens.classList.toggle('on', !$('lenspanel').hidden);
 }
+function lensLabel() { return Math.round(rig.focal) + 'mm f/' + FSTOPS[state.fstop]; }
 
 async function chooseCar(i) {
   state.car = (i + cars.list.length) % cars.list.length;
@@ -131,14 +134,14 @@ function compileFor(target, cam, obj = scene) {
   for (let i = 0; i < off.length; i += 2) off[i].material = off[i + 1];
   return p;
 }
-// xe mới tải: dịch shader (cả biến thể phản chiếu vũng nước) trước khi gắn vào cảnh
+// xe mới tải: dịch shader (cả biến thể vẽ vào render target: hậu kỳ / phản chiếu vũng nước) trước khi gắn vào cảnh
 env.onCarEnv = (tex) => cars.setEnvMap(tex);
 if (env.carEnvRT) cars.setEnvMap(env.carEnvRT.texture);
-cars.prepare = (group) => Promise.all([compileFor(null, camera, group), compileFor(refl.rt, refl.cam, group)]);
+cars.prepare = (group) => Promise.all([compileFor(null, camera, group), compileFor(post.sceneRT, camera, group)]);
 function warmShaders(delay = 500) {
   clearTimeout(warmTimer);
   warmTimer = setTimeout(() => {
-    compileFor(refl.rt, refl.cam).then(() => compileFor(null, camera)).catch((e) => console.warn('warmup', e));
+    compileFor(post.sceneRT, camera).then(() => compileFor(null, camera)).catch((e) => console.warn('warmup', e));
   }, delay);
 }
 const applyMap = () => {
@@ -151,6 +154,8 @@ const applyMap = () => {
   terrain.prime(camera.position.lengthSq() ? camera.position : drive.pos);
   reeds.visible = id === 'reed';
   grass.visible = id === 'forest';
+  rig.sidePref = id === 'mountain' ? 1 : 0;      // camera bên hông đứng phía thung lũng
+  rig.sideSign = 0;
   warmShaders();
 };
 const nextMap = () => { state.map = (state.map + 1) % MAPS.length; applyMap(); refreshUI(); };
@@ -169,8 +174,22 @@ const nextMusic = () => { state.music = (state.music + 1) % MUSIC_MODES.length; 
 el.fast.onclick = toggleFast;
 el.cine.onclick = toggleCine;
 // bảng chỉnh sương mù: độ phủ + độ dày
-const toggleMistPanel = () => { $('mistpanel').hidden = !$('mistpanel').hidden; refreshUI(); };
+const toggleMistPanel = () => { $('mistpanel').hidden = !$('mistpanel').hidden; $('lenspanel').hidden = true; refreshUI(); };
 el.mist.onclick = toggleMistPanel;
+// bảng chỉnh ống kính: tiêu cự (= zoom) + khẩu độ (độ xoá phông)
+const toggleLensPanel = () => { $('lenspanel').hidden = !$('lenspanel').hidden; $('mistpanel').hidden = true; refreshUI(); };
+el.lens.onclick = toggleLensPanel;
+const focalIn = $('lens-focal'), fstopIn = $('lens-fstop');
+focalIn.min = FOCAL_MIN; focalIn.max = FOCAL_MAX;
+fstopIn.max = FSTOPS.length - 1;
+const syncLens = () => {
+  focalIn.value = Math.round(rig.focal); $('lens-focal-v').textContent = Math.round(rig.focal) + 'mm';
+  fstopIn.value = state.fstop; $('lens-fstop-v').textContent = 'f/' + FSTOPS[state.fstop];
+};
+focalIn.addEventListener('input', () => { rig.focal = Number(focalIn.value); syncLens(); refreshUI(); });
+fstopIn.addEventListener('input', () => { state.fstop = Number(fstopIn.value); syncLens(); refreshUI(); });
+for (const i of [focalIn, fstopIn]) i.addEventListener('change', () => i.blur());
+syncLens();
 for (const [id, key] of [['mist-cover', 'mistCover'], ['mist-dens', 'mistDens']]) {
   const input = $(id);
   input.value = Math.round(state[key] * 100);
@@ -201,6 +220,7 @@ window.addEventListener('keydown', (e) => {
     case 'KeyF': toggleFast(); break;
     case 'KeyK': toggleCine(); break;
     case 'KeyG': toggleMistPanel(); break;
+    case 'KeyL': toggleLensPanel(); break;
   }
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
@@ -288,6 +308,23 @@ let uiTimer = 0;
 let cineAmt = 0;
 const roadPt = {};
 
+// xoá phông theo ống kính thật (cảm biến full-frame 36 mm): lấy nét vào xe (camera trong xe: nét ở xa phía trước)
+// vòng nhoè trên cảm biến = f² / (N·(F − f)) · |z − F| / z  (mm)  -> quy ra điểm ảnh theo cạnh dài khung hình
+const dof = { amt: 0, near: 0.1, far: 1000, focus: 10, cocK: 0, maxCoc: 24 };
+const _focusP = new THREE.Vector3();
+function dofParams(dt) {
+  const inCar = CAMERAS[state.cam].id === 'cockpit';
+  _focusP.copy(drive.pos).y += 0.6;
+  const target = inCar ? 25 : Math.max(2, camera.position.distanceTo(_focusP));
+  dof.focus += (target - dof.focus) * (dof.amt > 0.01 ? 1 - Math.exp(-dt * 6) : 1);
+  const f = rig.focalEff, N = FSTOPS[state.fstop], F = dof.focus * 1000;
+  dof.cocK = ((f * f) / (N * Math.max(F - f, 1))) * (post.longSide / 36);
+  dof.maxCoc = Math.max(6, post.longSide * 0.0125);
+  dof.near = camera.near; dof.far = camera.far;
+  dof.amt = cineAmt;
+  return dof;
+}
+
 function frame(now) {
   const dt = clamp((now - last) / 1000, 0, 0.05);
   adaptQuality(now - last);
@@ -363,6 +400,7 @@ function frame(now) {
   if (uiTimer <= 0) {
     $('speed').textContent = Math.round(drive.v * 3.6);
     $('clock').textContent = env.clock;
+    if (el.lens.title !== lensLabel()) { refreshUI(); syncLens(); }
     uiTimer = 0.25;
   }
 
@@ -380,9 +418,11 @@ function frame(now) {
   else refl.active = false;
   scenery.setReflection(refl, now / 1000);
 
+  // hậu kỳ (xoá phông/bloom/chỉnh màu/hạt phim + blur tốc độ): cảnh vẽ vào render target; tắt cả hai thì vẽ thẳng ra màn hình
+  const usePost = cineAmt > 0.01 || drive.fx > 0.015;
+  if (usePost) post.begin();
   renderer.render(scene, camera);
-  // hậu kỳ (bloom/chỉnh màu/hạt phim + blur tốc độ); bỏ qua hẳn khi cả hai đều tắt
-  if (cineAmt > 0.01 || drive.fx > 0.015) post.render(now / 1000, cineAmt, drive.fx);
+  if (usePost) post.render(now / 1000, cineAmt, drive.fx, dofParams(dt));
   requestAnimationFrame(frame);
 }
 

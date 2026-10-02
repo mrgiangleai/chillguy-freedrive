@@ -4,10 +4,11 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 
 - **Địa hình đồi núi vô tận** (kiểu slowroads): đồi trập trùng, đường lên dốc/xuống dốc men theo địa hình, núi xa có đá & tuyết mờ trong sương xanh; sinh hoàn toàn bằng code nên tải rất nhanh
 - **Map** (nút 🌾 hoặc phím `N`): **cánh đồng cỏ lau bất tận** 🌾 (mặc định) · **đồi thông** 🌲 kiểu slowroads: đồi cỏ xanh với búi cỏ mọc dày sát mép đường, cây có tán lá kết cấu, mảng rừng sẫm trên đồi xa · **đường núi** ⛰️ men sườn núi: vách đá một bên, vực thung lũng có hộ lan một bên
-- **Cinematic** 🎬 (bật sẵn, tắt bằng nút 🎬 hoặc phím `K`): dải đen letterbox 2.39:1, bloom quanh mặt trời/đèn, chỉnh màu phim, hạt phim, tối viền, camera hơi rung như quay cầm tay, ống kính tele hơn và cảnh mở đầu camera lia từ thấp ra sau xe
+- **Cinematic** 🎬 (bật sẵn, tắt bằng nút 🎬 hoặc phím `K`): dải đen letterbox 2.39:1, **xoá phông** theo ống kính thật (lấy nét vào xe, tiền cảnh/hậu cảnh nhoè kiểu bokeh), bloom quanh mặt trời/đèn, chỉnh màu phim, hạt phim, tối viền, camera hơi rung như quay cầm tay và cảnh mở đầu camera lia từ thấp ra sau xe
 - **Tốc độ**: mặc định chạy chill **35 km/h** (chỉnh được 10–40 km/h); nút **⚡ Fast drive** (hoặc phím `F`) tăng lên **150 km/h** kèm hiệu ứng blur tốc độ, góc nhìn rộng ra, camera rung nhẹ, gió ù ù; bấm lại để về chill
 - **Xe**: chọn xe bằng nút 🚗: **Mustang '67** (mặc định) · Mustang '67 Xanh · Bugatti Divo · Milk Truck (model glTF miễn phí, đều ≤ 250k triangles)
-- **Camera**: sau xe · sát mặt đường · bên hông (ngang hông, thấy trọn xe) · trong xe · quay quanh · từ trên cao; **bấm giữ + rê chuột / vuốt** để nhìn quanh 360° (thả tay camera tự về), **lăn chuột / chụm 2 ngón / phím `+` `-`** để zoom
+- **Ống kính** 📷 (nút hoặc phím `L`): tiêu cự mặc định **28 mm** (zoom ra 20 mm, vào tới 70 mm), khẩu độ mặc định **f/2** (chỉnh f/1.4–f/16); độ xoá phông tính theo cảm biến full-frame
+- **Camera**: sau xe · sát mặt đường · bên hông (ngang hông, lùi xa ~11 m, xe chiếm ~1/3 khung hình) · trong xe · quay quanh · từ trên cao; **bấm giữ + rê chuột / vuốt** để nhìn quanh 360° (thả tay camera tự về), **lăn chuột / chụm 2 ngón / phím `+` `-`** để zoom (đổi tiêu cự)
 - **Thời tiết**: nắng · nhiều mây · **gió lớn** · mưa · **bão** (trời âm u tối, mưa xối, sét + sấm) · tuyết · sương mù (chuyển cảnh mượt)
 - **Bầu trời gradient** phối màu theo từng giờ (xanh trong ban ngày, cam–hồng–tím lúc hoàng hôn/bình minh, xanh than ban đêm), lớp mây thật, mây ti, sao, trăng; chân trời khớp màu với sương xa
 - **Sương mù** 🌫️ (nút hoặc phím `G`): chỉnh **Độ phủ** (cao thấp, từng đám hay phủ kín) và **Độ dày**; sương đọng dày ở thung lũng và trôi theo gió
@@ -23,7 +24,7 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 | `W` `S` / `↑` `↓` | tăng / giảm tốc độ (10–40 km/h) |
 | `F` | bật / tắt **Fast drive** (150 km/h) · `K` bật / tắt Cinematic · `G` bảng sương mù |
 | `C` | đổi camera · `V` đổi xe · `N` đổi map · `R` đổi thời tiết · `T` đổi giờ · `M` đổi chế độ âm thanh |
-| `+` `-` | zoom gần / xa (camera trong xe: thu hẹp / mở rộng góc nhìn) |
+| `+` `-` | zoom (tiêu cự 20–70 mm) · `L` bảng ống kính (tiêu cự + khẩu độ) |
 | `H` | ẩn / hiện giao diện |
 
 Chuột / màn hình cảm ứng: **bấm giữ rồi rê** (vuốt) để nhìn xung quanh 360°, thả tay camera tự quay về; **lăn chuột** hoặc **chụm / mở 2 ngón** để zoom.
