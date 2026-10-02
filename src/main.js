@@ -14,6 +14,7 @@ import { WetReflection } from './reflection.js';
 import { Person } from './person.js';
 import { StopScene } from './stopscene.js';
 import { Nature } from './nature.js';
+import { RearMirror } from './mirror.js';
 
 installMist();   // thay shader sương của three.js (phải chạy trước khi vật liệu được biên dịch)
 import { MAPS, WEATHERS, TIMES, CAMERAS, MUSIC_MODES, FSTOPS, FSTOP_DEFAULT, QUALITY, QUALITY_DEFAULT } from './config.js';
@@ -65,6 +66,8 @@ const refl = new WetReflection(renderer);
 const person = new Person();
 const stop = new StopScene(cars, person);
 const nature = new Nature(scene);
+const mirror = new RearMirror(renderer);
+cars.tilt.add(mirror.group);
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -157,6 +160,7 @@ async function chooseCar(i) {
     if (cars.list.length > 1) { cars.list.splice(state.car, 1); return chooseCar(state.car); }
   }
   if (person.ready && !stop.active) { stop.place(cars.dim); stop.sit(); }
+  mirror.place(cars.dim);
   warmShaders();
   refreshUI();
 }
@@ -508,6 +512,10 @@ function frame(now) {
   scenery.setReflection(refl, now / 1000);
 
   // cảnh luôn vẽ vào render target (màu tuyến tính + độ sâu); hậu kỳ tone mapping + xoá phông/bloom/chỉnh màu (Cinematic) + blur tốc độ
+  // gương chiếu hậu (chỉ khi ngồi trong xe)
+  const inCabin = CAMERAS[state.cam].id === 'cockpit' && !stop.active;
+  mirror.group.visible = inCabin;
+  if (inCabin) mirror.render(scene, cars.tilt);
   post.begin();
   renderer.render(scene, camera);
   post.render(now / 1000, cineAmt, drive.fx, dofParams(dt));

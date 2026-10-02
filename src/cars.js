@@ -157,6 +157,7 @@ export class Cars {
       for (const m of mats) {
         if (m.transmission > 0) { m.transmission = 0; m.transparent = true; m.opacity = 0.32; m.depthWrite = false; glass = true; }
         if (m.transparent && m.opacity < 0.9) glass = true;
+        if (glass && !m.userData.glass) glassReflect(m);
         if (def.doubleSide && !m.transparent) m.side = THREE.DoubleSide;   // model thiếu mặt trong (mui, cột A) => nhìn từ trong xe vẫn thấy
         if (def.mats && def.mats[m.name]) Object.assign(m, def.mats[m.name]);   // sửa vật liệu bị chuyển đổi sai
         if (/tail|brake|emissivered|rear.?light/i.test(m.name) && m.emissive) { m.emissive.set(0xff1a0a); tailMats.push(m); }
@@ -327,4 +328,17 @@ function contactShadowTexture() {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.NoColorSpace;
   return t;
+}
+
+// kính: chỗ phản chiếu trời sáng thì kính "đục" hơn => thấy rõ bóng phản chiếu (Fresnel: nhìn xiên phản chiếu mạnh)
+function glassReflect(m) {
+  m.userData.glass = true;
+  m.metalness = 0;
+  m.roughness = Math.min(m.roughness, 0.04);
+  m.depthWrite = false;
+  m.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `#include <opaque_fragment>
+      gl_FragColor.a = clamp(gl_FragColor.a + dot(reflectedLight.indirectSpecular + reflectedLight.directSpecular, vec3(0.3, 0.59, 0.11)) * 1.4, 0.0, 0.94);`);
+  };
+  m.customProgramCacheKey = () => 'glass-reflect';
 }
