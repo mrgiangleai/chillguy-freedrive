@@ -71,10 +71,11 @@ export const FSTOP_DEFAULT = 2;
 // ratio: độ phân giải so với màn hình (không vượt quá mật độ điểm ảnh thật của màn hình, trừ Low)
 // msaa : khử răng cưa khi hậu kỳ | veg: mật độ cỏ lau / búi cỏ | shadow: độ nét bóng đổ
 // refl : phản chiếu vũng nước khi mưa | dof: số mẫu xoá phông (0 = tắt)
+// trees: bán kính (m) quanh camera dùng cây / bụi / đá model chi tiết thay cho cây tấm (0 = chỉ cây tấm)
 export const QUALITY = [
-  { id: 'low', name: 'Low', ratio: 0.75, msaa: 0, veg: 0.35, shadow: 1024, refl: false, dof: 0 },
-  { id: 'mid', name: 'Mid', ratio: 1, msaa: 2, veg: 0.6, shadow: 2048, refl: true, dof: 24 },
-  { id: 'good', name: 'Good', ratio: 1.5, msaa: 4, veg: 0.85, shadow: 2048, refl: true, dof: 36 },
-  { id: 'ultra', name: 'Ultra', ratio: 2, msaa: 4, veg: 1, shadow: 4096, refl: true, dof: 48 },
+  { id: 'low', name: 'Low', ratio: 0.75, msaa: 0, veg: 0.35, shadow: 1024, refl: false, dof: 0, trees: 0 },
+  { id: 'mid', name: 'Mid', ratio: 1, msaa: 2, veg: 0.6, shadow: 2048, refl: true, dof: 24, trees: 25 },
+  { id: 'good', name: 'Good', ratio: 1.5, msaa: 4, veg: 0.85, shadow: 2048, refl: true, dof: 36, trees: 35 },
+  { id: 'ultra', name: 'Ultra', ratio: 2, msaa: 4, veg: 1, shadow: 4096, refl: true, dof: 48, trees: 50 },
 ];
 export const QUALITY_DEFAULT = 1;

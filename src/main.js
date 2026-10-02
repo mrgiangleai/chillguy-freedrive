@@ -13,6 +13,7 @@ import { installMist, MIST } from './mist.js';
 import { WetReflection } from './reflection.js';
 import { Person } from './person.js';
 import { StopScene } from './stopscene.js';
+import { Nature } from './nature.js';
 
 installMist();   // thay shader sương của three.js (phải chạy trước khi vật liệu được biên dịch)
 import { MAPS, WEATHERS, TIMES, CAMERAS, MUSIC_MODES, FSTOPS, FSTOP_DEFAULT, QUALITY, QUALITY_DEFAULT } from './config.js';
@@ -52,6 +53,7 @@ const post = new Post(renderer, QUALITY[QUALITY_DEFAULT].msaa);
 const refl = new WetReflection(renderer);
 const person = new Person();
 const stop = new StopScene(cars, person);
+const nature = new Nature(scene);
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -126,6 +128,7 @@ function applyQuality() {
   grass.setDensity(q.veg);
   env.setShadowSize(q.shadow);
   refl.enabled = q.refl;
+  nature.setRadius(q.trees);
   try { localStorage.setItem('chilldrive.quality', q.id); } catch { /* bỏ qua */ }
 }
 const nextQuality = () => { state.quality = (state.quality + 1) % QUALITY.length; applyQuality(); refreshUI(); };
@@ -190,6 +193,7 @@ const applyMap = () => {
   reeds.visible = id === 'reed';
   grass.visible = id === 'forest';
   rig.sidePref = id === 'mountain' ? 1 : 0;      // camera bên hông đứng phía thung lũng
+  nature.setRadius(QUALITY[state.quality].trees);   // tính lại cây chi tiết cho map mới
   rig.sideSign = 0;
   warmShaders();
 };
@@ -426,6 +430,7 @@ function frame(now) {
   if (grass.visible) grass.update(now / 1000, camera.position, road, drive.s, st);
   terrain.setCar(drive.s);
   terrain.update(camera.position);
+  nature.update(camera.position, terrain);
   terrain.apply(st);
   cars.setLights(st.lamps);
   audio.setAmbient({ speed: drive.v, rain: st.rain, snow: st.snow, wind: st.wind, dark: st.dark, fx: drive.fx });
@@ -494,6 +499,14 @@ async function init() {
   const start = $('start');
   $('hint').textContent = 'Chạm hoặc nhấn phím bất kỳ để bắt đầu';
   cars.onProgress = (f) => setBtn(el.car, '🚗', 'Đang tải… ' + Math.round(f * 100) + '%');
+  // cây / bụi / đá chi tiết: tải song song; xong thì dựng lại địa hình để cụm đá dùng model đá thật
+  nature.load('assets/models/nature.glb').then(() => {
+    if (nature.rockGeos.length) terrain.rockGeos = nature.rockGeos;
+    terrain.reset();
+    terrain.prime(camera.position.lengthSq() ? camera.position : drive.pos);
+    nature.setRadius(QUALITY[state.quality].trees);
+    compileFor(post.sceneRT, camera, nature.group).catch(() => {});
+  }).catch((e) => console.warn('Không tải được cây / đá chi tiết', e));
   chooseCar(0).then(() => person.load('assets/models/person.glb')).then(() => {
     cars.tilt.add(person.root);
     stop.place(cars.dim);
@@ -518,4 +531,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, toggleCine, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, toggleCine, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

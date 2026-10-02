@@ -5,6 +5,7 @@ import { detailTexture, foliageAtlas, photoTexture } from './textures.js';
 import { withMist } from './mist.js';
 import { cardPineGeometry, cardBroadleafGeometry } from './scenery.js';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { NEAR } from './nature.js';
 
 // Địa hình đồi núi vô tận kiểu slowroads:
 // - Cây tứ phân (quadtree) quanh camera: ô gần 64 m (lưới 2 m), càng xa ô càng to (tới 8 km) => xa ~4 km.
@@ -90,30 +91,42 @@ export class Terrain {
     };
     // cây tấm: atlas lá + alphaTest; bỏ đảo pháp tuyến mặt sau để tán lá sáng đều
     this.treeMat = new THREE.MeshStandardMaterial({ map: foliageAtlas(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.92 });
+    // trong bán kính NEAR quanh camera: cây tấm thu nhỏ về 0 (đã có cây chi tiết thay thế)
+    const hideNear = (sh) => {
+      Object.assign(sh.uniforms, NEAR);
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nuniform float uNearR;\nuniform vec2 uNearC;')
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+          vec3 ipos = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+          transformed *= smoothstep(uNearR - 1.0, uNearR + 1.0, distance(ipos.xz, uNearC));`);
+    };
     this.treeMat.onBeforeCompile = (sh) => {
+      hideNear(sh);
       sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>',
         THREE.ShaderChunk.normal_fragment_begin.replace('normal *= faceDirection;', ''));
     };
+    this.treeDepth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: this.treeMat.map, alphaTest: 0.45, side: THREE.DoubleSide });
+    this.treeDepth.onBeforeCompile = hideNear;
     withMist(this.mat);
     withMist(this.treeMat);
     this.geos = { pine: cardPineGeometry(), broad: cardBroadleafGeometry() };
     // tảng đá: khối cầu bị nhiễu méo, đáy phẳng; tô ảnh đá chiếu 3 mặt theo toạ độ thế giới
     this.rockGeos = [0, 1, 2].map((k) => rockGeometry(k));
-    this.rockMat = new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0, envMapIntensity: 0.8 });
+    this.rockMat = new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0, envMapIntensity: 0.35 });
     this.rockMat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, this.texU);
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec3 vBW;\nvarying vec3 vBN;')
         .replace('#include <project_vertex>', `#include <project_vertex>
-          mat4 im = modelMatrix * instanceMatrix;
-          vBW = (im * vec4(transformed, 1.0)).xyz;
-          vBN = normalize(mat3(im) * objectNormal);`);
+          mat4 rockM = modelMatrix * instanceMatrix;
+          vBW = (rockM * vec4(transformed, 1.0)).xyz;
+          vBN = normalize(mat3(rockM) * objectNormal);`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', '#include <common>\nvarying vec3 vBW;\nvarying vec3 vBN;\nuniform sampler2D uRock, uGravel;')
         .replace('#include <map_fragment>', `
           vec3 bw = pow(abs(normalize(vBN)), vec3(3.0)); bw /= bw.x + bw.y + bw.z;
           vec3 rt = texture2D(uRock, vBW.zy / 3.0).rgb * bw.x + texture2D(uGravel, vBW.xz / 1.6).rgb * bw.y + texture2D(uRock, vBW.xy / 3.0).rgb * bw.z;
-          diffuseColor.rgb *= mix(vec3(dot(rt, vec3(0.3, 0.59, 0.11))), rt, 0.3) * 1.5;`);
+          diffuseColor.rgb *= mix(vec3(dot(rt, vec3(0.3, 0.59, 0.11))), rt, 0.25) * 1.7;`);
     };
     withMist(this.rockMat);
     this._nd = FAR; this._ny = 0; this._nl = 0; this._d = FAR;
@@ -316,7 +329,8 @@ export class Terrain {
     mesh.castShadow = size <= 64;
     const tile = new THREE.Group();
     tile.add(mesh);
-    const trees = this._trees(x0, z0, size, st, N, H, D, NY, SA);
+    tile.userData.box = [x0, z0, x0 + size, z0 + size];
+    const trees = this._trees(x0, z0, size, st, N, H, D, NY, SA, tile);
     for (const t of trees) tile.add(t);
     this.group.add(tile);
     return tile;
@@ -324,7 +338,7 @@ export class Terrain {
 
   _bil(G, N, st, x0, z0, x, z) {
     const gx = (x - x0) / st + 1, gz = (z - z0) / st + 1;
-    const i = Math.min(N - 2, Math.floor(gx)), j = Math.min(N - 2, Math.floor(gz));
+    const i = Math.max(0, Math.min(N - 2, Math.floor(gx))), j = Math.max(0, Math.min(N - 2, Math.floor(gz)));
     const fx = gx - i, fz = gz - j;
     const a = G[j * N + i], b = G[j * N + i + 1], c = G[(j + 1) * N + i], d = G[(j + 1) * N + i + 1];
     return a + (b - a) * fx + (c - a) * fz + (a - b - c + d) * fx * fz;
@@ -335,7 +349,7 @@ export class Terrain {
     return G[j * N + i];
   }
 
-  _trees(x0, z0, size, st, N, H, D, NY, SA) {
+  _trees(x0, z0, size, st, N, H, D, NY, SA, tile) {
     const pal = PAL[TP.id];
     const keep = KEEP[size] || 0;
     if (!keep) return [];
@@ -343,6 +357,8 @@ export class Terrain {
     const pines = [], broads = [], rocks = [];
     const nyAt = (x, z) => NY[Math.min(n, Math.round((z - z0) / st)) * (n + 1) + Math.min(n, Math.round((x - x0) / st))];
     // lưới 8 m như cũ; ô có đoạn đường đất thì thêm lưới 4 m sát đường (rừng rậm hai bên đường đất)
+    const near = size <= 128 ? [] : null;           // cây / bụi để thay bằng model chi tiết khi ở gần camera
+    if (tile) tile.userData.near = near;
     const passes = [{ cell: 8, seed: 0 }];
     if (this.road.dirt && size <= 128) {
       let any = false;
@@ -364,18 +380,64 @@ export class Terrain {
           else dens = Math.max(dens, dirtK * 0.9 * (1 - sstep(HW + 25, HW + 60, d)));
           const h = this._bil(H, N, st, x0, z0, x, z);
           const ny = nyAt(x, z);
-          // tảng đá: chân vách / sườn núi; rải rác bên đường đất
-          const rockP = mountain ? (ny < 0.9 && ny > 0.45 ? 0.16 : 0.03) * (d > HW + 1.6 ? 1 : 0) : dirtK * 0.06 * (d > HW + 2 ? 1 : 0);
-          if (!seed && hash2(ci + 3331, cj + 7177) < rockP) {
-            rocks.push([x, h - 0.15, z, 0.35 + Math.pow(hash2(ci + 41, cj + 43), 2.2) * (mountain ? 2.6 : 1.2), hash2(ci + 47, cj + 53) * 6.283, hash2(ci + 59, cj + 61)]);
-          }
           if (hash2(ci + 104729 + o, cj + 31) > dens) continue;
           if (d < HW + 7.5 - 5.0 * dirtK + (seed ? hash2(ci, cj + 3) * 1.5 : 0)) continue;
           if (h > pal.snowLine - 20) continue;
           if (ny < (mountain ? 0.66 : 0.8)) continue;                    // sườn quá dốc (núi: thông bám được sườn vừa)
           const sc = (0.75 + hash2(ci + 3 + o, cj + 5) * 0.7) * (size >= 256 ? 1.3 : 1) * (dirtK > 0.3 ? 1.15 : 1);
           const pine = pal.trees ? hash2(ci + 11 + o, cj + 13) < (mountain ? 0.9 : 0.58 + sstep(60, 180, h) * 0.35) : false;
-          (pine ? pines : broads).push([x, h - 0.2, z, sc, hash2(ci + 17 + o, cj + 19) * 6.283, hash2(ci + 23 + o, cj + 29)]);
+          const rec = [x, h - 0.2, z, sc, hash2(ci + 17 + o, cj + 19) * 6.283, hash2(ci + 23 + o, cj + 29)];
+          (pine ? pines : broads).push(rec);
+          if (near) near.push([pine ? 'pine' : 'broad', ...rec]);
+        }
+      }
+    }
+    // cụm đá gồ ghề (map núi: sườn dốc vừa và chân vách sát đường; đồi thông: vài cụm bên đường đất)
+    if (size <= 256) {
+      const cell = 22;
+      for (let cj = Math.floor(z0 / cell); cj * cell < z0 + size; cj++) {
+        for (let ci = Math.floor(x0 / cell); ci * cell < x0 + size; ci++) {
+          if (hash2(ci + 911, cj + 577) > keep) continue;
+          const cx = (ci + hash2(ci + 31, cj + 977)) * cell, cz = (cj + hash2(ci + 977, cj + 31)) * cell;
+          if (cx < x0 || cx >= x0 + size || cz < z0 || cz >= z0 + size) continue;
+          const d = this._bil(D, N, st, x0, z0, cx, cz);
+          if (d < HW + 3) continue;
+          const ny = nyAt(cx, cz);
+          const sa = d < 60 ? this._nearest(SA, N, st, x0, z0, cx, cz) : -1;
+          const dirtK = sa >= 0 ? this.road.dirtAt(sa) : 0;
+          const cliff = mountain && ny <= 0.5;                       // vách dốc: đá to nhô ra khỏi vách => gồ ghề
+          const p = mountain ? (d < HW + 14 ? 0.45 : cliff ? 0.32 : ny < 0.93 ? 0.3 : 0.06) : dirtK * 0.2;
+          if (hash2(ci + 3331, cj + 7177) > p) continue;
+          const big = (mountain ? (cliff ? 3 : 1.6) : 0.8) + Math.pow(hash2(ci + 41, cj + 43), 1.6) * (mountain ? (cliff ? 7 : 5.5) : 1.6);
+          const nr = 3 + Math.floor(hash2(ci + 7, cj + 9) * 5);
+          for (let k = 0; k < nr; k++) {
+            const a = hash2(ci * 7 + k, cj + 101) * 6.283, r = (k === 0 ? 0 : 0.6 + hash2(ci + k * 13, cj * 3 + 7) * 1.4) * big;
+            const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+            if (x < x0 - 4 || x >= x0 + size + 4 || z < z0 - 4 || z >= z0 + size + 4) continue;
+            if (this._bil(D, N, st, x0, z0, x, z) < HW + 2) continue;
+            const sc = big * (k === 0 ? 1 : 0.35 + hash2(ci + k, cj + k * 5) * 0.55);
+            const h = this._bil(H, N, st, x0, z0, x, z);
+            rocks.push([x, h - sc * (cliff ? 0.35 : 0.22), z, sc, hash2(ci + k * 3, cj + 53) * 6.283, hash2(ci + 59 + k, cj + 61)]);
+          }
+        }
+      }
+    }
+    // bụi cây / dương xỉ (chỉ hiện khi ở gần, bằng model chi tiết): đồi thông + núi
+    if (near && size <= 64 && pal.trees) {
+      const cell = 3.5;
+      for (let cj = Math.floor(z0 / cell); cj * cell < z0 + size; cj++) {
+        for (let ci = Math.floor(x0 / cell); ci * cell < x0 + size; ci++) {
+          const x = (ci + hash2(ci + 5153, cj)) * cell, z = (cj + hash2(ci, cj + 5153)) * cell;
+          if (x < x0 || x >= x0 + size || z < z0 || z >= z0 + size) continue;
+          const d = this._bil(D, N, st, x0, z0, x, z);
+          if (d < HW + 1.6) continue;
+          const sa = d < 60 ? this._nearest(SA, N, st, x0, z0, x, z) : -1;
+          const dirtK = sa >= 0 ? this.road.dirtAt(sa) : 0;
+          const dens = (mountain ? 0.07 : 0.1 + 0.18 * sstep(0.44, 0.66, vnoise(x / 260 + 3.1, z / 260 + 8.7))) + dirtK * 0.35;
+          if (hash2(ci + 6007, cj + 6011) > dens) continue;
+          if (nyAt(x, z) < 0.75) continue;
+          const h = this._bil(H, N, st, x0, z0, x, z);
+          near.push(['plant', x, h - 0.05, z, 0.6 + hash2(ci + 61, cj + 67) * 0.7, hash2(ci + 71, cj + 73) * 6.283, hash2(ci + 79, cj + 83)]);
         }
       }
     }
@@ -388,7 +450,7 @@ export class Terrain {
       list.forEach(([x, y, z, s, yaw, cv], i) => {
         if (rock) q.setFromEuler(e.set((cv - 0.5) * 0.5, yaw, (cv - 0.5) * 0.4));
         else q.setFromAxisAngle(up, yaw);
-        m4.compose(ps.set(x, y, z), q, sc.set(s, s * (rock ? 0.55 + cv * 0.5 : 0.9 + cv * 0.3), s));
+        m4.compose(ps.set(x, y, z), q, sc.set(s, s * (rock ? 0.75 + cv * 0.45 : 0.9 + cv * 0.3), s));
         m.setMatrixAt(i, m4);
         if (rock) cl.copy(cv > 0.5 ? ROCK : ROCK2).multiplyScalar(1.15 + cv * 0.3);
         else cl.setHSL(0.2 + (cv - 0.5) * 0.12, 0.45, 0.62 + cv * 0.2).lerp(this._white, 0.55);
@@ -396,14 +458,15 @@ export class Terrain {
       });
       m.castShadow = size <= 64;
       m.receiveShadow = rock && size <= 128;
+      if (!rock) m.customDepthMaterial = this.treeDepth;
       m.layers.set(3);                 // không vẽ trong ảnh phản chiếu vũng nước
       out.push(m);
     };
     mk(pines, this.geos.pine, this.treeMat);
     mk(broads, this.geos.broad, this.treeMat);
     if (rocks.length) {
-      const per = [[], [], []];
-      rocks.forEach((r, i) => per[Math.floor(r[5] * 2.999)].push(r));
+      const per = this.rockGeos.map(() => []);
+      rocks.forEach((r) => per[Math.floor(r[5] * (per.length - 0.001))].push(r));
       per.forEach((list, k) => mk(list, this.rockGeos[k], this.rockMat, true));
     }
     return out;

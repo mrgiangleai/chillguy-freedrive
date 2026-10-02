@@ -14,7 +14,7 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 - **Sương mù** 🌫️ (nút hoặc phím `G`): chỉnh **Độ phủ** (cao thấp, từng đám hay phủ kín) và **Độ dày**; sương đọng dày ở thung lũng và trôi theo gió
 - **Mưa**: mặt đường ướt có **vũng nước phản chiếu** xe, đèn đường, bầu trời + gợn sóng giọt mưa
 - **Thời gian**: bình minh · ban ngày · giờ vàng · **hoàng hôn** (mặc định) · ban đêm · tự động chạy hết ngày (đèn pha, đèn đường)
-- **Chất lượng** ⚙️ (nút hoặc phím `Q`): **Low / Mid / Good / Ultra** do người chơi chọn (mặc định **Mid**, bật đủ mọi hiệu ứng; lựa chọn được nhớ trên máy). Low: độ phân giải 0.75, tắt xoá phông + phản chiếu vũng nước, cỏ thưa; Good/Ultra: độ phân giải cao hơn (tới mật độ điểm ảnh thật của màn hình), khử răng cưa 4x, cỏ dày, bóng đổ nét hơn, xoá phông mịn hơn
+- **Chất lượng** ⚙️ (nút hoặc phím `Q`): **Low / Mid / Good / Ultra** do người chơi chọn (mặc định **Mid**, bật đủ mọi hiệu ứng; lựa chọn được nhớ trên máy). Low: độ phân giải 0.75, tắt xoá phông + phản chiếu vũng nước, cỏ thưa, chỉ cây tấm; Mid / Good / Ultra: cây / bụi / đá model chi tiết trong bán kính 25 / 35 / 50 m quanh camera; Good/Ultra: độ phân giải cao hơn (tới mật độ điểm ảnh thật của màn hình), khử răng cưa 4x, cỏ dày, bóng đổ nét hơn, xoá phông mịn hơn
 - **Dừng xe** 🅿️ (nút hoặc phím `P`): cận cảnh bánh xe chậm dần rồi dừng, cửa mở, người lái bước ra đi lên đầu xe đứng dựa vào xe, camera lùi ra toàn cảnh rồi quay chậm quanh xe; bấm lần nữa (▶️) người quay lại xe, đóng cửa, chạy tiếp. Người lái ngồi sẵn trong xe khi chạy (ẩn ở camera trong xe)
 - **Âm thanh**: nhạc lo-fi chill tự sinh bằng WebAudio + tiếng động cơ / gió / mưa
 
@@ -94,5 +94,7 @@ docs/              site GitHub Pages phục vụ
 - **Cesium Milk Truck** — Cesium, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) · Khronos glTF Sample Assets
 - **Người lái** — [Quaternius](https://quaternius.com): Universal Base Characters (Superhero Male) + 6 clip từ Universal Animation Library, [CC0](https://creativecommons.org/publicdomain/zero/1.0/); quần áo vẽ thêm bằng shader
 - Model xe đã được nén lại (meshopt + texture WebP ≤ 1024px) bằng glTF-Transform để tải nhanh (~4.9 MB tổng thay vì ~37 MB)
+- **Cây / đá / dương xỉ chi tiết** — [Quaternius](https://quaternius.com) Stylized Nature MegaKit, [CC0](https://creativecommons.org/publicdomain/zero/1.0/) (nén còn ~1 MB)
+- **Texture đất, sỏi đá vụn** — [Babylon.js Assets](https://github.com/BabylonJS/Assets), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) · **vách đá** — [Godot demo projects](https://github.com/godotengine/godot-demo-projects), MIT
 - Địa hình, cỏ lau, búi cỏ, bông cỏ, tán lá cây (vẽ bằng canvas), mây, núi, đường, đèn đường, hộ lan: tạo bằng code / texture vẽ bằng canvas (không dùng asset ngoài)
 - Nhạc: tự sinh bằng code (không dùng bản ghi âm nào)
