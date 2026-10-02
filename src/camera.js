@@ -111,7 +111,7 @@ export class CameraRig {
         const [ex, ey, ez] = dim.eye;
         if (this.eyeAt && this.eyeAt(this._eye)) p.copy(this._eye);
         else p.copy(pos).addScaledVector(r, ex).addScaledVector(fc, -ez).setY(pos.y + ey - slope * ez);
-        l.copy(p).addScaledVector(fc, 30).setY(p.y - 30 * Math.tan(0.24) + slope * 30);
+        l.copy(p).addScaledVector(fc, 30).setY(p.y - 30 * Math.tan(this.cockpitPitch ?? 0.24) + slope * 30);
         rigid = true;
         break;
       }

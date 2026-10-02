@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { CARS } from './config.js';
 import { glowTexture } from './textures.js';
+import { screenPose } from './dashscreen.js';
 import { withMist } from './mist.js';
 
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
@@ -176,7 +177,8 @@ export class Cars {
     car.updateMatrixWorld(true);
     const shield = windshield(glassMeshes, dim);
     const wipers = wiperRig(car, model, shield);
-    return { def, group: car, dim, wheels, door, tailMats, wipers, shield, anim: null };
+    const screen = screenPose(car, dim);
+    return { def, group: car, dim, wheels, door, tailMats, wipers, shield, screen, anim: null };
   }
 
   // môi trường phản chiếu riêng cho xe (có mặt đất tối), cập nhật mỗi lần bầu trời được chụp lại

@@ -18,6 +18,7 @@ import { RearMirror } from './mirror.js';
 import { Wipers } from './wipers.js';
 import { Fireflies } from './fireflies.js';
 import { ValleyTown } from './town.js';
+import { DashScreen } from './dashscreen.js';
 
 installMist();   // thay shader sương của three.js (phải chạy trước khi vật liệu được biên dịch)
 import { MAPS, WEATHERS, TIMES, CAMERAS, MUSIC_MODES, FSTOPS, FSTOP_DEFAULT, QUALITY, QUALITY_DEFAULT } from './config.js';
@@ -28,7 +29,9 @@ const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t 
 
 // tốc độ (m/s). Chill: 10–40 km/h (mặc định 35). Fast drive: 150 km/h.
 const KMH = 1 / 3.6;
-const CHILL_DEFAULT = 35 * KMH, CHILL_MIN = 10 * KMH, CHILL_MAX = 40 * KMH, FAST_SPEED = 150 * KMH;
+// cấp tốc độ (nút ⚡ / phím F xoay vòng): chill 25 → 50 → Fast drive 180 km/h (có hiệu ứng tốc độ)
+const GEARS = [25 * KMH, 50 * KMH, 180 * KMH];
+const CHILL_DEFAULT = GEARS[0], CHILL_MIN = 10 * KMH, CHILL_MAX = 60 * KMH, FAST_SPEED = GEARS[2];
 
 // ---------- renderer / scene ----------
 const canvas = $('c');
@@ -73,6 +76,8 @@ const mirror = new RearMirror(renderer);
 const wipers = new Wipers();
 const fireflies = new Fireflies(scene);
 const town = new ValleyTown(scene);           // map núi: thị trấn + đèn đường dưới thung lũng
+const dash = new DashScreen();                // màn hình giải trí trên taplo (hắt sáng lên người lái)
+cars.tilt.add(dash.group);
 cars.tilt.add(mirror.group);
 
 function resize() {
@@ -85,9 +90,11 @@ function resize() {
   layoutBars();
 }
 // dải đen letterbox: tỉ lệ khung ~2.39:1 (tối đa 13.5% chiều cao mỗi dải; màn hình rất rộng thì không có dải)
+let barFrac = 0;
 function layoutBars() {
   const w = window.innerWidth, h = window.innerHeight;
   const bar = Math.min(h * 0.135, Math.max(0, (h - w / 2.39) / 2));
+  barFrac = bar / h;
   document.documentElement.style.setProperty('--bar', bar.toFixed(1) + 'px');
 }
 window.addEventListener('resize', resize);
@@ -99,7 +106,8 @@ const drive = {
   d: 0,            // lệch ngang so với tim đường (m, + = bên phải)
   v: CHILL_DEFAULT,        // tốc độ (m/s)
   target: CHILL_DEFAULT,   // tốc độ mong muốn ở chế độ chill
-  fast: false,             // Fast drive bật / tắt
+  fast: false,             // Fast drive (cấp 3) đang bật
+  gear: 0,                 // cấp tốc độ 0 / 1 / 2
   fx: 0,                   // cường độ hiệu ứng tốc độ 0..1 (theo tốc độ thực tế)
   latVel: 0,
   pitch: 0,
@@ -122,8 +130,8 @@ function refreshUI() {
   setBtn(el.weather, WEATHERS[state.weather].icon, WEATHERS[state.weather].name);
   setBtn(el.time, TIMES[state.time].icon, TIMES[state.time].name);
   setBtn(el.music, MUSIC_MODES[state.music].icon, MUSIC_MODES[state.music].name);
-  setBtn(el.fast, '⚡', 'Fast drive');
-  el.fast.classList.toggle('on', drive.fast);
+  setBtn(el.fast, '⚡', Math.round(GEARS[drive.gear] * 3.6) + ' km/h');
+  el.fast.classList.toggle('on', drive.gear > 0);
   setBtn(el.mist, '🌫️', 'Sương ' + Math.round(state.mistDens * 100) + '%');
   el.mist.classList.toggle('on', !$('mistpanel').hidden);
   setBtn(el.lens, '📷', lensLabel());
@@ -164,6 +172,7 @@ async function chooseCar(i) {
   }
   if (person.ready && !stop.active) { stop.place(cars.dim); stop.sit(); }
   mirror.place(cars.dim);
+  dash.place(cars.current.screen);
   warmShaders();
   refreshUI();
 }
@@ -172,7 +181,7 @@ const nextCar = () => chooseCar(state.car + 1);
 // dừng xe / đi tiếp (cảnh người bước ra khỏi xe)
 function toggleStop() {
   if (!person.ready || !state.started) return;
-  if (stop.state === 'off') { drive.fast = false; stop.place(cars.dim); }
+  if (stop.state === 'off') { setGear(0); stop.place(cars.dim); }
   if (stop.toggle(drive.v)) refreshUI();
 }
 
@@ -226,7 +235,7 @@ function onCamChange() {
   const inCar = CAMERAS[state.cam].id === 'cockpit';
   if (inCar && !lensBeforeCockpit) {
     lensBeforeCockpit = { focal: rig.focal, fstop: state.fstop };
-    rig.focal = rig.focalS = 16;
+    rig.focal = rig.focalS = 20;
     state.fstop = FSTOPS.indexOf(16);
   } else if (!inCar && lensBeforeCockpit) {
     rig.focal = lensBeforeCockpit.focal;
@@ -244,7 +253,8 @@ const nextTime = () => {
 };
 // Cinematic luôn bật (letterbox, xoá phông, bloom, chỉnh màu...) — không còn nút tắt
 const applyCine = () => document.body.classList.toggle('cine', state.cine && state.started);
-const toggleFast = () => { if (stop.active) return; drive.fast = !drive.fast; refreshUI(); };
+function setGear(g) { drive.gear = g; drive.fast = g === 2; drive.target = GEARS[Math.min(g, 1)]; }
+const toggleFast = () => { if (stop.active) return; setGear((drive.gear + 1) % GEARS.length); refreshUI(); };
 const nextMusic = () => { state.music = (state.music + 1) % MUSIC_MODES.length; audio.setMode(state.music); refreshUI(); };
 
 el.fast.onclick = toggleFast;
@@ -393,6 +403,39 @@ function dofParams(dt) {
   return dof;
 }
 
+// cảnh dừng xe: camera bay vòng quanh điểm nhìn theo góc người dùng rê chuột (yaw 360°, pitch), không chui xuống đất
+const _sl = new THREE.Vector3();
+function stopLook(pos, look) {
+  const lk = rig.look;
+  const v = _sl.copy(pos).sub(look);
+  if (Math.abs(lk.yaw) > 1e-4 || Math.abs(lk.pitch) > 1e-4) {
+    const c = Math.cos(lk.yaw), s = Math.sin(lk.yaw);
+    v.set(v.x * c + v.z * s, v.y, -v.x * s + v.z * c);
+    const h = Math.hypot(v.x, v.z), R = v.length();
+    const el = clamp(Math.atan2(v.y, h) + lk.pitch, 0.03, 1.35);
+    const f = (R * Math.cos(el)) / Math.max(h, 1e-3);
+    v.set(v.x * f, R * Math.sin(el), v.z * f);
+  }
+  camera.position.copy(look).add(v);
+  const g = terrain.heightAt(camera.position.x, camera.position.z) + 0.25;
+  if (camera.position.y < g) camera.position.y = g;
+}
+
+// camera trong xe: góc chúc xuống vừa đủ để mép dưới vành vô lăng chạm mép dưới khung hình (trong dải letterbox)
+const _ck = new THREE.Vector3();
+function cockpitPitch() {
+  const sw = cars.current?.def.steer;
+  if (!sw || !rig.eyeAt || !rig.eyeAt(_ck)) return 0.2;
+  cars.tilt.worldToLocal(_ck);
+  const [, ny, nz] = sw.n;
+  const uy = 1 - ny * ny, uz = -ny * nz, ul = Math.hypot(uy, uz) || 1;    // hướng "lên" trong mặt phẳng vô lăng
+  const r = sw.r + 0.035;
+  const by = sw.c[1] - (uy / ul) * r, bz = sw.c[2] - (uz / ul) * r;     // mép dưới vành (hệ xe; đầu xe -Z)
+  const down = Math.atan2(_ck.y - by, _ck.z - bz);
+  const half = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * (1 - 2 * barFrac * cineAmt));
+  return clamp(down - half, 0.02, 0.6);
+}
+
 // hai tay đặt lên vành vô lăng (animation lái gốc dùng vô lăng to/thấp hơn => tay lơ lửng ngoài vành)
 const _wc = new THREE.Vector3(), _wn = new THREE.Vector3(), _wr = new THREE.Vector3(), _wu = new THREE.Vector3(), _wt = new THREE.Vector3();
 const GRIP = 0.4;            // góc cầm (rad dưới phương ngang): khoảng 4 giờ & 8 giờ
@@ -479,7 +522,7 @@ function frame(now) {
     const prev = stop.state;
     stop.update(dt, cars.root, drive.v);
     const c = stop.cam;
-    camera.position.copy(c.pos);
+    stopLook(c.pos, c.look);                       // giữ chuột rê: xoay vòng quanh xe / người (giữ nguyên góc đã xoay)
     camera.lookAt(c.look);
     const fov = rig.fovFor(c.focal);
     if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
@@ -487,9 +530,11 @@ function frame(now) {
       rig.relP.copy(camera.position).sub(drive.pos);
       rig.relL.copy(c.look).sub(drive.pos);
       rig.fov = camera.fov;
+      rig.look.yaw = rig.look.pitch = 0;           // góc xoay đã nằm sẵn trong vị trí camera
     }
     if (stop.state !== prev) refreshUI();
   } else {
+    rig.cockpitPitch = cockpitPitch();
     rig.update(dt, { pos: drive.pos, yaw: drive.yaw, pitch: drive.pitch, speed: drive.v, dim: cars.dim, fx: drive.fx, side: drive.d >= 0 ? -1 : 1 });
   }
 
@@ -511,6 +556,7 @@ function frame(now) {
   const ss = THREE.MathUtils.smoothstep;
   const ffAmt = ss(st.night, 0.35, 0.9) * (1 - Math.min(1, st.rain * 2)) * (1 - st.snow) * (1 - st.cover) * (1 - ss(st.wind, 0.6, 0.9));
   fireflies.update(now / 1000, drive.s, road, terrain, ffAmt, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
+  dash.update(dt, drive.v * 3.6, env.clock);
   town.update(drive.s, road, terrain, st.lamps, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   cars.setLights(st.lamps);
   audio.setAmbient({ speed: drive.v, rain: st.rain, snow: st.snow, wind: st.wind, dark: st.dark, fx: drive.fx });
@@ -621,4 +667,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

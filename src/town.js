@@ -17,7 +17,14 @@ const LAT = (s) => 470 + 70 * Math.sin(s / 650 + 1.3) + 25 * Math.sin(s / 230);
 function townAt(t) {               // thị trấn thứ t (hoặc null)
   if (hash(t * 3.7 + 1.1) > 0.8) return null;
   const len = 120 + 140 * hash(t * 5.3 + 2.2);
-  return { t, s: t * TOWN_GAP + (hash(t * 2.9) - 0.5) * 400, len, n: Math.round(16 + len * 0.22 * (0.7 + 0.6 * hash(t * 7.1))) };
+  return { t, s: t * TOWN_GAP + (hash(t * 2.9) - 0.5) * 400, len, n: Math.round(16 + len * 0.22 * (0.7 + 0.6 * hash(t * 7.1))), streets: [0], lat: LAT };
+}
+// thị trấn lớn: gần đường hơn (~330 m, sườn vẫn đủ thoải), 3 dãy phố song song, nhiều nhà + vài khối nhà cao tầng.
+// Cái đầu tiên ~1.3 km sau chỗ xuất phát (sớm thấy), sau đó mỗi BIG_GAP mét lại có
+const BIG_GAP = 5000, BIG_LAT = (s) => 330 + 18 * Math.sin(s / 420);
+function bigTownAt(b) {
+  if (b < 0) return null;
+  return { t: 100000 + b, s: 1300 + b * BIG_GAP, len: 450, n: 220, streets: [0, 42, 84], lat: BIG_LAT, big: true };
 }
 
 // nhà mẫu 1×1×1 (thân) + mái dốc cao 0.45, nóc chạy theo trục x; aRoof = 1 ở mái
@@ -162,10 +169,10 @@ export class ValleyTown {
   }
 
   // điểm trên đường thung lũng tại quãng s, lệch thêm `off` mét sang ngang, `along` mét dọc
-  _valley(s, road, off, along, out) {
+  _valley(s, road, off, along, out, latFn = LAT) {
     const p = road.at(s, this._p);
     const rx = Math.cos(p.th), rz = -Math.sin(p.th), fx = -Math.sin(p.th), fz = -Math.cos(p.th);
-    const lat = LAT(s) + off;
+    const lat = latFn(s) + off;
     out.x = p.x + rx * lat + fx * along; out.z = p.z + rz * lat + fz * along; out.th = p.th;
     return out;
   }
@@ -179,17 +186,23 @@ export class ValleyTown {
       const T = townAt(t);
       if (T && T.s > sA - T.len && T.s < sB + T.len) towns.push(T);
     }
+    for (let b = Math.floor((sA - 1300) / BIG_GAP); b <= Math.ceil((sB - 1300) / BIG_GAP); b++) {
+      const T = bigTownAt(b);
+      if (T && T.s > sA - T.len && T.s < sB + T.len) towns.push(T);
+    }
     // nhà
     for (const T of towns) {
       for (let i = 0; i < T.n && nh < MAX_HOUSES; i++) {
         const id = T.t * 1000 + i;
         const h1 = hash(id * 1.3), h2 = hash(id * 2.7 + 5), h3 = hash(id * 4.1 + 9), h4 = hash(id * 6.7 + 3);
-        const side = h2 < 0.5 ? -1 : 1, off = side * (9 + 30 * h3 * h3);
-        this._valley(T.s + (h1 - 0.5) * T.len, road, off, 0, P);
+        const side = h2 < 0.5 ? -1 : 1, street = T.streets[Math.floor(hash(id * 11.3) * T.streets.length)];
+        const off = street + side * (9 + (T.big ? 12 : 30) * h3 * h3);
+        this._valley(T.s + (h1 - 0.5) * T.len, road, off, 0, P, T.lat);
         const y = this._h('h' + id, P.x, P.z, terrain);
         const yb = this._h('b' + id, P.x + 7, P.z + 7, terrain);
         if (Math.abs(yb - y) > 4) continue;                       // dốc quá: bỏ
-        const w = 7 + 5 * h4, d = 6 + 3 * hash(id * 8.3), ht = (h4 > 0.88 ? 8.5 : h2 * 7 % 1 > 0.6 ? 6 : 3.4) + hash(id * 9.9);
+        let w = 7 + 5 * h4, d = 6 + 3 * hash(id * 8.3), ht = (h4 > 0.88 ? 8.5 : h2 * 7 % 1 > 0.6 ? 6 : 3.4) + hash(id * 9.9);
+        if (T.big && hash(id * 12.7) < 0.14) { w = 14 + 8 * h4; d = 10 + 4 * h3; ht = 11 + 9 * hash(id * 13.1); }   // khối nhà cao tầng
         q.setFromAxisAngle(this._up, P.th + Math.PI / 2 + (side > 0 ? 0 : Math.PI) + (hash(id * 3.3) - 0.5) * 0.35);   // mặt dài dọc theo phố
         m.compose(this._v.set(P.x, Math.min(y, yb) - 0.8, P.z), q, sc.set(w, ht, d));
         this.houses.setMatrixAt(nh, m);
@@ -201,19 +214,32 @@ export class ValleyTown {
       }
       // quầng sáng thị trấn
       if (nz < MAX_HAZE) {
-        this._valley(T.s, road, 0, 0, P);
+        this._valley(T.s, road, T.big ? 42 : 0, 0, P, T.lat);
         const hz = this.hazes[nz++];
-        hz.position.set(P.x, this._h('z' + T.t, P.x, P.z, terrain) + 25, P.z);
-        hz.scale.set(T.len * 2.2, T.len * 1.1, 1);
+        hz.position.set(P.x, this._h('z' + T.t, P.x, P.z, terrain) + (T.big ? 40 : 25), P.z);
+        hz.scale.set(T.len * 2.2, T.len * (T.big ? 0.8 : 1.1), 1);
         hz.userData.on = true;
       }
     }
     for (let i = nz; i < MAX_HAZE; i++) this.hazes[i].userData.on = false;
+    // thị trấn lớn: đèn dọc từng dãy phố
+    for (const T of towns) {
+      if (!T.big) continue;
+      for (let si = 0; si < T.streets.length; si++) {
+        for (let a = -T.len / 2; a <= T.len / 2 && nl < MAX_LIGHTS; a += LIGHT_GAP) {
+          const ka = Math.round(a / LIGHT_GAP);
+          this._valley(T.s + a, road, T.streets[si] + (ka % 2 ? 6 : -6), 0, P, T.lat);
+          const y = this._h('L' + T.t + '_' + si + '_' + ka, P.x, P.z, terrain);
+          this.lightPos.set([P.x, y + 6.5, P.z], nl * 3);
+          nl++;
+        }
+      }
+    }
     // đèn đường: dày trong thị trấn (2 bên so le), thưa ở quãng giữa
     for (let k = Math.floor(sA / LIGHT_GAP); k * LIGHT_GAP < sB && nl < MAX_LIGHTS; k++) {
       const sk = k * LIGHT_GAP;
       let inTown = false;
-      for (const T of towns) if (Math.abs(sk - T.s) < T.len / 2 + 15) { inTown = true; break; }
+      for (const T of towns) if (!T.big && Math.abs(sk - T.s) < T.len / 2 + 15) { inTown = true; break; }
       if (!inTown && hash(k * 1.7 + 0.3) > 0.22) continue;
       const off = inTown ? (k % 2 ? 6 : -6) : 5;
       this._valley(sk, road, off, 0, P);
@@ -242,7 +268,7 @@ export class ValleyTown {
     this.lights.visible = lamps > 0.02;
     for (const hz of this.hazes) {
       hz.visible = hz.userData.on && lamps > 0.02;
-      hz.material.opacity = 0.22 * lamps;
+      hz.material.opacity = 0.13 * lamps;
     }
   }
 }
