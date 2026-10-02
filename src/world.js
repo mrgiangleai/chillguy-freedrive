@@ -479,12 +479,13 @@ export class Environment {
     // ---- chụp môi trường (hạn chế tần suất) ----
     this.envTimer -= dt;
     if (this.envTimer <= 0) {
-      const key = [e.toFixed(1), over.toFixed(2), dk.toFixed(2)].join('|');
+      // lượng tử hoá thô: lúc đổi thời tiết chỉ chụp lại vài lần thay vì liên tục
+      const key = [e.toFixed(1), Math.round(over * 12), Math.round(dk * 12)].join('|');
       if (key !== this.envKey || !this.envRT) {
         this.envKey = key;
         this._captureEnv();
       }
-      this.envTimer = 0.5;
+      this.envTimer = 0.7;
     }
   }
 

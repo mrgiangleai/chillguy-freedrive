@@ -36,32 +36,45 @@ Trên điện thoại: kéo ngón tay sang trái/phải để lái, kéo lên/xu
 Chạy thử trên máy: `npx http-server docs -p 8080` (hoặc `python3 -m http.server 8080 -d docs`) rồi mở `http://localhost:8080`.
 (Phải chạy qua server, mở thẳng file `index.html` sẽ không tải được module.)
 
+## Sửa code
+
+Mã nguồn nằm trong `src/`; site chạy bản đã gộp + nén `docs/app.js`, `docs/style.css` (1 file JS ~180 KB gzip thay vì ~20 file).
+Sau khi sửa `src/` thì build lại rồi commit cả `docs/`:
+
+```
+npm install
+npm run build      # src/ -> docs/app.js + docs/style.css
+npm run dev        # build + mở server ở http://localhost:8080
+```
+
 ## Thêm xe Mustang 1967
 
 Slot Mustang đã được cấu hình sẵn: tải file `.glb` về, đặt tên **`docs/assets/models/mustang.glb`** là app tự nhận và đặt làm xe đầu tiên (mặc định).
-Nếu xe bị quay ngược đầu/đuôi, đặt `flip: true` trong `js/config.js`.
+Nếu xe bị quay ngược đầu/đuôi, đặt `flip: true` trong `src/config.js` rồi `npm run build`.
 
 ## Cấu trúc
 
 ```
-docs/              (toàn bộ site, thư mục được GitHub Pages phục vụ)
-  index.html, style.css
-  js/main.js      vòng lặp, điều khiển, giao diện
-  js/road.js      đường vô tận (hình học đường)
-  js/terrain.js   địa hình đồi núi (quadtree nhiều mức chi tiết), đường xẻ vào sườn đồi, vách đá, rừng cây "tấm lá"
-  js/terrain-noise.js hàm độ cao dùng chung CPU/GPU
-  js/scenery.js   mặt đường (vũng nước khi mưa), cọc tiêu, đèn đường, hộ lan
-  js/reflection.js phản chiếu vũng nước (planar reflection)
-  js/mist.js      sương mù tầng thấp chỉnh độ phủ / độ dày
-  js/reeds.js     cỏ lau / búi cỏ vô tận (instancing, gió, tự tránh mặt đường, mọc theo địa hình)
-  js/world.js     bầu trời + mây, ánh sáng, giờ trong ngày, thời tiết, bão & sét
-  js/particles.js mưa / tuyết / bông cỏ bay (shader)
-  js/cars.js      tải & chuẩn hoá model xe, bánh xe quay, đèn pha
-  js/camera.js    các chế độ camera
-  js/post.js      hậu kỳ: bloom, chỉnh màu phim, grain (Cinematic) + blur tốc độ (Fast drive)
-  js/audio.js     nhạc lo-fi + âm thanh môi trường
-  vendor/three    three.js r160 (đã đóng gói sẵn, chạy được không cần mạng ngoài)
-  assets/         model xe + texture
+src/               mã nguồn (gộp bằng esbuild: build.mjs)
+  main.js         vòng lặp, điều khiển, giao diện
+  road.js         đường vô tận (hình học đường)
+  terrain.js      địa hình đồi núi (quadtree nhiều mức chi tiết), đường xẻ vào sườn đồi, vách đá, rừng cây "tấm lá"
+  terrain-noise.js hàm độ cao dùng chung CPU/GPU
+  scenery.js      mặt đường (vũng nước khi mưa), cọc tiêu, đèn đường, hộ lan
+  reflection.js   phản chiếu vũng nước (planar reflection)
+  mist.js         sương mù tầng thấp chỉnh độ phủ / độ dày
+  reeds.js        cỏ lau / búi cỏ vô tận (instancing, gió, tự tránh mặt đường, mọc theo địa hình)
+  world.js        bầu trời + mây, ánh sáng, giờ trong ngày, thời tiết, bão & sét
+  particles.js    mưa / tuyết / bông cỏ bay (shader)
+  cars.js         tải & chuẩn hoá model xe, bánh xe quay, đèn pha
+  camera.js       các chế độ camera
+  post.js         hậu kỳ: bloom, chỉnh màu phim, grain (Cinematic) + blur tốc độ (Fast drive)
+  audio.js        nhạc lo-fi + âm thanh môi trường
+  style.css
+docs/              site GitHub Pages phục vụ
+  index.html
+  app.js, style.css  bản build (three.js r160 gộp sẵn, chạy không cần CDN)
+  assets/         model xe (meshopt + webp) + texture
 ```
 
 ## Credits & giấy phép

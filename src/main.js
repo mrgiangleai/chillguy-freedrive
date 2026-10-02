@@ -112,9 +112,31 @@ async function chooseCar(i) {
     console.error('Không tải được xe', cars.list[state.car].name, e);
     if (cars.list.length > 1) { cars.list.splice(state.car, 1); return chooseCar(state.car); }
   }
+  warmShaders();
   refreshUI();
 }
 const nextCar = () => chooseCar(state.car + 1);
+
+// Biên dịch trước các shader chưa dùng tới (vật liệu khi vẽ ảnh phản chiếu vũng nước,
+// mưa/tuyết/sét, sao/trăng) để lúc đổi thời tiết không bị khựng vì GPU phải dịch shader.
+// compileAsync dùng KHR_parallel_shader_compile => trình duyệt dịch ở luồng nền.
+let warmTimer = 0;
+function compileFor(target, cam) {
+  const off = [];
+  scene.traverse((o) => { if (o.material && !o.layers.test(cam.layers)) { off.push(o, o.material); o.material = null; } });
+  const prev = renderer.getRenderTarget();
+  renderer.setRenderTarget(target);
+  const p = renderer.compileAsync(scene, cam);
+  renderer.setRenderTarget(prev);
+  for (let i = 0; i < off.length; i += 2) off[i].material = off[i + 1];
+  return p;
+}
+function warmShaders(delay = 500) {
+  clearTimeout(warmTimer);
+  warmTimer = setTimeout(() => {
+    compileFor(refl.rt, refl.cam).then(() => compileFor(null, camera)).catch((e) => console.warn('warmup', e));
+  }, delay);
+}
 const applyMap = () => {
   const id = MAPS[state.map].id;
   setTerrainMap(id);            // đổi tham số địa hình (đồi thấp / đồi núi)
@@ -125,6 +147,7 @@ const applyMap = () => {
   terrain.prime(camera.position.lengthSq() ? camera.position : drive.pos);
   reeds.visible = id === 'reed';
   grass.visible = id === 'forest';
+  warmShaders();
 };
 const nextMap = () => { state.map = (state.map + 1) % MAPS.length; applyMap(); refreshUI(); };
 const nextCam = () => { state.cam = (state.cam + 1) % CAMERAS.length; rig.setMode(state.cam); refreshUI(); };
