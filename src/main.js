@@ -110,7 +110,7 @@ const pointer = { active: false, id: -1, x: 0, y: 0 };
 // ---------- giao diện ----------
 // mặc định vào game: đồi thông, sương mù, hoàng hôn
 const state = { car: 0, map: MAPS.findIndex((m) => m.id === 'forest'), cam: 0, weather: WEATHERS.findIndex((w) => w.id === 'fog'), time: TIMES.findIndex((t) => t.id === 'sunset'), music: 0, cine: true, started: false, mistCover: 0.35, mistDens: 0.2, fstop: FSTOP_DEFAULT, quality: loadQuality() };
-const el = { stop: $('b-stop'), quality: $('b-quality'), lens: $('b-lens'), mist: $('b-mist'), cine: $('b-cine'), fast: $('b-fast'), car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
+const el = { stop: $('b-stop'), quality: $('b-quality'), lens: $('b-lens'), mist: $('b-mist'), fast: $('b-fast'), car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
 const setBtn = (btn, icon, text) => { btn.querySelector('b').textContent = icon; btn.querySelector('span').textContent = text; btn.title = text; };
 
 function refreshUI() {
@@ -122,10 +122,8 @@ function refreshUI() {
   setBtn(el.music, MUSIC_MODES[state.music].icon, MUSIC_MODES[state.music].name);
   setBtn(el.fast, '⚡', 'Fast drive');
   el.fast.classList.toggle('on', drive.fast);
-  setBtn(el.cine, '🎬', 'Cinematic');
   setBtn(el.mist, '🌫️', 'Sương ' + Math.round(state.mistDens * 100) + '%');
   el.mist.classList.toggle('on', !$('mistpanel').hidden);
-  el.cine.classList.toggle('on', state.cine);
   setBtn(el.lens, '📷', lensLabel());
   setBtn(el.quality, '⚙️', QUALITY[state.quality].name);
   setBtn(el.stop, stop.state === 'parked' ? '▶️' : stop.state === 'off' ? '🅿️' : '⏳', stop.state === 'parked' ? 'Đi tiếp' : stop.state === 'off' ? 'Dừng xe' : '…');
@@ -241,13 +239,12 @@ const nextTime = () => {
   env.setTime(TIMES[state.time].hour);
   refreshUI();
 };
+// Cinematic luôn bật (letterbox, xoá phông, bloom, chỉnh màu...) — không còn nút tắt
 const applyCine = () => document.body.classList.toggle('cine', state.cine && state.started);
-const toggleCine = () => { state.cine = !state.cine; applyCine(); refreshUI(); };
 const toggleFast = () => { if (stop.active) return; drive.fast = !drive.fast; refreshUI(); };
 const nextMusic = () => { state.music = (state.music + 1) % MUSIC_MODES.length; audio.setMode(state.music); refreshUI(); };
 
 el.fast.onclick = toggleFast;
-el.cine.onclick = toggleCine;
 // bảng chỉnh sương mù: độ phủ + độ dày
 const toggleMistPanel = () => { $('mistpanel').hidden = !$('mistpanel').hidden; $('lenspanel').hidden = true; refreshUI(); };
 el.mist.onclick = toggleMistPanel;
@@ -295,7 +292,6 @@ window.addEventListener('keydown', (e) => {
     case 'KeyV': nextCar(); break;
     case 'KeyN': nextMap(); break;
     case 'KeyF': toggleFast(); break;
-    case 'KeyK': toggleCine(); break;
     case 'KeyG': toggleMistPanel(); break;
     case 'KeyL': toggleLensPanel(); break;
     case 'KeyQ': nextQuality(); break;
@@ -621,4 +617,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, toggleCine, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
