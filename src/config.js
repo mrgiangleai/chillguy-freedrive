@@ -11,10 +11,10 @@
 // basicMetal: thay mọi vật liệu (trừ kính) bằng kim loại cơ bản với thông số này
 export const CARS = [
   { id: 'mustang', name: "Mustang '67", file: 'assets/models/mustang.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true,
-    wheels: /^(Wheel|Tyre)/,
+    wheels: /^(Wheel|BrakeDisc)/,   // vành + đĩa phanh quay; lốp (dựng bẹt ở đáy) đứng yên
     mats: { Interior: { metalness: 0, roughness: 0.62 }, BlackPolished: { roughness: 0.18 }, Paint: { clearcoatRoughness: 0.08 } } },
   { id: 'mustang-blue', name: "Mustang '67 Xanh", file: 'assets/models/mustang-blue.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true,
-    wheels: /^(Wheel|Tyre)/,
+    wheels: /^(Wheel|BrakeDisc)/,   // vành + đĩa phanh quay; lốp (dựng bẹt ở đáy) đứng yên
     mats: { Interior: { metalness: 0, roughness: 0.62 }, BlackPolished: { roughness: 0.18 }, Body: { clearcoatRoughness: 0.08 } } },
   { id: 'divo', name: 'Bugatti Divo', file: 'assets/models/bugatti-divo.glb', length: 4.64, flip: true, wheels: /^(4_3|5_17)$/,
     basicMetal: { metalness: 0.6, roughness: 0.38 } },   // vật liệu gốc bị chuyển đổi sai => kim loại bóng nhẹ cơ bản
@@ -65,3 +65,15 @@ export const MUSIC_MODES = [
 // khẩu độ ống kính (f-number) cho hiệu ứng xoá phông; mặc định f/2
 export const FSTOPS = [1.4, 1.8, 2, 2.8, 4, 5.6, 8, 11, 16];
 export const FSTOP_DEFAULT = 2;
+
+// mức chất lượng (người chơi tự chọn, không tự đổi theo máy). Mặc định Mid: bật đủ mọi hiệu ứng.
+// ratio: độ phân giải so với màn hình (không vượt quá mật độ điểm ảnh thật của màn hình, trừ Low)
+// msaa : khử răng cưa khi hậu kỳ | veg: mật độ cỏ lau / búi cỏ | shadow: độ nét bóng đổ
+// refl : phản chiếu vũng nước khi mưa | dof: số mẫu xoá phông (0 = tắt)
+export const QUALITY = [
+  { id: 'low', name: 'Low', ratio: 0.75, msaa: 0, veg: 0.35, shadow: 1024, refl: false, dof: 0 },
+  { id: 'mid', name: 'Mid', ratio: 1, msaa: 2, veg: 0.6, shadow: 2048, refl: true, dof: 24 },
+  { id: 'good', name: 'Good', ratio: 1.5, msaa: 4, veg: 0.85, shadow: 2048, refl: true, dof: 36 },
+  { id: 'ultra', name: 'Ultra', ratio: 2, msaa: 4, veg: 1, shadow: 4096, refl: true, dof: 48 },
+];
+export const QUALITY_DEFAULT = 1;

@@ -497,6 +497,13 @@ export class Environment {
     }
   }
 
+  setShadowSize(n) {
+    const sh = this.sun.shadow;
+    if (sh.mapSize.x === n) return;
+    sh.mapSize.set(n, n);
+    if (sh.map) { sh.map.dispose(); sh.map = null; }
+  }
+
   _captureEnv() {
     // ánh sáng nền từ bầu trời: sáng hơn bầu trời hiển thị (giống bầu trời thật toả sáng khắp nơi)
     const su = this.skyMat.uniforms;

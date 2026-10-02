@@ -50,10 +50,11 @@ const BLUR = `
 // màu (nửa độ phân giải) + CoC có dấu, tính bằng pixel ảnh gốc; âm = ở trước điểm lấy nét
 const DOF_PREP = `
   uniform sampler2D tScene, tDepth; uniform vec2 uTexel;
-  uniform float uNear, uFar, uFocus, uCocK, uMaxCoc;
+  uniform float uNear, uFar, uFocus, uFocusRange, uCocK, uMaxCoc;
   varying vec2 vUv;
   float dist(vec2 uv) { float d = texture2D(tDepth, uv).x; return uNear * uFar / (uFar - d * (uFar - uNear)); }
-  float coc(float z) { return clamp(uCocK * (z - uFocus) / max(z, 1e-3), -uMaxCoc, uMaxCoc); }
+  // trong khoảng ±uFocusRange quanh điểm lấy nét (bề dày chiếc xe) thì nét hoàn toàn
+  float coc(float z) { float d = z - uFocus; d = sign(d) * max(abs(d) - uFocusRange, 0.0); return clamp(uCocK * d / max(z, 1e-3), -uMaxCoc, uMaxCoc); }
   void main() {
     vec2 o = uTexel * 0.5;
     vec3 c = (texture2D(tScene, vUv + vec2(-o.x, -o.y)).rgb + texture2D(tScene, vUv + vec2(o.x, -o.y)).rgb
@@ -90,7 +91,7 @@ const DOF_DILATE = `
 
 // gom mẫu theo đĩa Vogel (góc vàng); bán kính tìm = max(CoC của điểm này, CoC tiền cảnh quanh đó)
 const DOF_BLUR = `
-  uniform sampler2D tSrc, tNear; uniform vec2 uTexelFull; uniform float uMaxCoc;
+  uniform sampler2D tSrc, tNear; uniform vec2 uTexelFull; uniform float uMaxCoc; uniform int uN;
   varying vec2 vUv;
   float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
   void main() {
@@ -100,10 +101,11 @@ const DOF_BLUR = `
     if (R < 0.75) { gl_FragColor = vec4(c0.rgb, 0.0); return; }
     vec3 col = c0.rgb; float tot = 1.0; float fg = 0.0;
     float rot = hash12(gl_FragCoord.xy) * 6.2831853;
-    const int N = 36;
-    float band = R * 0.17 + 0.5;
-    for (int i = 0; i < N; i++) {
-      float r = R * sqrt((float(i) + 0.5) / float(N));
+    float fN = float(uN);
+    float band = R * (1.0 / sqrt(fN)) + 0.5;
+    for (int i = 0; i < 64; i++) {
+      if (i >= uN) break;
+      float r = R * sqrt((float(i) + 0.5) / fN);
       float a = float(i) * 2.39996323 + rot;
       vec4 s = texture2D(tSrc, vUv + vec2(cos(a), sin(a)) * r * uTexelFull);
       float cs = abs(s.a);
@@ -114,7 +116,7 @@ const DOF_BLUR = `
       fg += m * step(s.a, c0.a - 1.0);                     // phần tiền cảnh phủ lên điểm này
     }
     col /= tot;
-    float k = max(smoothstep(0.6, 2.2, cc), clamp(fg * 3.0 / float(N), 0.0, 1.0));
+    float k = max(smoothstep(0.6, 2.2, cc), clamp(fg * 3.0 / fN, 0.0, 1.0));
     gl_FragColor = vec4(col, k);
   }`;
 
@@ -197,11 +199,11 @@ export class Post {
     this.blur = mk({ tSrc: { value: null }, uDir: { value: new THREE.Vector2() } }, BLUR);
     this.dofPrep = mk({
       tScene: { value: null }, tDepth: { value: null }, uTexel: { value: new THREE.Vector2() },
-      uNear: { value: 0.1 }, uFar: { value: 1000 }, uFocus: { value: 10 }, uCocK: { value: 0 }, uMaxCoc: { value: 24 },
+      uNear: { value: 0.1 }, uFar: { value: 1000 }, uFocus: { value: 10 }, uFocusRange: { value: 0 }, uCocK: { value: 0 }, uMaxCoc: { value: 24 },
     }, DOF_PREP);
     this.dofTile = mk({ tSrc: { value: null }, uTexel: { value: new THREE.Vector2() } }, DOF_TILE);
     this.dofDilate = mk({ tSrc: { value: null }, uTexel: { value: new THREE.Vector2() } }, DOF_DILATE);
-    this.dofBlur = mk({ tSrc: { value: null }, tNear: { value: null }, uTexelFull: { value: new THREE.Vector2() }, uMaxCoc: { value: 24 } }, DOF_BLUR);
+    this.dofBlur = mk({ tSrc: { value: null }, tNear: { value: null }, uTexelFull: { value: new THREE.Vector2() }, uMaxCoc: { value: 24 }, uN: { value: 24 } }, DOF_BLUR);
     this.final = mk({
       tScene: { value: null }, tBloom: { value: null }, tDof: { value: null }, uDof: { value: 0 }, uExposure: exposure,
       uFx: { value: 0 }, uCine: { value: 0 }, uTime: { value: 0 }, uAspect: { value: 1 }, uRes: { value: new THREE.Vector2(1, 1) },
@@ -249,6 +251,13 @@ export class Post {
     this.final.uniforms.uRes.value.set(w, h);
   }
 
+  // số mẫu khử răng cưa của render target cảnh (đổi => tạo lại)
+  setSamples(n) {
+    if (this.sceneRT.samples === n) return;
+    this.sceneRT.samples = n;
+    this.sceneRT.dispose();
+  }
+
   get longSide() { return Math.max(this.size.x, this.size.y); }
 
   _pass(material, target) {
@@ -261,7 +270,7 @@ export class Post {
   begin() { this.renderer.setRenderTarget(this.sceneRT); }
 
   // gọi SAU khi đã vẽ cảnh. cine, fx: 0..1
-  // dof: { amt 0..1, near, far, focus (m), cocK (px), maxCoc (px) } hoặc null
+  // dof: { amt 0..1, samples, near, far, focus (m), cocK (px), maxCoc (px) } hoặc null
   render(time, cine, fx, dof) {
     const r = this.renderer;
     const bu = this.blur.uniforms;
@@ -269,11 +278,11 @@ export class Post {
     this.exposure.value = r.toneMappingExposure;
 
     let dofOn = false;
-    if (dof && dof.amt > 0.01 && dof.cocK > 0.05) {
+    if (dof && dof.amt > 0.01 && dof.samples > 0 && dof.cocK > 0.05) {
       dofOn = true;
       const p = this.dofPrep.uniforms;
       p.tScene.value = src; p.tDepth.value = this.sceneRT.depthTexture;
-      p.uNear.value = dof.near; p.uFar.value = dof.far; p.uFocus.value = dof.focus;
+      p.uNear.value = dof.near; p.uFar.value = dof.far; p.uFocus.value = dof.focus; p.uFocusRange.value = dof.range || 0;
       p.uCocK.value = dof.cocK; p.uMaxCoc.value = dof.maxCoc;
       this._pass(this.dofPrep, this.rts.prep);
       this.dofTile.uniforms.tSrc.value = this.rts.prep.texture;
@@ -281,7 +290,7 @@ export class Post {
       this.dofDilate.uniforms.tSrc.value = this.rts.tile.texture;
       this._pass(this.dofDilate, this.rts.near);
       const b = this.dofBlur.uniforms;
-      b.tSrc.value = this.rts.prep.texture; b.tNear.value = this.rts.near.texture; b.uMaxCoc.value = dof.maxCoc;
+      b.tSrc.value = this.rts.prep.texture; b.tNear.value = this.rts.near.texture; b.uMaxCoc.value = dof.maxCoc; b.uN.value = dof.samples;
       this._pass(this.dofBlur, this.rts.dof);
     }
 

@@ -187,12 +187,13 @@ export class Cars {
       const round = Math.abs(s.y - s.z) < 0.28 * Math.max(s.y, s.z);       // bánh tròn trong mặt phẳng YZ
       const ok = round && s.z < dim.length * 0.35 && s.y < dim.height * 0.95 && s.y > dim.height * 0.12 && ctr.y < dim.height * 0.5;
       if (!ok) continue;
+      // tâm trục = đỉnh bánh trừ bán kính (lốp hay được dựng bẹt ở đáy => tâm khung bao bị lệch xuống, quay sẽ bị méo)
       const pivot = new THREE.Object3D();
-      pivot.position.copy(ctr);
+      pivot.position.set(ctr.x, b.max.y - s.z / 2, ctr.z);
       car.add(pivot);
       car.updateMatrixWorld(true);
       pivot.attach(n);
-      out.push({ pivot, radius: s.y / 2 });
+      out.push({ pivot, radius: s.z / 2 });
     }
     return out;
   }

@@ -13,7 +13,7 @@ import { installMist, MIST } from './mist.js';
 import { WetReflection } from './reflection.js';
 
 installMist();   // thay shader sương của three.js (phải chạy trước khi vật liệu được biên dịch)
-import { MAPS, WEATHERS, TIMES, CAMERAS, MUSIC_MODES, FSTOPS, FSTOP_DEFAULT } from './config.js';
+import { MAPS, WEATHERS, TIMES, CAMERAS, MUSIC_MODES, FSTOPS, FSTOP_DEFAULT, QUALITY, QUALITY_DEFAULT } from './config.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
@@ -26,7 +26,7 @@ const CHILL_DEFAULT = 35 * KMH, CHILL_MIN = 10 * KMH, CHILL_MAX = 40 * KMH, FAST
 // ---------- renderer / scene ----------
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-let pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+let pixelRatio = 1;
 renderer.setPixelRatio(pixelRatio);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -41,12 +41,11 @@ const terrain = new Terrain(scene, road, renderer);
 const env = new Environment(renderer, scene, camera);
 const reeds = new ReedField(scene, renderer);
 const grass = new ReedField(scene, renderer, 'grass');   // búi cỏ cho map đồi thông
-if (window.matchMedia?.('(pointer: coarse)').matches) { reeds.setDensity(0.5); grass.setDensity(0.5); }   // điện thoại: giảm mật độ cỏ cho nhẹ
 const cars = new Cars(scene);
 const rig = new CameraRig(camera);
 rig.groundAt = (x, z) => terrain.heightAt(x, z);
 const audio = new ChillAudio();
-const post = new Post(renderer, window.matchMedia?.('(pointer: coarse)').matches ? 2 : 4);
+const post = new Post(renderer, QUALITY[QUALITY_DEFAULT].msaa);
 const refl = new WetReflection(renderer);
 
 function resize() {
@@ -84,8 +83,8 @@ const keys = new Set();
 const pointer = { active: false, id: -1, x: 0, y: 0 };
 
 // ---------- giao diện ----------
-const state = { car: 0, map: 0, cam: 0, weather: 0, time: TIMES.findIndex((t) => t.id === 'golden'), music: 0, cine: true, started: false, mistCover: 0.35, mistDens: 0.2, fstop: FSTOP_DEFAULT };
-const el = { lens: $('b-lens'), mist: $('b-mist'), cine: $('b-cine'), fast: $('b-fast'), car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
+const state = { car: 0, map: 0, cam: 0, weather: 0, time: TIMES.findIndex((t) => t.id === 'golden'), music: 0, cine: true, started: false, mistCover: 0.35, mistDens: 0.2, fstop: FSTOP_DEFAULT, quality: loadQuality() };
+const el = { quality: $('b-quality'), lens: $('b-lens'), mist: $('b-mist'), cine: $('b-cine'), fast: $('b-fast'), car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
 const setBtn = (btn, icon, text) => { btn.querySelector('b').textContent = icon; btn.querySelector('span').textContent = text; btn.title = text; };
 
 function refreshUI() {
@@ -102,8 +101,27 @@ function refreshUI() {
   el.mist.classList.toggle('on', !$('mistpanel').hidden);
   el.cine.classList.toggle('on', state.cine);
   setBtn(el.lens, '📷', lensLabel());
+  setBtn(el.quality, '⚙️', QUALITY[state.quality].name);
   el.lens.classList.toggle('on', !$('lenspanel').hidden);
 }
+function loadQuality() {
+  try { const i = QUALITY.findIndex((q) => q.id === localStorage.getItem('chilldrive.quality')); if (i >= 0) return i; } catch { /* không có localStorage */ }
+  return QUALITY_DEFAULT;
+}
+// áp dụng mức chất lượng người chơi chọn (Low / Mid / Good / Ultra)
+function applyQuality() {
+  const q = QUALITY[state.quality];
+  pixelRatio = q.id === 'low' ? q.ratio : Math.min(q.ratio, Math.max(1, window.devicePixelRatio || 1));
+  renderer.setPixelRatio(pixelRatio);
+  post.setSamples(q.msaa);
+  resize();
+  reeds.setDensity(q.veg);
+  grass.setDensity(q.veg);
+  env.setShadowSize(q.shadow);
+  refl.enabled = q.refl;
+  try { localStorage.setItem('chilldrive.quality', q.id); } catch { /* bỏ qua */ }
+}
+const nextQuality = () => { state.quality = (state.quality + 1) % QUALITY.length; applyQuality(); refreshUI(); };
 function lensLabel() { return Math.round(rig.focal) + 'mm f/' + FSTOPS[state.fstop]; }
 
 async function chooseCar(i) {
@@ -179,6 +197,7 @@ el.mist.onclick = toggleMistPanel;
 // bảng chỉnh ống kính: tiêu cự (= zoom) + khẩu độ (độ xoá phông)
 const toggleLensPanel = () => { $('lenspanel').hidden = !$('lenspanel').hidden; $('mistpanel').hidden = true; refreshUI(); };
 el.lens.onclick = toggleLensPanel;
+el.quality.onclick = nextQuality;
 const focalIn = $('lens-focal'), fstopIn = $('lens-fstop');
 focalIn.min = FOCAL_MIN; focalIn.max = FOCAL_MAX;
 fstopIn.max = FSTOPS.length - 1;
@@ -221,6 +240,7 @@ window.addEventListener('keydown', (e) => {
     case 'KeyK': toggleCine(); break;
     case 'KeyG': toggleMistPanel(); break;
     case 'KeyL': toggleLensPanel(); break;
+    case 'KeyQ': nextQuality(); break;
   }
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
@@ -279,28 +299,6 @@ const wake = () => {
 ['pointermove', 'pointerdown', 'keydown', 'touchstart'].forEach((ev) => window.addEventListener(ev, wake, { passive: true }));
 wake();
 
-// tự giảm độ phân giải nếu máy yếu (chỉ giảm, không tăng lại để tránh nhấp nháy)
-const perf = { sum: 0, n: 0 };
-function adaptQuality(frameMs) {
-  if (frameMs > 250) return;                       // bỏ qua khi tab bị ẩn / khựng đột ngột
-  perf.sum += frameMs; perf.n++;
-  if (perf.n < 90) return;
-  const avg = perf.sum / perf.n;
-  perf.sum = 0; perf.n = 0;
-  if (avg > 34 && state.cine) {
-    state.cine = false;                            // máy yếu: tắt hậu kỳ cinematic trước
-    applyCine(); refreshUI();
-  } else if (avg > 34 && refl.enabled) {
-    refl.enabled = false;                          // rồi tới phản chiếu vũng nước
-  } else if (avg > 34 && pixelRatio > 0.7) {
-    pixelRatio = Math.max(0.7, pixelRatio - 0.25);
-    renderer.setPixelRatio(pixelRatio);
-    resize();
-    reeds.setDensity(Math.max(0.35, reeds.density * 0.75));
-    grass.setDensity(Math.max(0.35, grass.density * 0.75));
-  }
-}
-
 // ---------- vòng lặp ----------
 const _right = new THREE.Vector3();
 let last = performance.now();
@@ -310,7 +308,9 @@ const roadPt = {};
 
 // xoá phông theo ống kính thật (cảm biến full-frame 36 mm): lấy nét vào xe (camera trong xe: nét ở xa phía trước)
 // vòng nhoè trên cảm biến = f² / (N·(F − f)) · |z − F| / z  (mm)  -> quy ra điểm ảnh theo cạnh dài khung hình
-const dof = { amt: 0, near: 0.1, far: 1000, focus: 10, cocK: 0, maxCoc: 24 };
+// BOKEH: phóng đại vòng nhoè kiểu ống kính điện ảnh (ở 28 mm f/2 vòng nhoè thật chỉ 1–2 điểm ảnh, khó thấy)
+const BOKEH = 3.5;
+const dof = { amt: 0, range: 0, samples: 0, near: 0.1, far: 1000, focus: 10, cocK: 0, maxCoc: 24 };
 const _focusP = new THREE.Vector3();
 function dofParams(dt) {
   const inCar = CAMERAS[state.cam].id === 'cockpit';
@@ -318,16 +318,23 @@ function dofParams(dt) {
   const target = inCar ? 25 : Math.max(2, camera.position.distanceTo(_focusP));
   dof.focus += (target - dof.focus) * (dof.amt > 0.01 ? 1 - Math.exp(-dt * 6) : 1);
   const f = rig.focalEff, N = FSTOPS[state.fstop], F = dof.focus * 1000;
-  dof.cocK = ((f * f) / (N * Math.max(F - f, 1))) * (post.longSide / 36);
+  dof.cocK = ((f * f) / (N * Math.max(F - f, 1))) * (post.longSide / 36) * BOKEH;
   dof.maxCoc = Math.max(6, post.longSide * 0.0125);
+  // cả chiếc xe nằm trong vùng nét: nửa bề dày xe theo hướng nhìn
+  if (inCar) dof.range = 0;
+  else {
+    const dx = camera.position.x - _focusP.x, dz = camera.position.z - _focusP.z, h = Math.hypot(dx, dz) || 1;
+    const s = Math.sin(drive.yaw), c = Math.cos(drive.yaw);
+    dof.range = Math.abs((-s * dx - c * dz) / h) * cars.dim.length * 0.5 + Math.abs((c * dx - s * dz) / h) * cars.dim.width * 0.5 + 0.3;
+  }
   dof.near = camera.near; dof.far = camera.far;
   dof.amt = cineAmt;
+  dof.samples = QUALITY[state.quality].dof;
   return dof;
 }
 
 function frame(now) {
   const dt = clamp((now - last) / 1000, 0, 0.05);
-  adaptQuality(now - last);
   last = now;
 
   // điều khiển
@@ -428,6 +435,7 @@ function frame(now) {
 
 // ---------- khởi động ----------
 async function init() {
+  applyQuality();
   env.setTime(TIMES[state.time].hour);
   env.hour = TIMES[state.time].hour;
   env.onThunder = (delay, power) => audio.thunder(delay, power);
