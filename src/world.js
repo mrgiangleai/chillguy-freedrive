@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { glowTexture } from './textures.js';
 import { Precip } from './particles.js';
 
 const DEG = Math.PI / 180;
@@ -24,7 +23,7 @@ const NUM_KEYS = ['fog', 'overcast', 'clouds', 'sun', 'rain', 'snow', 'wet', 'co
 // Bầu trời gradient: các mốc màu theo độ cao mặt trời e (độ).
 //            e,    đỉnh trời,  giữa,      chân trời, dải ấm phía mặt trời, quầng mặt trời
 const SKY_KEYS = [
-  [-18, '#02050d', '#050a19', '#0a1428', '#0a1428', '#000000'],
+  [-18, '#040a1a', '#08142c', '#122244', '#122244', '#000000'],
   [-9, '#06102e', '#0e1d47', '#1f2d5a', '#363562', '#24182c'],
   [-4, '#122052', '#2a3c79', '#67588d', '#d06e7a', '#a24a40'],
   [0, '#1d3d80', '#4868ab', '#e3987c', '#ff8a48', '#ff7030'],
@@ -77,6 +76,7 @@ const SKY_FRAG = `
   uniform float uGlow, uDisc, uBandAmt, uScale;
   uniform vec4 uGround;                                                     // rgb + độ phủ: mặt đất tối dưới chân trời (chỉ khi chụp môi trường cho xe)
   uniform vec3 uVeilCol; uniform vec2 uVeil;                                // sương phủ bầu trời: (độ đậm, độ cao)
+  uniform vec3 uMoonDir, uMoonCol; uniform float uMoon;                     // mặt trăng: hướng, màu (HDR), độ hiện
   varying vec3 vDir;
   void main() {
     vec3 d = normalize(vDir);
@@ -89,8 +89,28 @@ const SKY_FRAG = `
     float band = pow(sd, 2.2) * (1.0 - smoothstep(0.0, 0.34, h));           // dải ấm dọc chân trời phía mặt trời
     col = mix(col, uBand, clamp(band * uBandAmt, 0.0, 1.0));
     col += uSunCol * (pow(sd, 5.0) * 0.32 + pow(sd, 42.0) * 0.85) * uGlow;  // quầng sáng
-    col += uSunCol * smoothstep(0.99975, 0.9999, sd) * uDisc;                // đĩa mặt trời
-    col = mix(col, uVeilCol, uVeil.x * exp(-max(d.y, 0.0) / uVeil.y));      // sương mù phủ lên trời
+    // mặt trăng: đĩa có vân (biển trăng), tối nhẹ ở rìa
+    float mc = dot(d, uMoonDir);
+    vec3 moon = vec3(0.0);
+    if (uMoon > 0.0 && mc > 0.99) {
+      vec3 mt = normalize(cross(vec3(0.0, 1.0, 0.0), uMoonDir)), mb = cross(uMoonDir, mt);
+      vec2 q = vec2(dot(d, mt), dot(d, mb)) / 0.021;
+      float r = length(q);
+      float m = exp(-dot(q - vec2(-0.28, 0.3), q - vec2(-0.28, 0.3)) * 8.0)
+              + 0.8 * exp(-dot(q - vec2(0.22, 0.18), q - vec2(0.22, 0.18)) * 13.0)
+              + 0.7 * exp(-dot(q - vec2(0.02, -0.36), q - vec2(0.02, -0.36)) * 10.0)
+              + 0.5 * exp(-dot(q - vec2(-0.5, -0.18), q - vec2(-0.5, -0.18)) * 18.0)
+              + 0.35 * exp(-dot(q - vec2(0.45, -0.1), q - vec2(0.45, -0.1)) * 22.0);
+      float tone = (1.0 - 0.42 * clamp(m, 0.0, 1.0)) * (0.72 + 0.28 * sqrt(max(1.0 - r * r, 0.0)));
+      float disc = smoothstep(1.0, 0.93, r);
+      col = mix(col, vec3(0.0), disc * uMoon);
+      moon = uMoonCol * tone * disc * uMoon;
+    }
+    moon += uMoonCol * (0.05 * pow(max(mc, 0.0), 1400.0) + 0.012 * pow(max(mc, 0.0), 90.0)) * uMoon;   // quầng trăng
+    vec3 disc = uSunCol * smoothstep(0.99975, 0.9999, sd) * uDisc;           // đĩa mặt trời
+    float veil = uVeil.x * exp(-max(d.y, 0.0) / uVeil.y);
+    col = mix(col, uVeilCol, veil);                                          // sương mù phủ lên trời
+    col += (disc + moon) * (1.0 - 0.8 * veil);                               // mặt trời / trăng vẫn lấp ló qua sương
     gl_FragColor = vec4(col * uScale, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -100,7 +120,9 @@ const SKY_FRAG = `
 
 const C_SUN_DAY = new THREE.Color('#fff3df');
 const C_SUN_LOW = new THREE.Color('#ff9a50');
-const C_MOON = new THREE.Color('#8fb0ff');
+const C_MOON = new THREE.Color('#9ab6ff');                   // ánh trăng
+const C_MOON_DISC = new THREE.Color(1.7, 1.78, 1.95);        // đĩa trăng (HDR, sau tone mapping gần trắng)
+const MOON_AZ = Math.PI - 0.3;                                // trăng treo thấp phía trước - bên phải hướng đường chạy
 
 // Lớp mây: nhiễu fbm chiếu lên mặt phẳng trên cao, tô sáng theo hướng mặt trời (mép sáng, đáy tối)
 const CLOUD_VERT = `
@@ -185,6 +207,7 @@ export class Environment {
         uBand: { value: new THREE.Color() }, uSunCol: { value: new THREE.Color() }, uSunDir: { value: new THREE.Vector3(0, 1, 0) },
         uGlow: { value: 1 }, uDisc: { value: 1 }, uBandAmt: { value: 1 }, uScale: { value: 1 },
         uGround: { value: new THREE.Vector4(0, 0, 0, 0) },
+        uMoonDir: { value: new THREE.Vector3(0, 1, 0) }, uMoonCol: { value: new THREE.Color(C_MOON_DISC) }, uMoon: { value: 0 },
       },
       vertexShader: SKY_VERT, fragmentShader: SKY_FRAG,
       side: THREE.BackSide, depthWrite: false, fog: false,
@@ -220,19 +243,6 @@ export class Environment {
     this.stars.frustumCulled = false;
     scene.add(this.stars);
 
-    const glow = glowTexture();
-    this.moon = new THREE.Mesh(new THREE.SphereGeometry(55, 24, 16), new THREE.MeshBasicMaterial({
-      color: 0xeef2ff, fog: false, toneMapped: false, transparent: true, depthWrite: false,
-    }));
-    this.moon.renderOrder = 2;
-    this.moon.frustumCulled = false;
-    this.moonHalo = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: glow, color: 0x9fb8ff, transparent: true, opacity: 0.5, depthWrite: false,
-      blending: THREE.AdditiveBlending, fog: false,
-    }));
-    this.moonHalo.scale.setScalar(700);
-    this.moon.add(this.moonHalo);
-    scene.add(this.moon);
 
     // --- lớp mây (shader) ---
     this.cloudMat = new THREE.ShaderMaterial({
@@ -289,8 +299,6 @@ export class Environment {
     this.sun.shadow.normalBias = 0.04;
     sc.layers.enable(3);
     scene.add(this.sun, this.sun.target);
-    this.moonLight = new THREE.DirectionalLight(C_MOON, 0);
-    scene.add(this.moonLight, this.moonLight.target);
     this.hemi = new THREE.HemisphereLight(0xbfd8ff, 0x405030, 0.4);
     scene.add(this.hemi);
 
@@ -302,6 +310,7 @@ export class Environment {
       night: 0, lamps: 0, dayF: 1, warm: 0, light: 1, rain: 0, snow: 0, wet: 0, cover: 0, overcast: 0,
       wind: 0.3, dark: 0, drift: 0, flash: 0, windDir: this.windDir,
       fogColor: new THREE.Color(), mistColor: new THREE.Color(), sunDir: new THREE.Vector3(), elevation: 0,
+      moonDir: new THREE.Vector3(), lightDir: new THREE.Vector3(), moon: 0,
     };
     this._c = new THREE.Color();
     this._c2 = new THREE.Color();
@@ -413,6 +422,12 @@ export class Environment {
     const dayF = sstep(-4, 14, e);
     const night = 1 - sstep(-12, 0, e);
     const warm = Math.exp(-Math.pow((e - 3) / 10, 2));
+    // trăng: mọc lúc chạng vạng, treo thấp (~12°) phía trước đường => dễ thấy trong khung hình.
+    // ánh trăng chiếu từ cao hơn (cùng phương) để mặt đất đủ sáng, bóng không dài quá
+    const moonDir = this.state.moonDir;
+    moonDir.setFromSphericalCoords(1, Math.PI / 2 - (3 + 9 * sstep(-3, -30, e)) * DEG, MOON_AZ);
+    const moonLightDir = this._v.setFromSphericalCoords(1, Math.PI / 2 - 38 * DEG, MOON_AZ);
+    const moonUp = sstep(-2, -11, e);
 
     // ---- bầu trời gradient: nội suy mốc màu theo độ cao mặt trời ----
     const K = SKY_KEYS;
@@ -439,7 +454,10 @@ export class Environment {
     su.uGlow.value = (1 - over * 0.95) * sstep(-6, 1, e) * (1 - dk);
     su.uDisc.value = (1 - over) * sstep(-1.5, 0.5, e) * 22;
     su.uBandAmt.value = (1 - over * 0.85) * (0.25 + 0.75 * warm) * sstep(-11, -2, e);
-    this.renderer.toneMappingExposure = (0.5 + 0.12 * warm) * (1 - 0.5 * dk);
+    su.uMoonDir.value.copy(moonDir);
+    su.uMoon.value = moonUp * clamp(1 - over * 1.05, 0, 1) * (1 - dk);
+    // ban đêm phơi sáng nhiều hơn (mắt quen bóng tối) => cảnh dưới trăng rõ hơn
+    this.renderer.toneMappingExposure = (0.5 + 0.12 * warm) * (1 - 0.5 * dk) * (1 + 0.45 * night);
 
     // ---- màu sương xa = đúng màu hiển thị của chân trời (liền mạch đất - trời) ----
     // (màu tuyến tính = đúng radiance chân trời; fogC = màu hiển thị của nó, dùng cho ánh sáng nền)
@@ -462,18 +480,23 @@ export class Environment {
     }
 
     // ---- ánh sáng chính (mặt trời ban ngày, mặt trăng ban đêm) ----
-    this.sun.intensity = 3.4 * sstep(-2, 9, e) * w.sun;
-    this.sun.color.copy(C_SUN_DAY).lerp(C_SUN_LOW, clamp(warm * 1.3, 0, 1));
-    this.moonLight.intensity = 1.0 * sstep(-3, -12, e) * (1 - 0.6 * over);
+    // (một đèn có đổ bóng: theo mặt trời khi còn nắng, theo mặt trăng khi trời tối)
+    const byMoon = e < -2.5;
+    const lightDir = this.state.lightDir.copy(byMoon ? moonLightDir : sunDir);
+    if (byMoon) {
+      this.sun.intensity = 0.6 * moonUp * (1 - 0.8 * over) * (1 - dk);
+      this.sun.color.copy(C_MOON);
+    } else {
+      this.sun.intensity = 3.4 * sstep(-2, 9, e) * w.sun;
+      this.sun.color.copy(C_SUN_DAY).lerp(C_SUN_LOW, clamp(warm * 1.3, 0, 1));
+    }
     if (focus) {
-      this.sun.position.copy(focus).addScaledVector(sunDir, 120);
+      this.sun.position.copy(focus).addScaledVector(lightDir, 120);
       this.sun.target.position.copy(focus);
-      this.moonLight.position.copy(focus).addScaledVector(sunDir, -120);
-      this.moonLight.target.position.copy(focus);
     }
     this.hemi.color.copy(fogC).lerp(this._c.set('#6f8cd0'), night * 0.75).lerp(this._c.set('#c4d4ff'), flash);
     this.hemi.groundColor.set('#3a4630').multiplyScalar(0.25 + 0.75 * dayF);
-    this.hemi.intensity = (0.16 + 0.45 * dayF + 0.28 * night) * (1 - 0.4 * over) * (1 - 0.35 * dk) + flash * 3.2;
+    this.hemi.intensity = (0.16 + 0.45 * dayF + 0.4 * night) * (1 - 0.4 * over) * (1 - 0.35 * dk) + flash * 3.2;
 
     // ---- đồ vật trên trời bám theo camera ----
     this.sky.position.copy(cam);
@@ -488,16 +511,12 @@ export class Environment {
     this.stars.material.opacity = night * (1 - over * 0.95);
     this.stars.visible = this.stars.material.opacity > 0.01;
 
-    this.moon.position.copy(cam).addScaledVector(this._v.copy(sunDir).negate(), 2900);
-    this.moon.visible = -e > -4 && over < 0.95;
-    this.moon.material.opacity = (1 - over) * clamp((-e + 4) / 8, 0, 1);
-    this.moonHalo.material.opacity = 0.5 * this.moon.material.opacity;
 
     // ---- mây ----
     // sáng (lit): trắng ban ngày, cam lúc hoàng hôn, xanh nhạt dưới trăng; tối (shade): xanh xám / tím nhạt
     const cw = clamp(warm * 1.1, 0, 1) * (1 - 0.92 * dk);   // bão: mây luôn xám xanh, không ngả cam
     const lit = this._lit.set('#ffffff').lerp(this._c2.set('#ff9d66'), cw).multiplyScalar(2.4 * dayF);
-    lit.add(this._c2.set('#7f98d8').multiplyScalar(0.2 * night * (1 - over * 0.6)));
+    lit.add(this._c2.set('#8fa6e0').multiplyScalar(0.32 * night * (1 - over * 0.6)));   // mây được trăng chiếu
     // phần tối của mây lấy theo màu trời (hài hoà với gradient), ngả tím hồng lúc hoàng hôn
     const shade = this._shade.copy(S.mid).multiplyScalar(0.5).lerp(this._c2.copy(S.hor).multiplyScalar(0.62), 0.45)
       .lerp(this._c2.set('#a86a7a').multiplyScalar(1.05 * dayF), cw * 0.5);
@@ -510,7 +529,7 @@ export class Environment {
     cu.uSoft.value = clamp(over * 0.9 + dk * 0.3, 0, 1);
     cu.uFlash.value = flash;
     cu.uDrift.value.copy(this.windDir).multiplyScalar(0.003 + 0.02 * w.wind);
-    cu.uSunDir.value.copy(e >= -2 ? sunDir : this._v.copy(sunDir).negate());
+    cu.uSunDir.value.copy(e >= -2 ? sunDir : moonDir);
     cu.uLit.value.copy(lit);
     cu.uShade.value.copy(shade);
 
@@ -526,7 +545,8 @@ export class Environment {
     st.drift = clamp((w.wind - 0.5) * 2.2, 0, 1) * (1 - w.rain) * (1 - w.snow);
     const bad = clamp(w.rain * 0.35 + w.snow * 0.25 + (w.fog > 0.003 ? 0.3 : 0), 0, 0.5);
     st.lamps = clamp(Math.max(night, 0.7 * (1 - dayF)) + bad * dayF + dk * 0.7, 0, 1);
-    st.light = (0.14 + 0.86 * dayF * (1 - 0.3 * over) * (1 - 0.55 * dk)) + flash * 0.6;
+    st.moon = su.uMoon.value;
+    st.light = (0.14 + 0.08 * night + 0.86 * dayF * (1 - 0.3 * over) * (1 - 0.55 * dk)) + flash * 0.6;
 
     // ---- mưa / tuyết / bông cỏ bay ----
     this.precip.update(dt, cam, st, this.renderer.domElement.height);
