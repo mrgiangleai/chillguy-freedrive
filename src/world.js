@@ -18,6 +18,7 @@ const WEATHER = {
   snow:   { fog: 0.0019,  overcast: 0.85, clouds: 1.0,  sun: 0.35, rain: 0, snow: 1, wet: 0,   cover: 1, wind: 0.32, dark: 0.1,  tint: '#d3dbe2' },
   fog:    { fog: 0.0066,  overcast: 0.55, clouds: 0.5,  sun: 0.3,  rain: 0, snow: 0, wet: 0.2, cover: 0, wind: 0.08, dark: 0.05, tint: '#c4c9cd' },
 };
+const WET_FADE = 1.5;
 const NUM_KEYS = ['fog', 'overcast', 'clouds', 'sun', 'rain', 'snow', 'wet', 'cover', 'wind', 'dark'];
 
 // Bầu trời gradient: các mốc màu theo độ cao mặt trời e (độ).
@@ -343,7 +344,11 @@ export class Environment {
 
     // ---- thời tiết (nội suy) ----
     const k = 1 - Math.exp(-dt * 1.4);
-    for (const key of NUM_KEYS) this.w[key] += (this.target[key] - this.w[key]) * k;
+    for (const key of NUM_KEYS) if (key !== 'wet') this.w[key] += (this.target[key] - this.w[key]) * k;
+    // mặt đường ướt: như lớp đường khô phủ trên lớp đường mưa (vũng nước đã sẵn hình),
+    // lớp khô mờ dần đều trong WET_FADE giây (và hiện lại khi tạnh)
+    const dw = this.target.wet - this.w.wet;
+    this.w.wet += Math.sign(dw) * Math.min(Math.abs(dw), dt / WET_FADE);
     this.tint.lerp(this._c.set(this.target.tint), k);
     const w = this.w;
     const over = w.overcast;

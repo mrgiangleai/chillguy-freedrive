@@ -341,7 +341,7 @@ function frame(now) {
   MIST.uMistColor.value.copy(st.mistColor);
 
   // đường ướt: vẽ ảnh phản chiếu cho vũng nước (chỉ khi mưa)
-  if (st.wet > 0.05) refl.render(scene, camera, drive.pos.y + 0.05);
+  if (st.wet > 0.001) refl.render(scene, camera, drive.pos.y + 0.05);
   else refl.active = false;
   scenery.setReflection(refl, now / 1000);
 

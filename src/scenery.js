@@ -248,7 +248,7 @@ export class Scenery {
     this.roadMat.color.setRGB(d, d, d);
     const u = this.roadU;
     u.uWet.value = st.wet;
-    u.uPuddle.value = Math.min(1, Math.max(0, st.wet * 1.15 - 0.1));
+    u.uPuddle.value = st.wet;                               // vũng nước giữ nguyên hình, chỉ hiện dần (crossfade)
     u.uRain.value = st.rain;
   }
 
