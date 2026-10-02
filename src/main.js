@@ -20,6 +20,7 @@ import { Fireflies } from './fireflies.js';
 import { ValleyTown } from './town.js';
 import { DashScreen } from './dashscreen.js';
 import { Traffic } from './traffic.js';
+import { Cows } from './cows.js';
 
 installMist();   // thay shader sương của three.js (phải chạy trước khi vật liệu được biên dịch)
 import { MAPS, WEATHERS, TIMES, CAMERAS, MUSIC_MODES, FSTOPS, FSTOP_DEFAULT, QUALITY, QUALITY_DEFAULT } from './config.js';
@@ -79,6 +80,7 @@ const fireflies = new Fireflies(scene);
 const town = new ValleyTown(scene);           // map núi: thị trấn + đèn đường dưới thung lũng
 const dash = new DashScreen();                // màn hình giải trí trên taplo (hắt sáng lên người lái)
 const traffic = new Traffic(scene, cars);     // thỉnh thoảng có xe chạy ngược chiều
+const cows = new Cows(scene);                 // map đồi cỏ: đàn bò sữa sau hàng rào gỗ
 cars.tilt.add(dash.group);
 cars.tilt.add(mirror.group);
 
@@ -208,6 +210,7 @@ function compileFor(target, cam, obj = scene) {
 env.onCarEnv = (tex) => cars.setEnvMap(tex);
 if (env.carEnvRT) cars.setEnvMap(env.carEnvRT.texture);
 cars.prepare = (group) => compileFor(post.sceneRT, camera, group);
+cows.onBuild = (group) => { compileFor(post.sceneRT, camera, group).catch(() => {}); };
 function warmShaders(delay = 500) {
   clearTimeout(warmTimer);
   warmTimer = setTimeout(() => {
@@ -226,6 +229,7 @@ const applyMap = () => {
   reeds.visible = id === 'reed';
   grass.visible = id === 'forest';
   meadow.visible = id === 'meadow';
+  cows.visible = id === 'meadow';
   town.reset();
   town.visible = id === 'mountain';
   rig.sidePref = id === 'mountain' ? 1 : 0;      // camera bên hông đứng phía thung lũng
@@ -569,6 +573,7 @@ function frame(now) {
   if (grass.visible) grass.update(now / 1000, camera.position, road, drive.s, st);
   meadow.group.visible = MAPS[state.map].id === 'meadow' && st.cover < 0.5;
   if (meadow.visible) meadow.update(now / 1000, camera.position, road, drive.s, st);
+  cows.update(dt, drive.s, road, terrain);
   terrain.setCar(drive.s);
   terrain.update(camera.position);
   nature.update(camera.position, terrain);
@@ -689,4 +694,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

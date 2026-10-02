@@ -3,7 +3,7 @@
 Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (JavaScript + HTML thuần).
 
 - **Địa hình đồi núi vô tận** (kiểu slowroads): đồi trập trùng, đường lên dốc/xuống dốc men theo địa hình, núi xa có đá & tuyết mờ trong sương xanh; sinh hoàn toàn bằng code nên tải rất nhanh
-- **Map** (nút 🌾 hoặc phím `N`): **cánh đồng cỏ lau bất tận** 🌾 · **đồi thông** 🌲 kiểu slowroads: đồi cỏ xanh với búi cỏ mọc dày sát mép đường, cây có tán lá kết cấu, mảng rừng sẫm trên đồi xa · **đường núi** ⛰️ (mặc định) men sườn núi: vách đá ảnh thật với cụm đá gồ ghề, thông mọc trên sườn, vực thung lũng có hộ lan một bên · **đồi cỏ** 🌿 đồi thoải chỉ toàn cỏ xanh dịu cao 1–1,5 m, cao thấp từng mảng, gợn sóng theo gió. Đồi thông có đoạn **đường đất gồ ghề xuyên rừng rậm** (~800 m, lặp lại mỗi 2,6 km)
+- **Map** (nút 🌾 hoặc phím `N`): **cánh đồng cỏ lau bất tận** 🌾 · **đồi thông** 🌲 kiểu slowroads: đồi cỏ xanh với búi cỏ mọc dày sát mép đường, cây có tán lá kết cấu, mảng rừng sẫm trên đồi xa · **đường núi** ⛰️ (mặc định) men sườn núi: vách đá ảnh thật với cụm đá gồ ghề, thông mọc trên sườn, vực thung lũng có hộ lan một bên · **đồi cỏ** 🌿 đồi thoải chỉ toàn cỏ xanh dịu cao 1–1,5 m, cao thấp từng mảng, gợn sóng theo gió — có **đàn 5 con bò sữa** loang đen trắng gặm cỏ sau hàng rào gỗ (cúi gặm, ngẩng nhìn, thong thả đi, vẫy đuôi; đàn đầu tiên ~270 m sau chỗ xuất phát, rồi mỗi 2,4 km lại gặp một đàn). Đồi thông có đoạn **đường đất gồ ghề xuyên rừng rậm** (~800 m, lặp lại mỗi 2,6 km)
 - **Cinematic** (luôn bật): dải đen letterbox 2.39:1, **xoá phông** theo ống kính thật (lấy nét vào xe, tiền cảnh/hậu cảnh nhoè kiểu bokeh), bloom quanh mặt trời/đèn, chỉnh màu phim, hạt phim, tối viền, camera hơi rung như quay cầm tay và cảnh mở đầu camera lia từ thấp ra sau xe
 - **Tốc độ**: mặc định chạy chill **25 km/h** (W/S chỉnh 10–60 km/h); nút **⚡** (hoặc phím `F`) đổi cấp: 25 → **50 km/h** → **Fast drive 180 km/h** (blur tốc độ, góc nhìn rộng ra, camera rung nhẹ, gió ù ù) → về 25
 - **Xe ngược chiều**: thỉnh thoảng (ngẫu nhiên, khoảng 15–70 s một chiếc) có xe khác chạy ngược chiều ở làn bên kia, ban đêm bật đèn pha / đèn hậu
@@ -82,6 +82,7 @@ src/               mã nguồn (gộp bằng esbuild: build.mjs)
   town.js         thị trấn + đèn đường dưới thung lũng (map núi)
   dashscreen.js   màn hình giải trí trên taplo + ánh sáng hắt lên người lái
   traffic.js      xe chạy ngược chiều ngẫu nhiên, thưa thớt
+  cows.js         đàn bò sữa + hàng rào gỗ (map đồi cỏ)
   person.js       người lái (animation, quần áo vẽ bằng shader)
   stopscene.js    cảnh dừng xe: cận bánh xe, mở cửa, người bước ra, camera quay quanh
   colorspace.js   đổi màu hiển thị -> tuyến tính cho shader tự tô màu
