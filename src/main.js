@@ -16,6 +16,7 @@ import { StopScene } from './stopscene.js';
 import { Nature } from './nature.js';
 import { RearMirror } from './mirror.js';
 import { Wipers } from './wipers.js';
+import { Fireflies } from './fireflies.js';
 
 installMist();   // thay shader sương của three.js (phải chạy trước khi vật liệu được biên dịch)
 import { MAPS, WEATHERS, TIMES, CAMERAS, MUSIC_MODES, FSTOPS, FSTOP_DEFAULT, QUALITY, QUALITY_DEFAULT } from './config.js';
@@ -69,6 +70,7 @@ const stop = new StopScene(cars, person);
 const nature = new Nature(scene);
 const mirror = new RearMirror(renderer);
 const wipers = new Wipers();
+const fireflies = new Fireflies(scene);
 cars.tilt.add(mirror.group);
 
 function resize() {
@@ -506,6 +508,10 @@ function frame(now) {
   terrain.update(camera.position);
   nature.update(camera.position, terrain);
   terrain.apply(st);
+  // đom đóm: lúc trời tối, không mưa / tuyết / gió mạnh
+  const ss = THREE.MathUtils.smoothstep;
+  const ffAmt = ss(st.night, 0.35, 0.9) * (1 - Math.min(1, st.rain * 2)) * (1 - st.snow) * (1 - st.cover) * (1 - ss(st.wind, 0.6, 0.9));
+  fireflies.update(now / 1000, drive.s, road, terrain, ffAmt, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   cars.setLights(st.lamps);
   audio.setAmbient({ speed: drive.v, rain: st.rain, snow: st.snow, wind: st.wind, dark: st.dark, fx: drive.fx });
 
@@ -615,4 +621,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, toggleCine, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, toggleCine, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
