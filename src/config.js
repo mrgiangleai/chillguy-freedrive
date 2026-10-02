@@ -43,8 +43,8 @@ export const WEATHERS = [
 export const TIMES = [
   { id: 'sunrise', name: 'Bình minh', icon: '🌅', hour: 6.4 },
   { id: 'noon', name: 'Ban ngày', icon: '🌤️', hour: 12.5 },
-  { id: 'golden', name: 'Giờ vàng', icon: '🌞', hour: 17.55 },
-  { id: 'sunset', name: 'Hoàng hôn', icon: '🌇', hour: 17.85 },
+  { id: 'golden', name: 'Giờ vàng', icon: '🌞', hour: 17.3 },
+  { id: 'sunset', name: 'Hoàng hôn', icon: '🌇', hour: 17.6 },
   { id: 'night', name: 'Ban đêm', icon: '🌙', hour: 22.5 },
   { id: 'auto', name: 'Tự động', icon: '🕒', hour: null },
 ];

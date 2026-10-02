@@ -390,6 +390,20 @@ function dofParams(dt) {
   return dof;
 }
 
+// tia nắng: vị trí mặt trời (hoặc trăng) trên màn hình; nhạt dần khi quay lưng lại hoặc mặt trời ra xa ngoài khung hình
+const _sunP = new THREE.Vector3(), _camF = new THREE.Vector3();
+function rayParams() {
+  const st = env.state, r = post.rays;
+  r.near = camera.near; r.far = camera.far;
+  let amt = st.rays * THREE.MathUtils.smoothstep(camera.getWorldDirection(_camF).dot(st.rayDir), 0.05, 0.5);
+  if (amt > 0.002) {
+    _sunP.copy(st.rayDir).multiplyScalar(1000).add(camera.position).project(camera);
+    amt *= 1 - THREE.MathUtils.smoothstep(Math.max(Math.abs(_sunP.x), Math.abs(_sunP.y)), 1.0, 1.9);
+    r.uv.set(_sunP.x * 0.5 + 0.5, _sunP.y * 0.5 + 0.5);
+  }
+  r.color.copy(st.rayCol).multiplyScalar(Math.max(amt, 0) * 1.2);
+}
+
 function frame(now) {
   const dt = clamp((now - last) / 1000, 0, 0.05);
   last = now;
@@ -518,6 +532,7 @@ function frame(now) {
   if (inCabin) mirror.render(scene, cars.tilt);
   post.begin();
   renderer.render(scene, camera);
+  rayParams();
   post.render(now / 1000, cineAmt, drive.fx, dofParams(dt));
   requestAnimationFrame(frame);
 }

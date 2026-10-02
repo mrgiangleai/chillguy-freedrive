@@ -122,7 +122,10 @@ const C_SUN_DAY = new THREE.Color('#fff3df');
 const C_SUN_LOW = new THREE.Color('#ff9a50');
 const C_MOON = new THREE.Color('#9ab6ff');                   // ánh trăng
 const C_MOON_DISC = new THREE.Color(1.7, 1.78, 1.95);        // đĩa trăng (HDR, sau tone mapping gần trắng)
-const MOON_AZ = Math.PI - 0.3;                                // trăng treo thấp phía trước - bên phải hướng đường chạy
+// hướng đường trung bình (road.js): góc ≈ −1.24 rad => đường chủ yếu chạy về phía +X, hơi chếch −Z.
+// Mặt trời lặn / trăng treo gần hướng đó (hơi lệch phải) để hay lọt vào khung hình khi chạy.
+const SUN_AZ = Math.PI - 1.0;
+const MOON_AZ = Math.PI - 1.15;
 
 // Lớp mây: nhiễu fbm chiếu lên mặt phẳng trên cao, tô sáng theo hướng mặt trời (mép sáng, đáy tối)
 const CLOUD_VERT = `
@@ -311,6 +314,7 @@ export class Environment {
       wind: 0.3, dark: 0, drift: 0, flash: 0, windDir: this.windDir,
       fogColor: new THREE.Color(), mistColor: new THREE.Color(), sunDir: new THREE.Vector3(), elevation: 0,
       moonDir: new THREE.Vector3(), lightDir: new THREE.Vector3(), moon: 0,
+      rays: 0, rayDir: new THREE.Vector3(), rayCol: new THREE.Color(),   // tia nắng / tia trăng (hậu kỳ)
     };
     this._c = new THREE.Color();
     this._c2 = new THREE.Color();
@@ -418,7 +422,7 @@ export class Environment {
     // ---- mặt trời ----
     const e = 65 * Math.sin(((this.hour - 6) / 24) * Math.PI * 2);   // độ cao mặt trời (độ)
     const sunDir = this.state.sunDir;
-    sunDir.setFromSphericalCoords(1, Math.PI / 2 - e * DEG, Math.PI + 0.35);
+    sunDir.setFromSphericalCoords(1, Math.PI / 2 - e * DEG, SUN_AZ);
     const dayF = sstep(-4, 14, e);
     const night = 1 - sstep(-12, 0, e);
     const warm = Math.exp(-Math.pow((e - 3) / 10, 2));
@@ -546,6 +550,12 @@ export class Environment {
     const bad = clamp(w.rain * 0.35 + w.snow * 0.25 + (w.fog > 0.003 ? 0.3 : 0), 0, 0.5);
     st.lamps = clamp(Math.max(night, 0.7 * (1 - dayF)) + bad * dayF + dk * 0.7, 0, 1);
     st.moon = su.uMoon.value;
+    // tia nắng: rõ khi mặt trời thấp và khi có sương (ánh sáng tán xạ); ban đêm tia trăng rất nhẹ
+    const fogK = sstep(0.0005, 0.0065, w.fog);
+    st.rays = byMoon ? 0.22 * su.uMoon.value * (1 + fogK)
+      : sstep(-2.5, 2.5, e) * (1 - 0.55 * over) * (1 - dk) * (0.55 + 0.45 * warm) * (1 + 1.3 * fogK);
+    st.rayDir.copy(byMoon ? moonDir : sunDir);
+    st.rayCol.copy(byMoon ? C_MOON : this.sun.color);
     st.light = (0.14 + 0.08 * night + 0.86 * dayF * (1 - 0.3 * over) * (1 - 0.55 * dk)) + flash * 0.6;
 
     // ---- mưa / tuyết / bông cỏ bay ----

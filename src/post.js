@@ -120,8 +120,32 @@ const DOF_BLUR = `
     gl_FragColor = vec4(col, k);
   }`;
 
+// --- tia nắng (god rays): lấy vùng trời sáng quanh mặt trời (theo độ sâu = trời) rồi kéo dài xuyên tâm về phía mặt trời
+// => cây, núi, xe chắn nắng tạo thành các vệt sáng / tối toả ra từ mặt trời
+const RAY_MASK = `
+  uniform sampler2D tScene, tDepth; uniform float uNear, uFar, uAspect; uniform vec2 uSun;
+  varying vec2 vUv;
+  void main() {
+    float d = texture2D(tDepth, vUv).x;
+    float z = uNear * uFar / (uFar - d * (uFar - uNear));
+    float sky = smoothstep(0.88, 0.97, z / uFar);
+    float l = dot(texture2D(tScene, vUv).rgb, vec3(0.3, 0.59, 0.11));
+    vec2 dd = (vUv - uSun) * vec2(uAspect, 1.0);
+    gl_FragColor = vec4(vec3(sky * exp(-dot(dd, dd) * 7.0) * smoothstep(0.08, 1.2, l)), 1.0);
+  }`;
+const RAY_BLUR = `
+  uniform sampler2D tSrc; uniform vec2 uSun; uniform float uLen;
+  varying vec2 vUv;
+  void main() {
+    vec2 step = (vUv - uSun) * uLen / 32.0, uv = vUv;
+    vec3 s = vec3(0.0); float w = 1.0, tot = 0.0;
+    for (int i = 0; i < 32; i++) { s += texture2D(tSrc, uv).rgb * w; tot += w; w *= 0.965; uv -= step; }
+    gl_FragColor = vec4(s / tot, 1.0);
+  }`;
+
 const FINAL = `
-  uniform sampler2D tScene, tBloom, tDof;
+  uniform sampler2D tScene, tBloom, tDof, tRays;
+  uniform vec3 uRayCol;
   uniform float uFx, uCine, uTime, uAspect, uDof;
   uniform vec2 uRes;
   varying vec2 vUv;
@@ -154,6 +178,7 @@ const FINAL = `
     } else {
       col = sceneAt(vUv);
     }
+    col += texture2D(tRays, vUv).rgb * uRayCol;                // tia nắng (cộng vào ánh sáng tuyến tính)
     // quang sai nhẹ ở mép khung hình
     float ca = uCine * 0.0008 * smoothstep(0.2, 1.0, dist);   // chỉ ở chế độ cinematic; blur tốc độ không tách màu (tránh lốm đốm)
     if (ca > 0.0) {
@@ -206,8 +231,15 @@ export class Post {
     this.dofBlur = mk({ tSrc: { value: null }, tNear: { value: null }, uTexelFull: { value: new THREE.Vector2() }, uMaxCoc: { value: 24 }, uN: { value: 24 } }, DOF_BLUR);
     this.final = mk({
       tScene: { value: null }, tBloom: { value: null }, tDof: { value: null }, uDof: { value: 0 }, uExposure: exposure,
+      tRays: { value: null }, uRayCol: { value: new THREE.Color(0, 0, 0) },
       uFx: { value: 0 }, uCine: { value: 0 }, uTime: { value: 0 }, uAspect: { value: 1 }, uRes: { value: new THREE.Vector2(1, 1) },
     }, FINAL);
+    this.rayMask = mk({
+      tScene: { value: null }, tDepth: { value: null }, uNear: { value: 0.1 }, uFar: { value: 1000 }, uAspect: { value: 1 }, uSun: { value: new THREE.Vector2() },
+    }, RAY_MASK);
+    this.rayBlur = mk({ tSrc: { value: null }, uSun: { value: new THREE.Vector2() }, uLen: { value: 1 } }, RAY_BLUR);
+    // main.js gán: vị trí mặt trời trên màn hình (uv), màu * độ mạnh (0 = tắt), near/far của camera
+    this.rays = { uv: new THREE.Vector2(0.5, 0.5), color: new THREE.Color(0, 0, 0), near: 0.1, far: 1000 };
     this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.bright);
     this.quad.frustumCulled = false;
     this.scene.add(this.quad);
@@ -242,6 +274,8 @@ export class Post {
     this._rt('prep', hw, hh, true); this._rt('dof', hw, hh, true);
     const tw = Math.max(4, Math.ceil(hw / 4)), th = Math.max(4, Math.ceil(hh / 4));
     this._rt('tile', tw, th, true); this._rt('near', tw, th, true);
+    this._rt('rayA', bw, bh); this._rt('rayB', bw, bh);
+    this.rayMask.uniforms.uAspect.value = w / h;
     this.bright.uniforms.uTexel.value.set(1 / bw, 1 / bh);
     this.dofPrep.uniforms.uTexel.value.set(1 / w, 1 / h);
     this.dofTile.uniforms.uTexel.value.set(1 / hw, 1 / hh);
@@ -307,8 +341,24 @@ export class Post {
       }
     }
 
+    const ray = this.rays, rayOn = ray.color.r + ray.color.g + ray.color.b > 0.002;
+    if (rayOn) {
+      const m = this.rayMask.uniforms, b = this.rayBlur.uniforms;
+      m.tScene.value = src; m.tDepth.value = this.sceneRT.depthTexture;
+      m.uNear.value = ray.near; m.uFar.value = ray.far; m.uSun.value.copy(ray.uv);
+      this._pass(this.rayMask, this.rts.rayA);
+      // 2 lượt: lượt đầu kéo dài gần tới mặt trời, lượt sau bước ngắn để xoá vân bậc thang
+      b.uSun.value.copy(ray.uv);
+      b.tSrc.value = this.rts.rayA.texture; b.uLen.value = 0.85;
+      this._pass(this.rayBlur, this.rts.rayB);
+      b.tSrc.value = this.rts.rayB.texture; b.uLen.value = 0.85 / 10;
+      this._pass(this.rayBlur, this.rts.rayA);
+    }
+
     const u = this.final.uniforms;
     u.tScene.value = src;
+    u.tRays.value = this.rts.rayA.texture;
+    if (rayOn) u.uRayCol.value.copy(ray.color); else u.uRayCol.value.setRGB(0, 0, 0);
     u.tBloom.value = this.rts.bloomA.texture;
     u.tDof.value = this.rts.dof.texture;
     u.uDof.value = dofOn ? dof.amt : 0;
