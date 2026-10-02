@@ -17,6 +17,7 @@ import { Nature } from './nature.js';
 import { RearMirror } from './mirror.js';
 import { Wipers } from './wipers.js';
 import { Fireflies } from './fireflies.js';
+import { ValleyTown } from './town.js';
 
 installMist();   // thay shader sương của three.js (phải chạy trước khi vật liệu được biên dịch)
 import { MAPS, WEATHERS, TIMES, CAMERAS, MUSIC_MODES, FSTOPS, FSTOP_DEFAULT, QUALITY, QUALITY_DEFAULT } from './config.js';
@@ -71,6 +72,7 @@ const nature = new Nature(scene);
 const mirror = new RearMirror(renderer);
 const wipers = new Wipers();
 const fireflies = new Fireflies(scene);
+const town = new ValleyTown(scene);           // map núi: thị trấn + đèn đường dưới thung lũng
 cars.tilt.add(mirror.group);
 
 function resize() {
@@ -210,6 +212,8 @@ const applyMap = () => {
   reeds.visible = id === 'reed';
   grass.visible = id === 'forest';
   meadow.visible = id === 'meadow';
+  town.reset();
+  town.visible = id === 'mountain';
   rig.sidePref = id === 'mountain' ? 1 : 0;      // camera bên hông đứng phía thung lũng
   nature.setRadius(QUALITY[state.quality].trees);   // tính lại cây chi tiết cho map mới
   rig.sideSign = 0;
@@ -507,6 +511,7 @@ function frame(now) {
   const ss = THREE.MathUtils.smoothstep;
   const ffAmt = ss(st.night, 0.35, 0.9) * (1 - Math.min(1, st.rain * 2)) * (1 - st.snow) * (1 - st.cover) * (1 - ss(st.wind, 0.6, 0.9));
   fireflies.update(now / 1000, drive.s, road, terrain, ffAmt, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
+  town.update(drive.s, road, terrain, st.lamps, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   cars.setLights(st.lamps);
   audio.setAmbient({ speed: drive.v, rain: st.rain, snow: st.snow, wind: st.wind, dark: st.dark, fx: drive.fx });
 
@@ -616,4 +621,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

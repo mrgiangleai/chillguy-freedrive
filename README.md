@@ -12,6 +12,7 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 - **Thời tiết**: nắng · nhiều mây · **gió lớn** · mưa · **bão** (trời âm u tối, mưa xối, sét + sấm) · tuyết · **sương mù** (mặc định) (chuyển cảnh mượt)
 - **Bầu trời gradient** phối màu theo từng giờ (xanh trong ban ngày, cam–hồng–tím lúc hoàng hôn/bình minh, xanh than ban đêm), lớp mây thật, mây ti, sao; chân trời khớp màu với sương xa. **Mặt trời** lặn gần hướng đường chạy (vẫn lấp ló qua sương) + **tia nắng** xuyên qua hàng cây / mép đồi; **ban đêm** có **trăng** sáng (vân trăng, quầng sáng) chiếu sáng cảnh và đổ bóng, đèn pha dịu toả rộng, thỉnh thoảng có **đám đom đóm** nhấp nháy bay dọc mép đường
 - **Sương mù** 🌫️ (nút hoặc phím `G`): chỉnh **Độ phủ** (cao thấp, từng đám hay phủ kín) và **Độ dày**; sương đọng dày ở thung lũng và trôi theo gió
+- **Map núi**: dưới thung lũng có các **thị trấn nhỏ** (nhà tường trắng, mái đỏ / nâu / xám) — ban đêm cửa sổ sáng đèn, quầng sáng ấm phủ trên thị trấn, **đèn đường** lác đác dọc con đường thung lũng
 - **Mưa**: mặt đường ướt có **vũng nước phản chiếu** xe, đèn đường, bầu trời + gợn sóng giọt mưa; xe **tự bật gạt mưa** (bão gạt nhanh hơn; cần gạt quay thật, nhìn từ ngoài cũng thấy) — ngồi trong xe thấy giọt mưa bắn vào kính, đọng lại, chảy thành vệt, lưỡi gạt quét sạch từng lượt
 - **Trong xe**: nhìn từ mắt người lái (2 tay cầm vành vô lăng), mặc định 16 mm f/16 lấy nét gần taplo, cabin có đèn nên không tối om, kính có phản xạ, **gương chiếu hậu soi thật** cảnh phía sau
 - **Thời gian**: bình minh · ban ngày · giờ vàng · **hoàng hôn** (mặc định) · ban đêm · tự động chạy hết ngày (đèn pha, đèn đường)
@@ -77,6 +78,7 @@ src/               mã nguồn (gộp bằng esbuild: build.mjs)
   mirror.js       gương chiếu hậu trong xe (vẽ cảnh phía sau vào texture)
   wipers.js       gạt mưa tự động + lớp nước trên kính lái
   fireflies.js    đom đóm ban đêm dọc mép đường
+  town.js         thị trấn + đèn đường dưới thung lũng (map núi)
   person.js       người lái (animation, quần áo vẽ bằng shader)
   stopscene.js    cảnh dừng xe: cận bánh xe, mở cửa, người bước ra, camera quay quanh
   colorspace.js   đổi màu hiển thị -> tuyến tính cho shader tự tô màu
