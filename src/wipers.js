@@ -19,6 +19,9 @@ export class Wipers {
 
   get running() { return this.phase > 0; }
 
+  // góc lưỡi gạt hiện tại cho góc quét `sweep`
+  angle(sweep) { return sweep * 0.5 * (1 - Math.cos(this.phase)); }
+
   update(dt, rain, speed) {
     const want = rain > 0.15;
     this.omega = TAU / (rain > 0.95 ? 1.05 : 1.55);
@@ -49,8 +52,11 @@ export class Wipers {
     u.uGU.value.copy(sh.right).transformDirection(m);
     u.uGV.value.copy(sh.up).transformDirection(m);
     u.uGB.value.fromArray(sh.bounds);
-    u.uPiv.value.fromArray(sh.pivots);
-    u.uBlade.value.fromArray(sh.blade);
+    const [a, b] = sh.wipers;
+    u.uPiv.value.set(a.u, a.v, b.u, b.v);
+    u.uRest.value.set(a.rest, a.sign, b.rest, b.sign);
+    u.uBlade.value.set(a.r0, a.r1, b.r0, b.r1);
+    u.uSweep.value = sh.sweep;
     u.uWipe.value.set(this.phase, this.omega, this.idle, time);
     u.uFlow.value.set(this.flow, this.flowDir);
   }

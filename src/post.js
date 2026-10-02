@@ -148,23 +148,19 @@ const RAY_BLUR = `
 // (tính đúng thời điểm quét qua từng điểm), giọt mới bắn toé lúc chạm kính, vài giọt chảy thành vệt (lên trên khi xe chạy nhanh).
 // Giọt nước như thấu kính nhỏ: ảnh phía sau bị lật ngược + viền tối + đốm sáng.
 const RAIN_GLASS = `
-  uniform float uGlass, uNear, uFar, uTanF;
+  uniform float uGlass, uNear, uFar, uTanF, uSweep;
   uniform sampler2D tDepth;
   uniform mat4 uInvVP;
-  uniform vec3 uCamPos, uCamFwd, uGC, uGN, uGU, uGV, uBlade;
-  uniform vec4 uGB, uPiv, uWipe;
+  uniform vec3 uCamPos, uCamFwd, uGC, uGN, uGU, uGV;
+  uniform vec4 uGB, uPiv, uRest, uBlade, uWipe;     // 2 cần gạt: trục (u,v)×2, (góc nghỉ, chiều quay)×2, (bán kính trong, ngoài)×2
   uniform vec2 uFlow;
-  // tuổi lớp nước (giây kể từ lần lưỡi gạt quét qua điểm g); side 1 = cần trái, -1 = cần phải. blade: khoảng cách tới lưỡi / cần gạt
-  float wipeAge(vec2 g, vec2 piv, float side, inout float blade) {
-    vec2 d = (g - piv) * vec2(side, 1.0);
-    float th = uBlade.z * 0.5 * (1.0 - cos(uWipe.x));
-    vec2 bd = vec2(cos(th), sin(th));
-    float along = dot(d, bd), perp = d.y * bd.x - d.x * bd.y;
-    if (along > uBlade.x && along < uBlade.y) blade = min(blade, abs(perp + 0.002) / 0.0065);           // lưỡi cao su
-    if (along > 0.0 && along < uBlade.y * 0.96) blade = min(blade, abs(perp - 0.012) / 0.0035);          // cần gạt
-    float r = length(d), phi = atan(d.y, d.x);
-    if (r < uBlade.x || r > uBlade.y || phi < 0.0 || phi > uBlade.z) return 1e3;
-    float a = acos(clamp(1.0 - 2.0 * phi / uBlade.z, -1.0, 1.0));
+  // tuổi lớp nước (giây kể từ lần lưỡi gạt quét qua điểm g) với 1 cần gạt (cần gạt 3D vẽ cùng trục / góc)
+  float wipeAge(vec2 g, vec2 piv, float rest, float sgn, vec2 rr) {
+    vec2 d = g - piv;
+    float phi = mod(sgn * (atan(d.y, d.x) - rest) + 3.14159265, 6.2831853) - 3.14159265;
+    float r = length(d);
+    if (r < rr.x || r > rr.y || phi < 0.0 || phi > uSweep) return 1e3;
+    float a = acos(clamp(1.0 - 2.0 * phi / uSweep, -1.0, 1.0));
     float ps = uWipe.x;
     float last = ps >= 6.2831853 - a ? 6.2831853 - a : (ps >= a ? a : -a);
     return (ps - last) / uWipe.y + uWipe.z;
@@ -215,8 +211,7 @@ const RAIN_GLASS = `
     float zg = t * dot(dir, uCamFwd);
     float m = inB * smoothstep(zg - 0.06, zg - 0.01, zs);
     if (m <= 0.001) return col;
-    float blade = 1e3;
-    float age = min(wipeAge(g, uPiv.xy, 1.0, blade), wipeAge(g, uPiv.zw, -1.0, blade));
+    float age = min(wipeAge(g, uPiv.xy, uRest.x, uRest.y, uBlade.xy), wipeAge(g, uPiv.zw, uRest.z, uRest.w, uBlade.zw));
     vec4 A = drops(g, 0.056, vec2(0.008, 0.017), 1.0, age, uGlass * 0.7);
     vec4 B = drops(g + 0.013, 0.026, vec2(0.0035, 0.0075), 5.0, age, uGlass * 0.85);
     vec4 C = drops(g + vec2(0.009, 0.027), 0.04, vec2(0.0055, 0.012), 9.0, age, uGlass * 0.65);
@@ -238,7 +233,6 @@ const RAIN_GLASS = `
       o = mix(o, dc, D.z);
     }
     o += vec3(0.6) * max(max(A.w, B.w), C.w) * (0.15 + dot(col, vec3(0.3, 0.59, 0.11)));
-    o = mix(o, vec3(0.012), 1.0 - smoothstep(0.7, 1.0, blade));              // lưỡi gạt + cần gạt
     return mix(col, o, m);
   }`;
 
@@ -337,7 +331,8 @@ export class Post {
       uGlass: { value: 0 }, tDepth: { value: null }, uNear: { value: 0.1 }, uFar: { value: 1000 }, uTanF: { value: 1 },
       uInvVP: { value: new THREE.Matrix4() }, uCamPos: { value: new THREE.Vector3() }, uCamFwd: { value: new THREE.Vector3() },
       uGC: { value: new THREE.Vector3() }, uGN: { value: new THREE.Vector3() }, uGU: { value: new THREE.Vector3() }, uGV: { value: new THREE.Vector3() },
-      uBlade: { value: new THREE.Vector3() }, uGB: { value: new THREE.Vector4() }, uPiv: { value: new THREE.Vector4() }, uWipe: { value: new THREE.Vector4() },
+      uBlade: { value: new THREE.Vector4() }, uGB: { value: new THREE.Vector4() }, uPiv: { value: new THREE.Vector4() }, uWipe: { value: new THREE.Vector4() },
+      uRest: { value: new THREE.Vector4() }, uSweep: { value: 1.6 },
       uFlow: { value: new THREE.Vector2() },
       uFx: { value: 0 }, uCine: { value: 0 }, uTime: { value: 0 }, uAspect: { value: 1 }, uRes: { value: new THREE.Vector2(1, 1) },
     }, FINAL);

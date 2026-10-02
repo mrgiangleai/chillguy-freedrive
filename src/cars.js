@@ -33,7 +33,8 @@ export class Cars {
     this.lights = new THREE.Group();
     this.root.add(this.lights);
     this.spots = [0, 1].map(() => {
-      const s = new THREE.SpotLight(0xfff1d8, 0, 110, 0.62, 0.7, 1.1);
+      // chùm rộng, mép rất mềm; suy giảm theo khoảng cách chậm (decay 0.55) => sát đầu xe không loá trắng, ánh sáng toả xa đều
+      const s = new THREE.SpotLight(0xffe9cc, 0, 110, 0.8, 1.0, 0.55);
       this.lights.add(s, s.target);
       return s;
     });
@@ -45,7 +46,7 @@ export class Cars {
       this.lights.add(sp);
       return sp;
     };
-    this.headGlow = [mk(0xfff0d0, 1.0), mk(0xfff0d0, 1.0)];
+    this.headGlow = [mk(0xffeccc, 1.7), mk(0xffeccc, 1.7)];
     this.tailGlow = [mk(0xff2a1a, 1.0), mk(0xff2a1a, 1.0)];
     this.lampLevel = 0;
     this.brake = 0;
@@ -150,9 +151,8 @@ export class Cars {
     }
 
     // vật liệu: bỏ transmission (tốn kém) -> kính trong suốt thường; bật đổ bóng
-    const tailMats = [], glassMeshes = [], wipers = [];
+    const tailMats = [], glassMeshes = [];
     model.traverse((o) => {
-      if (/^wiper/i.test(o.name)) wipers.push(o);
       if (!o.isMesh) return;
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       let glass = false;
@@ -175,6 +175,7 @@ export class Cars {
     const door = def.door ? this._door(car, def) : null;
     car.updateMatrixWorld(true);
     const shield = windshield(glassMeshes, dim);
+    const wipers = wiperRig(car, model, shield);
     return { def, group: car, dim, wheels, door, tailMats, wipers, shield, anim: null };
   }
 
@@ -266,7 +267,7 @@ export class Cars {
     this.spots.forEach((s, i) => {
       const sx = i ? x : -x;
       s.position.set(sx, y, -d.length / 2 + 0.3);
-      s.target.position.set(sx * 0.6, 0, -34);
+      s.target.position.set(sx * 0.9, 0, -40);
     });
     this.headGlow.forEach((g, i) => g.position.set(i ? x : -x, y, -d.length / 2 - 0.05));
     this.tailGlow.forEach((g, i) => g.position.set(i ? x : -x, y + 0.05, d.length / 2 + 0.05));
@@ -275,6 +276,13 @@ export class Cars {
   }
 
   setLights(level) { this.lampLevel = level; }
+
+  // góc lưỡi gạt (rad, 0 = nằm nghỉ)
+  setWiper(th) {
+    if (!this.current || th === this.current.wiperTh) return;
+    this.current.wiperTh = th;
+    for (const set of this.current.wipers) set(th);
+  }
 
   // st: { pos, yaw, speed, latVel }
   update(dt, st) {
@@ -305,8 +313,8 @@ export class Cars {
     }
 
     const L = this.lampLevel;
-    this.spots.forEach((s) => { s.intensity = 1800 * L; });
-    this.headGlow.forEach((g) => { g.material.opacity = 0.9 * L; });
+    this.spots.forEach((s) => { s.intensity = 85 * L; });
+    this.headGlow.forEach((g) => { g.material.opacity = 0.6 * L; });
     // đèn hậu: luôn sáng nhẹ, bật đèn thì sáng hẳn; giảm tốc thì sáng thêm (đèn phanh)
     const acc0 = this.brakeAcc || 0;
     this.brake += ((acc0 < -1.2 ? 1 : 0) - this.brake) * (1 - Math.exp(-dt * 8));
@@ -386,11 +394,87 @@ function windshield(meshes, dim) {
     }
     sh.bounds = B;
   }
-  // cần gạt: trục quay ở 2 mép dưới kính, lúc nghỉ nằm ngang hướng vào giữa, quét lên ~95°
-  const hw = (sh.bounds[1] - sh.bounds[0]) / 2, mid = (sh.bounds[0] + sh.bounds[1]) / 2;
-  sh.pivots = [mid - hw * 0.76, sh.bounds[2] + 0.03, mid + hw * 0.76, sh.bounds[2] + 0.03];
-  sh.blade = [hw * 0.1, hw * 0.68, 1.62];     // bán kính trong / ngoài của lưỡi gạt, góc quét (rad)
+  // cần gạt mặc định (xe không có cần gạt trong model): trục ở 2 mép dưới kính, lúc nghỉ nằm ngang hướng vào giữa.
+  // mỗi cần: trục (u, v) trên kính, góc lúc nghỉ, chiều quay (+1 = ngược chiều kim đồng hồ khi nhìn từ trong xe), bán kính lưỡi gạt
+  const hw = (sh.bounds[1] - sh.bounds[0]) / 2, mid = (sh.bounds[0] + sh.bounds[1]) / 2, v0 = sh.bounds[2] + 0.03;
+  sh.wipers = [
+    { u: mid - hw * 0.76, v: v0, rest: 0, sign: 1, r0: hw * 0.1, r1: hw * 0.68 },
+    { u: mid + hw * 0.76, v: v0, rest: Math.PI, sign: -1, r0: hw * 0.1, r1: hw * 0.68 },
+  ];
+  sh.sweep = 1.62;                              // góc quét (rad)
   return sh;
+}
+
+// cần gạt 3D quay theo góc lưỡi gạt (cùng trục / góc với lớp nước trên kính ở hậu kỳ).
+// Model có cần gạt (WiperBladeArm*: cần + lưỡi): tìm trục quay ở đầu cần xa lưỡi nhất, quay quanh pháp tuyến kính,
+// và cập nhật sh.wipers cho đúng cần thật. Không có: dựng cần gạt đơn giản theo sh.wipers mặc định.
+function wiperRig(car, model, sh) {
+  const arms = [];
+  model.traverse((o) => { if (/^WiperBladeArm\d*$/i.test(o.name) && !o.isMesh) arms.push(o); });
+  const rig = [];
+  const N = sh.normal;
+  if (arms.length) {
+    const found = [];
+    for (const arm of arms) {
+      const armPts = [], bladePts = [];
+      arm.children.forEach((c) => c.traverse((o) => {
+        if (!o.isMesh) return;
+        const pos = o.geometry.attributes.position, list = c.isMesh ? armPts : bladePts;
+        for (let i = 0; i < pos.count; i++) list.push(new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld));
+      }));
+      if (!armPts.length || !bladePts.length) continue;
+      const bc = bladePts.reduce((a, p) => a.add(p), new THREE.Vector3()).multiplyScalar(1 / bladePts.length);
+      let far = armPts[0];
+      for (const p of armPts) if (p.distanceToSquared(bc) > far.distanceToSquared(bc)) far = p;
+      const near = armPts.filter((p) => p.distanceTo(far) < 0.03);
+      const P = near.reduce((a, p) => a.add(p), new THREE.Vector3()).multiplyScalar(1 / near.length);
+      const rel = P.clone().sub(sh.center), u = rel.dot(sh.right), v = rel.dot(sh.up);
+      const bd = bc.clone().sub(P), rest = Math.atan2(bd.dot(sh.up), bd.dot(sh.right));
+      const dir = new THREE.Vector2(Math.cos(rest), Math.sin(rest));
+      let r0 = 1e9, r1 = 0;
+      for (const p of bladePts) {
+        const d = p.clone().sub(P), a = d.dot(sh.right) * dir.x + d.dot(sh.up) * dir.y;
+        r0 = Math.min(r0, a); r1 = Math.max(r1, a);
+      }
+      const sign = Math.cos(rest) >= 0 ? 1 : -1;
+      arm.updateMatrixWorld(true);
+      const restM = arm.matrixWorld.clone(), parentInv = arm.parent.matrixWorld.clone().invert();
+      arm.matrixAutoUpdate = false;
+      const T = new THREE.Matrix4(), R = new THREE.Matrix4(), T2 = new THREE.Matrix4().makeTranslation(-P.x, -P.y, -P.z);
+      T.makeTranslation(P.x, P.y, P.z);
+      rig.push((th) => {
+        R.makeRotationAxis(N, sign * th);
+        arm.matrix.copy(parentInv).multiply(T).multiply(R).multiply(T2).multiply(restM);
+        arm.matrixWorldNeedsUpdate = true;
+      });
+      found.push({ u, v, rest, sign, r0: Math.max(0, r0), r1 });
+    }
+    if (found.length) {
+      found.sort((a, b) => a.u - b.u);
+      while (found.length < 2) found.push(found[0]);
+      sh.wipers = found.slice(0, 2);
+    }
+  }
+  if (!rig.length) {
+    const mat = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.55, metalness: 0.4 });
+    const basis = new THREE.Matrix4().makeBasis(sh.right, sh.up, N);
+    for (const w of sh.wipers) {
+      const g = new THREE.Group();
+      g.position.copy(sh.center).addScaledVector(sh.right, w.u).addScaledVector(sh.up, w.v).addScaledVector(N, -0.02);
+      g.quaternion.setFromRotationMatrix(basis);
+      const spin = new THREE.Group();
+      g.add(spin);
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(w.r1 * 0.97, 0.008, 0.008), mat);
+      arm.position.set(w.r1 * 0.485, 0, -0.014);
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(w.r1 - w.r0, 0.012, 0.012), mat);
+      blade.position.set((w.r0 + w.r1) / 2, 0, -0.004);
+      spin.add(arm, blade);
+      spin.rotation.z = w.rest;
+      car.add(g);
+      rig.push((th) => { spin.rotation.z = w.rest + w.sign * th; });
+    }
+  }
+  return rig;
 }
 
 function glassReflect(m) {

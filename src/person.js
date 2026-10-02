@@ -34,6 +34,10 @@ export class Person {
     });
     this.tilt.add(model);
     this.head = model.getObjectByName('Head');
+    const bone = (n) => model.getObjectByName(n);
+    this.arms = { l: ['upperarm_l', 'lowerarm_l', 'hand_l'].map(bone), r: ['upperarm_r', 'lowerarm_r', 'hand_r'].map(bone) };
+    if (this.arms.l.some((b) => !b)) this.arms.l = null;
+    if (this.arms.r.some((b) => !b)) this.arms.r = null;
     this.mixer = new THREE.AnimationMixer(model);
     for (const clip of gltf.animations) this.actions[clip.name] = this.mixer.clipAction(clip);
 
@@ -88,6 +92,41 @@ export class Person {
   duration(name) { return this.actions[name]?.getClip().duration ?? 1; }
 
   update(dt) { if (this.mixer && this.root.visible) this.mixer.update(dt); }
+
+  // IK 2 xương: đưa cổ tay (side 'l' | 'r') tới `target` (toạ độ thế giới); khuỷu tay giữ hướng như animation.
+  // Gọi sau mixer.update (animation ghi đè lại mỗi khung hình).
+  reach(side, target) {
+    const arm = this.arms?.[side];
+    if (!arm) return;
+    const [up, lo, hand] = arm;
+    const S = up.getWorldPosition(_S), E = lo.getWorldPosition(_E), W = hand.getWorldPosition(_W);
+    const a = S.distanceTo(E), c = E.distanceTo(W);
+    const dir = _D.subVectors(target, S);
+    let d = dir.length();
+    dir.multiplyScalar(1 / d);
+    d = Math.min(Math.max(d, Math.abs(a - c) + 1e-3), a + c - 1e-3);
+    const cosA = (a * a + d * d - c * c) / (2 * a * d), sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
+    const pole = _P.subVectors(E, S).addScaledVector(dir, -_P.dot(dir));
+    if (pole.lengthSq() < 1e-8) pole.set(0, -1, 0);
+    pole.normalize();
+    const E2 = _E2.copy(S).addScaledVector(dir, a * cosA).addScaledVector(pole, a * sinA);
+    turn(up, _A.subVectors(E, S).normalize(), _B.subVectors(E2, S).normalize());
+    up.updateMatrixWorld(true);
+    lo.getWorldPosition(E); hand.getWorldPosition(W);
+    turn(lo, _A.subVectors(W, E).normalize(), _B.subVectors(target, E).normalize());
+    lo.updateMatrixWorld(true);
+  }
+}
+
+const _S = new THREE.Vector3(), _E = new THREE.Vector3(), _W = new THREE.Vector3(), _D = new THREE.Vector3(), _P = new THREE.Vector3();
+const _E2 = new THREE.Vector3(), _A = new THREE.Vector3(), _B = new THREE.Vector3();
+const _q = new THREE.Quaternion(), _qw = new THREE.Quaternion(), _qp = new THREE.Quaternion();
+// xoay xương để hướng `from` (thế giới) thành `to`
+function turn(bone, from, to) {
+  _q.setFromUnitVectors(from, to);
+  bone.getWorldQuaternion(_qw);
+  bone.parent.getWorldQuaternion(_qp);
+  bone.quaternion.copy(_qp.invert().multiply(_q.multiply(_qw)));
 }
 
 // ---- quần áo vẽ lên thân người (màu + độ nhám + làm mờ vân cơ bắp ở chỗ có vải) ----

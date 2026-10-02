@@ -13,10 +13,12 @@
 export const CARS = [
   { id: 'mustang', name: "Mustang '67", file: 'assets/models/mustang.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true, door: /^DriverDoor/,
     wheels: /^(Wheel|BrakeDisc)/,   // vành + đĩa phanh quay; lốp (dựng bẹt ở đáy) đứng yên
-    mats: { Interior: { metalness: 0, roughness: 0.62 }, BlackPolished: { roughness: 0.18 }, Paint: { clearcoatRoughness: 0.08 } } },
+    mats: { Interior: { metalness: 0, roughness: 0.62 }, BlackPolished: { roughness: 0.18 }, Paint: { clearcoatRoughness: 0.08 } },
+    steer: { c: [-0.385, 0.883, -0.155], n: [0, 0.338, 0.941], r: 0.17 } },   // vô lăng: tâm, pháp tuyến (hướng về người lái), bán kính vành
   { id: 'mustang-blue', name: "Mustang '67 Xanh", file: 'assets/models/mustang-blue.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true, door: /^DriverDoor/,
     wheels: /^(Wheel|BrakeDisc)/,   // vành + đĩa phanh quay; lốp (dựng bẹt ở đáy) đứng yên
-    mats: { Interior: { metalness: 0, roughness: 0.62 }, BlackPolished: { roughness: 0.18 }, Body: { clearcoatRoughness: 0.08 } } },
+    mats: { Interior: { metalness: 0, roughness: 0.62 }, BlackPolished: { roughness: 0.18 }, Body: { clearcoatRoughness: 0.08 } },
+    steer: { c: [-0.385, 0.883, -0.155], n: [0, 0.338, 0.941], r: 0.17 } },   // vô lăng: tâm, pháp tuyến (hướng về người lái), bán kính vành
   { id: 'divo', name: 'Bugatti Divo', file: 'assets/models/bugatti-divo.glb', length: 4.64, flip: true, wheels: /^(4_3|5_17)$/,
     basicMetal: { metalness: 0.6, roughness: 0.38 } },   // vật liệu gốc bị chuyển đổi sai => kim loại bóng nhẹ cơ bản
   { id: 'milktruck', name: 'Milk Truck', file: 'assets/models/milktruck.glb', length: 5.0, flip: true, eye: [-0.6, 1.8, -1.3],

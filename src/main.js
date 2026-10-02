@@ -392,6 +392,25 @@ function dofParams(dt) {
   return dof;
 }
 
+// hai tay đặt lên vành vô lăng (animation lái gốc dùng vô lăng to/thấp hơn => tay lơ lửng ngoài vành)
+const _wc = new THREE.Vector3(), _wn = new THREE.Vector3(), _wr = new THREE.Vector3(), _wu = new THREE.Vector3(), _wt = new THREE.Vector3();
+const GRIP = 0.4;            // góc cầm (rad dưới phương ngang): khoảng 4 giờ & 8 giờ
+function gripWheel(sw) {
+  cars.root.updateMatrixWorld();
+  const m = cars.tilt.matrixWorld;
+  _wc.fromArray(sw.c).applyMatrix4(m);
+  _wn.fromArray(sw.n).transformDirection(m);
+  _wr.set(1, 0, 0).transformDirection(m);
+  _wr.addScaledVector(_wn, -_wr.dot(_wn)).normalize();
+  _wu.crossVectors(_wn, _wr);
+  for (const [side, ang] of [['r', -GRIP], ['l', Math.PI + GRIP]]) {
+    const cx = Math.cos(ang), cy = Math.sin(ang);
+    // cổ tay: ngoài vành ~5 cm, lùi về phía người lái ~3 cm (lòng bàn tay ôm lấy vành)
+    _wt.copy(_wc).addScaledVector(_wr, cx * (sw.r + 0.05)).addScaledVector(_wu, cy * (sw.r + 0.05)).addScaledVector(_wn, 0.03);
+    person.reach(side, _wt);
+  }
+}
+
 // tia nắng: vị trí mặt trời (hoặc trăng) trên màn hình; nhạt dần khi quay lưng lại hoặc mặt trời ra xa ngoài khung hình
 const _sunP = new THREE.Vector3(), _camF = new THREE.Vector3();
 function rayParams() {
@@ -452,6 +471,8 @@ function frame(now) {
     person.head.scale.setScalar(inCar ? 0.001 : 1);
     cars.cabinLevel = inCar ? (0.35 + 0.45 * env.state.dayF) * (1 + env.state.dark) : 0;   // đèn cabin để taplo / tay không tối om (bão: bù độ phơi sáng bị giảm)
     person.update(dt);
+    const sw = cars.current?.def.steer;
+    if (sw && (stop.state === 'off' || stop.state === 'stopping')) gripWheel(sw);
   }
   if (stop.active) {
     const prev = stop.state;
@@ -532,10 +553,10 @@ function frame(now) {
   const inCabin = CAMERAS[state.cam].id === 'cockpit' && !stop.active;
   mirror.group.visible = inCabin;
   if (inCabin) mirror.render(scene, cars.tilt);
-  // gạt mưa tự bật khi mưa / bão; trong xe thấy nước mưa trên kính (cần gạt vẽ ở hậu kỳ => giấu cần gạt 3D của model)
+  // gạt mưa tự bật khi mưa / bão (cần gạt 3D quay, nhìn từ ngoài cũng thấy); trong xe thấy nước mưa trên kính
   wipers.update(dt, stop.active ? 0 : st.rain, drive.v);
   const glassAmt = inCabin ? wipers.wet : 0;
-  if (cars.current) for (const w of cars.current.wipers) w.visible = glassAmt < 0.01;
+  if (cars.shield) cars.setWiper(wipers.angle(cars.shield.sweep));
   post.begin();
   renderer.render(scene, camera);
   rayParams();
