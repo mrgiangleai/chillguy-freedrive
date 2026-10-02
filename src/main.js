@@ -45,6 +45,7 @@ const terrain = new Terrain(scene, road, renderer);
 const env = new Environment(renderer, scene, camera);
 const reeds = new ReedField(scene, renderer);
 const grass = new ReedField(scene, renderer, 'grass');   // búi cỏ cho map đồi thông
+const meadow = new ReedField(scene, renderer, 'meadow'); // cỏ cao cho map đồi cỏ
 const cars = new Cars(scene);
 const rig = new CameraRig(camera);
 rig.groundAt = (x, z) => terrain.heightAt(x, z);
@@ -126,6 +127,7 @@ function applyQuality() {
   resize();
   reeds.setDensity(q.veg);
   grass.setDensity(q.veg);
+  meadow.setDensity(q.veg);
   env.setShadowSize(q.shadow);
   refl.enabled = q.refl;
   nature.setRadius(q.trees);
@@ -192,6 +194,7 @@ const applyMap = () => {
   terrain.prime(camera.position.lengthSq() ? camera.position : drive.pos);
   reeds.visible = id === 'reed';
   grass.visible = id === 'forest';
+  meadow.visible = id === 'meadow';
   rig.sidePref = id === 'mountain' ? 1 : 0;      // camera bên hông đứng phía thung lũng
   nature.setRadius(QUALITY[state.quality].trees);   // tính lại cây chi tiết cho map mới
   rig.sideSign = 0;
@@ -428,6 +431,8 @@ function frame(now) {
   if (reeds.visible) reeds.update(now / 1000, camera.position, road, drive.s, st);
   grass.group.visible = MAPS[state.map].id === 'forest' && st.cover < 0.5;   // tuyết phủ thì ẩn cỏ
   if (grass.visible) grass.update(now / 1000, camera.position, road, drive.s, st);
+  meadow.group.visible = MAPS[state.map].id === 'meadow' && st.cover < 0.5;
+  if (meadow.visible) meadow.update(now / 1000, camera.position, road, drive.s, st);
   terrain.setCar(drive.s);
   terrain.update(camera.position);
   nature.update(camera.position, terrain);
@@ -531,4 +536,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, toggleCine, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, toggleCine, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

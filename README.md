@@ -3,7 +3,7 @@
 Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (JavaScript + HTML thuần).
 
 - **Địa hình đồi núi vô tận** (kiểu slowroads): đồi trập trùng, đường lên dốc/xuống dốc men theo địa hình, núi xa có đá & tuyết mờ trong sương xanh; sinh hoàn toàn bằng code nên tải rất nhanh
-- **Map** (nút 🌾 hoặc phím `N`): **cánh đồng cỏ lau bất tận** 🌾 · **đồi thông** 🌲 (mặc định) kiểu slowroads: đồi cỏ xanh với búi cỏ mọc dày sát mép đường, cây có tán lá kết cấu, mảng rừng sẫm trên đồi xa · **đường núi** ⛰️ men sườn núi: vách đá một bên, vực thung lũng có hộ lan một bên
+- **Map** (nút 🌾 hoặc phím `N`): **cánh đồng cỏ lau bất tận** 🌾 · **đồi thông** 🌲 (mặc định) kiểu slowroads: đồi cỏ xanh với búi cỏ mọc dày sát mép đường, cây có tán lá kết cấu, mảng rừng sẫm trên đồi xa · **đường núi** ⛰️ men sườn núi: vách đá ảnh thật với cụm đá gồ ghề, thông mọc trên sườn, vực thung lũng có hộ lan một bên · **đồi cỏ** 🌿 đồi thoải chỉ toàn cỏ xanh dịu cao 1–1,5 m, cao thấp từng mảng, gợn sóng theo gió. Đồi thông có đoạn **đường đất gồ ghề xuyên rừng rậm** (~800 m, lặp lại mỗi 2,6 km)
 - **Cinematic** 🎬 (bật sẵn, tắt bằng nút 🎬 hoặc phím `K`): dải đen letterbox 2.39:1, **xoá phông** theo ống kính thật (lấy nét vào xe, tiền cảnh/hậu cảnh nhoè kiểu bokeh), bloom quanh mặt trời/đèn, chỉnh màu phim, hạt phim, tối viền, camera hơi rung như quay cầm tay và cảnh mở đầu camera lia từ thấp ra sau xe
 - **Tốc độ**: mặc định chạy chill **35 km/h** (chỉnh được 10–40 km/h); nút **⚡ Fast drive** (hoặc phím `F`) tăng lên **150 km/h** kèm hiệu ứng blur tốc độ, góc nhìn rộng ra, camera rung nhẹ, gió ù ù; bấm lại để về chill
 - **Xe**: chọn xe bằng nút 🚗: **Mustang '67** (mặc định) · Mustang '67 Xanh · Bugatti Divo · Milk Truck (model glTF miễn phí, đều ≤ 250k triangles)

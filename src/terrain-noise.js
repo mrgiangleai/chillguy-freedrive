@@ -8,6 +8,8 @@ export const TERRAIN_MAPS = {
   forest: { low: 24, det: 6.5, fine: 1.1, mount: 440 },
   // đường núi: đường leo dốc dài hơn; địa hình bên trái dựng thành núi, bên phải đổ xuống thung lũng (xem terrain.js)
   mountain: { low: 34, det: 5.5, fine: 1.2, mount: 520, side: true },
+  // đồi cỏ: đồi thoải lượn sóng, chỉ có cỏ
+  meadow: { low: 22, det: 3.2, fine: 0.5, mount: 380 },
 };
 export const TP = { id: 'reed', ...TERRAIN_MAPS.reed };
 export function setTerrainMap(id) { Object.assign(TP, { side: false }, TERRAIN_MAPS[id], { id }); }

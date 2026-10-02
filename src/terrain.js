@@ -23,6 +23,7 @@ const PAL = {
   forest: { a: col('#7fa443'), b: col('#a9b85a'), c: col('#5c8036'), snowLine: 215, trees: true },
   reed: { a: col('#ad9b5c'), b: col('#c5b37b'), c: col('#8c8a50'), snowLine: 240, trees: false },
   mountain: { a: col('#789a45'), b: col('#9eaa5a'), c: col('#557236'), snowLine: 300, trees: true },
+  meadow: { a: col('#6f9a4c'), b: col('#86ad5c'), c: col('#5c8541'), snowLine: 400, trees: false, bare: true },
 };
 const FOREST = col('#3e5d2b');
 const ROCK = col('#8a8072'), ROCK2 = col('#6b6259'), SNOW = col('#eef2f6'), GRAVEL = col('#8f887c'), FLOOR = col('#5f6c36');
@@ -375,7 +376,7 @@ export class Terrain {
           const d = this._bil(D, N, st, x0, z0, x, z);
           const sa = d < 60 ? this._nearest(SA, N, st, x0, z0, x, z) : -1;
           const dirtK = sa >= 0 ? this.road.dirtAt(sa) : 0;
-          let dens = pal.trees ? sstep(0.44, 0.66, vnoise(x / 260 + 3.1, z / 260 + 8.7)) * 0.92 + 0.03 : 0.012;
+          let dens = pal.trees ? sstep(0.44, 0.66, vnoise(x / 260 + 3.1, z / 260 + 8.7)) * 0.92 + 0.03 : pal.bare ? 0 : 0.012;
           if (seed) dens = dirtK * 0.85 * (1 - sstep(HW + 20, HW + 45, d));      // lưới dày chỉ sát đường đất
           else dens = Math.max(dens, dirtK * 0.9 * (1 - sstep(HW + 25, HW + 60, d)));
           const h = this._bil(H, N, st, x0, z0, x, z);

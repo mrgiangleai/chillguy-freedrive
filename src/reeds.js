@@ -81,6 +81,36 @@ function grassGeometry() {
   return g;
 }
 
+// cỏ đồi: búi 7 lá dài 0.9–1.4 m, cong nhẹ, xanh lá dịu (gốc sẫm -> ngọn sáng)
+function meadowGeometry() {
+  const r = rng(29);
+  const pos = [], nor = [], col = [], idx = [];
+  const cBase = new THREE.Color(0x46623a), cMid = new THREE.Color(0x7aa05c), cTip = new THREE.Color(0xb7d08f);
+  const push = (x, y, z, c, n) => { pos.push(x, y, z); col.push(c.r, c.g, c.b); nor.push(n[0], n[1], n[2]); };
+  const BL = 7;
+  for (let b = 0; b < BL; b++) {
+    const a = (b / BL) * Math.PI * 2 + (r() - 0.5) * 0.8;
+    const dx = Math.cos(a), dz = Math.sin(a), px = -dz, pz = dx;
+    const H = 0.9 + r() * 0.5, L = 0.12 + r() * 0.3, W = 0.035 + r() * 0.02;
+    const ox = (r() - 0.5) * 0.3, oz = (r() - 0.5) * 0.3;
+    const n = new THREE.Vector3(dx * 0.3, 1, dz * 0.3).normalize().toArray();
+    const v0 = pos.length / 3;
+    const rows = [[0, W, cBase], [0.45, W * 0.85, cMid], [0.8, W * 0.5, cMid.clone().lerp(cTip, 0.5)], [1, 0.002, cTip]];
+    for (const [t, w, c] of rows) {
+      const bx = ox + dx * L * t * t, bz = oz + dz * L * t * t, y = H * t;
+      push(bx - px * w, y, bz - pz * w, c, n);
+      push(bx + px * w, y, bz + pz * w, c, n);
+    }
+    for (let k = 0; k < rows.length - 1; k++) { const a0 = v0 + k * 2; idx.push(a0, a0 + 1, a0 + 2, a0 + 1, a0 + 3, a0 + 2); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
+  return g;
+}
+
 function plumeGeometry() {
   const pos = [], nor = [], uv = [], idx = [];
   const quad = (yaw, top, w, h, lean) => {
@@ -112,7 +142,7 @@ uniform vec3 uCam;
 uniform float uTime, uWind, uCell, uScale, uIn0, uIn1, uOut0, uOut1, uCorr;
 uniform vec2 uWindDir;
 uniform vec3 uRoad[${ROAD_PTS}];     // (x, y, z) của tim đường
-uniform float uCarve0, uCarve1, uTipH;
+uniform float uCarve0, uCarve1, uTipH, uPatch;
 ${TERRAIN_GLSL}
 // khoảng cách tới đường + độ cao mặt đường tại điểm gần nhất
 float roadDist(vec2 p, out float ry) {
@@ -140,6 +170,8 @@ vis *= smoothstep(uCorr, uCorr + 1.5, rd);
 float gy = tLow(wp) + tDetail(wp);
 gy = mix(ry - 0.02, gy, smoothstep(uCarve0, uCarve1, rd));
 float h = (0.72 + 0.6 * aSeed.w) * uScale * vis;
+// đồi cỏ: cao thấp theo từng mảng lớn (sóng cỏ chập chùng)
+h *= mix(1.0, 0.72 + 0.5 * (0.5 + 0.5 * sin(wp.x * 0.041 + 1.7 * sin(wp.y * 0.023))) * (0.6 + 0.4 * sin(wp.y * 0.057 + wp.x * 0.013)), uPatch);
 float ang = aSeed.z * 6.2831853;
 float cs = cos(ang), sn = sin(ang);
 float tip = clamp(position.y / uTipH, 0.0, 1.0);
@@ -157,10 +189,11 @@ transformed += vec3(wp.x, gy, wp.y);
 `;
 
 export class ReedField {
-  // kind: 'reed' (cỏ lau cao có bông) | 'grass' (búi cỏ xanh thấp)
+  // kind: 'reed' (cỏ lau cao có bông) | 'grass' (búi cỏ xanh thấp) | 'meadow' (cỏ đồi cao 1–1.5 m)
   constructor(scene, renderer, kind = 'reed') {
     this.kind = kind;
-    const grass = kind === 'grass';
+    const meadow = kind === 'meadow';
+    const grass = kind === 'grass' || meadow;            // không có bông lau
     this.group = new THREE.Group();
     scene.add(this.group);
     this.density = 1;
@@ -171,19 +204,23 @@ export class ReedField {
       uWind: { value: 0.3 },
       uWindDir: { value: new THREE.Vector2(0.78, 0.62).normalize() },
       uRoad: { value: this.roadPts },
-      uCorr: { value: ROAD.halfWidth + (grass ? 0.3 : 1.0) },
-      uTipH: { value: grass ? 0.8 : 1.95 },
+      uCorr: { value: ROAD.halfWidth + (meadow ? 0.7 : grass ? 0.3 : 1.0) },
+      uTipH: { value: meadow ? 1.4 : grass ? 0.8 : 1.95 },
+      uPatch: { value: meadow ? 1 : 0 },
       uCarve0: { value: ROAD.halfWidth + 1.2 }, uCarve1: { value: ROAD.halfWidth + 16 },
       uTLow: { value: TP.low }, uTDet: { value: TP.det }, uTFine: { value: TP.fine },
     };
 
-    this.leafGeo = grass ? grassGeometry() : leafGeometry();
+    this.leafGeo = meadow ? meadowGeometry() : grass ? grassGeometry() : leafGeometry();
     this.plumeGeo = grass ? null : plumeGeometry();
     const plumeMap = grass ? null : plumeTexture();
     if (plumeMap) plumeMap.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
 
     // [cell (m), số khóm, thang tỉ lệ, vào mờ, vào đủ, ra đầu, ra hết]
-    const layers = grass ? [
+    const layers = meadow ? [
+      { cell: 60, count: 24000, scale: 1.05, in0: -1, in1: 0, out0: 26, out1: 36, seed: 5 },
+      { cell: 230, count: 14000, scale: 1.6, in0: 24, in1: 38, out0: 95, out1: 135, seed: 6 },
+    ] : grass ? [
       { cell: 64, count: 16000, scale: 1.0, in0: -1, in1: 0, out0: 22, out1: 32, seed: 3 },
       { cell: 220, count: 8000, scale: 1.8, in0: 20, in1: 34, out0: 75, out1: 105, seed: 4 },
     ] : [
@@ -265,7 +302,7 @@ export class ReedField {
       this.roadPts[k].set(p.x, p.y, p.z);
     }
     // ánh sáng "xuyên" ngược nắng: bông & lá ngả vàng cam khi nắng thấp
-    const glow = (this.kind === 'grass' ? 0.28 : 0.5) * st.dayF * (1 - st.overcast * 0.85) * (0.4 + 0.6 * st.warm);
+    const glow = (this.kind === 'reed' ? 0.5 : 0.3) * st.dayF * (1 - st.overcast * 0.85) * (0.4 + 0.6 * st.warm);
     const e = new THREE.Color(1.0, 0.72 + 0.2 * (1 - st.warm), 0.42 + 0.45 * (1 - st.warm)).multiplyScalar(glow);
     // Lambert không dùng ánh sáng môi trường => thêm một ít sáng nền để cỏ không đen kịt khi âm u / ban đêm
     const amb = (0.2 * st.dayF * (1 - 0.55 * st.dark) + 0.05 * st.night) * (0.6 + 0.4 * st.overcast) + st.flash * 0.9;
