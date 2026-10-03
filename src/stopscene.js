@@ -12,9 +12,11 @@ const FACE_OUT = -Math.PI / 2;     // nhìn ra ngoài phía tài xế (-X)
 const FACE_REAR = 0;               // nhìn về đuôi xe (+Z)
 const FACE_CAR = Math.PI / 2;      // nhìn vào xe (+X)
 const WALK = 1.1;                  // m/s
+const UP = new THREE.Vector3(0, 1, 0);
 
-// Cảnh dừng xe: cận cảnh bánh xe chậm dần -> cửa mở, người bước ra, đi lên đầu xe đứng dựa vào xe
-// -> camera lùi ra toàn cảnh rồi quay chậm quanh xe. Bấm lần nữa: người quay lại xe, đóng cửa, chạy tiếp.
+// Cảnh dừng xe: cận cảnh bánh xe chậm dần -> cửa mở, người bước ra, đi vòng lên trước đầu xe, quay mặt sang phải,
+// rút điếu thuốc trong túi ra châm hút (tay đưa lên miệng bằng IK, khói vẽ ở smoke.js)
+// -> camera lùi ra toàn cảnh rồi quay chậm quanh xe. Bấm lần nữa: người vứt thuốc, quay lại xe, đóng cửa, chạy tiếp.
 // Mọi toạ độ tính trong hệ của xe: đầu xe hướng -Z, bên tài xế -X, mặt đường y = 0.
 export class StopScene {
   constructor(cars, person) {
@@ -28,6 +30,15 @@ export class StopScene {
     this.out = new THREE.Vector3();
     this.walkEnd = new THREE.Vector3();
     this.lean = new THREE.Vector3();
+    this.corner = new THREE.Vector3();      // góc trước bên tài xế (đi vòng qua)
+    this.stand = new THREE.Vector3();       // chỗ đứng hút thuốc trước đầu xe
+    this.smokeU = -1;                       // giây kể từ lúc đứng vào chỗ (-1 = chưa)
+    // trạng thái hút thuốc cho smoke.js (toạ độ thế giới)
+    this.smoking = { on: false, lit: false, drag: 0, flame: 0, exhale: false, atMouth: 0,
+      F: new THREE.Vector3(), R: new THREE.Vector3(), mouth: new THREE.Vector3() };
+    this.handW = 0;
+    this.handT = new THREE.Vector3();
+    this._A = new THREE.Vector3(); this._O = new THREE.Vector3(); this._H = new THREE.Vector3(); this._t1 = new THREE.Vector3(); this._t2 = new THREE.Vector3();
     this.orbitA = 0;
     this.orbitT = 0;
     this.shot = { pos: new THREE.Vector3(), look: new THREE.Vector3() };   // góc máy trung cảnh (trong hệ xe)
@@ -49,6 +60,8 @@ export class StopScene {
     this.out.set(-dim.width / 2 - 0.5, 0, this.seat.z - 0.1);
     this.lean.set(-dim.width / 2 - 0.16, 0, -dim.length / 2 + 1.05);   // (bề ngang tính cả gương => sát chắn bùn trước)
     this.walkEnd.set(this.lean.x - 0.3, 0, this.lean.z);
+    this.corner.set(-dim.width / 2 - 0.55, 0, -dim.length / 2 - 0.75);
+    this.stand.set(-0.15, 0, -dim.length / 2 - 1.2);
   }
 
   sit() {
@@ -63,7 +76,7 @@ export class StopScene {
   // bấm nút dừng / đi tiếp. Trả về true nếu chuyển cảnh
   toggle(speed) {
     if (this.state === 'off') {
-      this.state = 'stopping'; this.t = 0; this.v0 = Math.max(speed, 0.5); this.stopT = -1;
+      this.state = 'stopping'; this.t = 0; this.v0 = Math.max(speed, 0.5); this.stopT = -1; this.smokeU = -1; this.handW = 0;
       return true;
     }
     if (this.state === 'parked') { this.state = 'enter'; this.t = 0; return true; }
@@ -95,14 +108,16 @@ export class StopScene {
       if (speed <= 0.01 && this.stopT < 0) this.stopT = this.t;
       if (this.stopT >= 0 && this.t - this.stopT > 0.9) this._enterState('exit', dim);
     } else if (this.state === 'exit') {
-      this._exit(dim);
+      this._exit(dim, dt);
       this._camera(dim, dt, this.t - this.orbitT);
     } else if (this.state === 'parked') {
       this._camera(dim, dt, 99);
     } else if (this.state === 'enter') {
-      this._enter(dim);
+      this._enter(dim, dt);
       this._camera(dim, dt, 99);
     }
+    if (this.smokeU >= 0 && this.state !== 'enter') this._smoke(dt);
+    this._hand();
     if (this.state !== 'stopping') {
       P.copy(this._camP); L.copy(this._camL);
       // lấy nét vào người (đang ở cạnh xe), vùng nét đủ trùm cả xe
@@ -157,39 +172,91 @@ export class StopScene {
       root.rotation.y = FACE_OUT;
       return;
     }
-    const tWalk = tExit + dExit, dWalk = this.out.distanceTo(this.walkEnd) / WALK;
-    if (t < tWalk + dWalk) {
+    // đi vòng qua góc trước bên tài xế tới chỗ đứng trước đầu xe
+    const tWalk = tExit + dExit, d1 = this.out.distanceTo(this.corner) / WALK, d2 = this.corner.distanceTo(this.stand) / WALK;
+    p.tilt.rotation.x = 0;
+    if (t < tWalk + d1 + d2) {
       p.play('Walk_Loop', 0.3);
-      root.position.lerpVectors(this.out, this.walkEnd, clamp01((t - tWalk) / dWalk));
-      root.rotation.y = lerpAng(FACE_OUT, FACE_FRONT, ease((t - tWalk) / 0.45));
+      this._walk(root, [this.out, this.corner, this.stand], [d1, d2], t - tWalk, dt);
       return;
     }
-    // quay lưng vào xe rồi dựa người ra sau
-    const tTurn = tWalk + dWalk;
+    // tới nơi: quay mặt sang phải rồi hút thuốc
     p.play('Idle_Loop', 0.4);
-    const e = ease((t - tTurn) / 0.7), e2 = ease((t - tTurn - 0.5) / 0.8);
-    root.rotation.y = lerpAng(FACE_FRONT, FACE_OUT, e);
-    root.position.lerpVectors(this.walkEnd, this.lean, e2);
-    p.tilt.rotation.x = -0.17 * e2;
-    if (t > tTurn + 1.4) this.state = 'parked';
+    root.position.copy(this.stand);
+    if (this.smokeU < 0) { this.smokeU = 0; this.turnFrom = root.rotation.y; }
+    root.rotation.y = lerpAng(this.turnFrom, FACE_CAR, ease(this.smokeU / 0.6));
+    if (this.smokeU > 0.8) this.state = 'parked';
   }
 
-  _enter(dim) {
-    const p = this.person, t = this.t, root = p.root;
-    // rời chỗ dựa, quay về phía đuôi xe
-    if (t < 0.7) {
-      p.play('Idle_Loop', 0.3);
-      const e = ease(t / 0.7);
-      p.tilt.rotation.x = -0.17 * (1 - e);
-      root.position.lerpVectors(this.lean, this.walkEnd, e);
-      root.rotation.y = lerpAng(FACE_OUT, FACE_REAR, e);
+  // đi theo các chặng (pts[i] -> pts[i+1] mất dur[i] giây), mặt quay dần theo hướng đi
+  _walk(root, pts, dur, w, dt) {
+    let i = 0;
+    while (i < dur.length - 1 && w > dur[i]) { w -= dur[i]; i++; }
+    const a = pts[i], b = pts[i + 1], k = clamp01(w / dur[i]);
+    root.position.lerpVectors(a, b, k);
+    const dir = Math.atan2(b.x - a.x, b.z - a.z);
+    root.rotation.y = lerpAng(root.rotation.y, dir, Math.min(1, dt * 7));
+  }
+
+  // hút thuốc: dòng thời gian u (giây) => mục tiêu tay phải + trạng thái điếu thuốc
+  _smoke(dt) {
+    const u = (this.smokeU += dt), p = this.person, sm = this.smoking;
+    if (!p.arms?.r) return;
+    p.root.updateMatrixWorld(true);
+    const O = p.root.getWorldPosition(this._O), F = p.root.getWorldDirection(sm.F).setY(0).normalize();
+    const R = sm.R.crossVectors(F, UP).normalize();                     // bên phải của người
+    p.head.getWorldPosition(this._H);
+    // miệng ngang tầm xương Head (~1.49 m; mắt ~1.57 m), trước mặt ~10 cm
+    const M = sm.mouth.copy(this._H).addScaledVector(F, 0.1);
+    const pocket = this._t1.copy(O).addScaledVector(R, 0.2).addScaledVector(UP, 0.92);
+    const rest = this._t2.copy(O).addScaledVector(R, 0.27).addScaledVector(UP, 0.97).addScaledVector(F, 0.1);   // buông cạnh hông
+    // cổ tay khi rít: thấp hơn miệng, chếch ra trước - sang phải => bàn tay đưa lên từ bên cạnh, không che mặt
+    const mouthT = this._A.copy(M).addScaledVector(F, 0.1).addScaledVector(R, 0.1).addScaledVector(UP, -0.12);
+    const T = this.handT;
+    sm.flame = 0; sm.drag = 0; sm.exhale = false; sm.atMouth = 0;
+    if (u < 0.6) { this.handW = 0; sm.on = false; return; }                                       // quay người
+    if (u < 1.4) { T.copy(pocket); this.handW = ease((u - 0.6) / 0.6); sm.on = u > 1.25; return; }  // thò tay vào túi
+    sm.on = true; this.handW = 1;
+    if (u < 2.2) { const e = ease((u - 1.4) / 0.8); T.lerpVectors(pocket, mouthT, e); sm.atMouth = e; return; }   // đưa lên miệng
+    if (u < 3.0) {                                                                              // bật lửa châm thuốc
+      T.copy(mouthT); sm.atMouth = 1;
+      sm.flame = u > 2.3 && u < 2.85 ? 1 : 0;
+      sm.lit = u > 2.65; sm.drag = sm.lit ? 1 : 0;
       return;
     }
-    const tWalk = 0.7, dWalk = this.walkEnd.distanceTo(this.out) / WALK;
+    sm.lit = true;
+    const q = (u - 3.0) % 6.4;
+    if (q < 0.8) { const e = ease(q / 0.8); T.lerpVectors(mouthT, rest, e); sm.atMouth = 1 - e; }   // hạ tay
+    else if (q < 4.4) T.copy(rest);                                                             // cầm thuốc nghỉ
+    else if (q < 5.2) { const e = ease((q - 4.4) / 0.8); T.lerpVectors(rest, mouthT, e); sm.atMouth = e; }   // đưa lên rít
+    else { T.copy(mouthT); sm.drag = 1; sm.atMouth = 1; }                                       // rít một hơi
+    sm.exhale = q > 0.6 && q < 1.6;                                                             // nhả khói
+  }
+
+  // áp IK tay phải (sau khi animation đã đặt tư thế)
+  _hand() {
+    if (this.handW <= 0.001 || !this.person.arms?.r) return;
+    const A = this.person.arms.r[2].getWorldPosition(this._A);
+    this.person.reach('r', A.lerp(this.handT, this.handW));
+  }
+
+  _enter(dim, dt) {
+    const p = this.person, t = this.t, root = p.root;
+    // vứt điếu thuốc, hạ tay, quay về phía cửa xe rồi đi vòng lại
+    this.smoking.on = false; this.smoking.lit = false;
+    this.handW = Math.max(0, this.handW - dt * 2.5);
+    this.smokeU = -1;
+    p.tilt.rotation.x = 0;
+    if (t < 0.6) {
+      p.play('Idle_Loop', 0.3);
+      root.position.copy(this.stand);
+      root.rotation.y = lerpAng(FACE_CAR, Math.atan2(this.corner.x - this.stand.x, this.corner.z - this.stand.z), ease(t / 0.6));
+      return;
+    }
+    const tWalk = 0.6, d2 = this.stand.distanceTo(this.corner) / WALK, d1 = this.corner.distanceTo(this.out) / WALK, dWalk = d1 + d2;
     if (t < tWalk + dWalk) {
       p.play('Walk_Loop', 0.3);
-      root.position.lerpVectors(this.walkEnd, this.out, clamp01((t - tWalk) / dWalk));
-      root.rotation.y = FACE_REAR;
+      this._walk(root, [this.stand, this.corner, this.out], [d2, d1], t - tWalk, dt);
       return;
     }
     const tTurn = tWalk + dWalk;

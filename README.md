@@ -19,7 +19,7 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 - **Thời gian**: bình minh · ban ngày · giờ vàng · **hoàng hôn** (mặc định) · ban đêm · tự động chạy hết ngày (đèn pha, đèn đường)
 - **Điện thoại**: chạm vào màn hình bắt đầu là vào **toàn màn hình** và khoá **nằm ngang** (Android); nút ⛶ bật / tắt toàn màn hình; cầm dọc thì hiện gợi ý xoay ngang (bỏ qua được); giao diện gọn cho màn hình ngang thấp, chừa tai thỏ. iPhone (Safari không cho web tự toàn màn hình): **Chia sẻ → Thêm vào MH chính** rồi mở từ biểu tượng để chơi toàn màn hình. Mức Good trên điện thoại giới hạn độ phân giải 1.25x cho nhẹ máy
 - **Chất lượng** ⚙️ (nút hoặc phím `Q`): **Low / Good / Ultra** do người chơi chọn (mặc định **Good**; lựa chọn được nhớ trên máy). Low: độ phân giải 0.75, tắt xoá phông + phản chiếu vũng nước, cỏ thưa, chỉ cây tấm. Good: độ phân giải cao (tới mật độ điểm ảnh thật của màn hình), khử răng cưa 4x, cỏ dày, cây / bụi / đá model chi tiết trong bán kính 35 m. Ultra: **phạm vi hiển thị rộng gấp nhiều lần** — cây chi tiết tới 200 m, địa hình chi tiết xa gấp đôi, rừng xa rậm hơn, cỏ / lau trải xa gấp đôi; bóng đổ nét hơn, xoá phông mịn hơn
-- **Dừng xe** 🅿️ (nút hoặc phím `P`): cận cảnh bánh xe chậm dần rồi dừng, cửa mở, người lái bước ra đi lên đầu xe đứng dựa vào xe, camera lùi ra toàn cảnh rồi quay chậm quanh xe (giữ chuột rê / vuốt để tự xoay quanh xe); bấm lần nữa (▶️) người quay lại xe, đóng cửa, chạy tiếp. Người lái ngồi sẵn trong xe khi chạy (ẩn ở camera trong xe)
+- **Dừng xe** 🅿️ (nút hoặc phím `P`): cận cảnh bánh xe chậm dần rồi dừng, cửa mở, người lái bước ra, đi vòng lên trước đầu xe, quay mặt sang phải, rút điếu thuốc trong túi ra bật lửa châm hút (đầu thuốc đỏ rực mỗi hơi rít, khói bốc lên từ đầu điếu, nhả khói từ miệng, khói trôi theo gió); camera lùi ra toàn cảnh rồi quay chậm quanh xe (giữ chuột rê / vuốt để tự xoay quanh xe); bấm lần nữa (▶️) người vứt thuốc, quay lại xe, đóng cửa, chạy tiếp. Người lái ngồi sẵn trong xe khi chạy (ẩn ở camera trong xe)
 - **Âm thanh**: nhạc lo-fi chill tự sinh bằng WebAudio + tiếng động cơ / gió / mưa
 
 ## Điều khiển
@@ -86,7 +86,8 @@ src/               mã nguồn (gộp bằng esbuild: build.mjs)
   traffic.js      xe chạy ngược chiều ngẫu nhiên, thưa thớt
   cows.js         đàn bò sữa + hàng rào gỗ (map đồi cỏ)
   person.js       người lái (animation, quần áo vẽ bằng shader)
-  stopscene.js    cảnh dừng xe: cận bánh xe, mở cửa, người bước ra, camera quay quanh
+  stopscene.js    cảnh dừng xe: cận bánh xe, mở cửa, người bước ra hút thuốc, camera quay quanh
+  smoke.js        điếu thuốc + khói thuốc
   colorspace.js   đổi màu hiển thị -> tuyến tính cho shader tự tô màu
   camera.js       các chế độ camera
   post.js         hậu kỳ: xoá phông, bloom, tia nắng, mưa trên kính, chỉnh màu phim, grain (Cinematic) + blur tốc độ (Fast drive)

@@ -21,6 +21,7 @@ import { ValleyTown } from './town.js';
 import { DashScreen } from './dashscreen.js';
 import { Traffic } from './traffic.js';
 import { Cows } from './cows.js';
+import { Smoke } from './smoke.js';
 
 installMist();   // thay shader sương của three.js (phải chạy trước khi vật liệu được biên dịch)
 import { MAPS, WEATHERS, TIMES, CAMERAS, MUSIC_MODES, FSTOPS, FSTOP_DEFAULT, QUALITY, QUALITY_DEFAULT } from './config.js';
@@ -73,6 +74,7 @@ const post = new Post(renderer, QUALITY[QUALITY_DEFAULT].msaa);
 const refl = new WetReflection(renderer);
 const person = new Person();
 const stop = new StopScene(cars, person);
+const smoke = new Smoke(scene, person);       // điếu thuốc + khói (cảnh dừng xe)
 const nature = new Nature(scene);
 const mirror = new RearMirror(renderer);
 const wipers = new Wipers();
@@ -622,6 +624,7 @@ function frame(now) {
   const ffAmt = ss(st.night, 0.35, 0.9) * (1 - Math.min(1, st.rain * 2)) * (1 - st.snow) * (1 - st.cover) * (1 - ss(st.wind, 0.6, 0.9));
   fireflies.update(now / 1000, drive.s, road, terrain, ffAmt, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   dash.update(dt, drive.v * 3.6, env.clock);
+  smoke.update(dt, stop.smoking, st, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
   if (state.started && cars.current) traffic.update(dt, drive.s, drive.d, road, st.lamps, cars.current.def.id);
   town.update(drive.s, road, terrain, st.lamps, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   cars.setLights(st.lamps);
@@ -735,4 +738,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
