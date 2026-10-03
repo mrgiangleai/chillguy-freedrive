@@ -202,9 +202,9 @@ export class ChillAudio {
     this.ambGain.gain.setTargetAtTime(on, t, 0.4);
     this.outGain.gain.setTargetAtTime(inCar ? 0.4 : 1, t, 0.3);
     this.outLp.frequency.setTargetAtTime(inCar ? 1600 : 20000, t, 0.3);
-    this.glassG.gain.setTargetAtTime(inCar ? rain * 0.2 * (1 + 0.6 * dark) : 0, t, 0.3);   // mưa lộp độp trên kính (đã giảm 60%)
-    this.roofG.gain.setTargetAtTime(inCar ? rain * 0.05 * (1 + dark) : 0, t, 0.3);
-    this.rainG.gain.setTargetAtTime(rain * 0.2 * (1 + 0.6 * dark), t, k);
+    this.glassG.gain.setTargetAtTime(inCar ? rain * 0.08 * (1 + 0.6 * dark) : 0, t, 0.3);   // mưa lộp độp trên kính (đã giảm 2 lần × 60%)
+    this.roofG.gain.setTargetAtTime(inCar ? rain * 0.02 * (1 + dark) : 0, t, 0.3);   // rào rào trên mui (đã giảm 60%)
+    this.rainG.gain.setTargetAtTime(rain * 0.08 * (1 + 0.6 * dark), t, k);   // tiếng mưa bên ngoài (đã giảm 60%)
     this.windG.gain.setTargetAtTime(0.012 + speed * 0.0016 + snow * 0.05 + wind * wind * 0.1 + fx * 0.085, t, k);
     this.gustG.gain.setTargetAtTime(wind * wind * 0.07, t, k);
     this.tireG.gain.setTargetAtTime(Math.min(speed * 0.0011, 0.05) * (1 + rain), t, k);

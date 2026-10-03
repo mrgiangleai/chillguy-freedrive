@@ -5,8 +5,9 @@ import * as THREE from 'three';
 export class RearMirror {
   constructor(renderer) {
     this.renderer = renderer;
-    // gương tỉ lệ 4:3 (rộng 25 cm × cao 18.75 cm); texture cùng tỉ lệ với mặt gương => ảnh không bị kéo dãn
-    const GW = 0.25, GH = 0.1875;
+    // gương tỉ lệ 4:3 (rộng 12.5 cm × cao 9.4 cm); texture cùng tỉ lệ với mặt gương => ảnh không bị kéo dãn.
+    // Vị trí căn theo mép trên (xem place): đổi cỡ thì mép trên gương vẫn ở nguyên chỗ, sát mép trên kính lái
+    const GW = 0.125, GH = 0.09375;
     this.size = [GW, GH];
     this.rt = new THREE.WebGLRenderTarget(384, Math.round(384 * GH / GW), { type: THREE.HalfFloatType });
     this.cam = new THREE.PerspectiveCamera(30, GW / GH, 0.15, 3000);

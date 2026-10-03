@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -31,7 +31,7 @@
 | `post.js` | Hậu kỳ: xoá phông (CoC ống kính thật), bloom, **tia nắng** (god rays), **mưa trên kính** (RAIN_GLASS), ACES + chỉnh màu phim, grain, blur xuyên tâm 180 km/h |
 | `camera.js` | Các chế độ camera, tiêu cự 16–35 mm (`fovFor`), nhìn quanh (giữ góc sau khi thả), `cockpitPitch` hook |
 | `cars.js` | Tải + chuẩn hoá xe, vật liệu (`mats`, `envK`), bánh xe quay, cửa tài xế, đèn pha/đèn hậu (quầng mềm `softGlowTexture`), bóng gầm, đèn cabin (đặt tại màn hình taplo), dò **kính lái** (`windshield()`), **cần gạt** 3D (`wiperRig`), vô lăng da (`leatherMaterial`), dời vô lăng (`steerShift`) |
-| `mirror.js` | Gương chiếu hậu giữa (render-to-texture, **tỉ lệ 4:3**: 25 × 18.75 cm, `GW/GH`; treo sát mép trên kính lái theo `shield`) |
+| `mirror.js` | Gương chiếu hậu giữa (render-to-texture, **tỉ lệ 4:3**: 12.5 × 9.4 cm, `GW/GH`; căn theo mép trên, sát mép trên kính lái theo `shield`) |
 | `wingmirrors.js` | 2 gương hông soi thật (phản chiếu phẳng, frustum lệch tâm, vẽ xen kẽ; `uTex` theo hệ xe) — chỉ khi ngồi trong xe, chỉ xe Mustang |
 | `wipers.js` | Gạt mưa tự động (pha cos) + lượng nước trên kính |
 | `dashscreen.js` | Màn hình giải trí taplo (canvas, tông ấm) + đèn hắt |
@@ -46,7 +46,7 @@
 | `cows.js` | Map đồi cỏ: đàn 5 bò sữa + hàng rào gỗ |
 | `fireflies.js` | Đom đóm ban đêm |
 | `traffic.js` | Xe ngược chiều ngẫu nhiên (15–70 s/chiếc, tối đa 2) |
-| `audio.js` | Nhạc lo-fi tự sinh, gió/mưa/lốp/động cơ/sấm; bus `outGain` (trong xe ×0.4 + lowpass), mưa đập kính `glassG` (hệ số 0.2 × mưa) + mui `roofG` |
+| `audio.js` | Nhạc lo-fi tự sinh, gió/mưa/lốp/động cơ/sấm; bus `outGain` (trong xe ×0.4 + lowpass), tiếng mưa: ngoài `rainG` 0.08, kính `glassG` 0.08, mui `roofG` 0.02 (× lượng mưa) |
 | `particles.js`, `mist.js`, `reflection.js`, `textures.js`, `colorspace.js` | Mưa/tuyết, sương tầng thấp, phản chiếu vũng nước, texture tự sinh, đổi màu hiển thị → tuyến tính |
 
 ## 4. Trạng thái hiện tại (tóm tắt)
@@ -76,3 +76,5 @@
 - **#1** — Tạo ROAD.md (tóm tắt toàn bộ dự án tới commit `bd6513f`: gương giữa 3/4 sát mép trên kính).
 - **#2** — Gương chiếu hậu giữa đổi sang tỉ lệ 4:3 (25 × 18.75 cm, không bẹp nữa); `cockpitPitch` giữ trọn mép trên gương theo `mirror.size`.
 - **#3** — Tiếng mưa đập kính (trong xe) nhỏ đi 60%: `glassG` 0.5 → 0.2 × lượng mưa (`audio.js`); tiếng rào rào trên mui giữ nguyên.
+- **#4** — Gương chiếu hậu giữa thu nhỏ 50% (12.5 × 9.4 cm, vẫn 4:3), mép trên giữ nguyên chỗ (căn lề trên).
+- **#5** — Tiếng mưa nhỏ thêm 60%: mưa ngoài `rainG` 0.2 → 0.08, mưa đập kính `glassG` 0.2 → 0.08, mui `roofG` 0.05 → 0.02.
