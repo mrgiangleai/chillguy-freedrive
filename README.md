@@ -15,7 +15,7 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 - **Sương mù** 🌫️ (nút hoặc phím `G`): chỉnh **Độ phủ** (cao thấp, từng đám hay phủ kín) và **Độ dày**; sương đọng dày ở thung lũng và trôi theo gió; chuyển sang **Ban đêm** thì độ phủ và độ dày tự về 60%
 - **Map núi**: dưới thung lũng có các **thị trấn nhỏ** và **thị trấn lớn** gần đường hơn (3 dãy phố, có nhà cao tầng; cái đầu tiên ~1.3 km sau chỗ xuất phát) (nhà tường trắng, mái đỏ / nâu / xám) — ban đêm cửa sổ sáng đèn, quầng sáng ấm phủ trên thị trấn, **đèn đường** lác đác dọc con đường thung lũng
 - **Mặt đường**: nhựa đường sần (hạt nhám, độ bóng lốm đốm), không trơn bóng; **mưa**: mặt đường ướt có **vũng nước phản chiếu** xe, đèn đường, bầu trời + gợn sóng giọt mưa; xe **tự bật gạt mưa** (bão gạt nhanh hơn; cần gạt quay thật, nhìn từ ngoài cũng thấy) — ngồi trong xe thấy giọt mưa bắn vào kính, đọng lại, chảy thành vệt, lưỡi gạt quét sạch từng lượt
-- **Trong xe**: nhìn từ mắt người lái (2 tay cầm vành vô lăng), mặc định 16 mm f/16, góc nhìn tự canh để thấy trọn vô lăng (bọc da đen) và trọn gương chiếu hậu, lấy nét gần taplo; **màn hình giải trí** trên taplo (bản đồ, bài nhạc, tốc độ, giờ) hắt ánh sáng vàng ấm lên người lái — nhìn từ ngoài xe ban đêm cũng thấy, cabin có đèn nên không tối om, kính có phản xạ, **gương chiếu hậu soi thật** cảnh phía sau
+- **Trong xe**: nhìn từ mắt người lái (2 tay cầm vành vô lăng), mặc định 16 mm f/16, góc nhìn tự canh để thấy trọn vô lăng (bọc da đen) và trọn gương chiếu hậu, lấy nét gần taplo; **màn hình giải trí** trên taplo (bản đồ, bài nhạc, tốc độ, giờ) hắt ánh sáng vàng ấm lên người lái — nhìn từ ngoài xe ban đêm cũng thấy, cabin có đèn nên không tối om, kính có phản xạ, **gương chiếu hậu soi thật** cảnh phía sau, **hai gương hông** cũng soi thật (gương phẳng, tự chỉnh theo mắt người lái khi ngồi vào)
 - **Ánh sáng ban ngày**: trời nắng cân bằng như máy ảnh thật — nắng trực tiếp mạnh hơn ánh trời khoảng 4–5 lần, phơi sáng giảm theo, nên bóng râm rõ, màu cỏ / mặt đường tự nhiên, bầu trời và phản chiếu trên xe không trắng loá
 - **Thời gian**: bình minh · ban ngày · giờ vàng · **hoàng hôn** (mặc định) · ban đêm · tự động chạy hết ngày (đèn pha, đèn đường)
 - **Điện thoại**: chạm vào màn hình bắt đầu là vào **toàn màn hình** và khoá **nằm ngang** (Android); nút ⛶ bật / tắt toàn màn hình; cầm dọc thì hiện gợi ý xoay ngang (bỏ qua được); giao diện gọn cho màn hình ngang thấp, chừa tai thỏ. iPhone (Safari không cho web tự toàn màn hình): **Chia sẻ → Thêm vào MH chính** rồi mở từ biểu tượng để chơi toàn màn hình. Mức Good trên điện thoại giới hạn độ phân giải 1.25x cho nhẹ máy
@@ -80,6 +80,7 @@ src/               mã nguồn (gộp bằng esbuild: build.mjs)
   particles.js    mưa / tuyết / bông cỏ bay (shader)
   cars.js         tải & chuẩn hoá model xe, bánh xe quay, cửa tài xế, đèn pha, dò mặt phẳng kính lái
   mirror.js       gương chiếu hậu trong xe (vẽ cảnh phía sau vào texture)
+  wingmirrors.js  hai gương chiếu hậu hông (phản chiếu phẳng thật)
   wipers.js       gạt mưa tự động + lớp nước trên kính lái
   fireflies.js    đom đóm ban đêm dọc mép đường
   town.js         thị trấn + đèn đường dưới thung lũng (map núi)

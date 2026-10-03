@@ -15,6 +15,7 @@ import { Person } from './person.js';
 import { StopScene } from './stopscene.js';
 import { Nature } from './nature.js';
 import { RearMirror } from './mirror.js';
+import { WingMirrors } from './wingmirrors.js';
 import { Wipers } from './wipers.js';
 import { Fireflies } from './fireflies.js';
 import { ValleyTown } from './town.js';
@@ -79,6 +80,7 @@ cars.viewer = camera;
 const smoke = new Smoke(scene, person);       // điếu thuốc + khói (cảnh dừng xe)
 const nature = new Nature(scene);
 const mirror = new RearMirror(renderer);
+const wing = new WingMirrors(renderer);       // gương chiếu hậu hai bên (soi thật khi ngồi trong xe)
 const wipers = new Wipers();
 const fireflies = new Fireflies(scene);
 const town = new ValleyTown(scene);           // map núi: thị trấn + đèn đường dưới thung lũng
@@ -221,6 +223,7 @@ async function chooseCar(i) {
   if (person.ready && !stop.active) { stop.place(cars.dim); stop.sit(); }
   mirror.place(cars.dim);
   dash.place(cars.current.screen);
+  wing.setCar(cars.current);
   warmShaders();
   refreshUI();
 }
@@ -684,6 +687,7 @@ function frame(now) {
   const inCabin = CAMERAS[state.cam].id === 'cockpit' && !stop.active;
   mirror.group.visible = inCabin;
   if (inCabin) mirror.render(scene, cars.tilt);
+  wing.render(scene, camera, inCabin);
   // gạt mưa tự bật khi mưa / bão (cần gạt 3D quay, nhìn từ ngoài cũng thấy); trong xe thấy nước mưa trên kính
   wipers.update(dt, stop.active ? 0 : st.rain, drive.v);
   const glassAmt = inCabin ? wipers.wet : 0;
@@ -747,4 +751,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
