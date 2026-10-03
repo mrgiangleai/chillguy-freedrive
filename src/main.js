@@ -156,6 +156,7 @@ resize();
 
 // ---------- trạng thái lái xe ----------
 const drive = {
+  home: LANE_D, goal: 0, manual: false,
   s: 150,          // độ dài cung trên đường
   d: LANE_D,       // lệch ngang so với tim đường (m, + = bên phải)
   v: CHILL_DEFAULT,        // tốc độ (m/s)
@@ -567,7 +568,8 @@ function frame(now) {
   if (keys.has('Equal') || keys.has('NumpadAdd')) rig.zoomBy(Math.exp(-1.2 * dt));
   if (keys.has('Minus') || keys.has('NumpadSubtract')) rig.zoomBy(Math.exp(1.2 * dt));
   drive.target = clamp(drive.target, CHILL_MIN, CHILL_MAX);
-  const goal = drive.fast ? FAST_SPEED : drive.target;
+  drive.goal = drive.fast ? FAST_SPEED : drive.target;
+  const goal = Math.min(drive.goal, traffic.ctrl.maxV);
   if (stop.active) drive.v = stop.speed(drive.v, dt);    // cảnh dừng xe: giảm tốc đều tới khi dừng hẳn
   else drive.v += clamp(goal - drive.v, -8 * dt, 6 * dt);
   drive.s += drive.v * dt;
@@ -575,7 +577,9 @@ function frame(now) {
   drive.fx += (sstep(55 * KMH, FAST_SPEED, drive.v) - drive.fx) * (1 - Math.exp(-dt * 4));
 
   // lệch ngang: lái tay, hoặc tự về giữa làn khi buông tay
-  const lane = drive.d >= 0 ? LANE_D : -LANE_D;
+  if (steer !== 0) drive.manual = true;
+  else if (drive.manual) { drive.manual = false; drive.home = drive.d >= 0 ? LANE_D : -LANE_D; }
+  const lane = traffic.ctrl.lane ?? drive.home;
   const wantLat = stop.active ? 0 : steer !== 0 ? steer * (2.2 + drive.v * 0.06) : (lane - drive.d) * 0.8 * Math.min(1, drive.v / 3);
   drive.latVel += (wantLat - drive.latVel) * (1 - Math.exp(-dt * 5));
   drive.d += drive.latVel * dt;
@@ -654,7 +658,8 @@ function frame(now) {
       person.root.getWorldPosition(_trafficPerson);
       obstacles.push({ id: 'person', ...roadPosition(_trafficPerson, road, drive.s), width: 0.8, length: 0.8, speed: 0, direction: 0 });
     }
-    traffic.update(dt, drive.s, drive.d, road, st.lamps, cars.current.def.id, obstacles);
+    traffic.playerHome = drive.home; traffic.playerGoal = stop.active ? 0 : drive.goal;
+    traffic.update(dt, drive.s, drive.d, road, st.lamps, cars.current.def.id, obstacles, audio);
   }
   town.update(drive.s, road, terrain, st.lamps, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   cars.setLights(st.lamps);

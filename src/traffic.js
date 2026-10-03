@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { TrafficPolicy } from './traffic-policy.js';
 import { ROAD } from './road.js';
 import { TRAFFIC, trafficSpeed, trafficCurveSpeed, stepTraffic } from './traffic-ai.js';
 import { createHeadlights, placeHeadlights, updateHeadlights } from './headlights.js';
@@ -17,6 +18,7 @@ export class Traffic {
     this.cars = cars;
     this.pool = [];            // xe đã tải: { root, model, wheels, dim, busy }
     this.active = [];
+    this.policy = new TrafficPolicy(); this.ctrl = {lane:null,maxV:Infinity};
     this.timer = 4 + Math.random() * 6;
     this.sameTimer = TRAFFIC.sameGapMin + Math.random() * (TRAFFIC.sameGapMax - TRAFFIC.sameGapMin);
     this.loading = false;
@@ -58,7 +60,7 @@ export class Traffic {
   }
 
   // s: quãng đường xe mình; playerD: lệch ngang của xe mình (+ = bên phải); lamps 0..1; excludeId: xe đang lái
-  update(dt, s, playerD, road, lamps, excludeId, obstacles = []) {
+  update(dt, s, playerD, road, lamps, excludeId, obstacles = [], audio = null) {
     if (!this.pool.length) {
       if (!this.loading && (this.wait -= dt) <= 0) this._load(excludeId);
       return;
@@ -79,17 +81,36 @@ export class Traffic {
       if (this.active.some(o => Math.abs(o.s - v.s) < 60) || Math.abs(v.s - s) < 40) continue;
       v.direction = direction; v.busy = true;
       v.cruise = v.v = trafficSpeed(); v.d = v.baseD = same ? lane : -lane;
-      v.inCurve = false; v.avoidFor = null; v.avoidD = v.d; v.root.visible = true;
+      v.heard = false; v.policy = null; v.inCurve = false; v.avoidFor = null; v.avoidD = v.d; v.root.visible = true;
       this.active.push(v);
     }
     const snapshot = [...obstacles, ...this.active.map(v => ({ id: v, s: v.s, d: v.d, speed: v.v, direction: v.direction ?? -1, width: v.dim.width, length: v.dim.length }))];
+    const player = obstacles.find(o => o.id === 'player');
+    Object.assign(this.policy.player, {s, d:playerD, v:player?.speed || 0, len:player?.length || this.cars.dim?.length || 4.7,
+      w:player?.width || this.cars.dim?.width || 2, home:this.playerHome ?? (playerD >= 0 ? 1.5 : -1.5)});
+    this.policy.active = this.active.map(v => {
+      v.policy ||= {state:'cruise',target:null};
+      return Object.assign(v.policy,{s:v.s,d:v.d,v:v.v,dir:v.direction ?? -1,len:v.dim.length,w:v.dim.width,home:v.baseD});
+    });
+    this.policy.active.push(...obstacles.filter(o => o.id === 'person').map(o => ({s:o.s,d:o.d,v:o.speed || 0,dir:0,len:o.length,w:o.width,player:true,home:o.d})));
+    const pc = this.policy._decide(this.policy.player, this.playerGoal ?? player?.speed ?? 0);
+    this.ctrl.lane = pc.dT; this.ctrl.maxV = pc.vT;
     const p = this._p, q = this._q;
     for (let i = this.active.length - 1; i >= 0; i--) {
       const v = this.active[i];
       const curveSpeed = trafficCurveSpeed(v, road);
-      const next = stepTraffic(v, snapshot, ROAD.halfWidth, dt, curveSpeed);
+      const decision = this.policy._decide(v.policy, curveSpeed);
+      const canChooseLane = d => d * v.baseD >= 0 || (decision.dT * v.baseD < 0 && this.policy._sideClear(v.policy, d));
+      const next = stepTraffic(v, snapshot, ROAD.halfWidth, dt, Math.min(curveSpeed,decision.vT), canChooseLane);
       v.s = next.s; v.d = next.d; v.v = next.v; v.avoiding = next.avoiding;
       if (v.s < s - (v.direction === 1 ? 180 : 90) || (v.direction === 1 && v.s > s + 750)) { v.busy = false; v.root.visible = false; this.active.splice(i, 1); continue; }
+      if (audio && player) {
+        const x=v.s-s, vr=v.v*(v.direction ?? -1)-player.speed, rel=Math.abs(vr);
+        if (Math.abs(x)>70) v.heard=false;
+        if (!v.heard && rel>2 && x*vr<0 && Math.abs(v.d-playerD)<7 && -x/vr<audio.passDur(rel)*0.5) {
+          v.heard=true; audio.passBy(rel,THREE.MathUtils.clamp((v.d-playerD)/4,-.8,.8),Math.abs(v.d-playerD));
+        }
+      }
       road.at(v.s, p);
       const yA = road.at(v.s + 2.5, q).y, yB = road.at(v.s - 2.5, q).y;
       v.root.position.set(p.x + Math.cos(p.th) * v.d, p.y, p.z - Math.sin(p.th) * v.d);

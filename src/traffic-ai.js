@@ -18,7 +18,7 @@ export function trafficCurveSpeed(v, road) {
 }
 
 // direction: +1 đi cùng chiều người chơi, -1 đi ngược chiều (mặc định cũ).
-export function stepTraffic(v, obstacles, halfWidth, dt, cruise = v.cruise ?? v.v) {
+export function stepTraffic(v, obstacles, halfWidth, dt, cruise = v.cruise ?? v.v, canChooseLane = () => true) {
   const direction = v.direction ?? -1;
   const ahead = o => direction * (o.s - v.s);
   const limit = Math.max(0, halfWidth - v.dim.width / 2 - 0.25);
@@ -37,7 +37,7 @@ export function stepTraffic(v, obstacles, halfWidth, dt, cruise = v.cruise ?? v.
   let speed = cruise;
   if (threats.length) {
     const choices = [target, -1.8, 1.8, -limit, limit, ...threats.flatMap(o => [o.d - clearance(o) - 0.1, o.d + clearance(o) + 0.1])];
-    const free = choices.filter(d => Math.abs(d) <= limit && nearby.every(o => !conflict(d, o)));
+    const free = choices.filter(d => Math.abs(d) <= limit && canChooseLane(d) && nearby.every(o => !conflict(d, o)));
     free.sort((a, b) => Math.abs(a - v.d) - Math.abs(b - v.d) || Math.abs(a - base) - Math.abs(b - base));
     if (free.length) {
       target = free[0];

@@ -115,3 +115,7 @@
 ### Bàn giao Git — 03/10/2026
 - Gom toàn bộ thay đổi đã thực hiện trong phiên: nội thất/gương/taplo, mưa kính, đèn xe/đường, NPC hai chiều và giảm tốc cua, thác map núi, tay bám vô lăng và động tác lái theo cua.
 - Nhánh nhận bản cập nhật: `claude/focused-gates-gcpbj9`. Bao gồm mã nguồn, build `docs/`, README, các script kiểm tra và ảnh kiểm chứng; không đưa các trang preview tạm vào docs.
+
+- Gộp nhánh GitHub tới `703f0ab` (gồm `1b4d466`): giữ vị trí gương/taplo của bản hiện tại, tích hợp luật bám/vượt 50 m vào `traffic-policy.js`, điều khiển tự bám/vượt của xe người chơi và âm thanh `audio.passBy`. Giữ engine né người/xe 30 m, timer/caps/tốc độ mới, pha thật giảm 40%, giảm tốc cua và tay lái. Không force push; lịch sử GitHub được giữ trong merge.
+- `node scripts/check-traffic-policy.mjs`: vượt làn trống, chờ khi có xe trong tầm nhìn 50 m hoặc xe đối diện sẽ tới trước khi vượt xong; Traffic thật phát âm thanh lướt qua một lần/lượt và pha NPC vẫn 51.
+- Bản gộp build và các script traffic/policy/waterfalls/steering đạt; cảnh fixture Low chạy không có lỗi console, ảnh `screenshots/git-merge-verified.jpg`.
