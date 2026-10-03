@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -45,8 +45,8 @@
 | `town.js` | Map núi: thị trấn nhỏ + **thị trấn lớn** dưới thung lũng, đèn đường |
 | `cows.js` | Map đồi cỏ: đàn 5 bò sữa + hàng rào gỗ |
 | `fireflies.js` | Đom đóm ban đêm |
-| `traffic.js` | Xe ngược chiều ngẫu nhiên (15–70 s/chiếc, tối đa 2) |
-| `audio.js` | Nhạc lo-fi tự sinh, gió/mưa/lốp/động cơ/sấm; bus `outGain` (trong xe ×0.4 + lowpass), tiếng mưa: ngoài `rainG` 0.08, kính `glassG` 0.08, mui `roofG` 0.02 (× lượng mưa) |
+| `traffic.js` | Giao thông (tối đa 3 xe, thả 15–55 s/lần): ngược chiều / cùng chiều từ sau / chậm phía trước. Luật chung `_decide` (cả xe người chơi): bám xe trước (`_follow`), vượt khi `_canOvertake` (không xe nào trong làn vượt tới 50 m sau xe bị vượt + xe ngược chiều không kịp tới), bỏ vượt khi `_overtakeDanger`, chỉ đổi làn khi `_sideClear`; đối đầu: phanh + nép lề (chỉ né sang làn kia khi người chơi chạy hẳn sang làn đó). Trả `ctrl {lane, maxV}` cho xe người chơi (main.js dùng `drive.home` = làn người chơi chọn). Tiếng xe lướt qua: `audio.passBy` |
+| `audio.js` | Nhạc lo-fi tự sinh, gió/mưa/lốp/động cơ/sấm, tiếng xe lướt qua `passBy(rel, pan, lat)` (to nhỏ theo tốc độ tương đối, Doppler); bus `outGain` (trong xe ×0.4 + lowpass), tiếng mưa: ngoài `rainG` 0.08, kính `glassG` 0.08, mui `roofG` 0.02 (× lượng mưa) |
 | `particles.js`, `mist.js`, `reflection.js`, `textures.js`, `colorspace.js` | Mưa/tuyết, sương tầng thấp, phản chiếu vũng nước, texture tự sinh, đổi màu hiển thị → tuyến tính |
 
 ## 4. Trạng thái hiện tại (tóm tắt)
@@ -55,7 +55,7 @@
 - **Chất lượng**: Low / Good (mặc định) / Ultra (cây chi tiết 200 m, địa hình/cỏ xa ×2). Điện thoại: Good giới hạn pixel ratio 1.25.
 - **Tốc độ**: nút ⚡/phím F: 25 → 50 → 180 km/h. 180: blur rìa, không vệt dài; camera ngoài xe chuyển 16 mm.
 - **Ống kính**: camera ngoài xe → 24 mm f/5.6; trong xe 16 mm f/16 (lấy nét taplo). Zoom 16–35 mm.
-- **Xe**: chạy lệch tim đường `LANE_D = 1.5 m` (sát vạch vàng); xe ngược chiều 1.8 m. Mustang: sơn đen bóng (env ×0.4),
+- **Xe**: chạy lệch tim đường `LANE_D = 1.5 m` (sát vạch vàng); xe ngược chiều 1.8 m. Xe mình tự bám / tự vượt xe chậm phía trước (luật trong `traffic.js`); lái tay đổi `drive.home`. Mustang: sơn đen bóng (env ×0.4),
   nội thất đen bóng, ghế da nâu, vô lăng da đen lùi 7 cm. Đèn pha/đèn hậu quầng mềm (pha vàng ấm).
 - **Trong xe**: mắt = xương đầu +0.15 m; góc chúc tự canh: mép dưới khung hình qua chỗ tay cầm (thấy nửa bàn tay), không cắt
   gương giữa. Gương giữa + 2 gương hông soi thật. Ánh sáng cabin từ màn hình taplo. Mưa: giọt nước/vệt chảy trên kính + gạt
@@ -79,3 +79,4 @@
 - **#4** — Gương chiếu hậu giữa thu nhỏ 50% (12.5 × 9.4 cm, vẫn 4:3), mép trên giữ nguyên chỗ (căn lề trên).
 - **#5** — Tiếng mưa nhỏ thêm 60%: mưa ngoài `rainG` 0.2 → 0.08, mưa đập kính `glassG` 0.2 → 0.08, mui `roofG` 0.05 → 0.02.
 - **#6** — Gương chiếu hậu giữa chuyển xuống taplo, đặt ngay bên phải màn hình taplo (cùng góc nghiêng, bỏ chân treo).
+- **#7** — Viết lại `traffic.js`: thêm xe cùng chiều, luật vượt (tầm nhìn 50 m + thời gian xe ngược chiều tới), bám xe, an toàn chống đi xuyên; xe người chơi theo cùng luật (`traffic.ctrl`, `drive.home`); âm thanh xe lướt qua theo tốc độ. Mô phỏng 30 phút ngẫu nhiên: 0 lần chồng xe.

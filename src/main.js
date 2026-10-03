@@ -154,6 +154,8 @@ resize();
 const drive = {
   s: 150,          // độ dài cung trên đường
   d: LANE_D,       // lệch ngang so với tim đường (m, + = bên phải)
+  home: LANE_D,    // làn đang giữ (đổi khi người chơi lái tay sang làn khác)
+  goal: 0, manual: false,
   v: CHILL_DEFAULT,        // tốc độ (m/s)
   target: CHILL_DEFAULT,   // tốc độ mong muốn ở chế độ chill
   fast: false,             // Fast drive (cấp 3) đang bật
@@ -560,15 +562,20 @@ function frame(now) {
   if (keys.has('Equal') || keys.has('NumpadAdd')) rig.zoomBy(Math.exp(-1.2 * dt));
   if (keys.has('Minus') || keys.has('NumpadSubtract')) rig.zoomBy(Math.exp(1.2 * dt));
   drive.target = clamp(drive.target, CHILL_MIN, CHILL_MAX);
-  const goal = drive.fast ? FAST_SPEED : drive.target;
+  drive.goal = drive.fast ? FAST_SPEED : drive.target;
+  // giao thông: xe chậm phía trước => bám theo / vượt khi làn bên kia trống (traffic.js tính ở khung hình trước)
+  const goal = Math.min(drive.goal, traffic.ctrl.maxV);
   if (stop.active) drive.v = stop.speed(drive.v, dt);    // cảnh dừng xe: giảm tốc đều tới khi dừng hẳn
   else drive.v += clamp(goal - drive.v, -8 * dt, 6 * dt);
   drive.s += drive.v * dt;
   // hiệu ứng tốc độ tăng dần theo tốc độ thực tế (không có gì dưới ~55 km/h)
   drive.fx += (sstep(55 * KMH, FAST_SPEED, drive.v) - drive.fx) * (1 - Math.exp(-dt * 4));
 
-  // lệch ngang: lái tay, hoặc tự về giữa làn khi buông tay
-  const lane = drive.d >= 0 ? LANE_D : -LANE_D;
+  // lệch ngang: lái tay, hoặc tự về giữa làn khi buông tay. Làn "nhà" (home) do người chơi chọn bằng tay lái;
+  // tự vượt xe (traffic) chỉ tạm sang làn bên kia rồi quay về
+  if (steer !== 0) drive.manual = true;
+  else if (drive.manual) { drive.manual = false; drive.home = drive.d >= 0 ? LANE_D : -LANE_D; }
+  const lane = traffic.ctrl.lane ?? drive.home;
   const wantLat = stop.active ? 0 : steer !== 0 ? steer * (2.2 + drive.v * 0.06) : (lane - drive.d) * 0.8 * Math.min(1, drive.v / 3);
   drive.latVel += (wantLat - drive.latVel) * (1 - Math.exp(-dt * 5));
   drive.d += drive.latVel * dt;
@@ -639,7 +646,10 @@ function frame(now) {
   fireflies.update(now / 1000, drive.s, road, terrain, ffAmt, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   dash.update(dt, drive.v * 3.6, env.clock);
   smoke.update(dt, stop.smoking, st, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
-  if (state.started && cars.current) traffic.update(dt, drive.s, drive.d, road, st.lamps, cars.current.def.id);
+  if (state.started && cars.current) {
+    traffic.update(dt, { s: drive.s, d: drive.d, v: drive.v, goal: stop.active ? 0 : drive.goal, len: cars.dim.length, w: cars.dim.width, home: drive.home },
+      road, st.lamps, cars.current.def.id, audio);
+  }
   town.update(drive.s, road, terrain, st.lamps, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   cars.setLights(st.lamps);
   audio.setAmbient({ speed: drive.v, rain: st.rain, snow: st.snow, wind: st.wind, dark: st.dark, fx: drive.fx,

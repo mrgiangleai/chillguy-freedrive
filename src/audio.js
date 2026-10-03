@@ -3,6 +3,7 @@
 const midi = (n) => 440 * Math.pow(2, (n - 69) / 12);
 const rand = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 
 // r = nốt bass, n = các nốt hợp âm (key C)
 const PROGRESSIONS = [
@@ -213,6 +214,37 @@ export class ChillAudio {
     this.eng[1].frequency.setTargetAtTime(f * 2, t, 0.15);
     this.engLp.frequency.setTargetAtTime(180 + speed * 7, t, 0.2);
     this.engG.gain.setTargetAtTime(0.02 + Math.min(speed, 40) * 0.0004, t, 0.2);
+  }
+
+  // tiếng xe lướt qua: thời lượng (s) theo tốc độ tương đối rel (m/s) — nhanh thì "vèo" ngắn, chậm thì "ù" dài
+  passDur(rel) { return clamp(2.8 - rel * 0.03, 0.8, 2.6); }
+
+  // xe lướt qua xe người chơi: tiếng gió rít + tiếng máy (hiệu ứng Doppler: cao lúc tới, trầm xuống khi đi qua).
+  // Độ lớn theo tốc độ tương đối, nhỏ dần nếu xe kia ở xa theo chiều ngang. pan: -1 trái .. +1 phải. Đỉnh âm ở giữa thời lượng.
+  passBy(rel, pan = 0, lat = 3) {
+    if (!this.ctx || this.mode !== 0) return;
+    const ctx = this.ctx, t = ctx.currentTime, dur = this.passDur(rel), mid = t + dur * 0.5;
+    const vol = clamp(0.12 + rel / 45, 0.12, 1) / (1 + 0.12 * Math.max(0, lat - 2));
+    const p = ctx.createStereoPanner();
+    p.pan.setValueAtTime(pan * 0.4, t); p.pan.linearRampToValueAtTime(pan, mid); p.pan.linearRampToValueAtTime(pan * 0.5, t + dur);
+    p.connect(this.outGain);
+    const s = this._src(this.noise, true);
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.7;
+    f.frequency.setValueAtTime(400 + rel * 10, t); f.frequency.linearRampToValueAtTime(900 + rel * 22, mid);
+    f.frequency.exponentialRampToValueAtTime(260 + rel * 5, t + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16 * vol, mid); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f).connect(g).connect(p);
+    s.start(t); s.stop(t + dur + 0.05);
+    const o = ctx.createOscillator(); o.type = 'sawtooth';
+    const f0 = 55 + rel * 1.1, dop = Math.min(0.25, rel / 343);
+    o.frequency.setValueAtTime(f0 * (1 + dop), t); o.frequency.setValueAtTime(f0 * (1 + dop), mid - dur * 0.08);
+    o.frequency.exponentialRampToValueAtTime(f0 * (1 - dop), mid + dur * 0.12);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320 + rel * 6;
+    const og = ctx.createGain();
+    og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.07 * vol, mid); og.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(lp).connect(og).connect(p);
+    o.start(t); o.stop(t + dur + 0.05);
   }
 
   // sấm: tiếng rền trầm (nhiễu nâu qua lowpass) đến sau tia chớp `delay` giây

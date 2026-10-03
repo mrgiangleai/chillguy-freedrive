@@ -6,7 +6,7 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 - **Map** (nút 🌾 hoặc phím `N`): **cánh đồng cỏ lau bất tận** 🌾 · **đồi thông** 🌲 kiểu slowroads: đồi cỏ xanh với búi cỏ mọc dày sát mép đường, cây có tán lá kết cấu, mảng rừng sẫm trên đồi xa · **đường núi** ⛰️ (mặc định) men sườn núi: vách đá ảnh thật với cụm đá gồ ghề, thông mọc trên sườn, vực thung lũng có hộ lan một bên · **đồi cỏ** 🌿 đồi thoải chỉ toàn cỏ xanh dịu cao 1–1,5 m, cao thấp từng mảng, gợn sóng theo gió — có **đàn 5 con bò sữa** loang đen trắng gặm cỏ sau hàng rào gỗ (cúi gặm, ngẩng nhìn, thong thả đi, vẫy đuôi; đàn đầu tiên ~270 m sau chỗ xuất phát, rồi mỗi 2,4 km lại gặp một đàn). Đồi thông có đoạn **đường đất gồ ghề xuyên rừng rậm** (~800 m, lặp lại mỗi 2,6 km)
 - **Cinematic** (luôn bật): dải đen letterbox 2.39:1, **xoá phông** theo ống kính thật (lấy nét vào xe, tiền cảnh/hậu cảnh nhoè kiểu bokeh), bloom quanh mặt trời/đèn, chỉnh màu phim, hạt phim, tối viền, camera hơi rung như quay cầm tay và cảnh mở đầu camera lia từ thấp ra sau xe
 - **Tốc độ**: mặc định chạy chill **25 km/h** (W/S chỉnh 10–60 km/h); nút **⚡** (hoặc phím `F`) đổi cấp: 25 → **50 km/h** → **Fast drive 180 km/h** (blur tốc độ, góc nhìn rộng ra, camera rung nhẹ, gió ù ù) → về 25
-- **Xe ngược chiều**: thỉnh thoảng (ngẫu nhiên, khoảng 15–70 s một chiếc) có xe khác chạy ngược chiều ở làn bên kia, ban đêm bật đèn pha / đèn hậu
+- **Giao thông**: thỉnh thoảng (ngẫu nhiên, thưa) có xe ngược chiều, xe cùng chiều nhanh hơn từ phía sau tới, hoặc xe chậm phía trước. Mọi xe (kể cả xe mình đang tự lái) chỉ sang làn vượt khi từ xe mình tới **50 m phía trước xe bị vượt** không có xe nào và xe ngược chiều không kịp tới; không thì chạy chậm phía sau chờ. Không xe nào đi xuyên qua nhau (gặp vật cản thì phanh / nép lề). Mỗi khi có xe lướt qua xe mình: tiếng "vèo" + tiếng máy (Doppler), to nhỏ theo tốc độ. Ban đêm bật đèn pha / đèn hậu (đèn phanh khi giảm tốc)
 - **Xe**: chọn xe bằng nút 🚗: **Mustang '67 Đen** (mặc định, sơn đen bóng) · Mustang '67 Xanh · Bugatti Divo · Milk Truck (model glTF miễn phí, đều ≤ 250k triangles)
 - **Ống kính** 📷 (nút hoặc phím `L`): vào game **16 mm f/1.4**; đổi sang camera ngoài xe bất kỳ thì về **24 mm f/5.6** (chạy 180 km/h: camera ngoài xe chuyển 16 mm, thôi chạy nhanh về 24 mm); camera trong xe 16 mm f/16. Zoom 16–35 mm, khẩu độ f/1.4–f/16; độ xoá phông tính theo cảm biến full-frame
 - **Camera**: sau xe · sát mặt đường · bên hông (ngang hông, lùi xa ~11 m, xe chiếm ~1/3 khung hình) · trong xe · **quay quanh** (mặc định) · từ trên cao; **bấm giữ + rê chuột / vuốt** để nhìn quanh 360° (thả tay camera vẫn giữ góc đã xoay, đổi camera thì về góc chuẩn), **lăn chuột / chụm 2 ngón / phím `+` `-`** để zoom (đổi tiêu cự)
@@ -85,7 +85,7 @@ src/               mã nguồn (gộp bằng esbuild: build.mjs)
   fireflies.js    đom đóm ban đêm dọc mép đường
   town.js         thị trấn + đèn đường dưới thung lũng (map núi)
   dashscreen.js   màn hình giải trí trên taplo + ánh sáng hắt lên người lái
-  traffic.js      xe chạy ngược chiều ngẫu nhiên, thưa thớt
+  traffic.js      giao thông: xe ngược chiều / cùng chiều, bám xe, vượt khi làn trống, tránh va chạm, tiếng xe lướt qua
   cows.js         đàn bò sữa + hàng rào gỗ (map đồi cỏ)
   person.js       người lái (animation, quần áo vẽ bằng shader)
   stopscene.js    cảnh dừng xe: cận bánh xe, mở cửa, người bước ra hút thuốc, camera quay quanh
