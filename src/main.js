@@ -74,6 +74,7 @@ const post = new Post(renderer, QUALITY[QUALITY_DEFAULT].msaa);
 const refl = new WetReflection(renderer);
 const person = new Person();
 const stop = new StopScene(cars, person);
+cars.viewer = camera;
 const smoke = new Smoke(scene, person);       // điếu thuốc + khói (cảnh dừng xe)
 const nature = new Nature(scene);
 const mirror = new RearMirror(renderer);

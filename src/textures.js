@@ -39,6 +39,25 @@ export function roadTexture(renderer) {
   return t;
 }
 
+// quầng sáng mềm (giảm dần kiểu Gauss + lõi nhỏ): không có mép tròn rõ khi phóng to
+export function softGlowTexture() {
+  const N = 128, c = document.createElement('canvas');
+  c.width = c.height = N;
+  const g = c.getContext('2d'), img = g.createImageData(N, N);
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const dx = (x + 0.5) / N * 2 - 1, dy = (y + 0.5) / N * 2 - 1, r2 = dx * dx + dy * dy;
+      const v = Math.min(1, Math.exp(-r2 * 5) * 0.55 + Math.exp(-r2 * 22) * 0.35 + Math.exp(-r2 * 120) * 0.35) * (1 - Math.min(1, r2) ** 4);
+      const i = (y * N + x) * 4;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = 255; img.data[i + 3] = Math.round(v * 255);
+    }
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 export function glowTexture() {
   const [c, g] = canvas(128, 128);
   const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);

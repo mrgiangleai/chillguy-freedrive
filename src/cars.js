@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { CARS } from './config.js';
-import { glowTexture } from './textures.js';
+import { glowTexture, softGlowTexture } from './textures.js';
 import { screenPose } from './dashscreen.js';
 import { withMist } from './mist.js';
 
@@ -48,7 +48,18 @@ export class Cars {
       return sp;
     };
     this.headGlow = [mk(0xffeccc, 1.7), mk(0xffeccc, 1.7)];
-    this.tailGlow = [mk(0xff2a1a, 1.0), mk(0xff2a1a, 1.0)];
+    // quầng đèn hậu: mềm, toả rộng; vẽ đè lên mặt đường / thân xe (không bị cắt nửa vòng), mờ đi khi không nhìn từ phía sau
+    const soft = softGlowTexture();
+    this.tailGlow = [0, 1].map(() => {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: soft, color: 0xff2412, transparent: true, opacity: 0, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, fog: false,
+      }));
+      sp.renderOrder = 6;
+      this.lights.add(sp);
+      return sp;
+    });
+    this.viewer = null;              // camera (để biết đang nhìn đuôi xe hay không)
+    this._gv = new THREE.Vector3(); this._gb = new THREE.Vector3();
     this.lampLevel = 0;
     this.brake = 0;
 
@@ -323,7 +334,15 @@ export class Cars {
     const acc0 = this.brakeAcc || 0;
     this.brake += ((acc0 < -1.2 ? 1 : 0) - this.brake) * (1 - Math.exp(-dt * 8));
     const tail = 0.3 + 0.7 * L + 0.6 * this.brake;
-    this.tailGlow.forEach((g) => { g.material.opacity = Math.min(1, 0.95 * tail); g.scale.setScalar(1.15 + 0.5 * tail); });
+    // nhìn từ phía sau mới thấy quầng (nhìn từ trước / trong xe thì quầng bị thân xe che)
+    let face = 1;
+    if (this.viewer) {
+      this.tailGlow[0].getWorldPosition(this._gv);
+      this._gv.subVectors(this.viewer.position, this._gv).normalize();
+      this._gb.set(0, 0, 1).transformDirection(this.root.matrixWorld);       // hướng đuôi xe (+Z)
+      face = THREE.MathUtils.smoothstep(this._gv.dot(this._gb), -0.05, 0.35);
+    }
+    this.tailGlow.forEach((g) => { g.material.opacity = Math.min(0.8, 0.45 * tail) * face; const k = 2.0 + 1.3 * tail; g.scale.set(k * 1.35, k * 0.85, 1); g.visible = face > 0.01; });   // dẹt ngang như đèn hậu
     for (const m of this.current?.tailMats || []) m.emissiveIntensity = 0.8 + 2.6 * tail;
     this.cabin.intensity = this.cabinLevel;
   }
