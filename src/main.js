@@ -632,8 +632,10 @@ function frame(now) {
   cars.setLights(st.lamps);
   audio.setAmbient({ speed: drive.v, rain: st.rain, snow: st.snow, wind: st.wind, dark: st.dark, fx: drive.fx });
 
-  // gió mạnh / bão / tốc độ cao: camera rung nhẹ
-  const shake = Math.max(0.028 * Math.max(0, st.wind - 0.55) / 0.45, 0.016 * drive.fx * drive.fx);
+  // gió mạnh / tốc độ cao: camera rung nhẹ. Trời bão: tắt mọi rung lắc (camera, cầm tay, thân xe nhún)
+  const calm = 1 - st.dark;
+  cars.calm = st.dark;
+  const shake = Math.max(0.028 * Math.max(0, st.wind - 0.55) / 0.45, 0.016 * drive.fx * drive.fx) * calm;
   if (shake > 0) {
     const t = now / 1000;
     camera.position.x += (Math.sin(t * 11.3) + Math.sin(t * 17.9) * 0.6) * shake;
@@ -641,11 +643,12 @@ function frame(now) {
   }
 
   // cinematic: camera hơi "thở" và nghiêng nhẹ như quay cầm tay
-  if (cineAmt > 0.01) {
+  const hand = cineAmt * calm;
+  if (hand > 0.01) {
     const t = now / 1000;
-    camera.position.x += Math.sin(t * 0.37) * 0.014 * cineAmt;
-    camera.position.y += Math.sin(t * 0.53) * 0.012 * cineAmt;
-    camera.rotateZ((Math.sin(t * 0.31) * 0.0045 + Math.sin(t * 0.83) * 0.002) * cineAmt);
+    camera.position.x += Math.sin(t * 0.37) * 0.014 * hand;
+    camera.position.y += Math.sin(t * 0.53) * 0.012 * hand;
+    camera.rotateZ((Math.sin(t * 0.31) * 0.0045 + Math.sin(t * 0.83) * 0.002) * hand);
   }
 
   uiTimer -= dt;

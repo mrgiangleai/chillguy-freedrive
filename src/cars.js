@@ -302,9 +302,10 @@ export class Cars {
     this.roll += (clamp(-st.latVel * 0.012, -0.05, 0.05) - this.roll) * k;
     const f = clamp(st.speed / 20, 0, 1);
     this.tilt.rotation.set(this.pitch, 0, this.roll);
-    this.tilt.position.y = (0.005 * Math.sin(this.time * 7.3) + 0.004 * Math.sin(this.time * 12.1)) * f;
+    const calm = 1 - (this.calm || 0);                         // trời bão: thân xe không nhún / xóc
+    this.tilt.position.y = (0.005 * Math.sin(this.time * 7.3) + 0.004 * Math.sin(this.time * 12.1)) * f * calm;
     // đường đất: rung xóc nhẹ thêm (thân xe nảy + lắc ngang)
-    const r = (st.rough || 0) * f;
+    const r = (st.rough || 0) * f * calm;
     if (r > 0.001) {
       this.tilt.position.y += r * (0.014 * Math.sin(this.time * 19.3) + 0.01 * Math.sin(this.time * 31.7 + 1.1));
       this.tilt.rotation.z += r * (0.006 * Math.sin(this.time * 13.1) + 0.004 * Math.sin(this.time * 23.9));

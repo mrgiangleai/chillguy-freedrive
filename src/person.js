@@ -58,7 +58,7 @@ export class Person {
       model.rotation.y = Math.atan2(-d.x, d.z) || 0;   // đưa hướng mắt về +Z
     }
 
-    // model gốc chỉ là thân người cơ bản => "mặc" áo phông trắng, quần jeans, giày sneaker (theo xương chi phối)
+    // model gốc chỉ là thân người cơ bản => "mặc" áo phông đen, quần jeans, giày sneaker (theo xương chi phối)
     model.updateMatrixWorld(true);
     model.traverse((o) => { if (o.isSkinnedMesh && /superhero|body/i.test(o.name + ' ' + o.material?.name)) dress(o, model); });
 
@@ -132,7 +132,7 @@ function turn(bone, from, to) {
 }
 
 // ---- quần áo vẽ lên thân người (màu + độ nhám + làm mờ vân cơ bắp ở chỗ có vải) ----
-const SHIRT = new THREE.Color('#e9e4da'), PANTS = new THREE.Color('#2f4366'), SHOES = new THREE.Color('#dedad2');
+const SHIRT = new THREE.Color('#1c1c1f'), PANTS = new THREE.Color('#2f4366'), SHOES = new THREE.Color('#dedad2');
 function dress(mesh, model) {
   const g = mesh.geometry;
   const si = g.attributes.skinIndex, sw = g.attributes.skinWeight, pos = g.attributes.position;

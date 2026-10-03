@@ -84,6 +84,8 @@ export class Smoke {
     this._h = new THREE.Vector3(); this._e = new THREE.Vector3(); this._d = new THREE.Vector3(); this._c = new THREE.Vector3();
     this.tip = new THREE.Vector3();
     this._q = new THREE.Quaternion(); this._dir = new THREE.Vector3(); this._r = new THREE.Vector3();
+    this._fv = [0, 1, 2, 3].map(() => new THREE.Vector3());
+    this.fg = null;                  // xương ngón trỏ / ngón giữa tay phải
   }
 
   _spawn(p, v, life, s0, s1, a0, drag) {
@@ -99,17 +101,29 @@ export class Smoke {
     const arm = this.person.arms?.r;
     const hold = sm.on && arm && this.person.root.visible;
     this.cig.visible = !!hold;
+    sm.errOK = false;
     if (hold) {
-      // điếu thuốc kẹp giữa ngón trỏ và ngón giữa: trước cổ tay ~8 cm theo cẳng tay, chĩa ra trước - sang phải
-      const H = arm[2].getWorldPosition(this._h), E = arm[1].getWorldPosition(this._e);
-      const fore = this._d.subVectors(H, E).normalize();
-      const C = this._c.copy(H).addScaledVector(fore, 0.1);
+      // điếu thuốc kẹp trong khe giữa ngón trỏ và ngón giữa (giữa đốt 2 - 3 của hai ngón), chĩa ngang ra trước - sang phải;
+      // đầu lọc cách khe ngón 3 cm (phía miệng), đầu đốt cách 5.5 cm
+      if (!this.fg && this.person.model) {
+        const f = ['index_02_r', 'index_03_r', 'middle_02_r', 'middle_03_r'].map((n) => this.person.model.getObjectByName(n));
+        this.fg = f.every(Boolean) ? f : arm.slice(1);
+      }
+      const G = this._c;
+      if (this.fg.length === 4) {
+        const [i2, i3, m2, m3] = this.fg.map((b, k) => b.getWorldPosition(this._fv[k]));
+        G.copy(i2).add(m2).multiplyScalar(0.5 * 0.65).addScaledVector(i3.add(m3), 0.5 * 0.35);
+      } else {
+        const H = arm[2].getWorldPosition(this._h), E = arm[1].getWorldPosition(this._e);
+        G.copy(H).addScaledVector(this._d.subVectors(H, E).normalize(), 0.1);
+      }
       const dir = this._dir.copy(sm.F).multiplyScalar(0.45).addScaledVector(sm.R, 0.85).addScaledVector(UP, -0.06).normalize();
-      // khi đưa lên rít: đầu lọc ngậm ở môi (kéo điếu thuốc về miệng theo mức "gần miệng")
-      if (sm.atMouth > 0) this._r.copy(sm.mouth).addScaledVector(dir, 0.04), C.lerp(this._r, sm.atMouth);
-      this.cig.position.copy(C);
+      this.cig.position.copy(G).addScaledVector(dir, 0.0125);
       this.cig.quaternion.setFromUnitVectors(UP, dir);
-      this.tip.copy(C).addScaledVector(dir, 0.045);
+      this.tip.copy(G).addScaledVector(dir, 0.055);
+      // sai lệch so với chỗ cần đặt khe ngón khi ngậm thuốc (đầu lọc ở môi) => StopScene dời cổ tay bù lại
+      sm.err.copy(sm.mouth).addScaledVector(dir, 0.03).sub(G);
+      sm.errOK = true;
     }
     // đầu thuốc đỏ: rít thì sáng rực, để yên thì âm ỉ
     const lit = hold && sm.lit;
