@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { ROAD, Road } from './road.js';
 import { Scenery } from './scenery.js';
 import { Terrain } from './terrain.js';
-import { setTerrainMap } from './terrain-noise.js';
+import { setTerrainMap, TP } from './terrain-noise.js';
 import { Environment } from './world.js';
 import { Cars } from './cars.js';
 import { CameraRig, FOCAL_MIN, FOCAL_MAX } from './camera.js';
@@ -21,6 +21,7 @@ import { Fireflies } from './fireflies.js';
 import { ValleyTown } from './town.js';
 import { DashScreen } from './dashscreen.js';
 import { Traffic } from './traffic.js';
+import { Ocean } from './ocean.js';
 import { roadPosition } from './traffic-ai.js';
 import { Cows } from './cows.js';
 import { Waterfalls } from './waterfalls.js';
@@ -62,7 +63,7 @@ const grass = new ReedField(scene, renderer, 'grass');   // búi cỏ cho map đ
 const meadow = new ReedField(scene, renderer, 'meadow'); // cỏ cao cho map đồi cỏ
 const cars = new Cars(scene);
 const rig = new CameraRig(camera);
-rig.groundAt = (x, z) => terrain.heightAt(x, z);
+rig.groundAt = (x, z) => Math.max(terrain.heightAt(x, z), ocean.group.visible ? ocean.level + 1.2 : -Infinity);   // không chui xuống đất / xuống nước
 // mắt người lái thật: xương đầu + 9 cm lên, 4 cm về sau (toạ độ thế giới)
 const _eyeF = new THREE.Vector3(), _eyeU = new THREE.Vector3();
 rig.eyeAt = (out) => {
@@ -89,6 +90,7 @@ const town = new ValleyTown(scene);           // map núi: thị trấn + đèn 
 const dash = new DashScreen();                // màn hình giải trí trên taplo (hắt sáng lên người lái)
 const _trafficPerson = new THREE.Vector3();
 const traffic = new Traffic(scene, cars);     // thỉnh thoảng có xe chạy ngược chiều
+const ocean = new Ocean(scene);               // map Biển: mặt biển sóng (bake từ ocean_scene_animated.glb)
 const waterfalls = new Waterfalls(scene, road, terrain);
 const cows = new Cows(scene);                 // map đồi cỏ: đàn bò sữa sau hàng rào gỗ
 cars.tilt.add(dash.group);
@@ -277,6 +279,9 @@ const applyMap = () => {
   setTerrainMap(id);            // đổi tham số địa hình (đồi thấp / đồi núi)
   road.dirt = id === 'forest';  // đồi thông: có đoạn đường đất xuyên rừng
   road.recomputeHeights();      // độ cao đường theo địa hình mới
+  // map Biển: mực nước thấp hơn chỗ thấp nhất của đường 3 m (xét 120 km đường phía trước)
+  if (id === 'sea') { road.ensure(drive.s + 120000); let lo = Infinity; for (const p of road.pts) lo = Math.min(lo, p.y); TP.seaLevel = lo - 3; }
+  ocean.setMap(id === 'sea', TP.seaLevel);
   scenery.setMap(id);
   terrain.reset();
   terrain.setCar(drive.s);
@@ -498,7 +503,7 @@ function stopLook(pos, look) {
     v.set(v.x * f, R * Math.sin(el), v.z * f);
   }
   camera.position.copy(look).add(v);
-  const g = terrain.heightAt(camera.position.x, camera.position.z) + 0.25;
+  const g = Math.max(terrain.heightAt(camera.position.x, camera.position.z) + 0.25, ocean.group.visible ? ocean.level + 1.2 : -Infinity);
   if (camera.position.y < g) camera.position.y = g;
 }
 
@@ -638,6 +643,7 @@ function frame(now) {
   scenery.update(drive.s);
   scenery.apply(st);
   scenery.updateLights(camera.position);
+  ocean.update(now / 1000, camera.position, road, drive.s);
   waterfalls.update(now / 1000, drive.s, st.light, { d: drive.d, v: drive.v, dim: cars.dim, npcs: traffic.active, cam: camera, audio });
   if (reeds.visible) reeds.update(now / 1000, camera.position, road, drive.s, st);
   grass.group.visible = MAPS[state.map].id === 'forest' && st.cover < 0.5;   // tuyết phủ thì ẩn cỏ
@@ -781,4 +787,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

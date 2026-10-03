@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -51,6 +51,7 @@
 | `town.js` | Map núi: thị trấn nhỏ + **thị trấn lớn** dưới thung lũng, đèn đường |
 | `waterfalls.js` | Map núi: suối/thác (`waterfallSpec`, `waterfallGeometry` → nodes/water/wet/rocks/sprays; `Waterfalls.setMap`, `update(time, s, light, {d, v, dim, npcs, cam, audio})`). Dòng dò theo dốc (`trace`) + uốn lượn (`meander`); nước = MeshStandardMaterial + nhiễu theo **thời gian chảy `tau`** (không dùng `along - uTime*speed` => tránh sọc); lớp ướt = blend nhân màu; đá tảng dùng `rockGeometry(k, 2)` + `terrain.rockMat`; nước bắn bánh xe (`Splash`, Points kéo về camera 4%) |
 | `carriage.js` | `loadCarriage(loader)` → hàm tạo xe ngựa `{group, dim 5.6×2.8, wheels: [], mixer, carriage: true}`; `CARRIAGE` (15–30 s, tối đa 2, 25–40 km/h). traffic.js sinh/điều khiển như NPC (`_spawnCarriage`, `carriageTimer`, không đèn, không tiếng lướt, không nhận chùm pha dùng chung) |
+| `ocean.js` | Map Biển: `Ocean.setMap(on, level)`, `update(time, cam, road, s)`. Lưới tròn quanh camera (R 300 m, 110 vòng × 128 nan, sóng nhô lên ≤ 260 m) + vành phẳng tới 6 km. Shader `waveAt`: atlas `assets/tex/ocean-waves.png` (bake bằng `scripts/bake-ocean.mjs` từ `models/ocean_scene_animated.glb`), ô 27.12 m xoay 25°, trộn 4 mẫu lệch nửa ô (mép ô gốc lệch ~18 cm), 2 khung nội suy; độ sâu ven đê ước lượng từ 27 điểm tim đường (công thức xẻ đường của terrain) => nước nông / bọt / trong |
 | `cows.js` | Map đồi cỏ: đàn 5 bò sữa + hàng rào gỗ |
 | `fireflies.js` | Đom đóm ban đêm |
 | `traffic.js` | Spawn/pool/vẽ NPC: ngược chiều (10–25 s/chiếc, tối đa 2) + cùng chiều (25–60 s, tối đa 1, vào từ phía sau 80–110 m); pool 3 xe; NPC chỉ có quầng pha, chùm sáng thật = 1 cặp SpotLight dùng chung (`beam`, gắn NPC gần nhất ≤300 m, `_beam`); đèn `lamps × NPC_LAMP(0.24)`, đèn hậu ×0.6; thân xe xoay `yaw = atan(latV/v)` (≤0.35, nội suy 8/s), bánh trước `w.front` đánh lái `yaw × 1.8`; âm thanh lướt qua 1 lần/lượt; xuất `ctrl {lane, maxV}` cho xe người chơi |
@@ -82,6 +83,8 @@
   ghế/khung). Hạt mưa ngoài trời bị loại trong thể tích xe; âm thanh ngoài −60% + mưa lộp độp trên kính.
 - **Ánh sáng**: nắng gắt cân bằng kiểu máy ảnh: nắng ×2.3, ánh trời ×0.5, phơi sáng ×0.7. Đêm có trăng (đổ bóng), sương tự
   60% khi chọn Ban đêm. Bão/gió lớn: không rung lắc (chỉ 180 km/h rung nhẹ).
+- **Map Biển** (`sea`): địa hình `TP.sea` — đáy biển = `TP.seaLevel − 7` (+gợn), đảo ở xa (> 400 m) từ đỉnh sống núi; đường `low 7`;
+  `TP.seaLevel` = (đường thấp nhất trong 120 km tính từ chỗ xe) − 3 m, tính khi đổi map. Camera không xuống dưới mặt nước.
 - **Map núi**: thị trấn nhỏ + lớn có đèn; suối/thác qua đường (`waterfalls.js`, rộng 2–5 m, lưu lượng 0.25–1, giữ 2–4 dòng
   quanh xe, dựng tối đa 1 dòng/khung hình ~20 ms, dispose khi rời vùng/đổi map). Xem nhật ký #1.
 - **Dừng xe**: xem `stopscene.js`; người áo đen; cận cảnh chỉ ~1.5 s lúc châm thuốc rồi ra toàn cảnh (zoom + lùi 20 m);
@@ -153,3 +156,9 @@
   - Xe ngựa cùng chiều chỉ khi chênh tốc độ > 3 m/s; cùng chiều đi trước quá 400 m thì gỡ (tránh lởn vởn chiếm chỗ).
   - Mô phỏng 20 phút (25/50/180 km/h, có xe ngựa): 0 chồng thân xe, 30/48/54 lượt xe ngựa, xe mình giữ đúng tốc độ.
     `check-traffic-policy.mjs` thêm kiểm tra xe ngựa. Ảnh `screenshots/carriage-verified.jpg` (fixture giữ cách 16 m).
+
+- **#6** — Map "Biển" từ model chú tải lên `docs/assets/models/ocean_scene_animated.glb` (12.9 MB, lưới 101×101, 100 morph
+  target = 100 khung sóng, chỉ dịch theo chiều đứng, chu kỳ 8.333 s). Bake ra atlas 1000×1000 RGB (2.6 MB): game không tải
+  file .glb. Ô sóng gốc không lặp liền (mép lệch ~0.18 m) => trộn 4 mẫu lệch nửa ô. Sóng −1.32..+1.75 m.
+  - Ảnh Low ban ngày: `screenshots/sea-map-chase.jpg`, `sea-map-drone.jpg`, `sea-map-side.jpg`. Chưa xem đêm / mưa / trong xe;
+    lặp vân sóng còn thấy được khi nhìn từ trên cao. Các check scripts vẫn đạt.

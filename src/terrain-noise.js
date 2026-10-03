@@ -10,9 +10,11 @@ export const TERRAIN_MAPS = {
   mountain: { low: 34, det: 5.5, fine: 1.2, mount: 520, side: true },
   // đồi cỏ: đồi thoải lượn sóng, chỉ có cỏ
   meadow: { low: 22, det: 3.2, fine: 0.5, mount: 380 },
+  // biển: đường chạy trên đê giữa biển (lên xuống nhẹ), xa xa có đảo; mực nước đặt ở main (thấp hơn chỗ thấp nhất của đường 3 m)
+  sea: { low: 7, det: 2.5, fine: 0.4, mount: 260, sea: true },
 };
 export const TP = { id: 'reed', ...TERRAIN_MAPS.reed };
-export function setTerrainMap(id) { Object.assign(TP, { side: false }, TERRAIN_MAPS[id], { id }); }
+export function setTerrainMap(id) { Object.assign(TP, { side: false, sea: false }, TERRAIN_MAPS[id], { id }); }
 
 export function hash2(ix, iz) {
   let h = (Math.imul(ix, 374761393) + Math.imul(iz, 668265263)) | 0;

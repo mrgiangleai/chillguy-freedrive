@@ -6,6 +6,7 @@ import { withMist } from './mist.js';
 import { cardPineGeometry, cardBroadleafGeometry } from './scenery.js';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { NEAR } from './nature.js';
+import { SEA_BED } from './ocean.js';
 
 // Địa hình đồi núi vô tận kiểu slowroads:
 // - Cây tứ phân (quadtree) quanh camera: ô gần 64 m (lưới 2 m), càng xa ô càng to (tới 8 km) => xa ~4 km.
@@ -24,6 +25,7 @@ const PAL = {
   reed: { a: col('#ad9b5c'), b: col('#c5b37b'), c: col('#8c8a50'), snowLine: 240, trees: false },
   mountain: { a: col('#789a45'), b: col('#9eaa5a'), c: col('#557236'), snowLine: 300, trees: true },
   meadow: { a: col('#6f9a4c'), b: col('#86ad5c'), c: col('#5c8541'), snowLine: 400, trees: false, bare: true },
+  sea: { a: col('#cbb98c'), b: col('#bba97c'), c: col('#7f8f55'), snowLine: 600, trees: false, bare: true },   // cát, đá kè, cỏ trên đảo
 };
 const FOREST = col('#3e5d2b');
 const ROCK = col('#8a8072'), ROCK2 = col('#6b6259'), SNOW = col('#eef2f6'), GRAVEL = col('#8f887c'), FLOOR = col('#5f6c36');
@@ -196,7 +198,11 @@ export class Terrain {
     let h = hLow(x, z) + hDetail(x, z);
     this._d = FAR; this._s = -1;
     const near = dm - 70 < CARVE1 && this._nearFine(x, z, fine);
-    if (side) {
+    if (TP.sea) {
+      // đáy biển thấp hơn mặt nước 7 m, gợn nhẹ; xa đường (> 400 m) nhô lên vài hòn đảo ở đỉnh các sống núi
+      h = (TP.seaLevel ?? -10) - SEA_BED + hDetail(x, z) * 0.6;
+      if (dm > 400) h += Math.max(0, mountains(x, z) / TP.mount - 0.42) * 2.6 * TP.mount * sstep(400, 1200, dm);
+    } else if (side) {
       // đường núi: bên trái (lat < 0) là sườn núi dựng đứng, bên phải đổ xuống thung lũng
       let lat = sw > 0 ? swl / sw : 0;
       if (near) lat = this._nl + (lat - this._nl) * sstep(25, 60, this._nd);
