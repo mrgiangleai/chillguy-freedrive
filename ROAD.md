@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -44,18 +44,18 @@
 | `person.js` | Người lái (Quaternius, animation), áo đen/quần jeans vẽ bằng shader, IK 2 xương `reach(side, target, pole)`, xương `head`/`neck` |
 | `stopscene.js` | Cảnh dừng xe: dừng → bước ra, đóng cửa → đi lên trước xe → hút thuốc → **đi lanh quanh** (`_wander`, `_pickTarget`, `_look`) → quay lại xe; camera trung cảnh → cận 50 mm → toàn cảnh quay quanh |
 | `smoke.js` | Điếu thuốc (kẹp giữa ngón trỏ/giữa), đầu thuốc đỏ, lửa bật lửa, hạt khói (đầu điếu + nhả từ miệng) |
-| `terrain.js`, `terrain-noise.js` | Địa hình quadtree nhiều mức, cây tấm, cụm đá, texture ảnh; `setView` (Ultra xa ×2); `hash2` |
+| `terrain.js`, `terrain-noise.js` | Địa hình quadtree nhiều mức, cây tấm, cụm đá (`rockGeometry(k, detail)` export), texture ảnh; `setView` (Ultra xa ×2); `heightAt` (đặt `_d` = khoảng cách tới đường); `hash2`, `vnoise` |
 | `nature.js` | Cây/bụi/đá model chi tiết quanh camera (gần đổ bóng, xa không) |
 | `reeds.js` | Cỏ lau / búi cỏ / cỏ đồi (instancing, gió, `setView`) |
 | `road.js`, `scenery.js` | Đường vô tận (`at`, `heading`, `curvature(s)` đổi hướng có dấu trên 12 m), đoạn đường đất; mặt đường (nhựa sần, vũng nước, phản chiếu), cọc, đèn đường (vùng sáng 24 × 28 m, opacity `0.68 × lamps`), hộ lan |
 | `town.js` | Map núi: thị trấn nhỏ + **thị trấn lớn** dưới thung lũng, đèn đường |
-| `waterfalls.js` | Map núi: suối/thác chảy từ sườn núi qua đường xuống vực (`setMap`, `update(time, s, light)`), mỗi ~560 m một dòng |
+| `waterfalls.js` | Map núi: suối/thác (`waterfallSpec`, `waterfallGeometry` → nodes/water/wet/rocks/sprays; `Waterfalls.setMap`, `update(time, s, light, {d, v, dim, npcs, cam, audio})`). Dòng dò theo dốc (`trace`) + uốn lượn (`meander`); nước = MeshStandardMaterial + nhiễu theo **thời gian chảy `tau`** (không dùng `along - uTime*speed` => tránh sọc); lớp ướt = blend nhân màu; đá tảng dùng `rockGeometry(k, 2)` + `terrain.rockMat`; nước bắn bánh xe (`Splash`, Points kéo về camera 4%) |
 | `cows.js` | Map đồi cỏ: đàn 5 bò sữa + hàng rào gỗ |
 | `fireflies.js` | Đom đóm ban đêm |
 | `traffic.js` | Spawn/pool/vẽ NPC: ngược chiều (4–10 s/chiếc, tối đa 4) + cùng chiều (10–30 s, tối đa 2, vào từ phía sau 80–110 m); pool 6 xe; đèn pha NPC `lamps × 0.24`, đèn hậu ×0.6; âm thanh lướt qua 1 lần/lượt; xuất `ctrl {lane, maxV}` cho xe người chơi |
 | `traffic-policy.js` | Luật bám/vượt (`_decide`, `_follow`, `_canOvertake` tầm nhìn 50 m + thời gian xe đối diện tới, `_overtakeDanger`, `_sideClear`). Làn: chiều người chơi 1.5, ngược chiều −1.8. Cờ `noOvertake` (xe ngược chiều) |
 | `traffic-ai.js` | `stepTraffic`: né người/xe trong 30 m từ mép thân, giữ hướng né, phanh/dừng nếu bị chặn, chống xuyên vật cản; `trafficCurveSpeed` (vào cua 60%); `roadPosition` (chiếu người đi bộ về toạ độ đường) |
-| `audio.js` | Nhạc lo-fi tự sinh, gió/mưa/lốp/động cơ/sấm; bus `outGain` (trong xe ×0.4 + lowpass), mưa: ngoài `rainG` 0.08, kính `glassG` 0.08, mui `roofG` 0.02 (× lượng mưa); `passBy(rel, pan, lat)` + `passDur(rel)` tiếng xe lướt qua theo tốc độ tương đối |
+| `audio.js` | Nhạc lo-fi tự sinh, gió/mưa/lốp/động cơ/sấm; bus `outGain` (trong xe ×0.4 + lowpass), mưa: ngoài `rainG` 0.08, kính `glassG` 0.08, mui `roofG` 0.02 (× lượng mưa); `passBy(rel, pan, lat)` + `passDur(rel)` tiếng xe lướt qua theo tốc độ tương đối; `setWater(level, pan)` tiếng suối (buffer bọt khí tạo lần đầu), `splash(power)` xe lội nước |
 | `particles.js`, `mist.js`, `reflection.js`, `textures.js`, `colorspace.js` | Mưa/tuyết, sương tầng thấp (`withMist`), phản chiếu vũng nước, texture tự sinh, đổi màu hiển thị → tuyến tính |
 
 ## 4. Trạng thái hiện tại (tóm tắt)
@@ -81,7 +81,7 @@
 - **Ánh sáng**: nắng gắt cân bằng kiểu máy ảnh: nắng ×2.3, ánh trời ×0.5, phơi sáng ×0.7. Đêm có trăng (đổ bóng), sương tự
   60% khi chọn Ban đêm. Bão/gió lớn: không rung lắc (chỉ 180 km/h rung nhẹ).
 - **Map núi**: thị trấn nhỏ + lớn có đèn; suối/thác qua đường (`waterfalls.js`, rộng 2–5 m, lưu lượng 0.25–1, giữ 2–4 dòng
-  quanh xe, dispose khi rời vùng/đổi map) — **đang làm lại cho tự nhiên hơn** (bản Codex trông như dải trắng phẳng).
+  quanh xe, dựng tối đa 1 dòng/khung hình ~20 ms, dispose khi rời vùng/đổi map). Xem nhật ký #1.
 - **Dừng xe**: xem `stopscene.js`; người áo đen; nhịp hút 3 s → 5 s → ngẫu nhiên 5–12 s; đi lanh quanh trong 10 m,
   chỉ trong làn mình + lề phải.
 - **Điện thoại**: tự toàn màn hình khi nhấc tay ở lần chạm đầu (và chạm lại nếu bị thoát), nút ⛶ chỉ hiện trên điện thoại,
@@ -94,4 +94,22 @@
 - Mưa kính sau trên Mustang xanh mới kiểm bằng script, chưa xem GUI.
 
 ## 6. Nhật ký cập nhật
-- Đã tóm tắt tới commit `eab2e28` + cập nhật "đèn pha NPC −60%, xe ngược chiều không vượt nhau" (commit ngay sau đó).
+- Đã tóm tắt tới commit `925dc91` (đèn pha NPC −60%, xe ngược chiều không vượt nhau).
+
+- **#1** — Làm lại suối/thác map núi cho tự nhiên (bản cũ: dải xanh trắng đều, sọc chéo, nằm như vạch sơn trên đường).
+  - Hình: dòng dò theo dốc địa hình từ mép đường lên núi 230 m / xuống vực 190 m, quán tính + lệch ≤35° so với pháp tuyến
+    đường, uốn lượn theo nhiễu; rộng hẹp không đều, chân thác toả rộng, trên đường loe thành lớp tràn (0.6 × width mỗi bên);
+    đoạn trên cao lúc ẩn lúc hiện. Mặt cắt 9 điểm lấy độ cao thật => nước bám địa hình, trên đường cao hơn nhựa 3.5–5.5 cm.
+  - Shader nước: vách dốc => bọt trắng thành vệt dài + tách nhánh; thoải => nước trong, gợn (bump theo đạo hàm màn hình), vệt bọt
+    mảnh; xoáy bọt ở chỗ dốc giảm đột ngột (chân thác), trên đường bọt tan nhanh. Mép nham nhở. Bọt albedo ~0.62 để không kích
+    bloom (ngưỡng 0.92). polygonOffset −6/−12 (mặt đường −2/−2) + kéo về camera 0.5% khoảng cách.
+  - Lỗi đã gặp: (1) quầng sáng quanh thác = lớp đá ướt PBR phản chiếu trời => đổi sang blend nhân màu; (2) sọc ngang ở chân
+    thác = `along - uTime*speed` khi speed đổi theo dốc => dùng `tau` tích phân; (3) hạt nước bắn bị mặt đường che => kéo 4%.
+  - Đá tảng hai bờ ~90/dòng (dày gần đường, ít trên vách dốc), màu đá ướt; bụi nước chân thác + mép vực (sprite phồng/tan).
+  - Âm thanh: tiếng suối (nhiễu nâu + bọt khí, lệch trái/phải theo camera), tiếng "xoè" khi bánh xe vào lớp nước.
+  - `node scripts/check-waterfalls.mjs` (viết lại): 1000 seed; 10 dòng: lưới hữu hạn, `tau` tăng dần, nước trên nhựa/địa hình
+    (0/2800 mẫu thấp), đá không nằm trên đường, khôi phục `iCar`, chỉ bật ở map núi. Các check khác vẫn đạt.
+  - Ảnh Low: `screenshots/waterfall-road-verified.jpg`, `waterfall-base-verified.jpg`, `waterfall-cliff-verified.jpg`,
+    `waterfall-overview-verified.jpg`, `waterfall-crossing-verified.jpg`, `waterfall-splash-verified.jpg`. Script chụp tạm ở scratchpad (giữ xe/camera cố định),
+    không thêm file preview vào docs. Chưa nghe thử âm thanh thật (máy ảo không có loa) và chưa đo FPS máy thật.
+  - Thấy thêm (chưa sửa): vài **tảng đá của terrain lơ lửng** trên vách núi gần đường (cục đen to ở s≈250).

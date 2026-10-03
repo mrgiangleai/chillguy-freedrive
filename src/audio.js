@@ -247,6 +247,48 @@ export class ChillAudio {
     o.start(t); o.stop(t + dur + 0.05);
   }
 
+  // tiếng suối/thác: vòng lặp 4 s gồm rào rào (nhiễu nâu + trắng) và tiếng "lục bục" (bọt khí: sin tắt nhanh, cao dần).
+  // Tạo khi cần lần đầu. level 0..1, pan -1 trái .. +1 phải
+  setWater(level, pan = 0) {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    if (!this.waterG) {
+      if (level <= 0.001) return;
+      const sr = ctx.sampleRate, len = sr * 4, b = ctx.createBuffer(1, len, sr), d = b.getChannelData(0);
+      let br = 0;
+      for (let i = 0; i < len; i++) { br = br * 0.985 + (Math.random() * 2 - 1) * 0.06; d[i] = br * 0.55 + (Math.random() * 2 - 1) * 0.045; }
+      for (let n = 0; n < 1500; n++) {
+        const p = Math.floor(Math.random() * len), f0 = 380 * Math.pow(5, Math.random()), dur = sr * (0.003 + Math.random() * 0.009);
+        const amp = 0.05 + Math.random() * Math.random() * 0.22;
+        let ph = 0;
+        for (let j = 0; j < dur * 3; j++) { ph += 6.2832 * f0 * (1 + 0.7 * j / dur) / sr; d[(p + j) % len] += amp * Math.sin(ph) * Math.exp(-j / dur); }
+      }
+      // khớp hai đầu vòng lặp (không có tiếng "tách")
+      for (let i = 0; i < 2000; i++) { const w = i / 2000; d[i] = d[i] * w + d[len - 2000 + i] * (1 - w); }
+      const s = ctx.createBufferSource(); s.buffer = b; s.loop = true; s.loopEnd = (len - 2000) / sr;
+      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 110;
+      this.waterPan = ctx.createStereoPanner();
+      this.waterG = ctx.createGain(); this.waterG.gain.value = 0;
+      s.connect(hp).connect(this.waterG).connect(this.waterPan).connect(this.outGain);
+      s.start();
+    }
+    this.waterG.gain.setTargetAtTime(clamp(level, 0, 1) * 0.3, t, 0.35);
+    this.waterPan.pan.setTargetAtTime(clamp(pan, -1, 1), t, 0.25);
+  }
+
+  // xe lội qua lớp nước tràn: tiếng "xoè" (nhiễu dải giữa, tắt dần) mạnh theo tốc độ
+  splash(power = 1) {
+    if (!this.ctx || this.mode !== 0) return;
+    const ctx = this.ctx, t = ctx.currentTime, dur = 0.35 + 0.45 * Math.min(1, power);
+    const s = this._src(this.noise, true);
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.6;
+    f.frequency.setValueAtTime(900 + 900 * power, t); f.frequency.exponentialRampToValueAtTime(500, t + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.22 * power, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f).connect(g).connect(this.outGain);
+    s.start(t); s.stop(t + dur + 0.05);
+  }
+
   // sấm: tiếng rền trầm (nhiễu nâu qua lowpass) đến sau tia chớp `delay` giây
   thunder(delay = 1.5, power = 1) {
     if (!this.ctx || this.mode !== 0) return;

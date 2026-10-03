@@ -544,8 +544,8 @@ export class Terrain {
 }
 
 // tảng đá: cầu 3 cấp chia nhỏ, mỗi đỉnh đẩy ra/vào theo nhiễu (biến thể k), cắt phẳng đáy
-function rockGeometry(k) {
-  let g = new THREE.IcosahedronGeometry(1, 3);
+export function rockGeometry(k, detail = 3) {
+  let g = new THREE.IcosahedronGeometry(1, detail);
   g.deleteAttribute('normal'); g.deleteAttribute('uv');
   g = mergeVertices(g);                              // gộp đỉnh trùng => pháp tuyến mượt
   const p = g.attributes.position, v = new THREE.Vector3();

@@ -635,7 +635,7 @@ function frame(now) {
   const st = env.state;
   scenery.update(drive.s);
   scenery.apply(st);
-  waterfalls.update(now / 1000, drive.s, st.light);
+  waterfalls.update(now / 1000, drive.s, st.light, { d: drive.d, v: drive.v, dim: cars.dim, npcs: traffic.active, cam: camera, audio });
   if (reeds.visible) reeds.update(now / 1000, camera.position, road, drive.s, st);
   grass.group.visible = MAPS[state.map].id === 'forest' && st.cover < 0.5;   // tuyết phủ thì ẩn cỏ
   if (grass.visible) grass.update(now / 1000, camera.position, road, drive.s, st);
