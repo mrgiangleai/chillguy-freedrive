@@ -8,13 +8,14 @@ import * as THREE from 'three';
 // Hai gương vẽ xen kẽ mỗi khung hình một cái cho nhẹ.
 const RT_W = 320, RT_H = 200;
 
+// uTex tính trong hệ toạ độ của xe (mặt gương là con trực tiếp của xe) => giữa hai lần vẽ gương (vẽ xen kẽ),
+// xe chạy tới vẫn không làm ảnh trong gương bị lệch / giật
 const VERT = `
   uniform mat4 uTex;
   varying vec4 vUv;
   void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vUv = uTex * wp;
-    gl_Position = projectionMatrix * viewMatrix * wp;
+    vUv = uTex * vec4(position, 1.0);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }`;
 const FRAG = `
   uniform sampler2D tMap;
@@ -82,8 +83,8 @@ export class WingMirrors {
         u0 = Math.min(u0, d.dot(U)); u1 = Math.max(u1, d.dot(U)); v0 = Math.min(v0, d.dot(V)); v1 = Math.max(v1, d.dot(V));
       }
       const corners = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]].map(([u, v]) => P.clone().addScaledVector(U, u).addScaledVector(V, v));
-      // mặt gương mới (nhô ra 1 mm trước mặt kính gốc), chỉ hiện khi ngồi trong xe
-      const geo = new THREE.BufferGeometry().setFromPoints(tris.map((p) => p.clone().addScaledVector(N, 0.001)));
+      // mặt gương mới (nhô ra 3 mm trước mặt kính / viền gốc => không chồng lớp nhấp nháy), chỉ hiện khi ngồi trong xe
+      const geo = new THREE.BufferGeometry().setFromPoints(tris.map((p) => p.clone().addScaledVector(N, 0.003)));
       const rt = new THREE.WebGLRenderTarget(RT_W, RT_H, { type: THREE.HalfFloatType });
       const mat = new THREE.ShaderMaterial({ uniforms: { tMap: { value: rt.texture }, uTex: { value: new THREE.Matrix4() } }, vertexShader: VERT, fragmentShader: FRAG });
       const mesh = new THREE.Mesh(geo, mat);
@@ -154,7 +155,7 @@ export class WingMirrors {
     }
     cam.projectionMatrix.makePerspective(l, rr, t, b, near, 3000);
     cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
-    m.mesh.material.uniforms.uTex.value.copy(this._bias).multiply(cam.projectionMatrix).multiply(cam.matrixWorldInverse);
+    m.mesh.material.uniforms.uTex.value.copy(this._bias).multiply(cam.projectionMatrix).multiply(cam.matrixWorldInverse).multiply(group.matrixWorld);
     const prevRT = r.getRenderTarget(), prevShadow = r.shadowMap.autoUpdate;
     r.shadowMap.autoUpdate = false;
     m.mesh.visible = false;

@@ -126,7 +126,13 @@ function exitFS() {
   try { screen.orientation?.unlock?.(); } catch { /* bỏ qua */ }
   (document.exitFullscreen || document.webkitExitFullscreen).call(document);
 }
-const toggleFS = () => (isFS() ? exitFS() : enterFS());
+// điện thoại: tự vào toàn màn hình ở lần chạm đầu tiên (trình duyệt bắt buộc phải có thao tác chạm) và mỗi lần chạm sau
+// nếu đã bị thoát ra (vuốt / xoay máy...) — trừ khi người chơi chủ động bấm nút thoát toàn màn hình
+let fsOptOut = false;
+const toggleFS = () => { if (isFS()) { fsOptOut = true; exitFS(); } else { fsOptOut = false; enterFS(); } };
+// (cảm ứng: trình duyệt chỉ cho phép khi nhấc tay — pointerup / touchend — chứ không phải lúc chạm xuống)
+const autoFS = (e) => { if (!fsOptOut && !isFS() && !el.full.contains(e.target)) enterFS(); };
+if (IS_PHONE) { window.addEventListener('pointerup', autoFS, true); window.addEventListener('touchend', autoFS, true); }
 // đổi hướng / vào-ra toàn màn hình: kích thước báo về trễ trên một số máy => đo lại vài lần
 const resizeSoon = () => { resize(); setTimeout(resize, 120); setTimeout(resize, 450); updateRotate(); };
 ['fullscreenchange', 'webkitfullscreenchange'].forEach((ev) => document.addEventListener(ev, () => { resizeSoon(); refreshUI(); }));
@@ -185,7 +191,7 @@ function refreshUI() {
   setBtn(el.quality, '⚙️', QUALITY[state.quality].name);
   setBtn(el.stop, stop.state === 'parked' ? '▶️' : stop.state === 'off' ? '🅿️' : '⏳', stop.state === 'parked' ? 'Đi tiếp' : stop.state === 'off' ? 'Dừng xe' : '…');
   el.lens.classList.toggle('on', !$('lenspanel').hidden);
-  el.full.hidden = !CAN_FS;
+  el.full.hidden = !(CAN_FS && IS_PHONE);          // nút toàn màn hình chỉ có trên điện thoại (máy tính: phím U)
   setBtn(el.full, isFS() ? '🗗' : '⛶', isFS() ? 'Thoát toàn màn hình' : 'Toàn màn hình');
 }
 function loadQuality() {
@@ -734,7 +740,6 @@ async function init() {
     refreshUI();
   }).catch((e) => console.warn('Không tải được người lái', e));
   const go = (e) => {
-    if (IS_PHONE && e && e.type === 'pointerdown') enterFS();   // điện thoại: chạm vào là vào toàn màn hình, khoá ngang
     start.classList.add('gone');
     state.started = true;
     applyCine();
