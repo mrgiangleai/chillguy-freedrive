@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -42,7 +42,7 @@
 | `wipers.js` | Gạt mưa tự động (pha cos) + lượng nước trên kính trước/sau |
 | `dashscreen.js` | Màn hình giải trí taplo (canvas, tông ấm, kích thước giảm 15%) + đèn hắt |
 | `person.js` | Người lái (Quaternius, animation), áo đen/quần jeans vẽ bằng shader, IK 2 xương `reach(side, target, pole)`, xương `head`/`neck` |
-| `stopscene.js` | Cảnh dừng xe: dừng → bước ra, đóng cửa → đi lên trước xe → hút thuốc → **đi lanh quanh** (`_wander`, `_pickTarget`, `_look`) → quay lại xe; camera trung cảnh → cận 50 mm (`CLOSE_START` 1.25 → `CLOSE_END` 2.85 s, đúng đoạn châm thuốc) → toàn cảnh quay quanh; `zoomBy(f)` ở toàn cảnh: 16–35 mm + lùi thêm `back` ≤20 m (25 m / đơn vị ln) |
+| `stopscene.js` | Cảnh dừng xe: dừng → bước ra, đóng cửa → đi lên trước xe → hút thuốc → **đi lanh quanh** (`_wander`, `_pickTarget`, `_look`) → quay lại xe; camera trung cảnh (cửa mở, bước ra) → từ `OUT_T` 2.25 s của cảnh bước ra: toàn cảnh quay quanh + `autoZoom` 5 s ra xa hết cỡ (đã bỏ cận cảnh); `zoomBy(f)` ở toàn cảnh: 16–35 mm + lùi thêm `back` ≤20 m (25 m / đơn vị ln) |
 | `smoke.js` | Điếu thuốc (kẹp giữa ngón trỏ/giữa), đầu thuốc đỏ, lửa bật lửa, hạt khói (đầu điếu + nhả từ miệng) |
 | `terrain.js`, `terrain-noise.js` | Địa hình quadtree nhiều mức, cây tấm, cụm đá (`rockGeometry(k, detail)` export), texture ảnh; `setView` (Ultra xa ×2); `heightAt` (đặt `_d` = khoảng cách tới đường); `hash2`, `vnoise` |
 | `nature.js` | Cây/bụi/đá model chi tiết quanh camera (gần đổ bóng, xa không) |
@@ -87,13 +87,14 @@
   `TP.seaLevel` = (đường thấp nhất trong 120 km tính từ chỗ xe) − 3 m, tính khi đổi map. Camera không xuống dưới mặt nước.
 - **Map núi**: thị trấn nhỏ + lớn có đèn; suối/thác qua đường (`waterfalls.js`, rộng 2–5 m, lưu lượng 0.25–1, giữ 2–4 dòng
   quanh xe, dựng tối đa 1 dòng/khung hình ~20 ms, dispose khi rời vùng/đổi map). Xem nhật ký #1.
-- **Dừng xe**: xem `stopscene.js`; người áo đen; cận cảnh chỉ ~1.5 s lúc châm thuốc rồi ra toàn cảnh (zoom + lùi 20 m);
+- **Dừng xe**: xem `stopscene.js`; người áo đen; bước ra khỏi xe là camera quay quanh + tự zoom ra xa hết cỡ trong 5 s (16 mm + lùi 20 m), không còn cận cảnh;
   nhịp hút 3 s → 5 s → ngẫu nhiên 5–12 s; đi lanh quanh trong 10 m,
   chỉ trong làn mình + lề phải.
 - **Điện thoại**: tự toàn màn hình khi nhấc tay ở lần chạm đầu (và chạm lại nếu bị thoát), nút ⛶ chỉ hiện trên điện thoại,
   khoá ngang (Android), gợi ý xoay ngang khi cầm dọc; iPhone: "Thêm vào MH chính" (manifest fullscreen/landscape).
 
 ## 5. Việc còn mở / cần chú ý
+- **Chờ chú**: map mới từ model `landscape_forest__mountains.glb` — chú dặn để lần sau, **hỏi chú trước khi làm**.
 - Chưa kiểm chứng hiệu năng trên máy thật (gương + tia nắng + mưa kính + thác tốn thêm GPU); chưa thử Good/Ultra trên máy ảo.
 - Cảnh dừng xe: đoạn ▶️ quay lại xe mới thử bằng mô phỏng logic (máy ảo quá chậm để chạy trọn).
 - Divo / xe tải sữa: không có gương hông, không có `steer` (tay giữ tư thế animation).
@@ -162,3 +163,8 @@
   file .glb. Ô sóng gốc không lặp liền (mép lệch ~0.18 m) => trộn 4 mẫu lệch nửa ô. Sóng −1.32..+1.75 m.
   - Ảnh Low ban ngày: `screenshots/sea-map-chase.jpg`, `sea-map-drone.jpg`, `sea-map-side.jpg`. Chưa xem đêm / mưa / trong xe;
     lặp vân sóng còn thấy được khi nhìn từ trên cao. Các check scripts vẫn đạt.
+
+- **#7** — Cảnh dừng xe: bỏ góc cận hút thuốc. Người vừa bước ra khỏi xe (2.25 s của cảnh bước ra) thì camera lùi ra toàn cảnh
+  quay quanh xe, đồng thời tự zoom ra xa hết cỡ trong 5 s (một thang liên tục: 26 → 16 mm rồi lùi thêm 20 m, ease). Người dùng
+  zoom thì dừng zoom tự động. Kiểm bằng script dòng thời gian (t=2.25 bắt đầu, t≈7.3 đạt 16 mm + 20 m, máy cách xe ~31 m);
+  chưa chạy trên máy ảo. Ghi chú việc chờ: map `landscape_forest__mountains.glb` (hỏi chú trước khi làm).
