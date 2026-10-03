@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -50,6 +50,7 @@
 | `road.js`, `scenery.js` | Đường vô tận (`at`, `heading`, `curvature(s)` đổi hướng có dấu trên 12 m), đoạn đường đất; mặt đường (nhựa sần, vũng nước, phản chiếu), cọc, đèn đường (cột `LAMP_H` 11.1 m; ánh sáng = `LAMP_LIGHTS` 3 SpotLight dùng chung, `updateLights(cam)` gán cột gần nhất, mờ theo khoảng cách cột kế tiếp; 700 × lamps, nửa góc 1.2, penumbra 0.8, decay 0.6, tầm 80 m, chếch vào lòng đường), hộ lan |
 | `town.js` | Map núi: thị trấn nhỏ + **thị trấn lớn** dưới thung lũng, đèn đường |
 | `waterfalls.js` | Map núi: suối/thác (`waterfallSpec`, `waterfallGeometry` → nodes/water/wet/rocks/sprays; `Waterfalls.setMap`, `update(time, s, light, {d, v, dim, npcs, cam, audio})`). Dòng dò theo dốc (`trace`) + uốn lượn (`meander`); nước = MeshStandardMaterial + nhiễu theo **thời gian chảy `tau`** (không dùng `along - uTime*speed` => tránh sọc); lớp ướt = blend nhân màu; đá tảng dùng `rockGeometry(k, 2)` + `terrain.rockMat`; nước bắn bánh xe (`Splash`, Points kéo về camera 4%) |
+| `carriage.js` | Xe ngựa cổ tích bay (`Carriages`): tải ngầm `assets/models/carriage.glb` (SkeletonUtils clone + AnimationMixer), 15–30 s/chiếc, tối đa 2, cao 3 m, lệch phải `HW + 3`, bay ngược chiều 9–13 m/s, bồng bềnh; bụi sao (`Sparks`) |
 | `cows.js` | Map đồi cỏ: đàn 5 bò sữa + hàng rào gỗ |
 | `fireflies.js` | Đom đóm ban đêm |
 | `traffic.js` | Spawn/pool/vẽ NPC: ngược chiều (10–25 s/chiếc, tối đa 2) + cùng chiều (25–60 s, tối đa 1, vào từ phía sau 80–110 m); pool 3 xe; NPC chỉ có quầng pha, chùm sáng thật = 1 cặp SpotLight dùng chung (`beam`, gắn NPC gần nhất ≤300 m, `_beam`); đèn `lamps × NPC_LAMP(0.24)`, đèn hậu ×0.6; thân xe xoay `yaw = atan(latV/v)` (≤0.35, nội suy 8/s), bánh trước `w.front` đánh lái `yaw × 1.8`; âm thanh lướt qua 1 lần/lượt; xuất `ctrl {lane, maxV}` cho xe người chơi |
@@ -138,3 +139,10 @@
   16 mm → lùi thêm 20 m, zoom vào thì tiến lại 20 m trước rồi mới tăng tới 35 mm (wheel / pinch / phím ± qua `zoomBy` trong main).
   - Check scripts đạt; logic zoom kiểm bằng script (26→16 mm→+20 m; vào: 20 m→0 rồi 16→35 mm). Ảnh đèn đường đêm Low (dốc s≈1206)
     đã xem. **Chưa chạy thử cảnh dừng xe trên máy ảo** (chú dừng lượt thử để chuyển việc khác).
+
+- **#4** — Xe ngựa cổ tích bay bên phải đường (`src/carriage.js`, gọi trong main sau traffic). Model chú tải lên
+  `docs/assets/xe ngua co tich 1K.glb` (11 MB, PNG, 3 mesh skinned, animation phi 0.54 s) => nén bằng
+  `npx @gltf-transform/cli@4 webp … --quality 82` rồi `meshopt` ra `docs/assets/models/carriage.glb` (1.6 MB, giữ animation;
+  file gốc giữ nguyên). Model đầu ngựa hướng +Z => xoay 180°; vật liệu gốc BLEND => đổi sang alphaTest 0.4 (tránh tự che sai).
+  Mây bụi dưới bánh/vó là một phần model (trông như mây khi bay). Chiếc đầu xuất hiện ~4 s sau khi tải xong.
+  - Ảnh Low `screenshots/carriage-verified.jpg` (fixture giữ xe ngựa cách 22 m phía trước, camera sau xe). Chưa xem ban đêm / cận cảnh.
