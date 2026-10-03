@@ -4,13 +4,17 @@ import { ROAD } from './road.js';
 import { TRAFFIC, trafficSpeed, trafficCurveSpeed, stepTraffic } from './traffic-ai.js';
 import { createHeadlights, placeHeadlights, updateHeadlights } from './headlights.js';
 
-// Xe ngược chiều: 4–10 giây, tối đa 4; cùng chiều: 10–30 giây, tối đa 2. Tốc độ 50–200 km/h.
+// Xe ngược chiều: 10–25 giây, tối đa 2; cùng chiều: 25–60 giây, tối đa 1 (ít xe => nhẹ máy). Tốc độ 50–200 km/h.
 // Xe ngược chiều xuất hiện xa phía trước
 // ở làn bên kia rồi chạy ngang qua. Model lấy từ các xe có sẵn (khác xe đang lái), tải ngầm sau khi vào game.
 // Phát hiện người / xe trong 30 m, tìm khoảng trống để né và phanh nếu không đủ chỗ.
-// Đèn pha dùng chung rig với xe người chơi: chùm sáng thật + quầng giảm theo hướng nhìn.
+// Đèn pha: mỗi NPC chỉ có quầng; chùm sáng thật là MỘT cặp SpotLight dùng chung, gắn vào NPC gần người chơi nhất
+// (số đèn trong cảnh luôn cố định => không biên dịch lại shader mỗi khi xe xuất hiện/biến mất).
+// Đổi làn / né: thân xe xoay theo hướng chạy thực (vận tốc ngang / tốc độ tiến), bánh trước đánh lái.
 const SPAWN_AHEAD = 430;
+const NPC_LAMP = 0.24;                // NPC: đèn pha + quầng trước còn 24% xe người chơi (đèn hậu giữ 60%)
 const LANE = 1.8;                     // xe ngược chiều chạy hơi lệch vào giữa đường (như xe mình)
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 
 export class Traffic {
   constructor(scene, cars) {
@@ -24,6 +28,11 @@ export class Traffic {
     this.loading = false;
     this.wait = 6;              // chờ vài giây sau khi vào game rồi mới tải ngầm
     this._p = {}; this._q = {};
+    // cặp SpotLight dùng chung cho NPC (luôn nằm trong cảnh, tắt bằng intensity 0)
+    this.beamRoot = new THREE.Group();
+    this.beam = createHeadlights(this.beamRoot, null, { glows: false });
+    this.beamFor = null;
+    scene.add(this.beamRoot);
   }
 
   async _load(excludeId) {
@@ -52,8 +61,9 @@ export class Traffic {
       root.add(sp);
       return sp;
     };
-    const headlights = createHeadlights(root, this.cars.softTex);
+    const headlights = createHeadlights(root, this.cars.softTex, { spots: false });
     placeHeadlights(headlights, d);
+    for (const w of entry.wheels) { w.front = w.pivot.position.z < 0; w.pivot.rotation.order = 'YXZ'; }
     const tails = [-1, 1].map((k) => { const s = sprite(0xff2412, 1.6); s.position.set(k * x, y + 0.05, d.length / 2 + 0.05); return s; });
     this.scene.add(root);
     return { root, wheels: entry.wheels, dim: d, headlights, tails, busy: false, s: 0, v: 0, d: 0 };
@@ -81,7 +91,7 @@ export class Traffic {
       if (this.active.some(o => Math.abs(o.s - v.s) < 60) || Math.abs(v.s - s) < 40) continue;
       v.direction = direction; v.busy = true;
       v.cruise = v.v = trafficSpeed(); v.d = v.baseD = same ? lane : -lane;
-      v.heard = false; v.policy = null; v.inCurve = false; v.avoidFor = null; v.avoidD = v.d; v.root.visible = true;
+      v.heard = false; v.policy = null; v.inCurve = false; v.avoidFor = null; v.avoidD = v.d; v.latV = 0; v.yaw = 0; v.root.visible = true;
       this.active.push(v);
     }
     const snapshot = [...obstacles, ...this.active.map(v => ({ id: v, s: v.s, d: v.d, speed: v.v, direction: v.direction ?? -1, width: v.dim.width, length: v.dim.length }))];
@@ -103,7 +113,7 @@ export class Traffic {
       const decision = this.policy._decide(v.policy, curveSpeed);
       const canChooseLane = d => d * v.baseD >= 0 || (decision.dT * v.baseD < 0 && this.policy._sideClear(v.policy, d));
       const next = stepTraffic(v, snapshot, ROAD.halfWidth, dt, Math.min(curveSpeed,decision.vT), canChooseLane);
-      v.s = next.s; v.d = next.d; v.v = next.v; v.avoiding = next.avoiding;
+      v.s = next.s; v.d = next.d; v.v = next.v; v.avoiding = next.avoiding; v.latV = next.latV;
       if (v.s < s - (v.direction === 1 ? 180 : 90) || (v.direction === 1 && v.s > s + 750)) { v.busy = false; v.root.visible = false; this.active.splice(i, 1); continue; }
       if (audio && player) {
         const x=v.s-s, vr=v.v*(v.direction ?? -1)-player.speed, rel=Math.abs(vr);
@@ -116,11 +126,27 @@ export class Traffic {
       const yA = road.at(v.s + 2.5, q).y, yB = road.at(v.s - 2.5, q).y;
       v.root.position.set(p.x + Math.cos(p.th) * v.d, p.y, p.z - Math.sin(p.th) * v.d);
       const direction = v.direction ?? -1;
-      v.root.rotation.set(-direction * Math.atan2(yB - yA, 5), p.th + (direction === -1 ? Math.PI : 0), 0, 'YXZ');            // hướng thân xe theo chiều chạy
-      for (const w of v.wheels) w.pivot.rotation.x += direction * (v.v * dt) / w.radius;
-      const L = lamps * 0.24;                // NPC: đèn pha + quầng trước còn 24% xe người chơi (đèn hậu giữ 60%).
-      updateHeadlights(v.headlights, v.root, this.cars.viewer, L);
+      // thân xe xoay theo hướng chạy thực khi đổi làn (vận tốc ngang so với tốc độ tiến), mượt dần
+      const yawT = clamp(Math.atan2(v.latV || 0, Math.max(3, v.v)), -0.35, 0.35);
+      v.yaw = (v.yaw || 0) + (yawT - (v.yaw || 0)) * (1 - Math.exp(-dt * 8));
+      v.root.rotation.set(-direction * Math.atan2(yB - yA, 5), p.th + (direction === -1 ? Math.PI : 0) - direction * v.yaw, 0, 'YXZ');
+      const steer = clamp(-direction * v.yaw * 1.8, -0.4, 0.4);      // bánh trước đánh lái cùng chiều xoay thân xe
+      for (const w of v.wheels) { w.pivot.rotation.x += direction * (v.v * dt) / w.radius; if (w.front) w.pivot.rotation.y = steer; }
+      updateHeadlights(v.headlights, v.root, this.cars.viewer, lamps * NPC_LAMP);
       for (const t of v.tails) t.material.opacity = (0.25 + 0.6 * lamps) * 0.6;
     }
+    this._beam(s, lamps);
+  }
+
+  // chùm sáng thật: gắn cặp SpotLight vào NPC gần xe người chơi nhất (trong 300 m)
+  _beam(s, lamps) {
+    let best = null, bd = 300;
+    for (const v of this.active) { const d = Math.abs(v.s - s); if (d < bd) { bd = d; best = v; } }
+    if (best !== this.beamFor) { this.beamFor = best; if (best) placeHeadlights(this.beam, best.dim); }
+    if (best) {
+      best.root.updateMatrixWorld();
+      best.root.matrixWorld.decompose(this.beamRoot.position, this.beamRoot.quaternion, this.beamRoot.scale);
+    }
+    updateHeadlights(this.beam, this.beamRoot, null, best ? lamps * NPC_LAMP : 0);
   }
 }

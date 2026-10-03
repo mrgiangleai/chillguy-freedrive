@@ -22,6 +22,6 @@ const v=t.pool[0];Object.assign(v,{s:160,d:-1.8,baseD:-1.8,v:50/3.6,cruise:50/3.
 const road={at(s,p){Object.assign(p,{x:0,y:0,z:-s,th:0});return p;}};
 let passes=0;const audio={passDur:()=>2,passBy(){passes++;}};
 for(let i=0;i<100;i++)t.update(.05,150,1.5,road,1,'player',[{id:'player',s:150,d:1.5,speed:25/3.6,direction:1,width:2,length:4.7}],audio);
-assert.equal(passes,1,'One pass-by sound per encounter');assert(Math.abs(v.headlights.spots[0].intensity-85*0.24)<1e-9);
+assert.equal(passes,1,'One pass-by sound per encounter');assert(Math.abs(t.beam.spots[0].intensity-85*0.24)<1e-9);
 assert(t.ctrl&&Number.isFinite(t.ctrl.lane));
 console.log('PASS: upstream 50 m overtaking visibility, closing-time rejection, clear-lane pass, unsafe-lane wait; oncoming NPCs never overtake; actual merged Traffic pass-by once and headlights 20.4.');

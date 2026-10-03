@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -36,7 +36,7 @@
 | `post.js` | Hậu kỳ: xoá phông (CoC ống kính thật), bloom, **tia nắng** (god rays), **mưa trên kính** (RAIN_GLASS), ACES + chỉnh màu phim, grain, blur xuyên tâm 180 km/h |
 | `camera.js` | Các chế độ camera, tiêu cự 16–35 mm (`fovFor`), nhìn quanh (giữ góc sau khi thả), `cockpitPitch` hook |
 | `cars.js` | Tải + chuẩn hoá xe, vật liệu (`mats`, `envK`), bánh xe quay, cửa tài xế, đèn hậu (quầng mềm `softGlowTexture`), bóng gầm, đèn cabin (tại màn hình taplo), dò **kính trước/sau** (mask raster từ toàn bộ tam giác kính thật), **cần gạt** 3D (`wiperRig`), vô lăng da (`leatherMaterial`), dời vô lăng (`steerShift`), pivot vô lăng + `steerAngle` (tự lái theo cua) |
-| `headlights.js` | Rig đèn pha chung xe người chơi + NPC: SpotLight thật + quầng giảm theo hướng nhìn (`createHeadlights/placeHeadlights/updateHeadlights(rig, root, cam, level)`) |
+| `headlights.js` | Rig đèn pha chung xe người chơi + NPC: SpotLight thật + quầng giảm theo hướng nhìn (`createHeadlights(group, tex, {spots, glows})`, `placeHeadlights`, `updateHeadlights(rig, root, cam, level)`) |
 | `mirror.js` | Gương chiếu hậu giữa (render-to-texture, **tỉ lệ 4:3**, `GW/GH`; đặt bên phải màn hình taplo theo `screen`, không có que đỡ) |
 | `wingmirrors.js` | 2 gương hông soi thật (phản chiếu phẳng, frustum lệch tâm, vẽ xen kẽ; `uTex` theo hệ xe) — chỉ khi ngồi trong xe, chỉ xe Mustang |
 | `wipers.js` | Gạt mưa tự động (pha cos) + lượng nước trên kính trước/sau |
@@ -47,14 +47,14 @@
 | `terrain.js`, `terrain-noise.js` | Địa hình quadtree nhiều mức, cây tấm, cụm đá (`rockGeometry(k, detail)` export), texture ảnh; `setView` (Ultra xa ×2); `heightAt` (đặt `_d` = khoảng cách tới đường); `hash2`, `vnoise` |
 | `nature.js` | Cây/bụi/đá model chi tiết quanh camera (gần đổ bóng, xa không) |
 | `reeds.js` | Cỏ lau / búi cỏ / cỏ đồi (instancing, gió, `setView`) |
-| `road.js`, `scenery.js` | Đường vô tận (`at`, `heading`, `curvature(s)` đổi hướng có dấu trên 12 m), đoạn đường đất; mặt đường (nhựa sần, vũng nước, phản chiếu), cọc, đèn đường (vùng sáng 24 × 28 m, opacity `0.68 × lamps`), hộ lan |
+| `road.js`, `scenery.js` | Đường vô tận (`at`, `heading`, `curvature(s)` đổi hướng có dấu trên 12 m), đoạn đường đất; mặt đường (nhựa sần, vũng nước, phản chiếu), cọc, đèn đường (vùng sáng 24 × 28 m = lưới 8×14 bám độ cao/hướng đường, chỉ trong `HW + 1.2`, mờ 1 m sát mép bằng màu đỉnh; opacity `0.68 × lamps`), hộ lan |
 | `town.js` | Map núi: thị trấn nhỏ + **thị trấn lớn** dưới thung lũng, đèn đường |
 | `waterfalls.js` | Map núi: suối/thác (`waterfallSpec`, `waterfallGeometry` → nodes/water/wet/rocks/sprays; `Waterfalls.setMap`, `update(time, s, light, {d, v, dim, npcs, cam, audio})`). Dòng dò theo dốc (`trace`) + uốn lượn (`meander`); nước = MeshStandardMaterial + nhiễu theo **thời gian chảy `tau`** (không dùng `along - uTime*speed` => tránh sọc); lớp ướt = blend nhân màu; đá tảng dùng `rockGeometry(k, 2)` + `terrain.rockMat`; nước bắn bánh xe (`Splash`, Points kéo về camera 4%) |
 | `cows.js` | Map đồi cỏ: đàn 5 bò sữa + hàng rào gỗ |
 | `fireflies.js` | Đom đóm ban đêm |
-| `traffic.js` | Spawn/pool/vẽ NPC: ngược chiều (4–10 s/chiếc, tối đa 4) + cùng chiều (10–30 s, tối đa 2, vào từ phía sau 80–110 m); pool 6 xe; đèn pha NPC `lamps × 0.24`, đèn hậu ×0.6; âm thanh lướt qua 1 lần/lượt; xuất `ctrl {lane, maxV}` cho xe người chơi |
+| `traffic.js` | Spawn/pool/vẽ NPC: ngược chiều (10–25 s/chiếc, tối đa 2) + cùng chiều (25–60 s, tối đa 1, vào từ phía sau 80–110 m); pool 3 xe; NPC chỉ có quầng pha, chùm sáng thật = 1 cặp SpotLight dùng chung (`beam`, gắn NPC gần nhất ≤300 m, `_beam`); đèn `lamps × NPC_LAMP(0.24)`, đèn hậu ×0.6; thân xe xoay `yaw = atan(latV/v)` (≤0.35, nội suy 8/s), bánh trước `w.front` đánh lái `yaw × 1.8`; âm thanh lướt qua 1 lần/lượt; xuất `ctrl {lane, maxV}` cho xe người chơi |
 | `traffic-policy.js` | Luật bám/vượt (`_decide`, `_follow`, `_canOvertake` tầm nhìn 50 m + thời gian xe đối diện tới, `_overtakeDanger`, `_sideClear`). Làn: chiều người chơi 1.5, ngược chiều −1.8. Cờ `noOvertake` (xe ngược chiều) |
-| `traffic-ai.js` | `stepTraffic`: né người/xe trong 30 m từ mép thân, giữ hướng né, phanh/dừng nếu bị chặn, chống xuyên vật cản; `trafficCurveSpeed` (vào cua 60%); `roadPosition` (chiếu người đi bộ về toạ độ đường) |
+| `traffic-ai.js` | `TRAFFIC` (mật độ), `stepTraffic`: né người/xe trong 30 m từ mép thân (+1.2 s × tốc độ xe lao tới), vận tốc ngang `latV` có gia tốc (3 m/s², né gấp 16) và trần 0.2 × v (né gấp 0.35 × v), giữ hướng né, phanh/dừng nếu bị chặn, chống xuyên vật cản; `trafficCurveSpeed` (vào cua 60%); `roadPosition` (chiếu người đi bộ về toạ độ đường) |
 | `audio.js` | Nhạc lo-fi tự sinh, gió/mưa/lốp/động cơ/sấm; bus `outGain` (trong xe ×0.4 + lowpass), mưa: ngoài `rainG` 0.08, kính `glassG` 0.08, mui `roofG` 0.02 (× lượng mưa); `passBy(rel, pan, lat)` + `passDur(rel)` tiếng xe lướt qua theo tốc độ tương đối; `setWater(level, pan)` tiếng suối (buffer bọt khí tạo lần đầu), `splash(power)` xe lội nước |
 | `particles.js`, `mist.js`, `reflection.js`, `textures.js`, `colorspace.js` | Mưa/tuyết, sương tầng thấp (`withMist`), phản chiếu vũng nước, texture tự sinh, đổi màu hiển thị → tuyến tính |
 
@@ -70,10 +70,11 @@
   nội suy 8/s; dừng xe thì trả giữa). Mustang: sơn đen bóng (env ×0.4), nội thất đen bóng, ghế da nâu, vô lăng da đen
   `steerShift −0.09`, tay cầm gần 9/3 giờ. Đèn pha rig chung: màu `0xffd6a0`, `85 × lamps`, tầm 110 m, góc 0.8 rad,
   penumbra 1, decay 0.55; quầng `0xffc477`, opacity `0.45 × lamps × hướng nhìn`, 2.835 × 1.785 m.
-- **NPC**: tốc độ hành trình 50–200 km/h, vào cua 60% (ngưỡng 0.0015/0.0012 rad/m, phanh trước cua), né/phanh 30 m.
+- **NPC**: mật độ thấp (ngược chiều tối đa 2, cùng chiều tối đa 1); tốc độ hành trình 50–200 km/h, vào cua 60% (ngưỡng
+  0.0015/0.0012 rad/m, phanh trước cua), né/phanh 30 m. Đổi làn/né: đánh lái thật (thân xoay ≤ ~11°, né gấp ≤ ~19°, bánh trước bẻ).
   **Xe ngược chiều không vượt nhau**: gặp xe chậm thì bám sau, giảm tốc chờ (chỉ né sang làn kia khi xe người chơi chạy hẳn
   vào làn của nó); xe cùng chiều vẫn vượt xe người chơi theo luật 50 m. Đèn pha NPC = 24% xe người chơi (≈20.4 khi bật hết),
-  đèn hậu ×0.6. Tiếng xe lướt qua to/nhỏ theo tốc độ tương đối, lệch trái/phải theo vị trí. Mô phỏng 15–30 phút: 0 chồng thân xe.
+  đèn hậu ×0.6. Tiếng xe lướt qua to/nhỏ theo tốc độ tương đối, lệch trái/phải theo vị trí. Mô phỏng 20 phút ở 25/50/180 km/h: 0 chồng thân xe.
 - **Trong xe**: mắt = xương đầu +0.15 m; góc chúc tự canh: chừa phần dưới vành để thấy cả bàn tay và cẳng tay, không cắt
   gương giữa. Gương giữa (4:3, cạnh màn hình taplo) + 2 gương hông soi thật. Ánh sáng cabin từ màn hình taplo; đã bỏ dải LED
   và quầng sáng sàn. Mưa: giọt nước/vệt chảy trên kính trước + gạt mưa; kính sau dùng mask từ mesh kính thật (không phủ
@@ -113,3 +114,18 @@
     `waterfall-overview-verified.jpg`, `waterfall-crossing-verified.jpg`, `waterfall-splash-verified.jpg`. Script chụp tạm ở scratchpad (giữ xe/camera cố định),
     không thêm file preview vào docs. Chưa nghe thử âm thanh thật (máy ảo không có loa) và chưa đo FPS máy thật.
   - Thấy thêm (chưa sửa): vài **tảng đá của terrain lơ lửng** trên vách núi gần đường (cục đen to ở s≈250).
+
+- **#2** — Giảm lag xe + sửa vùng sáng đèn đường trên dốc + NPC đánh lái thật.
+  - Lag: mỗi NPC từng có 2 SpotLight; NPC hiện/ẩn làm đổi số đèn => three.js biên dịch lại shader mọi vật liệu (khựng) và
+    mỗi pixel phải tính thêm đèn. Nay NPC chỉ có quầng; 1 cặp SpotLight dùng chung luôn trong cảnh (tắt = intensity 0) gắn
+    vào NPC gần nhất. Mật độ: ngược chiều 4–10 s/tối đa 4 → 10–25 s/tối đa 2; cùng chiều 10–30 s/tối đa 2 → 25–60 s/tối đa 1.
+  - Đèn đường: tấm phẳng 24 × 28 m đặt ở độ cao chân cột => ở dốc 6–7% (vd s≈1326 map núi) nửa tấm chìm dưới mặt đường,
+    nửa lơ lửng, mép thẳng cắt vào vách/vực. Nay là lưới bám mặt đường, chỉ phủ mặt đường + lề phẳng, mờ dần ở mép.
+  - Đổi làn: trước đây `d` đổi đều 2.2–8 m/s, thân xe luôn song song tim đường (trượt ngang như robot). Nay có vận tốc ngang
+    tăng/giảm có gia tốc, trần theo tốc độ tiến; thân xe xoay theo hướng chạy thực và bánh trước bẻ lái. Xe lao tới được
+    thấy sớm hơn 1.2 s theo tốc độ của nó để kịp đánh lái từ từ.
+  - `check-traffic.mjs`/`check-traffic-policy.mjs` cập nhật: mật độ mới, pool 3, NPC không có SpotLight riêng, chùm dùng chung
+    = 20.4, xe lao tới được phát hiện sớm 1.2 s; các kịch bản né cũ (200 km/h, xe 180 km/h lao tới…) vẫn không va chạm.
+    Mô phỏng 20 phút (25/50/180 km/h): 0 chồng thân xe, tối đa 3 NPC cùng lúc, yaw tối đa ~19°.
+  - Ảnh Low: `screenshots/streetlight-slope-verified.jpg` (đêm, dốc 7% s≈1326), `npc-lane-change-verified.jpg` (fixture giữ
+    NPC giữa lúc đổi làn: thân xoay −7.8°, bánh trước 14°). Chưa đo FPS máy thật.

@@ -1,5 +1,6 @@
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
-export const TRAFFIC = { maxActive: 4, sameMax: 2, sameGapMin: 10, sameGapMax: 30, gapMin: 4, gapMax: 10, detect: 30, minSpeed: 50 / 3.6, maxSpeed: 200 / 3.6 };
+// Mật độ: ngược chiều 10–25 s/xe, tối đa 2; cùng chiều 25–60 s/xe, tối đa 1.
+export const TRAFFIC = { maxActive: 2, sameMax: 1, sameGapMin: 25, sameGapMax: 60, gapMin: 10, gapMax: 25, detect: 30, minSpeed: 50 / 3.6, maxSpeed: 200 / 3.6 };
 export const trafficSpeed = () => TRAFFIC.minSpeed + Math.random() * (TRAFFIC.maxSpeed - TRAFFIC.minSpeed);
 
 // Nhìn trước đủ quãng phanh để vào cua ở 60% tốc độ; hai ngưỡng tránh nhấp nháy ở mép cua.
@@ -23,11 +24,13 @@ export function stepTraffic(v, obstacles, halfWidth, dt, cruise = v.cruise ?? v.
   const ahead = o => direction * (o.s - v.s);
   const limit = Math.max(0, halfWidth - v.dim.width / 2 - 0.25);
   const base = clamp(v.baseD ?? v.d, -limit, limit);
+  // vật đứng yên / cùng chiều: 30 m; xe lao tới: thấy sớm hơn thêm 1.2 s theo tốc độ của nó (để kịp đánh lái từ từ)
+  const reach = o => TRAFFIC.detect + Math.max(0, -direction * (o.direction || 0) * (o.speed || 0)) * 1.2;
   const nearby = obstacles.filter(o => {
     if (o.id === v || ahead(o) < -(v.dim.length + o.length) / 2 - 2) return false;
     const along = Math.max(0, ahead(o) - (v.dim.length + o.length) / 2);
     const across = Math.max(0, Math.abs(v.d - o.d) - (v.dim.width + o.width) / 2);
-    return Math.hypot(along, across) <= TRAFFIC.detect + 1e-6;
+    return Math.hypot(along, across) <= reach(o) + 1e-6;
   });
   const clearance = o => (v.dim.width + o.width) / 2 + 0.6;
   const conflict = (d, o) => Math.abs(d - o.d) < clearance(o);
@@ -51,7 +54,15 @@ export function stepTraffic(v, obstacles, halfWidth, dt, cruise = v.cruise ?? v.
       speed = Math.min(speed, Math.max(0, Math.sqrt(24 * gap) - closingOther));
     }
   }
-  const nextD = v.d + clamp(target - v.d, -(threats.length ? 8 : 2.2) * dt, (threats.length ? 8 : 2.2) * dt);
+  // Đổi làn / né như xe thật: vận tốc ngang tăng giảm có gia tốc, tối đa 0.2 (né gấp 0.35) × tốc độ tiến (xe đứng yên gần như
+  // không trượt ngang), hãm dần khi tới làn đích => traffic.js xoay thân xe + bánh trước theo hướng chạy thực.
+  const urgent = threats.length > 0, A = urgent ? 16 : 3;
+  const latMax = Math.max(urgent ? 0.6 : 0, Math.min(urgent ? 8 : 2.2, (urgent ? 0.35 : 0.2) * Math.abs(v.v)));   // đổi làn thường ≤ ~11°, né gấp ≤ ~19°
+  const err = target - v.d, lat0 = v.latV || 0;
+  const want = Math.sign(err) * Math.min(latMax, Math.sqrt(2 * A * Math.abs(err)));
+  let latV = lat0 + clamp(want - lat0, -A * dt, A * dt);
+  let nextD = v.d + latV * dt;
+  if ((target - nextD) * err <= 0) { nextD = target; latV = 0; }
   let nextV = v.v + clamp(speed - v.v, -12 * dt, 5 * dt);
   // Không bước xuyên vật cản trong một frame, nhất là ở 200 km/h hoặc khi cả hai làn bị chặn.
   for (const o of nearby) {
@@ -61,7 +72,7 @@ export function stepTraffic(v, obstacles, halfWidth, dt, cruise = v.cruise ?? v.
     const otherAdvance = -direction * (o.direction || 0) * (o.speed || 0) * dt;
     nextV = Math.min(nextV, Math.max(0, (gap - otherAdvance) / Math.max(dt, 1e-6)));
   }
-  return { d: nextD, v: nextV, s: v.s + direction * nextV * dt, avoiding: threats.length > 0 };
+  return { d: nextD, v: nextV, s: v.s + direction * nextV * dt, avoiding: threats.length > 0, latV };
 }
 
 // Người đi bộ dùng vị trí thế giới thật, chiếu về đoạn đường quanh xe người chơi.

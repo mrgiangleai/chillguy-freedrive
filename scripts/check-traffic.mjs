@@ -6,16 +6,20 @@ const car = (s, d, kmh = 200) => ({ s, d, baseD: d, v: kmh / 3.6, cruise: kmh / 
 const obstacle = (s, d, width = 2, length = 4.7, speed = 0, direction = 0, id = 'obstacle') => ({ id, s, d, width, length, speed, direction });
 const overlap = (v, o) => Math.abs(v.s - o.s) < (v.dim.length + o.length) / 2 && Math.abs(v.d - o.d) < (v.dim.width + o.width) / 2;
 for (let i = 0; i < 1000; i++) { const speed = trafficSpeed() * 3.6; assert(speed >= 50 && speed <= 200); }
-assert.equal(TRAFFIC.maxActive, 4);
+assert.equal(TRAFFIC.maxActive, 2); assert.equal(TRAFFIC.sameMax, 1);
 let v = car(0, -1.8), o = obstacle(-36, -1.8);
 assert.equal(stepTraffic(v, [o], 4.6, dt).avoiding, false, 'Must not swerve before 30 m bumper gap');
 o.s = -34.7;
 assert.equal(stepTraffic(v, [o], 4.6, dt).avoiding, true, 'Must detect at 30 m bumper gap');
+// xe lao tới 180 km/h: thấy từ 30 + 1.2 × 50 = 90 m
+assert.equal(stepTraffic(v, [obstacle(-34.7 - 61, -1.8, 2, 4.7, 50, 1)], 4.6, dt).avoiding, false);
+assert.equal(stepTraffic(v, [obstacle(-34.7 - 59, -1.8, 2, 4.7, 50, 1)], 4.6, dt).avoiding, true, 'Oncoming detected 1.2 s earlier');
 let cases = 0;
 for (const scenario of [
   { name: 'pedestrian', o: obstacle(-32, -1.8, .8, .8) },
   { name: 'parked player', o: obstacle(-34.7, -1.8) },
-  { name: 'head-on player at 180 km/h', o: obstacle(-34.7, -1.8, 2, 4.7, 180/3.6, 1) },
+  // xe lao tới được thấy sớm hơn 1.2 s theo tốc độ của nó (đánh lái có gia tốc thật, không né tức thời)
+  { name: 'head-on player at 180 km/h', o: obstacle(-34.7 - 1.2 * 180/3.6, -1.8, 2, 4.7, 180/3.6, 1) },
   { name: 'overtake 50 km/h NPC', o: obstacle(-34.7, -1.8, 2, 4.7, 50/3.6, -1) },
 ]) {
   v = car(0, -1.8); o = { ...scenario.o };
@@ -57,7 +61,7 @@ const {Traffic} = await import('../src/traffic.js');
 const THREE = await import('three');
 const fakeCars = { softTex:new THREE.Texture(), list:[{id:'npc-a'},{id:'npc-b'}], _load:async()=>({group:new THREE.Group(),dim:{width:2,length:4.7,height:1.3},wheels:[]}) };
 const traffic = new Traffic(new THREE.Scene(),fakeCars);await traffic._load('player');
-assert.equal(traffic.pool.length,6,'Pool must support four oncoming and two same-direction NPCs');
+assert.equal(traffic.pool.length,3,'Pool must support two oncoming and one same-direction NPC');
 const random=Math.random;Math.random=()=>0;
 let spawns=0, max=0, playerS=150;
 const straight={at(s,p){Object.assign(p,{x:0,y:0,z:-s,th:0});return p;}};
@@ -68,12 +72,12 @@ try {
   traffic.update(.05,playerS,1.5,straight,0,'player',[obstacle(playerS,1.5,2,4.7,25/3.6,1,'player')]);
   spawns+=traffic.active.filter(v=>!before.has(v)).length;
   max=Math.max(max,traffic.active.filter(v=>v.direction===-1).length);
-  assert(traffic.active.filter(v=>v.direction===-1).length<=4);
-  assert(traffic.active.filter(v=>v.direction===1).length<=2);
+  assert(traffic.active.filter(v=>v.direction===-1).length<=2);
+  assert(traffic.active.filter(v=>v.direction===1).length<=1);
   assert(traffic.active.every(v=>v.cruise*3.6>=50 && v.cruise*3.6<=200));
  }
 } finally { Math.random=random; }
-assert(max===4 && spawns>=10,`Spawn cadence too low: peak=${max}, spawns=${spawns}`);
+assert(max===2 && spawns>=5,`Spawn cadence too low: peak=${max}, spawns=${spawns}`);
 console.log(`PASS: 120-second Traffic.update simulation, ${spawns} spawns, peak ${max} simultaneous NPCs, recycled pool.`);
 
 for(const speed of [50,200]) {
@@ -84,7 +88,7 @@ for(const speed of [50,200]) {
 }
 for(const kind of ['slow car','pedestrian','head-on']) {
  let v={...car(100,1.8),direction:1};
- const o=obstacle(134.7,1.8,kind==='pedestrian'?.8:2,4.7,kind==='slow car'?50/3.6:kind==='head-on'?200/3.6:0,kind==='slow car'?1:kind==='head-on'?-1:0);
+ const o=obstacle(134.7+(kind==='head-on'?1.2*200/3.6:0),1.8,kind==='pedestrian'?.8:2,4.7,kind==='slow car'?50/3.6:kind==='head-on'?200/3.6:0,kind==='slow car'?1:kind==='head-on'?-1:0);
  for(let i=0;i<1200;i++) {Object.assign(v,stepTraffic(v,[o],4.6,dt));o.s+=o.direction*o.speed*dt;assert(!overlap(v,o),kind+' forward collision');}
  assert(v.s>100,'Same-direction car must advance');
 }
@@ -94,14 +98,14 @@ for(const sample of [0,1]) {
  Math.random=()=>sample ? 1-Number.EPSILON : 0;
  try {
   t.update(.05,150,1.5,straight,1,'player',[]);
-  assert(Math.abs(t.sameTimer-(sample?30:10))<1e-8);assert.equal(t.active.length,1);
+  assert(Math.abs(t.sameTimer-(sample?60:25))<1e-8);assert.equal(t.active.length,1);
   const v=t.active[0];assert.equal(v.direction,1);assert(v.s<150);assert.equal(v.baseD,1.8);
-  assert(Math.abs(v.cruise*3.6-(sample?200:50))<1e-8);assert(Math.abs(v.headlights.spots[0].intensity-85*0.24)<1e-9);
+  assert(Math.abs(v.cruise*3.6-(sample?200:50))<1e-8);assert(Math.abs(t.beam.spots[0].intensity-85*0.24)<1e-9);assert.equal(v.headlights.spots.length,0,'NPC has glows only');
   assert(Math.abs(v.root.rotation.y)<1e-8,'Same-direction yaw must face forward');
   const s=v.s;t.update(.05,150,1.5,straight,1,'player',[]);assert(v.s>s);
  } finally {Math.random=random;}
 }
-console.log('PASS: actual Traffic spawn at both random bounds: 10/30 seconds, 50/200 km/h, rear entry, forward motion/yaw, NPC headlights 20.4.');
+console.log('PASS: actual Traffic spawn at both random bounds: 25/60 seconds, 50/200 km/h, rear entry, forward motion/yaw, shared NPC beam 20.4.');
 
 for(const direction of [-1,1]) for(const kmh of [50,100,200]) {
  const curved={heading:s=>s*.003},flat={heading:()=>0};

@@ -223,7 +223,7 @@ export class Scenery {
 
     const glow = glowTexture();
     this.poolMat = new THREE.MeshBasicMaterial({
-      map: streetPoolTexture(), color: 0xffc27a, transparent: true, opacity: 0, depthWrite: false,
+      map: streetPoolTexture(), color: 0xffc27a, vertexColors: true, transparent: true, opacity: 0, depthWrite: false,
       blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
     });
     this.glowMat = new THREE.PointsMaterial({
@@ -235,7 +235,6 @@ export class Scenery {
     this.lampGeo = lampGeometry();
     this.railPostGeo = new THREE.BoxGeometry(0.12, 0.8, 0.12).translate(0, 0.4, 0);
     this.postGeo = new THREE.BoxGeometry(0.12, 0.95, 0.12).translate(0, 0.475, 0);
-    this.poolGeo = new THREE.PlaneGeometry(24, 28).rotateX(-Math.PI / 2);
     this.bulbGeo = new THREE.SphereGeometry(0.2, 8, 6);
   }
 
@@ -388,7 +387,7 @@ export class Scenery {
       lamps.push([x, p.y, z, yaw]);
       const ax = -Math.cos(yaw) * 1.75, az = Math.sin(yaw) * 1.75;
       bulbs.push([x + ax, p.y + 7.25, z + az]);
-      pools.push([x + ax * 1.4, p.y + 0.08, z + az * 1.4, p.th]);
+      pools.push([s, side * (off - 2.45)]);          // tâm vùng sáng: dưới bóng đèn, lệch vào lòng đường
     }
     const lm = new THREE.InstancedMesh(this.lampGeo, this.poleMat, lamps.length);
     const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
@@ -404,10 +403,38 @@ export class Scenery {
     bulbs.forEach(([x, y, z], i) => { m4.makeTranslation(x, y, z); bm.setMatrixAt(i, m4); });
     group.add(bm);
 
-    const poolMesh = new THREE.InstancedMesh(this.poolGeo, this.poolMat, pools.length);
-    pools.forEach(([x, y, z, yaw], i) => { q.setFromAxisAngle(up, yaw); m4.compose(v.set(x, y, z), q, one); poolMesh.setMatrixAt(i, m4); });
-    poolMesh.renderOrder = 2;
-    group.add(poolMesh);
+    // vùng sáng đèn trên mặt đường: lưới 24 × 28 m bám theo độ cao + hướng đường (dốc, đỉnh dốc, cua) thay cho tấm phẳng
+    // (tấm phẳng ở đoạn dốc bị chìm một nửa dưới mặt đường, nửa kia lơ lửng)
+    if (pools.length) {
+      // chỉ phủ mặt đường + lề phẳng (địa hình đúng bằng mặt đường tới HW + 1.2): ra xa hơn sẽ cắt vào vách / lơ lửng
+      // trên dốc vực thành mép thẳng. Mờ dần 1 m sát mép (màu đỉnh => cộng sáng bằng 0).
+      const NU = 8, NW = 14, EDGE = HW + 1.2, pp = [], pu = [], pc = [], pi = [];
+      pools.forEach(([sc, dc], k) => {
+        const base = k * (NU + 1) * (NW + 1);
+        const d0 = Math.max(dc - 12, -EDGE), d1 = Math.min(dc + 12, EDGE);
+        for (let j = 0; j <= NW; j++) {
+          road.at(sc + (j / NW - 0.5) * 28, p);
+          const rx = Math.cos(p.th), rz = -Math.sin(p.th);
+          for (let i = 0; i <= NU; i++) {
+            const d = d0 + (d1 - d0) * i / NU, f = Math.min(1, Math.max(0, EDGE - Math.abs(d)));
+            pp.push(p.x + rx * d, p.y + 0.08, p.z + rz * d);
+            pu.push((d - dc) / 24 + 0.5, j / NW);
+            pc.push(f, f, f);
+            if (i < NU && j < NW) { const a = base + j * (NU + 1) + i; pi.push(a, a + 1, a + NU + 1, a + 1, a + NU + 2, a + NU + 1); }
+          }
+        }
+      });
+      const pg = new THREE.BufferGeometry();
+      pg.setAttribute('position', new THREE.Float32BufferAttribute(pp, 3));
+      pg.setAttribute('uv', new THREE.Float32BufferAttribute(pu, 2));
+      pg.setAttribute('color', new THREE.Float32BufferAttribute(pc, 3));
+      pg.setIndex(pi);
+      pg.computeBoundingSphere();
+      const poolMesh = new THREE.Mesh(pg, this.poolMat);
+      poolMesh.renderOrder = 2;
+      group.add(poolMesh);
+      group.userData.own.push(pg);
+    }
 
     const gg = new THREE.BufferGeometry();
     gg.setAttribute('position', new THREE.Float32BufferAttribute(bulbs.flat(), 3));
