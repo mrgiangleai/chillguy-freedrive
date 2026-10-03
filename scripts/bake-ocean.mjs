@@ -1,5 +1,7 @@
-// Bake sóng biển từ model ocean_scene_animated.glb (lưới 101×101, 100 morph target = 100 khung hình, lặp 8.33 s)
-// thành atlas PNG 10×10 khung, mỗi khung 100×100: R = độ cao, G/B = độ dốc theo u/v. Game lặp ô sóng này khắp mặt biển
+// Bake sóng biển từ model ocean_scene_animated.glb (lưới 101×101, 100 morph target = 100 khung hình, 8.33 s)
+// thành atlas PNG 10 cột, mỗi khung 100×100: R = độ cao, G/B = độ dốc theo u/v.
+// Animation gốc KHÔNG lặp liền (khung cuối → khung đầu lệch gấp ~6 lần hai khung liền nhau => mặt biển giật mỗi vòng):
+// trộn chéo XF khung cuối vào XF khung đầu (giữ biên độ bằng chuẩn hoá phương sai) => còn 100 − XF khung lặp liền. Game lặp ô sóng này khắp mặt biển
 // (src/ocean.js) nên không phải tải file .glb 12.9 MB. Chạy: node scripts/bake-ocean.mjs
 import fs from 'node:fs';
 import zlib from 'node:zlib';
@@ -27,8 +29,18 @@ for (let i = 0; i < base.length / 3; i++) {
   cell[iy * N + ix] = i;
 }
 if (cell.some((c) => c < 0)) throw new Error('lưới không đều');
-const F = targets.length, R = N - 1;                                 // bỏ hàng/cột cuối (ô lặp 100×100)
-const H = targets.map((t) => { const h = new Float32Array(R * R); for (let y = 0; y < R; y++) for (let x = 0; x < R; x++) h[y * R + x] = t[cell[y * N + x] * 3 + 2] * S; return h; });
+const XF = 24;                                                       // số khung trộn chéo ở chỗ nối vòng lặp
+const R = N - 1;                                                     // bỏ hàng/cột cuối (ô lặp 100×100)
+const H0 = targets.map((t) => { const h = new Float32Array(R * R); for (let y = 0; y < R; y++) for (let x = 0; x < R; x++) h[y * R + x] = t[cell[y * N + x] * 3 + 2] * S; return h; });
+// trộn chéo: khung i < XF = (khung i + P) ·(1−w) + khung i ·w, w = smoothstep(i/XF), quanh trung bình, chia √((1−w)²+w²)
+const P = H0.length - XF, F = P;
+let mean = 0; for (const h of H0) for (const v of h) mean += v; mean /= H0.length * R * R;
+const H = H0.slice(0, P).map((h, i) => {
+  if (i >= XF) return h;
+  const t = i / XF, w = t * t * (3 - 2 * t), k = 1 / Math.hypot(1 - w, w), a = H0[i + P], o = new Float32Array(R * R);
+  for (let j = 0; j < o.length; j++) o[j] = mean + ((a[j] - mean) * (1 - w) + (h[j] - mean) * w) * k;
+  return o;
+});
 let hMin = Infinity, hMax = -Infinity, sMax = 0;
 const at = (h, x, y) => h[((y + R) % R) * R + ((x + R) % R)];
 const slopes = H.map((h) => {
@@ -61,5 +73,5 @@ const raw = Buffer.alloc((W * 3 + 1) * Hh);
 for (let y = 0; y < Hh; y++) { raw[y * (W * 3 + 1)] = 0; px.copy(raw, y * (W * 3 + 1) + 1, y * W * 3, (y + 1) * W * 3); }
 const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(Hh, 4); ihdr[8] = 8; ihdr[9] = 2;
 fs.writeFileSync(OUT, Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]));
-const anim = j.animations[0], dur = j.accessors[anim.samplers[0].input].max[0];
+const anim = j.animations[0], dur = j.accessors[anim.samplers[0].input].max[0] * F / H0.length;
 console.log(`${OUT}: ${W}×${Hh}, ${F} khung, ô ${TILE.toFixed(3)} m, độ cao ${hMin.toFixed(3)}..${hMax.toFixed(3)} m, dốc ±${sMax}, chu kỳ ${dur.toFixed(3)} s, ${(fs.statSync(OUT).size / 1e6).toFixed(2)} MB`);

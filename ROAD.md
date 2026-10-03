@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -51,7 +51,7 @@
 | `town.js` | Map núi: thị trấn nhỏ + **thị trấn lớn** dưới thung lũng, đèn đường |
 | `waterfalls.js` | Map núi: suối/thác (`waterfallSpec`, `waterfallGeometry` → nodes/water/wet/rocks/sprays; `Waterfalls.setMap`, `update(time, s, light, {d, v, dim, npcs, cam, audio})`). Dòng dò theo dốc (`trace`) + uốn lượn (`meander`); nước = MeshStandardMaterial + nhiễu theo **thời gian chảy `tau`** (không dùng `along - uTime*speed` => tránh sọc); lớp ướt = blend nhân màu; đá tảng dùng `rockGeometry(k, 2)` + `terrain.rockMat`; nước bắn bánh xe (`Splash`, Points kéo về camera 4%) |
 | `carriage.js` | `loadCarriage(loader)` → hàm tạo xe ngựa `{group, dim 5.6×2.8, wheels: [], mixer, carriage: true}`; `CARRIAGE` (15–30 s, tối đa 2, 25–40 km/h). traffic.js sinh/điều khiển như NPC (`_spawnCarriage`, `carriageTimer`, không đèn, không tiếng lướt, không nhận chùm pha dùng chung) |
-| `ocean.js` | Map Biển: `Ocean.setMap(on, level)`, `update(time, cam, road, s)`. Lưới tròn quanh camera (R 300 m, 110 vòng × 128 nan, sóng nhô lên ≤ 260 m) + vành phẳng tới 6 km. Shader `waveAt`: atlas `assets/tex/ocean-waves.png` (bake bằng `scripts/bake-ocean.mjs` từ `models/ocean_scene_animated.glb`), ô 27.12 m xoay 25°, trộn 4 mẫu lệch nửa ô (mép ô gốc lệch ~18 cm), 2 khung nội suy; độ sâu ven đê ước lượng từ 27 điểm tim đường (công thức xẻ đường của terrain) => nước nông / bọt / trong |
+| `ocean.js` | Map Biển: `Ocean.setMap(on, level)`, `update(time, cam, road, s)`. Lưới vuông 1.5 m ±120 m (sóng nhô lên ≤ ~100 m) + vành lưới 8 m tới ±400 m + khung phẳng tới 6 km; cả nhóm **nắn theo bước 1.5 m** (đỉnh cố định trong thế giới, không rung). Shader `waveAt`: atlas `assets/tex/ocean-waves.png` (76 khung lặp liền, 10×8), ô ×2 = 54.2 m, cao ×1.3, chu kỳ 6.33·√2 ≈ 9 s, 4 mẫu lệch nửa ô; fragment `textureLod` theo khoảng cách (`uLod`); độ sâu ven đê từ 27 điểm tim đường => nước nông / bọt / trong |
 | `cows.js` | Map đồi cỏ: đàn 5 bò sữa + hàng rào gỗ |
 | `fireflies.js` | Đom đóm ban đêm |
 | `traffic.js` | Spawn/pool/vẽ NPC: ngược chiều (10–25 s/chiếc, tối đa 2) + cùng chiều (25–60 s, tối đa 1, vào từ phía sau 80–110 m); pool 3 xe; NPC chỉ có quầng pha, chùm sáng thật = 1 cặp SpotLight dùng chung (`beam`, gắn NPC gần nhất ≤300 m, `_beam`); đèn `lamps × NPC_LAMP(0.24)`, đèn hậu ×0.6; thân xe xoay `yaw = atan(latV/v)` (≤0.35, nội suy 8/s), bánh trước `w.front` đánh lái `yaw × 1.8`; âm thanh lướt qua 1 lần/lượt; xuất `ctrl {lane, maxV}` cho xe người chơi |
@@ -177,3 +177,9 @@
   - Thác: lấy 13 điểm/mặt cắt (trước 9), nâng mặt nước thêm 0.4 × độ dốc để không chìm giữa các điểm. Check scripts đạt.
   - Ảnh Low: `screenshots/cliff-before.jpg` → `cliff-after.jpg`, `cliff-after-wall.jpg`. Lưu ý chụp: phải `terrain.prime()`
     sau khi dời xe, không thì ô địa hình gần vẫn là ô thô (trông phẳng).
+
+- **#9** — Map Biển hết giật: (1) animation sóng gốc không lặp (khung 99→0 lệch RMS 0.75 m, gấp ~6 lần hai khung liền nhau)
+  => mặt biển nhảy mỗi 8.3 s. `bake-ocean.mjs` trộn chéo 24 khung cuối vào đầu (chuẩn hoá phương sai giữ biên độ) => 76 khung,
+  chỗ nối lệch bằng hai khung thường. (2) lưới tròn bám camera làm đỉnh trượt trên sóng (rung/trôi) => lưới vuông đều nắn theo
+  bước. (3) Sóng to hơn (ô 54 m, cao ×1.3, chậm √2) + mipmap theo khoảng cách bớt lấp lánh. Máy ảo Low: biển 590 ms/khung,
+  núi 647 (không nặng hơn). Ảnh `screenshots/sea-map-chase.jpg`, `sea-map-drone.jpg`. Chưa xem chuyển động trên máy thật.
