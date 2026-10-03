@@ -90,7 +90,8 @@ export class Traffic {
       w:player?.width || this.cars.dim?.width || 2, home:this.playerHome ?? (playerD >= 0 ? 1.5 : -1.5)});
     this.policy.active = this.active.map(v => {
       v.policy ||= {state:'cruise',target:null};
-      return Object.assign(v.policy,{s:v.s,d:v.d,v:v.v,dir:v.direction ?? -1,len:v.dim.length,w:v.dim.width,home:v.baseD});
+      // xe ngược chiều không vượt nhau: chỉ bám sau, giảm tốc chờ
+      return Object.assign(v.policy,{s:v.s,d:v.d,v:v.v,dir:v.direction ?? -1,len:v.dim.length,w:v.dim.width,home:v.baseD,noOvertake:(v.direction ?? -1) < 0});
     });
     this.policy.active.push(...obstacles.filter(o => o.id === 'person').map(o => ({s:o.s,d:o.d,v:o.speed || 0,dir:0,len:o.length,w:o.width,player:true,home:o.d})));
     const pc = this.policy._decide(this.policy.player, this.playerGoal ?? player?.speed ?? 0);
@@ -117,7 +118,7 @@ export class Traffic {
       const direction = v.direction ?? -1;
       v.root.rotation.set(-direction * Math.atan2(yB - yA, 5), p.th + (direction === -1 ? Math.PI : 0), 0, 'YXZ');            // hướng thân xe theo chiều chạy
       for (const w of v.wheels) w.pivot.rotation.x += direction * (v.v * dt) / w.radius;
-      const L = lamps * 0.6;                 // NPC giảm 40% cường độ đèn pha và quầng sáng.
+      const L = lamps * 0.24;                // NPC: đèn pha + quầng trước còn 24% xe người chơi (đèn hậu giữ 60%).
       updateHeadlights(v.headlights, v.root, this.cars.viewer, L);
       for (const t of v.tails) t.material.opacity = (0.25 + 0.6 * lamps) * 0.6;
     }

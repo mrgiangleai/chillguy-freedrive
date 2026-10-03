@@ -11,12 +11,17 @@ policy.active.push(oncoming);assert(!policy._canOvertake(a,policy.player,30),'On
 oncoming.s=280;assert(!policy._canOvertake(a,policy.player,30),'Oncoming arrives before pass finishes');
 policy.active=[a];assert(policy._decide(a,30).dT<0,'May overtake if clear');
 policy.active.push(oncoming);a.state='cruise';a.target=null;assert(policy._decide(a,30).dT>0,'Wait in own lane if unsafe');
+// xe ngược chiều không bao giờ vượt nhau: làn bên kia trống vẫn bám sau và giảm tốc
+{const p2=new TrafficPolicy();Object.assign(p2.player,{s:-500,d:1.5,v:0,len:4.7,w:2,home:1.5});
+const slow={s:100,d:-1.8,v:14,dir:-1,len:4.7,w:2,home:-1.8,state:'cruise',target:null};
+const fast={s:130,d:-1.8,v:40,dir:-1,len:4.7,w:2,home:-1.8,state:'cruise',target:null,noOvertake:true};
+p2.active=[slow,fast];const r=p2._decide(fast,40);assert(r.dT<0&&r.vT<40,'Oncoming NPC must follow, not overtake');assert.equal(fast.state,'cruise');}
 const scene=new THREE.Scene(),cars={softTex:new THREE.Texture(),list:[{id:'npc'}],_load:async()=>({group:new THREE.Group(),dim:{width:2,length:4.7,height:1.3},wheels:[]})};
 const t=new Traffic(scene,cars);await t._load('player');t.timer=t.sameTimer=1e9;
 const v=t.pool[0];Object.assign(v,{s:160,d:-1.8,baseD:-1.8,v:50/3.6,cruise:50/3.6,direction:-1,busy:true});t.active.push(v);
 const road={at(s,p){Object.assign(p,{x:0,y:0,z:-s,th:0});return p;}};
 let passes=0;const audio={passDur:()=>2,passBy(){passes++;}};
 for(let i=0;i<100;i++)t.update(.05,150,1.5,road,1,'player',[{id:'player',s:150,d:1.5,speed:25/3.6,direction:1,width:2,length:4.7}],audio);
-assert.equal(passes,1,'One pass-by sound per encounter');assert.equal(v.headlights.spots[0].intensity,51);
+assert.equal(passes,1,'One pass-by sound per encounter');assert(Math.abs(v.headlights.spots[0].intensity-85*0.24)<1e-9);
 assert(t.ctrl&&Number.isFinite(t.ctrl.lane));
-console.log('PASS: upstream 50 m overtaking visibility, closing-time rejection, clear-lane pass, unsafe-lane wait; actual merged Traffic pass-by once and headlights 51.');
+console.log('PASS: upstream 50 m overtaking visibility, closing-time rejection, clear-lane pass, unsafe-lane wait; oncoming NPCs never overtake; actual merged Traffic pass-by once and headlights 20.4.');

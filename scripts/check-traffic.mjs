@@ -96,12 +96,12 @@ for(const sample of [0,1]) {
   t.update(.05,150,1.5,straight,1,'player',[]);
   assert(Math.abs(t.sameTimer-(sample?30:10))<1e-8);assert.equal(t.active.length,1);
   const v=t.active[0];assert.equal(v.direction,1);assert(v.s<150);assert.equal(v.baseD,1.8);
-  assert(Math.abs(v.cruise*3.6-(sample?200:50))<1e-8);assert.equal(v.headlights.spots[0].intensity,51);
+  assert(Math.abs(v.cruise*3.6-(sample?200:50))<1e-8);assert(Math.abs(v.headlights.spots[0].intensity-85*0.24)<1e-9);
   assert(Math.abs(v.root.rotation.y)<1e-8,'Same-direction yaw must face forward');
   const s=v.s;t.update(.05,150,1.5,straight,1,'player',[]);assert(v.s>s);
  } finally {Math.random=random;}
 }
-console.log('PASS: actual Traffic spawn at both random bounds: 10/30 seconds, 50/200 km/h, rear entry, forward motion/yaw, NPC headlights 51.');
+console.log('PASS: actual Traffic spawn at both random bounds: 10/30 seconds, 50/200 km/h, rear entry, forward motion/yaw, NPC headlights 20.4.');
 
 for(const direction of [-1,1]) for(const kmh of [50,100,200]) {
  const curved={heading:s=>s*.003},flat={heading:()=>0};

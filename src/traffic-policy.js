@@ -98,7 +98,7 @@ export class TrafficPolicy {
       const f = this._ahead(A, own, range);
       if (f) {
         if (f.e.dir === A.dir) {
-          if (f.e.v < vDes - 1.5 && f.gap < 30 + 1.2 * A.v && this._canOvertake(A, f.e, Math.max(vDes, f.e.v + 6))) {
+          if (!A.noOvertake && f.e.v < vDes - 1.5 && f.gap < 30 + 1.2 * A.v && this._canOvertake(A, f.e, Math.max(vDes, f.e.v + 6))) {
             A.state = 'overtake'; A.target = f.e; dT = other; vT = Math.max(vDes, f.e.v + 6);
           } else vT = Math.min(vT, this._follow(f.e.v, f.gap));
         } else if (!A.player && f.e.player && f.e.home * ownLane(A.dir) > 0 && f.gap < 200 && this._sideClear(A, other, 30)) {
