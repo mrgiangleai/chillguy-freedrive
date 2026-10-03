@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -31,23 +31,23 @@
 | File | Nội dung chính |
 |---|---|
 | `main.js` | Ghép mọi thứ, vòng lặp `frame()`, giao diện/nút/phím, `state` mặc định, lái xe (`drive`: `home` làn tự chọn, `goal` tốc độ, nhận `traffic.ctrl`), cấp tốc độ `GEARS`, ống kính theo camera (`onCamChange`), `cockpitPitch()`, `gripWheel()` (IK tay theo `cars.steerAngle`), `stopLook()`, `rayParams()`, toàn màn hình điện thoại, chọn xe/map/chất lượng |
-| `config.js` | `CARS` (thông số từng xe, `mats` sửa vật liệu, `seatMesh`, `steer`/`steerMesh`/`steerShift`), `MAPS`, `WEATHERS`, `TIMES`, `CAMERAS`, `FSTOPS`, `QUALITY` |
+| `config.js` | `CARS` (thông số từng xe, `mats` sửa vật liệu, `seatMesh`, `steer`/`steerMesh`/`steerShift`, `lamps {head, tail}` tâm bóng đèn bên phải đo từ model), `MAPS`, `WEATHERS`, `TIMES`, `CAMERAS`, `FSTOPS`, `QUALITY` |
 | `world.js` | Bầu trời (shader, mặt trời, **trăng**), mây, sương phủ trời, ánh sáng mặt trời/trăng (1 DirectionalLight đổ bóng), hemi, phơi sáng, thời tiết, sét, chụp env map (PMREM), cân bằng nắng/trời (`sunK`) |
 | `post.js` | Hậu kỳ: xoá phông (CoC ống kính thật), bloom, **tia nắng** (god rays), **mưa trên kính** (RAIN_GLASS), ACES + chỉnh màu phim, grain, blur xuyên tâm 180 km/h |
 | `camera.js` | Các chế độ camera, tiêu cự 16–35 mm (`fovFor`), nhìn quanh (giữ góc sau khi thả), `cockpitPitch` hook |
 | `cars.js` | Tải + chuẩn hoá xe, vật liệu (`mats`, `envK`), bánh xe quay, cửa tài xế, đèn hậu (quầng mềm `softGlowTexture`), bóng gầm, đèn cabin (tại màn hình taplo), dò **kính trước/sau** (mask raster từ toàn bộ tam giác kính thật), **cần gạt** 3D (`wiperRig`), vô lăng da (`leatherMaterial`), dời vô lăng (`steerShift`), pivot vô lăng + `steerAngle` (tự lái theo cua) |
-| `headlights.js` | Rig đèn pha chung xe người chơi + NPC: SpotLight thật + quầng giảm theo hướng nhìn (`createHeadlights(group, tex, {spots, glows})`, `placeHeadlights`, `updateHeadlights(rig, root, cam, level)`) |
+| `headlights.js` | `lampsFor(dim)` (tâm bóng đèn từ `dim.lamps` hoặc ước lượng). Rig đèn pha chung xe người chơi + NPC: SpotLight thật + quầng giảm theo hướng nhìn (`createHeadlights(group, tex, {spots, glows})`, `placeHeadlights`, `updateHeadlights(rig, root, cam, level)`) |
 | `mirror.js` | Gương chiếu hậu giữa (render-to-texture, **tỉ lệ 4:3**, `GW/GH`; đặt bên phải màn hình taplo theo `screen`, không có que đỡ) |
 | `wingmirrors.js` | 2 gương hông soi thật (phản chiếu phẳng, frustum lệch tâm, vẽ xen kẽ; `uTex` theo hệ xe) — chỉ khi ngồi trong xe, chỉ xe Mustang |
 | `wipers.js` | Gạt mưa tự động (pha cos) + lượng nước trên kính trước/sau |
 | `dashscreen.js` | Màn hình giải trí taplo (canvas, tông ấm, kích thước giảm 15%) + đèn hắt |
 | `person.js` | Người lái (Quaternius, animation), áo đen/quần jeans vẽ bằng shader, IK 2 xương `reach(side, target, pole)`, xương `head`/`neck` |
-| `stopscene.js` | Cảnh dừng xe: dừng → bước ra, đóng cửa → đi lên trước xe → hút thuốc → **đi lanh quanh** (`_wander`, `_pickTarget`, `_look`) → quay lại xe; camera trung cảnh → cận 50 mm → toàn cảnh quay quanh |
+| `stopscene.js` | Cảnh dừng xe: dừng → bước ra, đóng cửa → đi lên trước xe → hút thuốc → **đi lanh quanh** (`_wander`, `_pickTarget`, `_look`) → quay lại xe; camera trung cảnh → cận 50 mm (`CLOSE_START` 1.25 → `CLOSE_END` 2.85 s, đúng đoạn châm thuốc) → toàn cảnh quay quanh; `zoomBy(f)` ở toàn cảnh: 16–35 mm + lùi thêm `back` ≤20 m (25 m / đơn vị ln) |
 | `smoke.js` | Điếu thuốc (kẹp giữa ngón trỏ/giữa), đầu thuốc đỏ, lửa bật lửa, hạt khói (đầu điếu + nhả từ miệng) |
 | `terrain.js`, `terrain-noise.js` | Địa hình quadtree nhiều mức, cây tấm, cụm đá (`rockGeometry(k, detail)` export), texture ảnh; `setView` (Ultra xa ×2); `heightAt` (đặt `_d` = khoảng cách tới đường); `hash2`, `vnoise` |
 | `nature.js` | Cây/bụi/đá model chi tiết quanh camera (gần đổ bóng, xa không) |
 | `reeds.js` | Cỏ lau / búi cỏ / cỏ đồi (instancing, gió, `setView`) |
-| `road.js`, `scenery.js` | Đường vô tận (`at`, `heading`, `curvature(s)` đổi hướng có dấu trên 12 m), đoạn đường đất; mặt đường (nhựa sần, vũng nước, phản chiếu), cọc, đèn đường (vùng sáng 24 × 28 m = lưới 8×14 bám độ cao/hướng đường, chỉ trong `HW + 1.2`, mờ 1 m sát mép bằng màu đỉnh; opacity `0.68 × lamps`), hộ lan |
+| `road.js`, `scenery.js` | Đường vô tận (`at`, `heading`, `curvature(s)` đổi hướng có dấu trên 12 m), đoạn đường đất; mặt đường (nhựa sần, vũng nước, phản chiếu), cọc, đèn đường (cột `LAMP_H` 11.1 m; ánh sáng = `LAMP_LIGHTS` 3 SpotLight dùng chung, `updateLights(cam)` gán cột gần nhất, mờ theo khoảng cách cột kế tiếp; 700 × lamps, nửa góc 1.2, penumbra 0.8, decay 0.6, tầm 80 m, chếch vào lòng đường), hộ lan |
 | `town.js` | Map núi: thị trấn nhỏ + **thị trấn lớn** dưới thung lũng, đèn đường |
 | `waterfalls.js` | Map núi: suối/thác (`waterfallSpec`, `waterfallGeometry` → nodes/water/wet/rocks/sprays; `Waterfalls.setMap`, `update(time, s, light, {d, v, dim, npcs, cam, audio})`). Dòng dò theo dốc (`trace`) + uốn lượn (`meander`); nước = MeshStandardMaterial + nhiễu theo **thời gian chảy `tau`** (không dùng `along - uTime*speed` => tránh sọc); lớp ướt = blend nhân màu; đá tảng dùng `rockGeometry(k, 2)` + `terrain.rockMat`; nước bắn bánh xe (`Splash`, Points kéo về camera 4%) |
 | `cows.js` | Map đồi cỏ: đàn 5 bò sữa + hàng rào gỗ |
@@ -83,7 +83,8 @@
   60% khi chọn Ban đêm. Bão/gió lớn: không rung lắc (chỉ 180 km/h rung nhẹ).
 - **Map núi**: thị trấn nhỏ + lớn có đèn; suối/thác qua đường (`waterfalls.js`, rộng 2–5 m, lưu lượng 0.25–1, giữ 2–4 dòng
   quanh xe, dựng tối đa 1 dòng/khung hình ~20 ms, dispose khi rời vùng/đổi map). Xem nhật ký #1.
-- **Dừng xe**: xem `stopscene.js`; người áo đen; nhịp hút 3 s → 5 s → ngẫu nhiên 5–12 s; đi lanh quanh trong 10 m,
+- **Dừng xe**: xem `stopscene.js`; người áo đen; cận cảnh chỉ ~1.5 s lúc châm thuốc rồi ra toàn cảnh (zoom + lùi 20 m);
+  nhịp hút 3 s → 5 s → ngẫu nhiên 5–12 s; đi lanh quanh trong 10 m,
   chỉ trong làn mình + lề phải.
 - **Điện thoại**: tự toàn màn hình khi nhấc tay ở lần chạm đầu (và chạm lại nếu bị thoát), nút ⛶ chỉ hiện trên điện thoại,
   khoá ngang (Android), gợi ý xoay ngang khi cầm dọc; iPhone: "Thêm vào MH chính" (manifest fullscreen/landscape).
@@ -129,3 +130,11 @@
     Mô phỏng 20 phút (25/50/180 km/h): 0 chồng thân xe, tối đa 3 NPC cùng lúc, yaw tối đa ~19°.
   - Ảnh Low: `screenshots/streetlight-slope-verified.jpg` (đêm, dốc 7% s≈1326), `npc-lane-change-verified.jpg` (fixture giữ
     NPC giữa lúc đổi làn: thân xoay −7.8°, bánh trước 14°). Chưa đo FPS máy thật.
+
+- **#3** — Đổi "Trời nắng" → "Trời trong"; bỏ mốc "Giờ vàng". Đèn xe đúng tâm bóng đèn: đo từ model (Mustang: mesh `Headlight_emissive`/
+  `TailLight_emissive`; Divo/Milk Truck: mesh gộp nên đo bằng ảnh chiếu thẳng có lưới + tia tìm mặt kính) => `lamps` trong config,
+  `placeHeadlights` + quầng hậu xe người chơi/NPC dùng chung. Đèn đường: cột ×1.5 (11.1 m), bỏ texture vùng sáng, thay bằng
+  3 SpotLight thật dùng chung (số đèn cố định). Cảnh dừng: cận cảnh châm thuốc ~1.5 s rồi ra toàn cảnh; zoom ở toàn cảnh
+  16 mm → lùi thêm 20 m, zoom vào thì tiến lại 20 m trước rồi mới tăng tới 35 mm (wheel / pinch / phím ± qua `zoomBy` trong main).
+  - Check scripts đạt; logic zoom kiểm bằng script (26→16 mm→+20 m; vào: 20 m→0 rồi 16→35 mm). Ảnh đèn đường đêm Low (dốc s≈1206)
+    đã xem. **Chưa chạy thử cảnh dừng xe trên máy ảo** (chú dừng lượt thử để chuyển việc khác).

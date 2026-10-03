@@ -397,6 +397,8 @@ window.addEventListener('blur', () => keys.clear());
 // bấm giữ + rê chuột / vuốt màn hình: nhìn xung quanh 360° (thả ra camera tự về vị trí cũ)
 // lăn chuột / chụm-mở 2 ngón / phím + -: zoom
 const touches = new Map();                         // pointerId -> {x, y}
+// zoom: cảnh dừng xe đang toàn cảnh thì zoom ống kính của cảnh dừng (16–35 mm + lùi xa thêm 20 m), còn lại zoom camera chạy xe
+function zoomBy(f) { if (!(stop.active && stop.zoomBy(f))) rig.zoomBy(f); }
 let pinchDist = 0;
 const spread = () => { const [a, b] = [...touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
 canvas.addEventListener('pointerdown', (e) => {
@@ -416,7 +418,7 @@ canvas.addEventListener('pointermove', (e) => {
   t.x = e.clientX; t.y = e.clientY;
   if (touches.size === 2) {
     const d = spread();
-    if (pinchDist > 0 && d > 0) rig.zoomBy(pinchDist / d);
+    if (pinchDist > 0 && d > 0) zoomBy(pinchDist / d);
     pinchDist = d;
   } else if (pointer.active && e.pointerId === pointer.id) {
     rig.lookBy((e.clientX - pointer.x) * 4.7 / window.innerWidth, (e.clientY - pointer.y) * 2.2 / window.innerHeight);
@@ -433,7 +435,7 @@ canvas.addEventListener('pointercancel', endPointer);
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
   const dy = e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1);
-  rig.zoomBy(Math.exp(clamp(dy, -200, 200) * 0.0012));
+  zoomBy(Math.exp(clamp(dy, -200, 200) * 0.0012));
 }, { passive: false });
 
 // ẩn giao diện khi không thao tác
@@ -565,8 +567,8 @@ function frame(now) {
   const steer = (right ? 1 : 0) - (left ? 1 : 0);
   if (keys.has('ArrowUp') || keys.has('KeyW')) drive.target += 2.5 * dt;
   if (keys.has('ArrowDown') || keys.has('KeyS')) drive.target -= 2.5 * dt;
-  if (keys.has('Equal') || keys.has('NumpadAdd')) rig.zoomBy(Math.exp(-1.2 * dt));
-  if (keys.has('Minus') || keys.has('NumpadSubtract')) rig.zoomBy(Math.exp(1.2 * dt));
+  if (keys.has('Equal') || keys.has('NumpadAdd')) zoomBy(Math.exp(-1.2 * dt));
+  if (keys.has('Minus') || keys.has('NumpadSubtract')) zoomBy(Math.exp(1.2 * dt));
   drive.target = clamp(drive.target, CHILL_MIN, CHILL_MAX);
   drive.goal = drive.fast ? FAST_SPEED : drive.target;
   const goal = Math.min(drive.goal, traffic.ctrl.maxV);
@@ -635,6 +637,7 @@ function frame(now) {
   const st = env.state;
   scenery.update(drive.s);
   scenery.apply(st);
+  scenery.updateLights(camera.position);
   waterfalls.update(now / 1000, drive.s, st.light, { d: drive.d, v: drive.v, dim: cars.dim, npcs: traffic.active, cam: camera, audio });
   if (reeds.visible) reeds.update(now / 1000, camera.position, road, drive.s, st);
   grass.group.visible = MAPS[state.map].id === 'forest' && st.cover < 0.5;   // tuyết phủ thì ẩn cỏ

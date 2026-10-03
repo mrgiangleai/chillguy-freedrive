@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { TrafficPolicy } from './traffic-policy.js';
 import { ROAD } from './road.js';
 import { TRAFFIC, trafficSpeed, trafficCurveSpeed, stepTraffic } from './traffic-ai.js';
-import { createHeadlights, placeHeadlights, updateHeadlights } from './headlights.js';
+import { createHeadlights, placeHeadlights, updateHeadlights, lampsFor } from './headlights.js';
 
 // Xe ngược chiều: 10–25 giây, tối đa 2; cùng chiều: 25–60 giây, tối đa 1 (ít xe => nhẹ máy). Tốc độ 50–200 km/h.
 // Xe ngược chiều xuất hiện xa phía trước
@@ -52,7 +52,7 @@ export class Traffic {
     const root = new THREE.Group();
     root.visible = false;
     root.add(entry.group);
-    const d = entry.dim, x = d.width * 0.3, y = Math.min(0.7, d.height * 0.45);
+    const d = entry.dim;
     const sprite = (color, size) => {
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({
         map: this.cars.softTex, color, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending,
@@ -64,7 +64,8 @@ export class Traffic {
     const headlights = createHeadlights(root, this.cars.softTex, { spots: false });
     placeHeadlights(headlights, d);
     for (const w of entry.wheels) { w.front = w.pivot.position.z < 0; w.pivot.rotation.order = 'YXZ'; }
-    const tails = [-1, 1].map((k) => { const s = sprite(0xff2412, 1.6); s.position.set(k * x, y + 0.05, d.length / 2 + 0.05); return s; });
+    const [tx, ty, tz] = lampsFor(d).tail;                         // quầng đèn hậu đúng tâm bóng đèn hậu của model
+    const tails = [-1, 1].map((k) => { const s = sprite(0xff2412, 1.6); s.position.set(k * tx, ty, tz + 0.03); return s; });
     this.scene.add(root);
     return { root, wheels: entry.wheels, dim: d, headlights, tails, busy: false, s: 0, v: 0, d: 0 };
   }

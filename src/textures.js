@@ -58,22 +58,6 @@ export function softGlowTexture() {
   return t;
 }
 
-// Ánh sáng đèn đường: phân bố rộng, không lõi gắt hoặc vòng tròn rõ ở mép.
-export function streetPoolTexture() {
-  const [c, g] = canvas(128, 128), img = g.createImageData(128, 128);
-  for (let y = 0; y < 128; y++) for (let x = 0; x < 128; x++) {
-    const r2 = ((x + 0.5) / 64 - 1) ** 2 + ((y + 0.5) / 64 - 1) ** 2;
-    const a = Math.exp(-3 * r2) * (1 - THREE.MathUtils.smoothstep(r2, 0.45, 1));
-    const i = (y * 128 + x) * 4;
-    img.data[i] = img.data[i + 1] = img.data[i + 2] = 255;
-    img.data[i + 3] = Math.round(a * 255);
-  }
-  g.putImageData(img, 0, 0);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
 export function glowTexture() {
   const [c, g] = canvas(128, 128);
   const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);

@@ -23,14 +23,22 @@ export function createHeadlights(group, texture, { spots: withSpots = true, glow
   return { spots, glows, eye: new THREE.Vector3(), forward: new THREE.Vector3() };
 }
 
-export function placeHeadlights(rig, dim) {
+// vị trí bóng đèn (bên phải, bên trái lấy −x) khi model không khai báo `lamps` trong config
+export function lampsFor(dim) {
+  if (dim.lamps) return dim.lamps;
   const x = dim.width * 0.3, y = Math.min(0.7, dim.height * 0.45);
+  return { head: [x, y, -dim.length / 2 + 0.25], tail: [x, y + 0.05, dim.length / 2] };
+}
+
+// chùm sáng + quầng đặt đúng tâm bóng đèn pha của model (dim.lamps.head); quầng nhô ra trước mặt kính 3 cm
+export function placeHeadlights(rig, dim) {
+  const [x, y, z] = lampsFor(dim).head;
   rig.spots.forEach((light, i) => {
     const sx = i ? x : -x;
-    light.position.set(sx, y, -dim.length / 2 + 0.3);
-    light.target.position.set(sx * 0.9, 0, -40);
+    light.position.set(sx, y, z);
+    light.target.position.set(sx * 0.9, 0, z - 40);
   });
-  rig.glows.forEach((glow, i) => glow.position.set(i ? x : -x, y, -dim.length / 2 - 0.05));
+  rig.glows.forEach((glow, i) => glow.position.set(i ? x : -x, y, z - 0.03));
 }
 
 export function updateHeadlights(rig, root, camera, level) {

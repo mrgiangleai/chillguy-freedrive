@@ -5,7 +5,7 @@ import { CARS } from './config.js';
 import { softGlowTexture } from './textures.js';
 import { screenPose } from './dashscreen.js';
 import { withMist } from './mist.js';
-import { createHeadlights, placeHeadlights, updateHeadlights } from './headlights.js';
+import { createHeadlights, placeHeadlights, updateHeadlights, lampsFor } from './headlights.js';
 
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 
@@ -149,6 +149,7 @@ export class Cars {
     box.setFromObject(car, true);
     const dim = { length: box.max.z - box.min.z, width: box.max.x - box.min.x, height: box.max.y - box.min.y };
     dim.eye = def.eye || [-dim.width * 0.2, Math.min(dim.height * 0.8, 1.15), 0];
+    dim.lamps = def.lamps || lampsFor(dim);
 
     // tuỳ chọn: thay toàn bộ vật liệu bằng kim loại bóng nhẹ cơ bản (giữ màu / ảnh màu gốc, kính vẫn trong suốt)
     if (def.basicMetal) {
@@ -305,9 +306,9 @@ export class Cars {
   }
 
   _placeLights(d) {
-    const x = d.width * 0.3, y = Math.min(0.7, d.height * 0.45);
     placeHeadlights(this.headlights, d);
-    this.tailGlow.forEach((g, i) => g.position.set(i ? x : -x, y + 0.05, d.length / 2 + 0.05));
+    const [tx, ty, tz] = (d.lamps || lampsFor(d)).tail;          // quầng đèn hậu đúng tâm bóng đèn hậu của model
+    this.tailGlow.forEach((g, i) => g.position.set(i ? tx : -tx, ty, tz + 0.03));
     this.contact.scale.set(d.width * 1.12, 1, d.length * 1.06);
     const scr = this.current?.screen;
     if (scr) this.cabin.position.copy(scr.pos).add(new THREE.Vector3(0, 0.02, 0.12));   // ngay trước mặt màn hình, hướng về người lái

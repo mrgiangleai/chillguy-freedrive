@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ROAD } from './road.js';
-import { roadTexture, glowTexture, streetPoolTexture, photoTexture } from './textures.js';
+import { roadTexture, glowTexture, photoTexture } from './textures.js';
 import { withMist } from './mist.js';
 
 const { halfWidth: HW, chunkLen: L, step: STEP } = ROAD;
@@ -93,12 +93,18 @@ export function cardPineGeometry() {
     { r0: 0.13, r1: 0.22, h: 1.8 });
 }
 
+// Đèn đường: cột cao 11.1 m (×1.5 so với trước), bóng đèn ở 10.9 m
+const LAMP_H = 11.1, BULB_H = LAMP_H - 0.22;
+// Ánh sáng đèn đường = SpotLight thật (chiếu cả mặt đường, cỏ, cây, xe). Số đèn cố định (không biên dịch lại shader),
+// gán cho các cột gần camera nhất; đèn sắp bị đổi sang cột khác mờ dần về 0 trước khi đổi => không chớp.
+const LAMP_LIGHTS = 3;
+
 function lampGeometry() {
   // cột đèn: cột + tay đòn kéo về phía -x (hướng vào đường)
   return merge([
-    new THREE.CylinderGeometry(0.07, 0.1, 7.4, 6).translate(0, 3.7, 0),
-    new THREE.BoxGeometry(1.9, 0.08, 0.1).translate(-0.9, 7.4, 0),
-    new THREE.BoxGeometry(0.5, 0.1, 0.22).translate(-1.75, 7.33, 0),
+    new THREE.CylinderGeometry(0.08, 0.13, LAMP_H, 6).translate(0, LAMP_H / 2, 0),
+    new THREE.BoxGeometry(1.9, 0.08, 0.1).translate(-0.9, LAMP_H, 0),
+    new THREE.BoxGeometry(0.5, 0.1, 0.22).translate(-1.75, LAMP_H - 0.07, 0),
   ]);
 }
 
@@ -222,16 +228,21 @@ export class Scenery {
     this.bulbMat = new THREE.MeshBasicMaterial({ color: 0xffd9a0, toneMapped: false });
 
     const glow = glowTexture();
-    this.poolMat = new THREE.MeshBasicMaterial({
-      map: streetPoolTexture(), color: 0xffc27a, vertexColors: true, transparent: true, opacity: 0, depthWrite: false,
-      blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
-    });
     this.glowMat = new THREE.PointsMaterial({
       map: glow, color: 0xffc98a, size: 9, transparent: true, opacity: 0, depthWrite: false,
       blending: THREE.AdditiveBlending, sizeAttenuation: true,
     });
 
-    for (const m of [this.roadMat, this.poleMat, this.postMat, this.bulbMat, this.poolMat, this.glowMat, this.railMat]) withMist(m);
+    for (const m of [this.roadMat, this.poleMat, this.postMat, this.bulbMat, this.glowMat, this.railMat]) withMist(m);
+    // nón sáng rộng (nửa góc 1.2 rad, chếch vào lòng đường như chao đèn đường thật => vùng sáng ~Ø 60 m dọc đường),
+    // suy giảm chậm (decay 0.6, như đèn pha) để vùng sáng trải đều thay vì một đốm gắt dưới chân cột
+    this.lampOn = 0;
+    this.lampLights = Array.from({ length: LAMP_LIGHTS }, () => {
+      const l = new THREE.SpotLight(0xffc98a, 0, 80, 1.2, 0.8, 0.6);
+      this.scene.add(l, l.target);
+      return l;
+    });
+    this._lampList = [];
     this.lampGeo = lampGeometry();
     this.railPostGeo = new THREE.BoxGeometry(0.12, 0.8, 0.12).translate(0, 0.4, 0);
     this.postGeo = new THREE.BoxGeometry(0.12, 0.95, 0.12).translate(0, 0.475, 0);
@@ -270,7 +281,7 @@ export class Scenery {
     const on = st.lamps;
     const c = new THREE.Color(0x8a8a86).lerp(new THREE.Color(0xffd9a0), on);
     this.bulbMat.color.copy(c).multiplyScalar(0.6 + 1.6 * on);
-    this.poolMat.opacity = on * 0.68;
+    this.lampOn = on;
     this.glowMat.opacity = on * 0.9;
     this.roadMat.roughness = 0.92 - 0.3 * st.wet;          // ướt vẫn sần (chỉ vũng nước mới nhẵn bóng)
     this.roadMat.envMapIntensity = 0.38 + 0.3 * st.wet;    // đường khô: ít phản chiếu trời (không bị ngả xanh)
@@ -281,6 +292,28 @@ export class Scenery {
     u.uPuddle.value = st.wet;                               // vũng nước giữ nguyên hình, chỉ hiện dần (crossfade)
     u.uRain.value = st.rain;
     u.uSunHide.value = Math.min(1, st.overcast * 1.2 + st.rain);
+  }
+
+  // gán SpotLight cho các cột đèn gần camera nhất. Mức sáng của đèn thứ i giảm dần khi khoảng cách của nó tiến tới khoảng
+  // cách cột kế tiếp (cột sẽ thay chỗ) => lúc đổi cột cả hai đều ~0, không thấy chớp.
+  updateLights(cam) {
+    const list = this._lampList; list.length = 0;
+    for (const c of this.chunks.values()) for (const L of c.userData.lamps || []) {
+      const [b] = L;
+      list.push({ L, d: Math.hypot(b[0] - cam.x, b[1] - cam.y, b[2] - cam.z) });
+    }
+    list.sort((a, b) => a.d - b.d);
+    const dNext = list.length > LAMP_LIGHTS ? list[LAMP_LIGHTS].d : Infinity;
+    this.lampLights.forEach((l, i) => {
+      const e = list[i];
+      if (!e || this.lampOn <= 0) { l.intensity = 0; return; }
+      const fade = dNext === Infinity ? 1 : Math.min(1, Math.max(0, (dNext - e.d) / (0.3 * dNext)));
+      const [b, t] = e.L;
+      l.position.set(b[0], b[1], b[2]);
+      l.target.position.set(t[0], t[1], t[2]);
+      l.target.updateMatrixWorld();
+      l.intensity = 700 * this.lampOn * fade * fade * (3 - 2 * fade);
+    });
   }
 
   // gắn texture phản chiếu (hoặc tắt) cho mặt đường
@@ -372,7 +405,7 @@ export class Scenery {
     }
 
     // đèn đường (xen kẽ hai bên)
-    const lamps = [], bulbs = [], pools = [];
+    const lamps = [], bulbs = [], targets = [];
     const lampN = this.map === 'reed' ? 2 : 1, lampGap = L / lampN;
     for (let i = 0; i < lampN; i++) {
       const s = s0 + i * lampGap + 6;
@@ -386,8 +419,9 @@ export class Scenery {
       const yaw = p.th + (side === 1 ? 0 : Math.PI);
       lamps.push([x, p.y, z, yaw]);
       const ax = -Math.cos(yaw) * 1.75, az = Math.sin(yaw) * 1.75;
-      bulbs.push([x + ax, p.y + 7.25, z + az]);
-      pools.push([s, side * (off - 2.45)]);          // tâm vùng sáng: dưới bóng đèn, lệch vào lòng đường
+      bulbs.push([x + ax, p.y + BULB_H, z + az]);
+      // hướng chiếu: thẳng xuống, hơi chếch vào lòng đường
+      targets.push([x + ax * 4.5, p.y, z + az * 4.5]);
     }
     const lm = new THREE.InstancedMesh(this.lampGeo, this.poleMat, lamps.length);
     const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
@@ -403,39 +437,6 @@ export class Scenery {
     bulbs.forEach(([x, y, z], i) => { m4.makeTranslation(x, y, z); bm.setMatrixAt(i, m4); });
     group.add(bm);
 
-    // vùng sáng đèn trên mặt đường: lưới 24 × 28 m bám theo độ cao + hướng đường (dốc, đỉnh dốc, cua) thay cho tấm phẳng
-    // (tấm phẳng ở đoạn dốc bị chìm một nửa dưới mặt đường, nửa kia lơ lửng)
-    if (pools.length) {
-      // chỉ phủ mặt đường + lề phẳng (địa hình đúng bằng mặt đường tới HW + 1.2): ra xa hơn sẽ cắt vào vách / lơ lửng
-      // trên dốc vực thành mép thẳng. Mờ dần 1 m sát mép (màu đỉnh => cộng sáng bằng 0).
-      const NU = 8, NW = 14, EDGE = HW + 1.2, pp = [], pu = [], pc = [], pi = [];
-      pools.forEach(([sc, dc], k) => {
-        const base = k * (NU + 1) * (NW + 1);
-        const d0 = Math.max(dc - 12, -EDGE), d1 = Math.min(dc + 12, EDGE);
-        for (let j = 0; j <= NW; j++) {
-          road.at(sc + (j / NW - 0.5) * 28, p);
-          const rx = Math.cos(p.th), rz = -Math.sin(p.th);
-          for (let i = 0; i <= NU; i++) {
-            const d = d0 + (d1 - d0) * i / NU, f = Math.min(1, Math.max(0, EDGE - Math.abs(d)));
-            pp.push(p.x + rx * d, p.y + 0.08, p.z + rz * d);
-            pu.push((d - dc) / 24 + 0.5, j / NW);
-            pc.push(f, f, f);
-            if (i < NU && j < NW) { const a = base + j * (NU + 1) + i; pi.push(a, a + 1, a + NU + 1, a + 1, a + NU + 2, a + NU + 1); }
-          }
-        }
-      });
-      const pg = new THREE.BufferGeometry();
-      pg.setAttribute('position', new THREE.Float32BufferAttribute(pp, 3));
-      pg.setAttribute('uv', new THREE.Float32BufferAttribute(pu, 2));
-      pg.setAttribute('color', new THREE.Float32BufferAttribute(pc, 3));
-      pg.setIndex(pi);
-      pg.computeBoundingSphere();
-      const poolMesh = new THREE.Mesh(pg, this.poolMat);
-      poolMesh.renderOrder = 2;
-      group.add(poolMesh);
-      group.userData.own.push(pg);
-    }
-
     const gg = new THREE.BufferGeometry();
     gg.setAttribute('position', new THREE.Float32BufferAttribute(bulbs.flat(), 3));
     const glowPts = new THREE.Points(gg, this.glowMat);
@@ -443,6 +444,7 @@ export class Scenery {
     glowPts.renderOrder = 3;
     group.add(glowPts);
     group.userData.own.push(gg);
+    group.userData.lamps = bulbs.map((b, i) => [b, targets[i]]);
 
     this.scene.add(group);
     this.chunks.set(k, group);

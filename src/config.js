@@ -10,6 +10,7 @@
 // mats    : sửa thông số vật liệu theo tên (model tải về hay bị gắn sai kim loại / độ bóng)
 // basicMetal: thay mọi vật liệu (trừ kính) bằng kim loại cơ bản với thông số này
 // door    : regex tên node cửa tài xế (tách sẵn trong model) để mở cửa khi dừng xe
+// lamps   : tâm bóng đèn pha (head) / đèn hậu (tail) bên phải [x, y, z] trong hệ toạ độ xe (đo từ model; bên trái lấy −x)
 const INTERIOR = { color: 0x0c0c0e, metalness: 0, roughness: 0.3, envK: 0.6 };   // nội thất nhựa / da đen bóng
 export const CARS = [
   { id: 'mustang', name: "Mustang '67 Đen", file: 'assets/models/mustang.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true, door: /^DriverDoor/,
@@ -20,16 +21,19 @@ export const CARS = [
     mats: { Interior: INTERIOR, BlackPolished: { roughness: 0.18 },
       Paint: { color: 0x151619, metalness: 0, roughness: 0.42, specularIntensity: 0, clearcoat: 1, clearcoatRoughness: 0.07, envK: 0.4 }, Wheel: { clearcoat: 0.25 } },
     seatMesh: /^Cube\.?00[678]/, steerShift: -0.09,
+    lamps: { head: [0.839, 0.661, -2.06], tail: [0.44, 0.769, 2.26] },
     steer: { c: [-0.385, 0.883, -0.155], n: [0, 0.338, 0.941], r: 0.17 }, steerMesh: /^(Torus\.?001|Cube\.?009)/ },   // vô lăng: tâm, pháp tuyến (hướng về người lái), bán kính vành; vành + cốt giữa
   { id: 'mustang-blue', name: "Mustang '67 Xanh", file: 'assets/models/mustang-blue.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true, door: /^DriverDoor/,
     wheels: /^(Wheel|BrakeDisc)/,   // vành + đĩa phanh quay; lốp (dựng bẹt ở đáy) đứng yên
     mats: { Interior: INTERIOR, BlackPolished: { roughness: 0.18 }, Body: { clearcoatRoughness: 0.08 } },
     seatMesh: /^Seat/, steerShift: -0.09,
+    lamps: { head: [0.838, 0.663, -2.065], tail: [0.44, 0.769, 2.26] },
     steer: { c: [-0.385, 0.883, -0.155], n: [0, 0.338, 0.941], r: 0.17 }, steerMesh: /^SteeringWheel/ },   // vô lăng: tâm, pháp tuyến (hướng về người lái), bán kính vành
   { id: 'divo', name: 'Bugatti Divo', file: 'assets/models/bugatti-divo.glb', length: 4.64, flip: true, wheels: /^(4_3|5_17)$/,
-    basicMetal: { metalness: 0.6, roughness: 0.38 } },   // vật liệu gốc bị chuyển đổi sai => kim loại bóng nhẹ cơ bản
+    basicMetal: { metalness: 0.6, roughness: 0.38 },   // vật liệu gốc bị chuyển đổi sai => kim loại bóng nhẹ cơ bản
+    lamps: { head: [0.84, 0.66, -1.8], tail: [0.66, 0.73, 2.05] } },
   { id: 'milktruck', name: 'Milk Truck', file: 'assets/models/milktruck.glb', length: 5.0, flip: true, eye: [-0.6, 1.8, -1.3],
-    wheels: /^Wheels/ },
+    wheels: /^Wheels/, lamps: { head: [0.82, 0.9, -2.38], tail: [0.79, 0.63, 2.39] } },
 ];
 
 export const MAPS = [
@@ -40,7 +44,7 @@ export const MAPS = [
 ];
 
 export const WEATHERS = [
-  { id: 'clear', name: 'Trời nắng', icon: '☀️' },
+  { id: 'clear', name: 'Trời trong', icon: '☀️' },
   { id: 'cloudy', name: 'Nhiều mây', icon: '☁️' },
   { id: 'windy', name: 'Gió lớn', icon: '💨' },
   { id: 'rain', name: 'Mưa', icon: '🌧️' },
@@ -52,7 +56,6 @@ export const WEATHERS = [
 export const TIMES = [
   { id: 'sunrise', name: 'Bình minh', icon: '🌅', hour: 6.4 },
   { id: 'noon', name: 'Ban ngày', icon: '🌤️', hour: 12.5 },
-  { id: 'golden', name: 'Giờ vàng', icon: '🌞', hour: 17.3 },
   { id: 'sunset', name: 'Hoàng hôn', icon: '🌇', hour: 17.6 },
   { id: 'night', name: 'Ban đêm', icon: '🌙', hour: 22.5 },
   { id: 'auto', name: 'Tự động', icon: '🕒', hour: null },
