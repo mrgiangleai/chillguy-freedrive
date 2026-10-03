@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -46,7 +46,7 @@
 | `cows.js` | Map đồi cỏ: đàn 5 bò sữa + hàng rào gỗ |
 | `fireflies.js` | Đom đóm ban đêm |
 | `traffic.js` | Xe ngược chiều ngẫu nhiên (15–70 s/chiếc, tối đa 2) |
-| `audio.js` | Nhạc lo-fi tự sinh, gió/mưa/lốp/động cơ/sấm; bus `outGain` (trong xe ×0.4 + lowpass), mưa đập kính `glassG` + mui `roofG` |
+| `audio.js` | Nhạc lo-fi tự sinh, gió/mưa/lốp/động cơ/sấm; bus `outGain` (trong xe ×0.4 + lowpass), mưa đập kính `glassG` (hệ số 0.2 × mưa) + mui `roofG` |
 | `particles.js`, `mist.js`, `reflection.js`, `textures.js`, `colorspace.js` | Mưa/tuyết, sương tầng thấp, phản chiếu vũng nước, texture tự sinh, đổi màu hiển thị → tuyến tính |
 
 ## 4. Trạng thái hiện tại (tóm tắt)
@@ -75,3 +75,4 @@
 ## 6. Nhật ký cập nhật
 - **#1** — Tạo ROAD.md (tóm tắt toàn bộ dự án tới commit `bd6513f`: gương giữa 3/4 sát mép trên kính).
 - **#2** — Gương chiếu hậu giữa đổi sang tỉ lệ 4:3 (25 × 18.75 cm, không bẹp nữa); `cockpitPitch` giữ trọn mép trên gương theo `mirror.size`.
+- **#3** — Tiếng mưa đập kính (trong xe) nhỏ đi 60%: `glassG` 0.5 → 0.2 × lượng mưa (`audio.js`); tiếng rào rào trên mui giữ nguyên.
