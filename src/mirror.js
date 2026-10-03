@@ -2,6 +2,8 @@ import * as THREE from 'three';
 
 // Gương chiếu hậu trong xe: một camera nhỏ đặt ở gương, nhìn ra sau xe, vẽ vào render target
 // rồi dán lên mặt gương (lật trái-phải như gương soi). Chỉ vẽ khi đang ngồi trong xe.
+const SCREEN_W = 0.23 + 0.014;      // bề ngang màn hình taplo kể cả viền (dashscreen.js)
+
 export class RearMirror {
   constructor(renderer) {
     this.renderer = renderer;
@@ -22,6 +24,7 @@ export class RearMirror {
     const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.05, 6), frame.material);
     stem.position.set(0, GH / 2 + 0.025, -0.022);
     this.group.add(frame, glass, stem);
+    this.stem = stem;
     this._p = new THREE.Vector3(); this._q = new THREE.Quaternion(); this._d = new THREE.Vector3();
     this._eye = new THREE.Vector3();
   }
@@ -29,8 +32,17 @@ export class RearMirror {
   // đặt gương ở giữa, sát mép trên kính lái (treo ngay dưới mép, lùi vào trong xe một chút; toạ độ trong xe).
   // Mặt gương nghiêng theo phân giác giữa hướng về mắt người lái và hướng ra sau xe
   // => tia nhìn từ mắt phản xạ đi thẳng ra sau (như gương thật)
-  place(dim, shield) {
+  // screen: tư thế màn hình taplo (dashscreen.screenPose) => đặt gương làm màn hình thứ hai ngay bên phải màn hình,
+  // cùng góc nghiêng, căn giữa theo chiều cao (không có chân treo)
+  place(dim, shield, screen) {
     const [ex, ey, ez] = dim.eye;
+    this.stem.visible = !screen;
+    if (screen) {
+      const off = SCREEN_W / 2 + 0.03 + this.size[0] / 2;
+      this.group.position.copy(screen.pos).add(new THREE.Vector3(off, 0, 0).applyQuaternion(screen.quat));
+      this.group.quaternion.copy(screen.quat);
+      return;
+    }
     if (shield) {
       this.group.position.copy(shield.center).addScaledVector(shield.up, shield.bounds[3] - this.size[1] / 2 - 0.045)
         .addScaledVector(shield.normal, 0.055).setX(0);

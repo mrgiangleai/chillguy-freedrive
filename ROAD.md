@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -31,7 +31,7 @@
 | `post.js` | Hậu kỳ: xoá phông (CoC ống kính thật), bloom, **tia nắng** (god rays), **mưa trên kính** (RAIN_GLASS), ACES + chỉnh màu phim, grain, blur xuyên tâm 180 km/h |
 | `camera.js` | Các chế độ camera, tiêu cự 16–35 mm (`fovFor`), nhìn quanh (giữ góc sau khi thả), `cockpitPitch` hook |
 | `cars.js` | Tải + chuẩn hoá xe, vật liệu (`mats`, `envK`), bánh xe quay, cửa tài xế, đèn pha/đèn hậu (quầng mềm `softGlowTexture`), bóng gầm, đèn cabin (đặt tại màn hình taplo), dò **kính lái** (`windshield()`), **cần gạt** 3D (`wiperRig`), vô lăng da (`leatherMaterial`), dời vô lăng (`steerShift`) |
-| `mirror.js` | Gương chiếu hậu giữa (render-to-texture, **tỉ lệ 4:3**: 12.5 × 9.4 cm, `GW/GH`; căn theo mép trên, sát mép trên kính lái theo `shield`) |
+| `mirror.js` | Gương chiếu hậu giữa (render-to-texture, **tỉ lệ 4:3**: 12.5 × 9.4 cm, `GW/GH`), **đặt trên taplo ngay bên phải màn hình taplo** như màn hình thứ hai (cùng góc nghiêng, `place(dim, shield, screen)`); không có `screen` thì treo sát mép trên kính lái |
 | `wingmirrors.js` | 2 gương hông soi thật (phản chiếu phẳng, frustum lệch tâm, vẽ xen kẽ; `uTex` theo hệ xe) — chỉ khi ngồi trong xe, chỉ xe Mustang |
 | `wipers.js` | Gạt mưa tự động (pha cos) + lượng nước trên kính |
 | `dashscreen.js` | Màn hình giải trí taplo (canvas, tông ấm) + đèn hắt |
@@ -78,3 +78,4 @@
 - **#3** — Tiếng mưa đập kính (trong xe) nhỏ đi 60%: `glassG` 0.5 → 0.2 × lượng mưa (`audio.js`); tiếng rào rào trên mui giữ nguyên.
 - **#4** — Gương chiếu hậu giữa thu nhỏ 50% (12.5 × 9.4 cm, vẫn 4:3), mép trên giữ nguyên chỗ (căn lề trên).
 - **#5** — Tiếng mưa nhỏ thêm 60%: mưa ngoài `rainG` 0.2 → 0.08, mưa đập kính `glassG` 0.2 → 0.08, mui `roofG` 0.05 → 0.02.
+- **#6** — Gương chiếu hậu giữa chuyển xuống taplo, đặt ngay bên phải màn hình taplo (cùng góc nghiêng, bỏ chân treo).

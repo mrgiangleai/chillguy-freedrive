@@ -227,7 +227,7 @@ async function chooseCar(i) {
     if (cars.list.length > 1) { cars.list.splice(state.car, 1); return chooseCar(state.car); }
   }
   if (person.ready && !stop.active) { stop.place(cars.dim); stop.sit(); }
-  mirror.place(cars.dim, cars.shield);
+  mirror.place(cars.dim, cars.shield, cars.current.screen);
   dash.place(cars.current.screen);
   wing.setCar(cars.current);
   warmShaders();
