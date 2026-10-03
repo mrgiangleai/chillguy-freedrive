@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ROAD } from './road.js';
-import { roadTexture, glowTexture , photoTexture } from './textures.js';
+import { roadTexture, glowTexture, streetPoolTexture, photoTexture } from './textures.js';
 import { withMist } from './mist.js';
 
 const { halfWidth: HW, chunkLen: L, step: STEP } = ROAD;
@@ -223,7 +223,7 @@ export class Scenery {
 
     const glow = glowTexture();
     this.poolMat = new THREE.MeshBasicMaterial({
-      map: glow, color: 0xffc27a, transparent: true, opacity: 0, depthWrite: false,
+      map: streetPoolTexture(), color: 0xffc27a, transparent: true, opacity: 0, depthWrite: false,
       blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
     });
     this.glowMat = new THREE.PointsMaterial({
@@ -235,7 +235,7 @@ export class Scenery {
     this.lampGeo = lampGeometry();
     this.railPostGeo = new THREE.BoxGeometry(0.12, 0.8, 0.12).translate(0, 0.4, 0);
     this.postGeo = new THREE.BoxGeometry(0.12, 0.95, 0.12).translate(0, 0.475, 0);
-    this.poolGeo = new THREE.PlaneGeometry(15, 15).rotateX(-Math.PI / 2);
+    this.poolGeo = new THREE.PlaneGeometry(24, 28).rotateX(-Math.PI / 2);
     this.bulbGeo = new THREE.SphereGeometry(0.2, 8, 6);
   }
 
@@ -271,7 +271,7 @@ export class Scenery {
     const on = st.lamps;
     const c = new THREE.Color(0x8a8a86).lerp(new THREE.Color(0xffd9a0), on);
     this.bulbMat.color.copy(c).multiplyScalar(0.6 + 1.6 * on);
-    this.poolMat.opacity = on * 0.55;
+    this.poolMat.opacity = on * 0.68;
     this.glowMat.opacity = on * 0.9;
     this.roadMat.roughness = 0.92 - 0.3 * st.wet;          // ướt vẫn sần (chỉ vũng nước mới nhẵn bóng)
     this.roadMat.envMapIntensity = 0.38 + 0.3 * st.wet;    // đường khô: ít phản chiếu trời (không bị ngả xanh)
@@ -388,7 +388,7 @@ export class Scenery {
       lamps.push([x, p.y, z, yaw]);
       const ax = -Math.cos(yaw) * 1.75, az = Math.sin(yaw) * 1.75;
       bulbs.push([x + ax, p.y + 7.25, z + az]);
-      pools.push([x + ax * 1.4, p.y + 0.08, z + az * 1.4]);
+      pools.push([x + ax * 1.4, p.y + 0.08, z + az * 1.4, p.th]);
     }
     const lm = new THREE.InstancedMesh(this.lampGeo, this.poleMat, lamps.length);
     const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
@@ -405,7 +405,7 @@ export class Scenery {
     group.add(bm);
 
     const poolMesh = new THREE.InstancedMesh(this.poolGeo, this.poolMat, pools.length);
-    pools.forEach(([x, y, z], i) => { m4.makeTranslation(x, y, z); poolMesh.setMatrixAt(i, m4); });
+    pools.forEach(([x, y, z, yaw], i) => { q.setFromAxisAngle(up, yaw); m4.compose(v.set(x, y, z), q, one); poolMesh.setMatrixAt(i, m4); });
     poolMesh.renderOrder = 2;
     group.add(poolMesh);
 

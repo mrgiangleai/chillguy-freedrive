@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { DASH_SIZE } from './dashscreen.js';
 
 // Gương chiếu hậu trong xe: một camera nhỏ đặt ở gương, nhìn ra sau xe, vẽ vào render target
 // rồi dán lên mặt gương (lật trái-phải như gương soi). Chỉ vẽ khi đang ngồi trong xe.
@@ -6,7 +7,7 @@ export class RearMirror {
   constructor(renderer) {
     this.renderer = renderer;
     // gương tỉ lệ 4:3 (rộng 12.5 cm × cao 9.4 cm); texture cùng tỉ lệ với mặt gương => ảnh không bị kéo dãn.
-    // Vị trí căn theo mép trên (xem place): đổi cỡ thì mép trên gương vẫn ở nguyên chỗ, sát mép trên kính lái
+    // Gương đặt cạnh màn hình taplo, không có que đỡ.
     const GW = 0.125, GH = 0.09375;
     this.size = [GW, GH];
     this.rt = new THREE.WebGLRenderTarget(384, Math.round(384 * GH / GW), { type: THREE.HalfFloatType });
@@ -19,22 +20,21 @@ export class RearMirror {
     const tex = this.rt.texture;
     tex.repeat.x = -1; tex.offset.x = 1;              // gương soi: lật trái-phải
     const glass = new THREE.Mesh(new THREE.PlaneGeometry(GW, GH), new THREE.MeshBasicMaterial({ map: tex }));
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.05, 6), frame.material);
-    stem.position.set(0, GH / 2 + 0.025, -0.022);
-    this.group.add(frame, glass, stem);
+    this.group.add(frame, glass);
     this._p = new THREE.Vector3(); this._q = new THREE.Quaternion(); this._d = new THREE.Vector3();
     this._eye = new THREE.Vector3();
   }
 
-  // đặt gương ở giữa, sát mép trên kính lái (treo ngay dưới mép, lùi vào trong xe một chút; toạ độ trong xe).
-  // Mặt gương nghiêng theo phân giác giữa hướng về mắt người lái và hướng ra sau xe
-  // => tia nhìn từ mắt phản xạ đi thẳng ra sau (như gương thật)
-  place(dim, shield) {
+  // Đặt bên phải màn hình taplo, cách viền màn hình 2 cm.
+  // Mặt gương hướng theo phân giác giữa mắt người lái và hướng ra sau xe.
+  place(dim, dashboard) {
     const [ex, ey, ez] = dim.eye;
-    if (shield) {
-      this.group.position.copy(shield.center).addScaledVector(shield.up, shield.bounds[3] - this.size[1] / 2 - 0.045)
-        .addScaledVector(shield.normal, 0.055).setX(0);
-    } else this.group.position.set(0, ey + 0.07, ez - 0.55);
+    if (dashboard) {
+      this.group.position.copy(dashboard.pos);
+      this.group.position.x += DASH_SIZE[0] / 2 + 0.014 * 0.85 / 2 + 0.02 + (this.size[0] + 0.015) / 2;
+      this.group.position.y += -DASH_SIZE[1] / 2 - 0.03 + this.size[1] / 2 + 0.055;
+      this.group.position.z += 0.025;
+    } else this.group.position.set(0.21, ey - 0.28, ez - 0.6);
     const toEye = this._eye.set(ex, ey, ez).sub(this.group.position).normalize();
     const n = this._d.set(0, -0.03, 1).normalize().add(toEye).normalize();
     this.group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);

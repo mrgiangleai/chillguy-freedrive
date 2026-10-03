@@ -60,12 +60,13 @@ export class Precip {
     for (let i = 0; i < RN; i++) tail[i * 2 + 1] = 1;
     rg.setAttribute('tail', new THREE.BufferAttribute(tail, 1));
     this.rain = new THREE.LineSegments(rg, new THREE.ShaderMaterial({
-      uniforms: { ...common(), uSpeed: { value: 24 }, uLen: { value: 1.1 }, uWind: { value: new THREE.Vector2(2, 1) } },
+      uniforms: { ...common(), uSpeed: { value: 24 }, uLen: { value: 1.1 }, uWind: { value: new THREE.Vector2(2, 1) }, uCarInv: { value: new THREE.Matrix4() }, uCarHalf: { value: new THREE.Vector3() } },
       transparent: true, depthWrite: false,
       vertexShader: `
         attribute vec3 seed; attribute float tail;
         uniform float uTime, uSpeed, uLen; uniform vec3 uCam, uBox; uniform vec2 uWind;
         varying float vA;
+        varying vec3 vWorld;
         void main() {
           vec3 p = seed * uBox;
           p.y -= uTime * uSpeed;
@@ -76,12 +77,18 @@ export class Precip {
           w -= d * uLen * tail;
           vec3 e = abs(rel / uBox - 0.5) * 2.0;
           vA = (1.0 - smoothstep(0.7, 1.0, max(max(e.x, e.y), e.z))) * (1.0 - 0.55 * tail);
+          vWorld = w;
           gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.0);
         }`,
       fragmentShader: `
         uniform float uOpacity, uLight; varying float vA;
+        varying vec3 vWorld; uniform mat4 uCarInv; uniform vec3 uCarHalf;
         ${DISPLAY_TO_LINEAR}
-        void main() { gl_FragColor = vec4(dispToLin(vec3(0.78, 0.84, 0.92) * uLight), uOpacity * vA); }`,
+        void main() {
+          vec3 local = (uCarInv * vec4(vWorld, 1.0)).xyz - vec3(0.0, uCarHalf.y, 0.0);
+          if (all(lessThan(abs(local), uCarHalf))) discard;
+          gl_FragColor = vec4(dispToLin(vec3(0.78, 0.84, 0.92) * uLight), uOpacity * vA);
+        }`,
     }));
     this.rain.frustumCulled = false;
     this.rain.layers.set(3);
@@ -107,6 +114,13 @@ export class Precip {
     };
     this.snow = points(10000, { uSize: { value: 0.09 }, uFall: { value: 1.6 }, uSway: { value: 0.9 }, uDrift: { value: new THREE.Vector2() } }, [0.96, 0.98, 1.0]);
     this.drift = points(2600, { uSize: { value: 0.05 }, uFall: { value: 0.12 }, uSway: { value: 0.25 }, uDrift: { value: new THREE.Vector2() } }, [0.95, 0.9, 0.78]);
+  }
+
+  setCar(tilt, dim) {
+    tilt.updateWorldMatrix(true, false);
+    const u = this.rain.material.uniforms;
+    u.uCarInv.value.copy(tilt.matrixWorld).invert();
+    u.uCarHalf.value.set(dim.width / 2, dim.height / 2, dim.length / 2);
   }
 
   update(dt, cam, st, viewportH) {

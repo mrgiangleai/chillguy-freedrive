@@ -39,6 +39,7 @@ export class Person {
     this.arms = { l: ['upperarm_l', 'lowerarm_l', 'hand_l'].map(bone), r: ['upperarm_r', 'lowerarm_r', 'hand_r'].map(bone) };
     if (this.arms.l.some((b) => !b)) this.arms.l = null;
     if (this.arms.r.some((b) => !b)) this.arms.r = null;
+    this.gripFingers = { l: bone('middle_01_l'), r: bone('middle_01_r') };
     this.mixer = new THREE.AnimationMixer(model);
     for (const clip of gltf.animations) this.actions[clip.name] = this.mixer.clipAction(clip);
 
@@ -93,6 +94,15 @@ export class Person {
   duration(name) { return this.actions[name]?.getClip().duration ?? 1; }
 
   update(dt) { if (this.mixer && this.root.visible) this.mixer.update(dt); }
+
+  // Hướng các khớp gốc ngón tay về vành; giữ độ cong ngón của animation lái.
+  faceGrip(side, normal) {
+    const hand = this.arms?.[side]?.[2], middle = this.gripFingers?.[side];
+    if (!hand || !middle) return;
+    hand.getWorldPosition(_A); middle.getWorldPosition(_B);
+    _A.subVectors(_B, _A).normalize(); _B.copy(normal).negate();
+    turn(hand, _A, _B); hand.updateMatrixWorld(true);
+  }
 
   // IK 2 xương: đưa cổ tay (side 'l' | 'r') tới `target` (toạ độ thế giới); khuỷu tay giữ hướng như animation,
   // hoặc chĩa theo `pole` (hướng thế giới, vd. ra ngoài - xuống dưới) nếu có.

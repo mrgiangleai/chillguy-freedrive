@@ -148,12 +148,13 @@ const RAY_BLUR = `
 // (tính đúng thời điểm quét qua từng điểm), giọt mới bắn toé lúc chạm kính, vài giọt chảy thành vệt (lên trên khi xe chạy nhanh).
 // Giọt nước như thấu kính nhỏ: ảnh phía sau bị lật ngược + viền tối + đốm sáng.
 const RAIN_GLASS = `
-  uniform float uGlass, uNear, uFar, uTanF, uSweep;
+  uniform float uGlass, uRearGlass, uNear, uFar, uTanF, uSweep;
   uniform sampler2D tDepth;
   uniform mat4 uInvVP;
   uniform vec3 uCamPos, uCamFwd, uGC, uGN, uGU, uGV;
   uniform vec4 uGB, uPiv, uRest, uBlade, uWipe;     // 2 cần gạt: trục (u,v)×2, (góc nghỉ, chiều quay)×2, (bán kính trong, ngoài)×2
   uniform vec2 uFlow;
+  uniform sampler2D tGlassMask;
   // tuổi lớp nước (giây kể từ lần lưỡi gạt quét qua điểm g) với 1 cần gạt (cần gạt 3D vẽ cùng trục / góc)
   float wipeAge(vec2 g, vec2 piv, float rest, float sgn, vec2 rr) {
     vec2 d = g - piv;
@@ -197,21 +198,34 @@ const RAIN_GLASS = `
     return vec4(q, head, trail);
   }
   vec3 rainGlass(vec3 col, vec2 uv) {
-    vec4 wp = uInvVP * vec4(uv * 2.0 - 1.0, 1.0, 1.0);
-    vec3 dir = normalize(wp.xyz / wp.w - uCamPos);
-    float dn = dot(dir, uGN);
-    if (dn > -1e-3) return col;
-    float t = dot(uGC - uCamPos, uGN) / dn;
-    if (t <= 0.0) return col;
-    vec3 hit = uCamPos + dir * t - uGC;
-    vec2 g = vec2(dot(hit, uGU), dot(hit, uGV));
-    float inB = smoothstep(uGB.x, uGB.x + 0.04, g.x) * smoothstep(uGB.y, uGB.y - 0.04, g.x)
-              * smoothstep(uGB.z, uGB.z + 0.02, g.y) * smoothstep(uGB.w, uGB.w - 0.03, g.y);
-    float zs = uNear * uFar / (uFar - texture2D(tDepth, uv).x * (uFar - uNear));
-    float zg = t * dot(dir, uCamFwd);
-    float m = inB * smoothstep(zg - 0.06, zg - 0.01, zs);
+    vec2 g;
+    float zg, m;
+    if (uRearGlass > 0.5) {
+      vec4 glass = texture2D(tGlassMask, uv);
+      g = glass.xy; zg = glass.z; m = glass.a;
+      // Thu vào một pixel để không phủ lên viền kính ở độ phân giải thấp.
+      vec2 px = 1.0 / uRes;
+      m = min(m, texture2D(tGlassMask, uv + vec2(px.x, 0.0)).a);
+      m = min(m, texture2D(tGlassMask, uv - vec2(px.x, 0.0)).a);
+      m = min(m, texture2D(tGlassMask, uv + vec2(0.0, px.y)).a);
+      m = min(m, texture2D(tGlassMask, uv - vec2(0.0, px.y)).a);
+    } else {
+      vec4 wp = uInvVP * vec4(uv * 2.0 - 1.0, 1.0, 1.0);
+      vec3 dir = normalize(wp.xyz / wp.w - uCamPos);
+      float dn = dot(dir, uGN);
+      if (dn > -1e-3) return col;
+      float t = dot(uGC - uCamPos, uGN) / dn;
+      if (t <= 0.0) return col;
+      vec3 hit = uCamPos + dir * t - uGC;
+      g = vec2(dot(hit, uGU), dot(hit, uGV));
+      float inB = smoothstep(uGB.x, uGB.x + 0.04, g.x) * smoothstep(uGB.y, uGB.y - 0.04, g.x)
+                * smoothstep(uGB.z, uGB.z + 0.02, g.y) * smoothstep(uGB.w, uGB.w - 0.03, g.y);
+      float zs = uNear * uFar / (uFar - texture2D(tDepth, uv).x * (uFar - uNear));
+      zg = t * dot(dir, uCamFwd);
+      m = inB * smoothstep(zg - 0.01, zg, zs);
+    }
     if (m <= 0.001) return col;
-    float age = min(wipeAge(g, uPiv.xy, uRest.x, uRest.y, uBlade.xy), wipeAge(g, uPiv.zw, uRest.z, uRest.w, uBlade.zw));
+    float age = uRearGlass > 0.5 ? 1e3 : min(wipeAge(g, uPiv.xy, uRest.x, uRest.y, uBlade.xy), wipeAge(g, uPiv.zw, uRest.z, uRest.w, uBlade.zw));
     vec4 A = drops(g, 0.056, vec2(0.008, 0.017), 1.0, age, uGlass * 0.7);
     vec4 B = drops(g + 0.013, 0.026, vec2(0.0035, 0.0075), 5.0, age, uGlass * 0.85);
     vec4 C = drops(g + vec2(0.009, 0.027), 0.04, vec2(0.0055, 0.012), 9.0, age, uGlass * 0.65);
@@ -322,12 +336,13 @@ export class Post {
       tScene: { value: null }, tBloom: { value: null }, tDof: { value: null }, uDof: { value: 0 }, uExposure: exposure,
       tRays: { value: null }, uRayCol: { value: new THREE.Color(0, 0, 0) },
       // mưa trên kính lái (Wipers.apply gán)
-      uGlass: { value: 0 }, tDepth: { value: null }, uNear: { value: 0.1 }, uFar: { value: 1000 }, uTanF: { value: 1 },
+      uGlass: { value: 0 }, uRearGlass: { value: 0 }, tDepth: { value: null }, uNear: { value: 0.1 }, uFar: { value: 1000 }, uTanF: { value: 1 },
       uInvVP: { value: new THREE.Matrix4() }, uCamPos: { value: new THREE.Vector3() }, uCamFwd: { value: new THREE.Vector3() },
       uGC: { value: new THREE.Vector3() }, uGN: { value: new THREE.Vector3() }, uGU: { value: new THREE.Vector3() }, uGV: { value: new THREE.Vector3() },
       uBlade: { value: new THREE.Vector4() }, uGB: { value: new THREE.Vector4() }, uPiv: { value: new THREE.Vector4() }, uWipe: { value: new THREE.Vector4() },
       uRest: { value: new THREE.Vector4() }, uSweep: { value: 1.6 },
       uFlow: { value: new THREE.Vector2() },
+      tGlassMask: { value: null },
       uFx: { value: 0 }, uCine: { value: 0 }, uTime: { value: 0 }, uAspect: { value: 1 }, uRes: { value: new THREE.Vector2(1, 1) },
     }, FINAL);
     this.rayMask = mk({
@@ -345,6 +360,31 @@ export class Post {
     this.sceneRT = new THREE.WebGLRenderTarget(16, 16, {
       type: THREE.HalfFloatType, samples, depthBuffer: true, depthTexture: new THREE.DepthTexture(16, 16, THREE.UnsignedIntType),
     });
+    this.glassScene = new THREE.Scene();
+    this.glassMaterial = new THREE.ShaderMaterial({
+      uniforms: { tDepth: { value: this.sceneRT.depthTexture }, uRes: { value: this.size }, uNear: { value: 0.1 }, uFar: { value: 1000 } },
+      side: THREE.DoubleSide, depthTest: false, depthWrite: false, toneMapped: false,
+      vertexShader: `
+        attribute vec2 glassUV; varying vec2 vGlassUV; varying float vDepth;
+        void main() {
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          vGlassUV = glassUV; vDepth = -mv.z;
+          gl_Position = projectionMatrix * mv;
+        }`,
+      fragmentShader: `
+        uniform sampler2D tDepth; uniform vec2 uRes; uniform float uNear, uFar;
+        varying vec2 vGlassUV; varying float vDepth;
+        void main() {
+          float d = texture2D(tDepth, gl_FragCoord.xy / uRes).x;
+          float sceneDepth = uNear * uFar / (uFar - d * (uFar - uNear));
+          if (sceneDepth < vDepth) discard;
+          gl_FragColor = vec4(vGlassUV, vDepth, 1.0);
+        }`,
+    });
+    this.glassMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.glassMaterial);
+    this.glassMesh.matrixAutoUpdate = false;
+    this.glassScene.add(this.glassMesh);
+    this._clearColor = new THREE.Color();
     this.resize();
   }
 
@@ -371,6 +411,9 @@ export class Post {
     const tw = Math.max(4, Math.ceil(hw / 4)), th = Math.max(4, Math.ceil(hh / 4));
     this._rt('tile', tw, th, true); this._rt('near', tw, th, true);
     this._rt('rayA', bw, bh); this._rt('rayB', bw, bh);
+    const glassRT = this._rt('glass', w, h, true);
+    glassRT.texture.minFilter = glassRT.texture.magFilter = THREE.NearestFilter;
+    this.final.uniforms.tGlassMask.value = glassRT.texture;
     this.rayMask.uniforms.uAspect.value = w / h;
     this.bright.uniforms.uTexel.value.set(1 / bw, 1 / bh);
     this.dofPrep.uniforms.uTexel.value.set(1 / w, 1 / h);
@@ -398,6 +441,22 @@ export class Post {
 
   // gọi TRƯỚC khi vẽ cảnh: cảnh sẽ vẽ vào render target của hậu kỳ
   begin() { this.renderer.setRenderTarget(this.sceneRT); }
+
+  // Kính sau: raster đúng mặt kính cong và so độ sâu với cabin đã vẽ.
+  renderGlassMask(camera, tilt, shield) {
+    const u = this.final.uniforms;
+    if (u.uRearGlass.value < 0.5 || u.uGlass.value <= 0 || !shield?.geometry) return;
+    this.glassMesh.geometry = shield.geometry;
+    this.glassMesh.matrix.copy(tilt.matrixWorld);
+    this.glassMaterial.uniforms.uNear.value = camera.near;
+    this.glassMaterial.uniforms.uFar.value = camera.far;
+    const r = this.renderer, alpha = r.getClearAlpha();
+    r.getClearColor(this._clearColor);
+    r.setClearColor(0x000000, 0);
+    r.setRenderTarget(this.rts.glass);
+    r.render(this.glassScene, camera);
+    r.setClearColor(this._clearColor, alpha);
+  }
 
   // gọi SAU khi đã vẽ cảnh. cine, fx: 0..1
   // dof: { amt 0..1, samples, near, far, focus (m), cocK (px), maxCoc (px) } hoặc null

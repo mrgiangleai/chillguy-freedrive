@@ -3,7 +3,9 @@ import * as THREE from 'three';
 // Màn hình giải trí trên taplo (giữa xe): bản đồ + bài nhạc + tốc độ / giờ, vẽ bằng canvas (cập nhật ~1 lần/giây).
 // Có đèn điểm nhỏ ánh vàng ấm hắt lên mặt / người lái (thấy cả khi nhìn từ ngoài xe qua cửa kính).
 const W = 512, H = 288;
-const SIZE = [0.23, 0.13];          // m
+export const DASH_SIZE = [0.23 * 0.85, 0.13 * 0.85]; // thu nhỏ 15%, m
+const SIZE = DASH_SIZE;
+const BEZEL = 0.014 * 0.85;
 
 // tìm chỗ đặt màn hình: chiếu tia từ giữa xe (ngang tầm mắt) chếch xuống phía trước, gặp taplo thì dựng màn hình
 // đứng trên đó, quay về phía mắt người lái. Toạ độ trong hệ của xe (model đã đặt vào nhóm xe).
@@ -30,7 +32,7 @@ export class DashScreen {
     this.tex.anisotropy = 4;
     this.group = new THREE.Group();
     const glass = new THREE.Mesh(new THREE.PlaneGeometry(SIZE[0], SIZE[1]), new THREE.MeshBasicMaterial({ map: this.tex, color: new THREE.Color(2.2, 2.2, 2.2) }));
-    const bezel = new THREE.Mesh(new THREE.BoxGeometry(SIZE[0] + 0.014, SIZE[1] + 0.014, 0.012), new THREE.MeshStandardMaterial({ color: 0x0c0d10, roughness: 0.35, metalness: 0.3 }));
+    const bezel = new THREE.Mesh(new THREE.BoxGeometry(SIZE[0] + BEZEL, SIZE[1] + BEZEL, 0.012 * 0.85), new THREE.MeshStandardMaterial({ color: 0x0c0d10, roughness: 0.35, metalness: 0.3 }));
     bezel.position.z = -0.0065;
     this.group.add(bezel, glass);
     // ánh sáng hắt ra từ màn hình (về phía người lái)

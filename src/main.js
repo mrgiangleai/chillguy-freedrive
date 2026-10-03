@@ -21,7 +21,9 @@ import { Fireflies } from './fireflies.js';
 import { ValleyTown } from './town.js';
 import { DashScreen } from './dashscreen.js';
 import { Traffic } from './traffic.js';
+import { roadPosition } from './traffic-ai.js';
 import { Cows } from './cows.js';
+import { Waterfalls } from './waterfalls.js';
 import { Smoke } from './smoke.js';
 
 installMist();   // thay shader sương của three.js (phải chạy trước khi vật liệu được biên dịch)
@@ -85,7 +87,9 @@ const wipers = new Wipers();
 const fireflies = new Fireflies(scene);
 const town = new ValleyTown(scene);           // map núi: thị trấn + đèn đường dưới thung lũng
 const dash = new DashScreen();                // màn hình giải trí trên taplo (hắt sáng lên người lái)
+const _trafficPerson = new THREE.Vector3();
 const traffic = new Traffic(scene, cars);     // thỉnh thoảng có xe chạy ngược chiều
+const waterfalls = new Waterfalls(scene, road, terrain);
 const cows = new Cows(scene);                 // map đồi cỏ: đàn bò sữa sau hàng rào gỗ
 cars.tilt.add(dash.group);
 cars.tilt.add(mirror.group);
@@ -227,7 +231,7 @@ async function chooseCar(i) {
     if (cars.list.length > 1) { cars.list.splice(state.car, 1); return chooseCar(state.car); }
   }
   if (person.ready && !stop.active) { stop.place(cars.dim); stop.sit(); }
-  mirror.place(cars.dim, cars.shield);
+  mirror.place(cars.dim, cars.current.screen);
   dash.place(cars.current.screen);
   wing.setCar(cars.current);
   warmShaders();
@@ -282,6 +286,7 @@ const applyMap = () => {
   cows.visible = id === 'meadow';
   town.reset();
   town.visible = id === 'mountain';
+  waterfalls.setMap(id);
   rig.sidePref = id === 'mountain' ? 1 : 0;      // camera bên hông đứng phía thung lũng
   nature.setRadius(QUALITY[state.quality].trees);   // tính lại cây chi tiết cho map mới
   rig.sideSign = 0;
@@ -503,8 +508,8 @@ function cockpitPitch() {
   cars.tilt.worldToLocal(_ck);
   const [, ny, nz] = sw.n;
   const uy = 1 - ny * ny, uz = -ny * nz, ul = Math.hypot(uy, uz) || 1;    // hướng "lên" trong mặt phẳng vô lăng
-  // mép dưới khung hình đi ngang chỗ hai tay cầm vành (4 giờ / 8 giờ) => chỉ thấy nửa trên bàn tay
-  const r = Math.sin(GRIP) * (sw.r + 0.05);
+  // Chừa phần dưới vành để thấy hai tay và cẳng tay; vẫn ưu tiên không cắt gương.
+  const r = sw.r * 0.65;
   const by = sw.c[1] - (uy / ul) * r, bz = sw.c[2] - (uz / ul) * r;
   const down = Math.atan2(_ck.y - by, _ck.z - bz);
   const half = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * (1 - 2 * barFrac * cineAmt));
@@ -515,8 +520,8 @@ function cockpitPitch() {
 }
 
 // hai tay đặt lên vành vô lăng (animation lái gốc dùng vô lăng to/thấp hơn => tay lơ lửng ngoài vành)
-const _wc = new THREE.Vector3(), _wn = new THREE.Vector3(), _wr = new THREE.Vector3(), _wu = new THREE.Vector3(), _wt = new THREE.Vector3();
-const GRIP = 0.4;            // góc cầm (rad dưới phương ngang): khoảng 4 giờ & 8 giờ
+const _wc = new THREE.Vector3(), _wn = new THREE.Vector3(), _wr = new THREE.Vector3(), _wu = new THREE.Vector3(), _wt = new THREE.Vector3(), _wp = new THREE.Vector3();
+const GRIP = 0.08;            // góc cầm (rad dưới phương ngang): gần 3 giờ & 9 giờ
 function gripWheel(sw) {
   cars.root.updateMatrixWorld();
   const m = cars.tilt.matrixWorld;
@@ -526,10 +531,12 @@ function gripWheel(sw) {
   _wr.addScaledVector(_wn, -_wr.dot(_wn)).normalize();
   _wu.crossVectors(_wn, _wr);
   for (const [side, ang] of [['r', -GRIP], ['l', Math.PI + GRIP]]) {
-    const cx = Math.cos(ang), cy = Math.sin(ang);
-    // cổ tay: ngoài vành ~5 cm, lùi về phía người lái ~3 cm (lòng bàn tay ôm lấy vành)
-    _wt.copy(_wc).addScaledVector(_wr, cx * (sw.r + 0.05)).addScaledVector(_wu, cy * (sw.r + 0.05)).addScaledVector(_wn, 0.03);
-    person.reach(side, _wt);
+    const a = ang + (cars.steerAngle || 0), cx = Math.cos(a), cy = Math.sin(a);
+    // Cổ tay ngoài vành 2 cm; lòng bàn tay tiến tới vành, khuỷu gập xuống hai bên.
+    _wt.copy(_wc).addScaledVector(_wr, cx * (sw.r + 0.02)).addScaledVector(_wu, cy * (sw.r + 0.02)).addScaledVector(_wn, 0.065);
+    const pole = _wp.copy(_wr).multiplyScalar(side === 'r' ? 0.25 : -0.25).addScaledVector(_wu, -1).addScaledVector(_wn, 0.2);
+    person.reach(side, _wt, pole);
+    person.faceGrip(side, _wn);
   }
 }
 
@@ -585,7 +592,7 @@ function frame(now) {
 
   cineAmt += ((state.cine && state.started ? 1 : 0) - cineAmt) * (1 - Math.exp(-dt * 2.5));
   rig.cine = cineAmt;
-  cars.update(dt, { pos: drive.pos, yaw: drive.yaw, pitch: drive.pitch, speed: drive.v, latVel: drive.latVel, rough: road.dirtAt(drive.s) });
+  cars.update(dt, { pos: drive.pos, yaw: drive.yaw, pitch: drive.pitch, speed: drive.v, latVel: drive.latVel, curvature: road.curvature(drive.s + Math.min(12, drive.v * 0.4)), rough: road.dirtAt(drive.s) });
   // người lái: luôn ngồi trong xe; camera trong xe nhìn từ mắt người lái => thu nhỏ đầu (không nhìn xuyên vào đầu)
   if (person.ready) {
     person.root.visible = true;
@@ -619,10 +626,12 @@ function frame(now) {
   }
 
   // môi trường
+  env.precip.setCar(cars.tilt, cars.dim);
   env.update(dt, drive.pos);
   const st = env.state;
   scenery.update(drive.s);
   scenery.apply(st);
+  waterfalls.update(now / 1000, drive.s, st.light);
   if (reeds.visible) reeds.update(now / 1000, camera.position, road, drive.s, st);
   grass.group.visible = MAPS[state.map].id === 'forest' && st.cover < 0.5;   // tuyết phủ thì ẩn cỏ
   if (grass.visible) grass.update(now / 1000, camera.position, road, drive.s, st);
@@ -639,7 +648,14 @@ function frame(now) {
   fireflies.update(now / 1000, drive.s, road, terrain, ffAmt, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   dash.update(dt, drive.v * 3.6, env.clock);
   smoke.update(dt, stop.smoking, st, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
-  if (state.started && cars.current) traffic.update(dt, drive.s, drive.d, road, st.lamps, cars.current.def.id);
+  if (state.started && cars.current) {
+    const obstacles = [{ id: 'player', s: drive.s, d: drive.d, speed: drive.v, direction: 1, width: cars.dim.width, length: cars.dim.length }];
+    if (person.ready && ['exit', 'parked', 'enter'].includes(stop.state)) {
+      person.root.getWorldPosition(_trafficPerson);
+      obstacles.push({ id: 'person', ...roadPosition(_trafficPerson, road, drive.s), width: 0.8, length: 0.8, speed: 0, direction: 0 });
+    }
+    traffic.update(dt, drive.s, drive.d, road, st.lamps, cars.current.def.id, obstacles);
+  }
   town.update(drive.s, road, terrain, st.lamps, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   cars.setLights(st.lamps);
   audio.setAmbient({ speed: drive.v, rain: st.rain, snow: st.snow, wind: st.wind, dark: st.dark, fx: drive.fx,
@@ -701,7 +717,8 @@ function frame(now) {
   post.begin();
   renderer.render(scene, camera);
   rayParams();
-  wipers.apply(post.final.uniforms, glassAmt > 0.01 ? glassAmt : 0, camera, cars.tilt, cars.shield, now / 1000);
+  wipers.apply(post.final.uniforms, glassAmt > 0.01 ? glassAmt : 0, camera, cars.tilt, cars.shield, now / 1000, cars.rearShield);
+  post.renderGlassMask(camera, cars.tilt, cars.rearShield);
   post.render(now / 1000, cineAmt, drive.fx, dofParams(dt));
   requestAnimationFrame(frame);
 }
@@ -756,4 +773,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

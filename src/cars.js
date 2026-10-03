@@ -5,8 +5,17 @@ import { CARS } from './config.js';
 import { softGlowTexture } from './textures.js';
 import { screenPose } from './dashscreen.js';
 import { withMist } from './mist.js';
+import { createHeadlights, placeHeadlights, updateHeadlights } from './headlights.js';
 
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+
+// Góc vô lăng: bám độ cong đường + đánh lái ngang, dừng xe thì trả phần tự lái về giữa.
+export function steeringTarget(st) {
+  const moving = THREE.MathUtils.smoothstep(st.speed, 0.2, 2);
+  const curve = Math.atan((st.curvature || 0) * 2.7) * 14 * moving;
+  const manual = -Math.atan2(st.latVel || 0, Math.max(st.speed, 4)) * 3;
+  return clamp(curve + manual, -0.55, 0.55);
+}
 
 export class Cars {
   constructor(scene) {
@@ -32,12 +41,6 @@ export class Cars {
     // đèn pha + đèn hậu (glow)
     this.lights = new THREE.Group();
     this.root.add(this.lights);
-    this.spots = [0, 1].map(() => {
-      // chùm rộng, mép rất mềm; suy giảm theo khoảng cách chậm (decay 0.55) => sát đầu xe không loá trắng, ánh sáng toả xa đều
-      const s = new THREE.SpotLight(0xffd6a0, 0, 110, 0.8, 1.0, 0.55);   // ánh vàng ấm
-      this.lights.add(s, s.target);
-      return s;
-    });
     // quầng đèn pha (vàng ấm) / đèn hậu (đỏ): mềm, toả rộng, dẹt ngang; vẽ đè lên mặt đường / thân xe
     // (không bị cắt nửa vòng), mờ đi khi không nhìn từ phía trước / phía sau xe
     const soft = this.softTex = softGlowTexture();
@@ -49,7 +52,9 @@ export class Cars {
       this.lights.add(sp);
       return sp;
     };
-    this.headGlow = [glow(0xffc477), glow(0xffc477)];
+    this.headlights = createHeadlights(this.lights, soft);
+    this.spots = this.headlights.spots;
+    this.headGlow = this.headlights.glows;
     this.tailGlow = [glow(0xff2412), glow(0xff2412)];
     this.viewer = null;              // camera (để biết đang nhìn đuôi xe hay không)
     this._gv = new THREE.Vector3(); this._gb = new THREE.Vector3();
@@ -69,6 +74,8 @@ export class Cars {
     this.cabin = new THREE.PointLight(0xffd8ac, 0, 2.6, 2);   // ánh sáng trong xe: toả ra từ màn hình taplo (không phải đèn trần)
     this.tilt.add(this.cabin);
     this.cabinLevel = 0;
+
+
   }
 
   // chỉ những xe có file thật mới được đưa vào danh sách (Mustang là tuỳ chọn)
@@ -105,6 +112,7 @@ export class Cars {
     this.current = entry;
     this.dim = entry.dim;
     this.shield = entry.shield;
+    this.rearShield = entry.rearShield;
     this._placeLights(entry.dim);
     return true;
   }
@@ -187,9 +195,10 @@ export class Cars {
     const door = def.door ? this._door(car, def) : null;
     car.updateMatrixWorld(true);
     const shield = windshield(glassMeshes, dim);
+    const rearShield = windshield(glassMeshes, dim, true);
     const wipers = wiperRig(car, model, shield);
     const screen = screenPose(car, dim);
-    // vô lăng lùi sâu vào trong (dọc trục cột lái) => tay cầm vành thấy rõ ngón cái
+    // Dời vô lăng dọc trục cột lái; steerShift âm đưa về phía người lái.
     let steer = def.steer;
     if (steer && def.steerShift) {
       const n = new THREE.Vector3(...steer.n), v = new THREE.Vector3(), movers = [];
@@ -201,7 +210,15 @@ export class Cars {
       }
       steer = { ...steer, c: new THREE.Vector3(...steer.c).addScaledVector(n, -def.steerShift).toArray() };
     }
-    return { def, group: car, dim, wheels, door, tailMats, wipers, shield, screen, steer, anim: null };
+    let steerPivot = null;
+    if (steer && def.steerMesh) {
+      const nodes = [];
+      model.traverse(o => { if (o.isMesh && def.steerMesh.test(o.name)) nodes.push(o); });
+      steerPivot = new THREE.Group(); steerPivot.position.fromArray(steer.c); car.add(steerPivot);
+      car.updateMatrixWorld(true);
+      for (const node of nodes) steerPivot.attach(node);
+    }
+    return { def, group: car, dim, wheels, door, tailMats, wipers, shield, rearShield, screen, steer, steerPivot, anim: null };
   }
 
   // môi trường phản chiếu riêng cho xe (có mặt đất tối), cập nhật mỗi lần bầu trời được chụp lại
@@ -289,12 +306,7 @@ export class Cars {
 
   _placeLights(d) {
     const x = d.width * 0.3, y = Math.min(0.7, d.height * 0.45);
-    this.spots.forEach((s, i) => {
-      const sx = i ? x : -x;
-      s.position.set(sx, y, -d.length / 2 + 0.3);
-      s.target.position.set(sx * 0.9, 0, -40);
-    });
-    this.headGlow.forEach((g, i) => g.position.set(i ? x : -x, y, -d.length / 2 - 0.05));
+    placeHeadlights(this.headlights, d);
     this.tailGlow.forEach((g, i) => g.position.set(i ? x : -x, y + 0.05, d.length / 2 + 0.05));
     this.contact.scale.set(d.width * 1.12, 1, d.length * 1.06);
     const scr = this.current?.screen;
@@ -346,20 +358,22 @@ export class Cars {
     }
 
     if (this.current) {
+      const goal = steeringTarget(st);
+      this.steerAngle = (this.steerAngle || 0) + (goal - (this.steerAngle || 0)) * (1-Math.exp(-dt*8));
+      if (this.current.steerPivot) this.current.steerPivot.quaternion.setFromAxisAngle(new THREE.Vector3(...this.current.steer.n).normalize(), this.steerAngle);
       for (const w of this.current.wheels) w.pivot.rotation.x -= (st.speed * dt) / w.radius;
     }
 
     const L = this.lampLevel;
-    this.spots.forEach((s) => { s.intensity = 85 * L; });
+    updateHeadlights(this.headlights, this.root, this.viewer, L);
 
     // đèn hậu: luôn sáng nhẹ, bật đèn thì sáng hẳn; giảm tốc thì sáng thêm (đèn phanh)
     const acc0 = this.brakeAcc || 0;
     this.brake += ((acc0 < -1.2 ? 1 : 0) - this.brake) * (1 - Math.exp(-dt * 8));
     const tail = 0.3 + 0.7 * L + 0.6 * this.brake;
     // đèn hậu chỉ thấy quầng khi nhìn từ phía sau, đèn pha khi nhìn từ phía trước (thân xe che phía kia)
-    const back = this._face(this.tailGlow[0], 1), front = this._face(this.headGlow[0], -1);
+    const back = this._face(this.tailGlow[0], 1);
     this.tailGlow.forEach((g) => { g.material.opacity = Math.min(0.8, 0.45 * tail) * back; const k = 2.0 + 1.3 * tail; g.scale.set(k * 1.35, k * 0.85, 1); g.visible = back > 0.01; });
-    this.headGlow.forEach((g) => { g.material.opacity = 0.45 * L * front; const k = 2.1; g.scale.set(k * 1.35, k * 0.85, 1); g.visible = L * front > 0.01; });
     for (const m of this.current?.tailMats || []) m.emissiveIntensity = 0.8 + 2.6 * tail;
     this.cabin.intensity = this.cabinLevel;
   }
@@ -387,13 +401,14 @@ function contactShadowTexture() {
 // kính lái: gom các tam giác kính phía trước mắt người lái, quay mặt về phía người lái (bỏ kính hông, kính sau, đèn)
 // => mặt phẳng xấp xỉ (tâm, pháp tuyến hướng vào trong xe, trục ngang / dọc theo kính) + kích thước.
 // Dùng cho giọt mưa + cần gạt mưa vẽ ở hậu kỳ khi ngồi trong xe. Toạ độ trong hệ của xe.
-function windshield(meshes, dim) {
+export function windshield(meshes, dim, rear = false) {
   const [ex, ey, ez] = dim.eye;
   const eye = new THREE.Vector3(ex, ey, ez);
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3(), m = new THREE.Vector3();
   const N = new THREE.Vector3(), C = new THREE.Vector3(), pts = [];
   let area = 0;
-  for (const o of meshes) {
+  const rearMeshes = rear ? meshes.filter(o => !/light|lamp/i.test(o.name) && /windscreen.*rear|rear.*windscreen|rear.*window|back.*glass/i.test(o.name)) : [];
+  for (const o of rearMeshes.length ? rearMeshes : meshes) {
     const pos = o.geometry.attributes.position, idx = o.geometry.index;
     const count = (idx ? idx.count : pos.count) / 3;
     for (let i = 0; i < count; i++) {
@@ -402,18 +417,19 @@ function windshield(meshes, dim) {
       b.fromBufferAttribute(pos, i1).applyMatrix4(o.matrixWorld);
       c.fromBufferAttribute(pos, i2).applyMatrix4(o.matrixWorld);
       m.copy(a).add(b).add(c).multiplyScalar(1 / 3);
-      if (m.z > ez - 0.25 || m.y < ey - 0.3) continue;
+      if (!rearMeshes.length && ((rear ? m.z < ez + 0.35 : m.z > ez - 0.25) || m.y < ey - 0.3)) continue;
       n.subVectors(b, a).cross(c.clone().sub(a));
       const ar = n.length() / 2;
       if (ar < 1e-7) continue;
       n.normalize();
-      if (n.dot(c.subVectors(eye, m)) < 0) n.negate();
-      if (Math.abs(n.x) > 0.5 || n.z < 0.25 || n.y > -0.2) continue;   // kính lái nghiêng: pháp tuyến hướng ra sau + xuống
+      if (n.dot(eye.clone().sub(m)) < 0) n.negate();
+      if (!rearMeshes.length && (Math.abs(n.x) > 0.5 || (rear ? n.z > -0.25 : n.z < 0.25 || n.y > -0.2))) continue;   // kính lái nghiêng: pháp tuyến hướng ra sau + xuống
       N.addScaledVector(n, ar); C.addScaledVector(m, ar); area += ar;
-      pts.push(a.clone(), b.clone(), m.clone());
+      pts.push(a.clone(), b.clone(), c.clone());
     }
   }
-  const sh = { center: new THREE.Vector3(), normal: new THREE.Vector3(), right: new THREE.Vector3(), up: new THREE.Vector3(), bounds: [0, 0, 0, 0] };
+  if (rear && area < 0.1) return null; // xe không có kính sau: không vẽ giọt lên thân xe
+  const sh = { rear, center: new THREE.Vector3(), normal: new THREE.Vector3(), right: new THREE.Vector3(), up: new THREE.Vector3(), bounds: [0, 0, 0, 0] };
   if (area < 0.1) {      // không tìm thấy kính: mặt phẳng mặc định trước mắt
     sh.center.set(0, ey + 0.1, ez - 0.62);
     sh.normal.set(0, -0.6, 0.8);
@@ -425,6 +441,15 @@ function windshield(meshes, dim) {
   sh.right.set(1, 0, 0).addScaledVector(sh.normal, -sh.normal.x).normalize();
   sh.up.crossVectors(sh.normal, sh.right);
   if (sh.up.y < 0) sh.up.negate();
+  if (rear) {
+    // Giữ nguyên các tam giác kính cong; hậu kỳ dùng chúng để lấy vị trí nước và che khuất chính xác.
+    sh.geometry = new THREE.BufferGeometry().setFromPoints(pts);
+    sh.geometry.setAttribute('glassUV', new THREE.Float32BufferAttribute(pts.flatMap(p => {
+      const d = p.clone().sub(sh.center);
+      return [d.dot(sh.right), d.dot(sh.up)];
+    }), 2));
+    return sh;
+  }
   if (pts.length) {
     const B = [1e9, -1e9, 1e9, -1e9];
     for (const p of pts) {

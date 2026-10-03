@@ -15,6 +15,7 @@ export class Wipers {
     this.flow = 0;             // quãng đường giọt nước đã trôi dọc kính (m); xe chạy nhanh => gió đẩy lên trên
     this.flowDir = -1;
     this._v = new THREE.Vector3();
+    this._inv = new THREE.Matrix4();
   }
 
   get running() { return this.phase > 0; }
@@ -37,8 +38,13 @@ export class Wipers {
   }
 
   // gán uniform cho hậu kỳ. amt: 0 = tắt (không ở trong xe / kính khô)
-  apply(u, amt, camera, tilt, sh, time) {
-    u.uGlass.value = amt;
+  apply(u, amt, camera, tilt, sh, time, rearShield = null) {
+    // Chọn kính theo hướng nhìn trong hệ xe; hai mặt kính đối diện nhau.
+    camera.getWorldDirection(this._v);
+    this._v.transformDirection(this._inv.copy(tilt.matrixWorld).invert());
+    if (this._v.z > 0) sh = rearShield;
+    u.uGlass.value = sh ? amt : 0;
+    u.uRearGlass.value = sh?.rear ? 1 : 0;
     if (amt <= 0 || !sh) return;
     camera.updateMatrixWorld();
     u.uInvVP.value.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
@@ -52,12 +58,13 @@ export class Wipers {
     u.uGU.value.copy(sh.right).transformDirection(m);
     u.uGV.value.copy(sh.up).transformDirection(m);
     u.uGB.value.fromArray(sh.bounds);
+    u.uWipe.value.set(this.phase, this.omega, this.idle, time);
+    u.uFlow.value.set(this.flow, this.flowDir);
+    if (sh.rear) return;
     const [a, b] = sh.wipers;
     u.uPiv.value.set(a.u, a.v, b.u, b.v);
     u.uRest.value.set(a.rest, a.sign, b.rest, b.sign);
     u.uBlade.value.set(a.r0, a.r1, b.r0, b.r1);
     u.uSweep.value = sh.sweep;
-    u.uWipe.value.set(this.phase, this.omega, this.idle, time);
-    u.uFlow.value.set(this.flow, this.flowDir);
   }
 }

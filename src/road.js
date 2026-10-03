@@ -30,6 +30,12 @@ export class Road {
 
   heading(s) { return H(s) - H0; }
 
+  // Độ cong có dấu: dương cua trái, âm cua phải, làm mượt trên 12 m đường.
+  curvature(s) {
+    const lo = Math.max(0, s - 6), hi = s + 6;
+    return (this.heading(hi) - this.heading(lo)) / (hi - lo);
+  }
+
   // đảm bảo đã tính đường tới độ dài cung s
   ensure(s) { this._ensure(Math.ceil(s / ROAD.step) + 1); }
 
