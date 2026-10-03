@@ -591,8 +591,10 @@ function frame(now) {
     stopLook(c.pos, c.look);                       // giữ chuột rê: xoay vòng quanh xe / người (giữ nguyên góc đã xoay)
     camera.lookAt(c.look);
     const fov = rig.fovFor(c.focal);
-    if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
+    const near = stop.closeK > 0.01 ? 0.06 : 0.3;                 // cận cảnh miệng: mặt phẳng cắt gần sát hơn (tay không bị cắt)
+    if (Math.abs(camera.fov - fov) > 0.01 || camera.near !== near) { camera.fov = fov; camera.near = near; camera.updateProjectionMatrix(); }
     if (stop.state === 'off') {                    // xong cảnh: trả camera cho chế độ đang chọn, lướt mượt về
+      rig.setMode(state.cam);                      // (trả lại mặt phẳng cắt gần của chế độ camera)
       rig.relP.copy(camera.position).sub(drive.pos);
       rig.relL.copy(c.look).sub(drive.pos);
       rig.fov = camera.fov;

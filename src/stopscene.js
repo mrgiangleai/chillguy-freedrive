@@ -38,6 +38,7 @@ export class StopScene {
       F: new THREE.Vector3(), R: new THREE.Vector3(), mouth: new THREE.Vector3() };
     this.handW = 0;
     this.handT = new THREE.Vector3();
+    this.closeK = 0;                        // 0 = trung cảnh, 1 = cận cảnh miệng + điếu thuốc
     this._A = new THREE.Vector3(); this._O = new THREE.Vector3(); this._H = new THREE.Vector3(); this._t1 = new THREE.Vector3(); this._t2 = new THREE.Vector3();
     this.orbitA = 0;
     this.orbitT = 0;
@@ -109,22 +110,13 @@ export class StopScene {
       if (this.stopT >= 0 && this.t - this.stopT > 0.9) this._enterState('exit', dim);
     } else if (this.state === 'exit') {
       this._exit(dim, dt);
-      this._camera(dim, dt, this.t - this.orbitT);
-    } else if (this.state === 'parked') {
-      this._camera(dim, dt, 99);
     } else if (this.state === 'enter') {
       this._enter(dim, dt);
-      this._camera(dim, dt, 99);
     }
     if (this.smokeU >= 0 && this.state !== 'enter') this._smoke(dt);
     this._hand();
-    if (this.state !== 'stopping') {
-      P.copy(this._camP); L.copy(this._camL);
-      // lấy nét vào người (đang ở cạnh xe), vùng nét đủ trùm cả xe
-      this.person.head.getWorldPosition(cam.focus);
-    }
-    cam.pos.copy(P); carRoot.localToWorld(cam.pos);
-    cam.look.copy(L); carRoot.localToWorld(cam.look);
+    if (this.state !== 'stopping') this._camera(dt, carRoot);
+    else { cam.pos.copy(P); carRoot.localToWorld(cam.pos); cam.look.copy(L); carRoot.localToWorld(cam.look); }
   }
 
   _enterState(s, dim) {
@@ -134,28 +126,41 @@ export class StopScene {
       // góc máy trung cảnh phía trước - bên tài xế, thấy cửa mở và người bước ra
       this.shot.pos.set(-dim.width / 2 - 4.2, 1.45, this.seat.z - 2.7);
       this.shot.look.set(-dim.width / 2 - 0.25, 0.95, this.seat.z - 0.6);
-      this.orbitT = 3.4;                              // sau 3.4 s bắt đầu lùi ra toàn cảnh
-      this.orbitA = Math.atan2(this.shot.pos.x, this.shot.pos.z + 0.3);
-      this._camP = (this._camP || new THREE.Vector3()).copy(this.shot.pos);
-      this._camL = (this._camL || new THREE.Vector3()).copy(this.shot.look);
+      this.closeK = 0;
     }
   }
 
-  // camera: trung cảnh -> lùi ra toàn cảnh (bán kính 10 m, cao 3.4 m: nhìn qua ngọn cỏ lau) -> quay chậm quanh xe
-  _camera(dim, dt, tOrbit) {
-    const cam = this.cam;
-    const k = ease(tOrbit / 3.2);
-    if (tOrbit > 0) this.orbitA += dt * 0.1 * Math.min(1, tOrbit / 2);
-    const r0 = Math.hypot(this.shot.pos.x, this.shot.pos.z + 0.3);
-    const r = lerp(r0, 10, k), h = lerp(this.shot.pos.y, 3.4, k);
-    const op = this._camP.set(Math.sin(this.orbitA) * r, h, Math.cos(this.orbitA) * r - 0.3);
-    if (tOrbit <= 0) op.copy(this.shot.pos);
-    this._camL.copy(this.shot.look).lerp(this._w.set(-dim.width * 0.2, 0.8, -0.4), k);
-    cam.focal = lerp(32, 26, k);
-    cam.range = dim.width / 2 + 1.2;
+  // camera: trung cảnh nhìn theo người bước ra, đi lên trước đầu xe -> khi bắt đầu hút thuốc thì đẩy máy vào
+  // cận cảnh miệng + điếu thuốc + một phần bàn tay (ống 45 mm, cách ~0.6 m, xoá phông mạnh), máy lắc lư nhẹ như quay tay.
+  // Đi tiếp: kéo máy ra lại trung cảnh khi người quay về xe.
+  _camera(dt, carRoot) {
+    const cam = this.cam, sm = this.smoking;
+    const want = this.smokeU >= 0.3 && this.state !== 'enter' ? 1 : 0;
+    this.closeK += (want - this.closeK) * (1 - Math.exp(-dt * (want ? 0.9 : 1.6)));
+    const k = ease(this.closeK);
+    // trung cảnh (toạ độ xe)
+    const pr = this.person.root.position;
+    const P = this._p.copy(this.shot.pos), L = this._l.set(pr.x, 1.2, pr.z);
+    this.person.head.getWorldPosition(cam.focus);
+    cam.focal = 32; cam.range = 0.8;
+    if (k > 1e-3) {
+      // cận cảnh (toạ độ thế giới -> toạ độ xe): máy trước mặt hơi lệch trái ~0.6 m, ngang miệng, lắc nhẹ
+      // (điếu thuốc chĩa ngang sang phải người => thấy trọn chiều dài)
+      const sway = Math.sin(this.t * 0.31) * 0.12;
+      const off = this._t1.copy(sm.F).multiplyScalar(0.57).addScaledVector(sm.R, -0.08).applyAxisAngle(UP, sway);
+      const cp = off.add(sm.mouth).addScaledVector(UP, 0.03 + 0.008 * Math.sin(this.t * 0.53));
+      const cl = this._t2.copy(sm.mouth).addScaledVector(sm.R, 0.04).addScaledVector(UP, 0.005);
+      P.lerp(carRoot.worldToLocal(cp), k);
+      L.lerp(carRoot.worldToLocal(cl), k);
+      cam.focus.lerp(sm.mouth, k);
+      cam.focal = lerp(32, 45, k);
+      cam.range = lerp(0.8, 0.06, k);
+    }
+    cam.pos.copy(P); carRoot.localToWorld(cam.pos);
+    cam.look.copy(L); carRoot.localToWorld(cam.look);
   }
 
-  _exit(dim) {
+  _exit(dim, dt) {
     const p = this.person, t = this.t, root = p.root;
     this.cars.setDoor(clamp01(t / 1.1));
     if (t < 1.0) {
