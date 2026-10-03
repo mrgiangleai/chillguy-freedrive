@@ -509,7 +509,7 @@ function cockpitPitch() {
   const down = Math.atan2(_ck.y - by, _ck.z - bz);
   const half = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * (1 - 2 * barFrac * cineAmt));
   const mp = mirror.group.position;                                     // mép trên gương (hệ xe)
-  const up = Math.atan2(mp.y + 0.05 - _ck.y, _ck.z - mp.z);
+  const up = Math.atan2(mp.y + mirror.size[1] / 2 + 0.012 - _ck.y, _ck.z - mp.z);
   const lo = down - half + 0.01, hi = half - up - 0.015;
   return clamp(lo <= hi ? lo : hi, -0.1, 0.6);
 }

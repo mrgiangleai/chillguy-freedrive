@@ -5,11 +5,11 @@ import * as THREE from 'three';
 export class RearMirror {
   constructor(renderer) {
     this.renderer = renderer;
-    // gương cỡ 3/4 gương cũ (18.75 × 4.8 cm); texture cùng tỉ lệ với mặt gương => ảnh không bị kéo dãn
-    const GW = 0.1875, GH = 0.048;
+    // gương tỉ lệ 4:3 (rộng 25 cm × cao 18.75 cm); texture cùng tỉ lệ với mặt gương => ảnh không bị kéo dãn
+    const GW = 0.25, GH = 0.1875;
     this.size = [GW, GH];
     this.rt = new THREE.WebGLRenderTarget(384, Math.round(384 * GH / GW), { type: THREE.HalfFloatType });
-    this.cam = new THREE.PerspectiveCamera(26, GW / GH, 0.15, 3000);
+    this.cam = new THREE.PerspectiveCamera(30, GW / GH, 0.15, 3000);
     this.cam.layers.enable(3);
     this.group = new THREE.Group();
     this.group.visible = false;
