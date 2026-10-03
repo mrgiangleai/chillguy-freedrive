@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -85,7 +85,8 @@
   60% khi chọn Ban đêm. Bão/gió lớn: không rung lắc (chỉ 180 km/h rung nhẹ).
 - **Map Biển** (`sea`): địa hình `TP.sea` — đáy biển = `TP.seaLevel − 7` (+gợn), đảo ở xa (> 400 m) từ đỉnh sống núi; đường `low 7`;
   `TP.seaLevel` = (đường thấp nhất trong 120 km tính từ chỗ xe) − 3 m, tính khi đổi map. Camera không xuống dưới mặt nước.
-- **Map núi**: thị trấn nhỏ + lớn có đèn; suối/thác qua đường (`waterfalls.js`, rộng 2–5 m, lưu lượng 0.25–1, giữ 2–4 dòng
+- **Map núi**: vách núi bên trái lồi lõm (`terrain._height`: sống đá / khe nhiễu ridged ~42 m & ~16 m, khối ~85 m, gờ đá ngang mỗi 10 m;
+  chân vách sát lề cũng nhô / lõm, không thấp hơn mặt đường; màu đỉnh: khe tối, sống đá sáng); thị trấn nhỏ + lớn có đèn; suối/thác qua đường (`waterfalls.js`, rộng 2–5 m, lưu lượng 0.25–1, giữ 2–4 dòng
   quanh xe, dựng tối đa 1 dòng/khung hình ~20 ms, dispose khi rời vùng/đổi map). Xem nhật ký #1.
 - **Dừng xe**: xem `stopscene.js`; người áo đen; bước ra khỏi xe là camera quay quanh + tự zoom ra xa hết cỡ trong 5 s (16 mm + lùi 20 m), không còn cận cảnh;
   nhịp hút 3 s → 5 s → ngẫu nhiên 5–12 s; đi lanh quanh trong 10 m,
@@ -168,3 +169,11 @@
   quay quanh xe, đồng thời tự zoom ra xa hết cỡ trong 5 s (một thang liên tục: 26 → 16 mm rồi lùi thêm 20 m, ease). Người dùng
   zoom thì dừng zoom tự động. Kiểm bằng script dòng thời gian (t=2.25 bắt đầu, t≈7.3 đạt 16 mm + 20 m, máy cách xe ~31 m);
   chưa chạy trên máy ảo. Ghi chú việc chờ: map `landscape_forest__mountains.glb` (hỏi chú trước khi làm).
+
+- **#8** — Vách núi map núi lồi lõm lớn và nhiều hơn (trước đây vách đều tăm tắp: chỗ cao 15 m luôn cách tim đường đúng 15 m).
+  Thêm vào độ cao phía núi: `rel` = sống đá/khe (ridged 42 m ×42, 16 m ×15) + khối phình 85 m ×34, trọng số từ u 2→18 m;
+  gờ đá bậc 10 m (75%, theo vùng); chân vách sau lề phẳng (HW+1.5 → HW+8) cũng cộng `rel` (âm tối đa −8, kẹp ≥ mặt đường);
+  `_rel` → màu đỉnh ×0.62–1.2 (khe sẫm, sống sáng). Giờ cao 15 m cách tim đường 10–19 m, cao 30 m 13–30 m.
+  - Thác: lấy 13 điểm/mặt cắt (trước 9), nâng mặt nước thêm 0.4 × độ dốc để không chìm giữa các điểm. Check scripts đạt.
+  - Ảnh Low: `screenshots/cliff-before.jpg` → `cliff-after.jpg`, `cliff-after-wall.jpg`. Lưu ý chụp: phải `terrain.prime()`
+    sau khi dời xe, không thì ô địa hình gần vẫn là ô thô (trông phẳng).

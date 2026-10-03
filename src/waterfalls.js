@@ -17,7 +17,7 @@ const UP = 230, DOWN = 190;          // chiều dài dòng chảy trên sườn 
 const EDGE = HW + 0.6;               // mép lớp nước trên đường (tới cọc tiêu / hộ lan)
 const ACROSS = 6;                    // số ô ngang của dải nước
 const WET_N = 4;                     // số ô ngang của lớp đá ướt
-const S = 9;                         // số điểm lấy độ cao trên mỗi mặt cắt ngang
+const S = 13;                        // số điểm lấy độ cao trên mỗi mặt cắt ngang
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 // Seed theo vị trí: bề ngang/lưu lượng khác nhau, không đổi khi quay lại hoặc đổi map.
@@ -163,7 +163,8 @@ export function waterfallGeometry(spec, road, terrain) {
     g.setIndex(idx); g.computeVertexNormals(); g.computeBoundingSphere();
     return g;
   };
-  const waterLift = n => n.road ? 0.035 + 0.02 * flow : 0.07 + 0.13 * sstep(15, 120, n.a);
+  // vách dốc lồi lõm: nâng thêm theo độ dốc để mặt nước không chìm giữa hai điểm lấy độ cao
+  const waterLift = n => n.road ? 0.035 + 0.02 * flow : 0.07 + 0.13 * sstep(15, 120, n.a) + 0.4 * n.st;
   const water = mk(ACROSS, n => n.hw, waterLift, (n, h) => [n.st, n.turb, n.fade, h]);
   const wet = mk(WET_N, n => n.wb, n => n.road ? 0.012 : waterLift(n) * 0.55, (n, h) => [n.st, n.road ? 1 : 0, n.fade, h]);
 

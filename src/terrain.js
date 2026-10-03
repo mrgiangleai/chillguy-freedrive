@@ -195,8 +195,8 @@ export class Terrain {
       }
     }
     const dm = Math.sqrt(dm2);
-    let h = hLow(x, z) + hDetail(x, z);
-    this._d = FAR; this._s = -1;
+    let h = hLow(x, z) + hDetail(x, z), rel = 0;
+    this._d = FAR; this._s = -1; this._rel = 0;
     const near = dm - 70 < CARVE1 && this._nearFine(x, z, fine);
     if (TP.sea) {
       // đáy biển thấp hơn mặt nước 7 m, gợn nhẹ; xa đường (> 400 m) nhô lên vài hòn đảo ở đỉnh các sống núi
@@ -208,8 +208,20 @@ export class Terrain {
       if (near) lat = this._nl + (lat - this._nl) * sstep(25, 60, this._nd);
       const u = -lat;
       const rough = 0.75 + 0.5 * vnoise(x / 220 + 4.4, z / 220 + 9.9);
-      if (u > 0) h += (360 * (1 - Math.exp(-u / 210)) + 0.2 * u) * rough;
-      else h -= 250 * (1 - Math.exp(u / 170));
+      if (u > 0) {
+        h += (360 * (1 - Math.exp(-u / 210)) + 0.2 * u) * rough;
+        // vách đá lồi lõm: sống đá / khe rãnh (nhiễu "ridged" 2 tầng ~34 m và ~13 m) + khối phình lớn ~70 m,
+        // rồi gờ đá nằm ngang (bậc mềm mỗi ~8 m độ cao, có vùng có vùng không). Mờ dần sát đường (vẫn bị xẻ phẳng ở lề)
+        const wR = sstep(2, 18, u) * (1 - 0.5 * sstep(350, 900, u));
+        if (wR > 0) {
+          const r1 = 1 - Math.abs(vnoise(x / 42 + 1.7, z / 42 + 6.3) * 2 - 1), r2 = 1 - Math.abs(vnoise(x / 16 + 8.1, z / 16 + 2.9) * 2 - 1);
+          rel = (r1 * r1 - 0.45) * 42 + (r2 * r2 - 0.45) * 15 + (vnoise(x / 85 + 3.3, z / 85 + 7.7) - 0.5) * 34;
+          h += rel * wR;
+          this._rel = rel * Math.max(wR, 0.5);                       // cho màu: khe tối, sống đá sáng
+          const q = h / 10, fr = q - Math.floor(q);
+          h += ((Math.floor(q) + sstep(0.3, 0.7, fr)) * 10 - h) * 0.75 * wR * sstep(0.25, 0.55, vnoise(x / 120 + 5.1, z / 120 + 1.3));
+        }
+      } else h -= 250 * (1 - Math.exp(u / 170));
       h += hDetail(x * 1.7, z * 1.7) * 0.8;
       if (Math.abs(u) > 650) h += mountains(x, z) * sstep(650, 1500, Math.abs(u));
     } else if (dm > 500) h += mountains(x, z) * sstep(500, 1600, dm);
@@ -218,6 +230,8 @@ export class Terrain {
       const t = sstep(CARVE0, CARVE1, this._nd);
       const ry = this._ny - 0.02;
       h = ry + (h - ry) * t;
+      // map núi: chân vách sát lề cũng lồi lõm (khối đá nhô ra ngay sau lề phẳng; không đào rãnh xuống thấp hơn mặt đường)
+      if (side && this._nl < 0) h = Math.max(ry, h + Math.max(rel, -8) * sstep(HW + 1.5, HW + 8, this._nd) * (1 - t));
     }
     return h;
   }
@@ -232,7 +246,7 @@ export class Terrain {
 
   // màu đỉnh địa hình + trọng số texture: this._mixG (sỏi đá vụn), this._mixD (đất)
   // s: độ dài cung của điểm đường gần nhất (-1 nếu xa đường) => biết đang ở đoạn đường đất hay không
-  _color(x, z, h, ny, d, s, out) {
+  _color(x, z, h, ny, d, s, out, rel = 0) {
     const pal = PAL[TP.id];
     const n1 = vnoise(x / 150 + 2.3, z / 150 + 6.1), n2 = vnoise(x / 37 + 8.8, z / 37 + 1.2);
     out.copy(pal.a).lerp(pal.b, sstep(0.3, 0.75, n1)).lerp(pal.c, sstep(0.45, 0.9, n2) * 0.55);
@@ -257,6 +271,8 @@ export class Terrain {
     const alpine = TP.id === 'mountain' ? sstep(70, 190, h) * (1 - rockT) * (1 - snow) * sstep(0.35, 0.7, n2 + 0.3 * n1) * 0.8 : 0;
     this._mixG = Math.max(g, alpine);
     this._mixD = dirtNear * sstep(0.25, 0.6, vnoise(x / 9 + 5.5, z / 9 + 2.2) * 0.7 + 0.5 * (1 - sstep(HW + 1, HW + 9, d)));
+    // vách núi lồi lõm: khe / hõm sẫm lại, sống đá / khối nhô sáng lên (như bóng che khuất) => đọc được khối cả khi vách khuất nắng
+    if (rel) out.multiplyScalar(0.62 + 0.58 * sstep(-16, 16, rel));
     return out;
   }
 
@@ -266,12 +282,13 @@ export class Terrain {
     const i0 = this.iCar - 2500, i1 = this.iCar + 4000;
     const fine = this._samples(x0 - pad, z0 - pad, x0 + size + pad, z0 + size + pad, 1, i0, i1);
     const coarse = this._samples(x0 - 1700, z0 - 1700, x0 + size + 1700, z0 + size + 1700, 25, i0, i1);
-    const H = new Float32Array(N * N), D = new Float32Array(N * N), SA = new Float32Array(N * N);
+    const H = new Float32Array(N * N), D = new Float32Array(N * N), SA = new Float32Array(N * N), REL = new Float32Array(N * N);
     for (let j = 0; j < N; j++) {
       for (let i = 0; i < N; i++) {
         H[j * N + i] = this._height(x0 + (i - 1) * st, z0 + (j - 1) * st, fine, coarse);
         D[j * N + i] = this._d;
         SA[j * N + i] = this._s;
+        REL[j * N + i] = this._rel;
       }
     }
 
@@ -289,7 +306,7 @@ export class Terrain {
         NY[v] = ny;
         pos.set([x, y, z], v * 3);
         nor.set([nx, ny, nz], v * 3);
-        this._color(x, z, y, ny, D[gi], SA[gi], c);
+        this._color(x, z, y, ny, D[gi], SA[gi], c, REL[gi]);
         clr.set([c.r, c.g, c.b], v * 3);
         mix[v * 2] = this._mixG; mix[v * 2 + 1] = this._mixD;
         uv.set([x / 6, z / 6], v * 2);
