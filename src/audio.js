@@ -139,12 +139,16 @@ export class ChillAudio {
     this.ambGain = ctx.createGain();
     this.ambGain.gain.value = 1;
     this.ambGain.connect(this.master);
+    // âm thanh bên ngoài xe (mưa, gió, lốp, sấm): ngồi trong xe thì nhỏ đi 60% và trầm xuống (kính / cửa cách âm)
+    this.outLp = ctx.createBiquadFilter(); this.outLp.type = 'lowpass'; this.outLp.frequency.value = 20000;
+    this.outGain = ctx.createGain(); this.outGain.gain.value = 1;
+    this.outGain.connect(this.outLp).connect(this.ambGain);
 
     const mkNoise = (type, freq, q) => {
       const s = this._src(this.noise);
       const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
       const g = ctx.createGain(); g.gain.value = 0;
-      s.connect(f).connect(g).connect(this.ambGain);
+      s.connect(f).connect(g).connect(this.outGain);
       s.start();
       return g;
     };
@@ -166,14 +170,40 @@ export class ChillAudio {
     this.eng[0].type = 'sawtooth'; this.eng[1].type = 'triangle';
     this.eng.forEach((o) => { o.frequency.value = 40; o.connect(this.engLp); o.start(); });
     this.engLp.connect(this.engG).connect(this.ambGain);
+
+    // mưa đập vào kính (chỉ nghe khi ngồi trong xe): giọt lộp độp = xung nhiễu ngắn + tiếng "tách" cộng hưởng nhỏ,
+    // rải ngẫu nhiên trong vòng lặp 4 s, cộng một lớp rào rào trầm của mưa trên mui
+    const sr = ctx.sampleRate, len = sr * 4;
+    const b = ctx.createBuffer(1, len, sr), d = b.getChannelData(0);
+    for (let n = 0; n < 1400; n++) {
+      const p = Math.floor(Math.random() * len), amp = 0.08 + Math.random() * Math.random() * 0.5;
+      const f = 1800 + Math.random() * 3800, tn = sr * (0.0012 + Math.random() * 0.0025), tr = sr * (0.004 + Math.random() * 0.008);
+      for (let j = 0; j < sr * 0.03; j++) {
+        d[(p + j) % len] += amp * ((Math.random() * 2 - 1) * Math.exp(-j / tn) + 0.5 * Math.sin(6.2832 * f * j / sr) * Math.exp(-j / tr));
+      }
+    }
+    const drops = ctx.createBufferSource(); drops.buffer = b; drops.loop = true;
+    const dHp = ctx.createBiquadFilter(); dHp.type = 'highpass'; dHp.frequency.value = 700;
+    this.glassG = ctx.createGain(); this.glassG.gain.value = 0;
+    drops.connect(dHp).connect(this.glassG).connect(this.ambGain);
+    drops.start();
+    const roof = this._src(this.noise);
+    const rLp = ctx.createBiquadFilter(); rLp.type = 'lowpass'; rLp.frequency.value = 900;
+    this.roofG = ctx.createGain(); this.roofG.gain.value = 0;
+    roof.connect(rLp).connect(this.roofG).connect(this.ambGain);
+    roof.start();
   }
 
-  // speed (m/s), rain/snow/wind/dark 0..1
-  setAmbient({ speed, rain, snow, wind = 0, dark = 0, fx = 0 }) {
+  // speed (m/s), rain/snow/wind/dark 0..1, inCar: đang ngồi trong xe
+  setAmbient({ speed, rain, snow, wind = 0, dark = 0, fx = 0, inCar = false }) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime, k = 0.25;
     const on = this.mode === 0 ? 1 : 0;
     this.ambGain.gain.setTargetAtTime(on, t, 0.4);
+    this.outGain.gain.setTargetAtTime(inCar ? 0.4 : 1, t, 0.3);
+    this.outLp.frequency.setTargetAtTime(inCar ? 1600 : 20000, t, 0.3);
+    this.glassG.gain.setTargetAtTime(inCar ? rain * 0.5 * (1 + 0.6 * dark) : 0, t, 0.3);
+    this.roofG.gain.setTargetAtTime(inCar ? rain * 0.05 * (1 + dark) : 0, t, 0.3);
     this.rainG.gain.setTargetAtTime(rain * 0.2 * (1 + 0.6 * dark), t, k);
     this.windG.gain.setTargetAtTime(0.012 + speed * 0.0016 + snow * 0.05 + wind * wind * 0.1 + fx * 0.085, t, k);
     this.gustG.gain.setTargetAtTime(wind * wind * 0.07, t, k);
@@ -205,10 +235,10 @@ export class ChillAudio {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(0.9 * power, t + 0.12);
     g.gain.setTargetAtTime(0.0001, t + 0.3, 1.1);
-    s.connect(lp).connect(g).connect(this.ambGain);
+    s.connect(lp).connect(g).connect(this.outGain);
     s.start(t); s.stop(t + 5);
     // tiếng nổ lách tách ở đầu
-    this._noiseHit(t, 0.25, 'bandpass', 700, 0.3 * power);
+    this._noiseHit(t, 0.25, 'bandpass', 700, 0.3 * power, this.outGain);
   }
 
   // ---- lịch phát nhạc (look-ahead scheduler) ----
@@ -308,13 +338,13 @@ export class ChillAudio {
     o.start(t); o.stop(t + 0.35);
   }
 
-  _noiseHit(t, dur, type, freq, gain) {
+  _noiseHit(t, dur, type, freq, gain, dest = this.drumBus) {
     const s = this._src(this.noise, false);
     const f = this.ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq;
     const g = this.ctx.createGain();
     g.gain.setValueAtTime(gain, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    s.connect(f).connect(g).connect(this.drumBus);
+    s.connect(f).connect(g).connect(dest);
     s.start(t, Math.random()); s.stop(t + dur + 0.02);
   }
 

@@ -633,7 +633,8 @@ function frame(now) {
   if (state.started && cars.current) traffic.update(dt, drive.s, drive.d, road, st.lamps, cars.current.def.id);
   town.update(drive.s, road, terrain, st.lamps, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   cars.setLights(st.lamps);
-  audio.setAmbient({ speed: drive.v, rain: st.rain, snow: st.snow, wind: st.wind, dark: st.dark, fx: drive.fx });
+  audio.setAmbient({ speed: drive.v, rain: st.rain, snow: st.snow, wind: st.wind, dark: st.dark, fx: drive.fx,
+    inCar: CAMERAS[state.cam].id === 'cockpit' && !stop.active });
 
   // gió mạnh / tốc độ cao: camera rung nhẹ. Trời bão: tắt mọi rung lắc (camera, cầm tay, thân xe nhún)
   const calm = 1 - st.dark;
@@ -746,4 +747,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
