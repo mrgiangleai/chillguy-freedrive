@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -12,10 +12,13 @@
   Sau khi push, Pages tự triển khai (~30 s); người chơi bấm Ctrl+F5.
 - Thử cục bộ: `npx http-server docs -p 8080 -c-1`; Playwright + Chromium SwiftShader (`--use-angle=swiftshader`), rất chậm
   (~1 khung hình/giây) => **luôn thử ở chất lượng Low** (`localStorage['chilldrive.quality']='low'`), chạy từng trình duyệt một.
-  Hook kiểm thử: `window.__app` (env, cars, rig, drive, state, stop, person, smoke, wing, audio, traffic, town, cows, waterfalls, …).
+  Hook kiểm thử: `window.__app` (env, cars, rig, drive, state, stop, person, smoke, wing, audio, traffic, town, cows, waterfalls, ocean,
+  terrain, toggleStop, nextMap…). Sau khi dời xe (`drive.s`) phải `terrain.prime(pos)`, không thì ô địa hình gần còn là ô thô.
+  Máy chủ thử chạy nền tự tắt sau 2 giờ => bật lại. Script chụp tạm để ở scratchpad, không đưa file preview vào `docs/`.
   Máy chậm => môi trường (env map) chưa kịp chụp lại khi đổi giờ: gọi `__app.env.update(0.016, drive.pos); env._captureEnv()`.
 - **Kiểm tra tự động** (node, không cần trình duyệt): `scripts/check-traffic.mjs`, `check-traffic-policy.mjs`, `check-steering.mjs`,
-  `check-waterfalls.mjs`, `check-rear-glass.mjs [model.glb]`. **Fixture GUI** `scripts/*-preview.js` (giữ cảnh cố định để chụp):
+  `check-waterfalls.mjs`, `check-rear-glass.mjs [model.glb]`. Model tải lên nặng: nén bằng `npx @gltf-transform/cli@4 webp … --quality 82`
+  rồi `meshopt` (giữ file gốc); sóng biển bake bằng `node scripts/bake-ocean.mjs`. **Fixture GUI** `scripts/*-preview.js` (giữ cảnh cố định để chụp):
   bundle bằng esbuild ra `docs/<tên>-check.js`, sao `docs/index.html` thành trang riêng đổi script sang bundle đó; chụp xong
   **xoá** các file tạm trong `docs/`.
 
@@ -51,7 +54,7 @@
 | `town.js` | Map núi: thị trấn nhỏ + **thị trấn lớn** dưới thung lũng, đèn đường |
 | `waterfalls.js` | Map núi: suối/thác (`waterfallSpec`, `waterfallGeometry` → nodes/water/wet/rocks/sprays; `Waterfalls.setMap`, `update(time, s, light, {d, v, dim, npcs, cam, audio})`). Dòng dò theo dốc (`trace`) + uốn lượn (`meander`); nước = MeshStandardMaterial + nhiễu theo **thời gian chảy `tau`** (không dùng `along - uTime*speed` => tránh sọc); lớp ướt = blend nhân màu; đá tảng dùng `rockGeometry(k, 2)` + `terrain.rockMat`; nước bắn bánh xe (`Splash`, Points kéo về camera 4%) |
 | `carriage.js` | `loadCarriage(loader)` → hàm tạo xe ngựa `{group, dim 5.6×2.8, wheels: [], mixer, carriage: true}`; `CARRIAGE` (15–30 s, tối đa 2, 25–40 km/h). traffic.js sinh/điều khiển như NPC (`_spawnCarriage`, `carriageTimer`, không đèn, không tiếng lướt, không nhận chùm pha dùng chung) |
-| `ocean.js` | Map Biển: `Ocean.setMap(on, level)`, `update(time, cam, road, s)`. Lưới vuông 1.5 m ±120 m (sóng nhô lên ≤ ~100 m) + vành lưới 8 m tới ±400 m + khung phẳng tới 6 km; cả nhóm **nắn theo bước 1.5 m** (đỉnh cố định trong thế giới, không rung). Shader `waveAt`: atlas `assets/tex/ocean-waves.png` (76 khung lặp liền, 10×8), ô ×2 = 54.2 m, cao ×1.3, chu kỳ 6.33·√2 ≈ 9 s, 4 mẫu lệch nửa ô; fragment `textureLod` theo khoảng cách (`uLod`); độ sâu ven đê từ 27 điểm tim đường => nước nông / bọt / trong |
+| `ocean.js` | Map Biển: `Ocean.setMap(on, level)`, `update(time, cam, road, s)`. Lưới vuông 1.5 m ±120 m (sóng nhô lên ≤ ~100 m) + vành 8 m tới ±400 m + khung phẳng tới 6 km, **nắn theo bước 1.5 m** (đỉnh cố định trong thế giới). `waveAt`: atlas `assets/tex/ocean-waves.png?v=WAVE_VER` (76 khung, 10×8; bake bằng `scripts/bake-ocean.mjs`, trộn chéo 24 khung cuối vào đầu), ô ×2 = 54.2 m, cao ×1.3, chu kỳ ≈ 9 s; 4 mẫu lệch nửa ô; nội suy khung **dời theo hướng trôi** `DRIFT` (−0.5, +2.25 px/khung); **2 lớp lệch nửa vòng**, lớp nào về chỗ nối thì mờ còn `SEAM_MIN` 30% (trộn giữ biên độ); bọt ven bờ theo `uT` liên tục; `textureLod` theo khoảng cách (`uLod`); độ sâu ven đê từ 27 điểm tim đường (nắn bước 12 m) |
 | `cows.js` | Map đồi cỏ: đàn 5 bò sữa + hàng rào gỗ |
 | `fireflies.js` | Đom đóm ban đêm |
 | `traffic.js` | Spawn/pool/vẽ NPC: ngược chiều (10–25 s/chiếc, tối đa 2) + cùng chiều (25–60 s, tối đa 1, vào từ phía sau 80–110 m); pool 3 xe; NPC chỉ có quầng pha, chùm sáng thật = 1 cặp SpotLight dùng chung (`beam`, gắn NPC gần nhất ≤300 m, `_beam`); đèn `lamps × NPC_LAMP(0.24)`, đèn hậu ×0.6; thân xe xoay `yaw = atan(latV/v)` (≤0.35, nội suy 8/s), bánh trước `w.front` đánh lái `yaw × 1.8`; âm thanh lướt qua 1 lần/lượt; xuất `ctrl {lane, maxV}` cho xe người chơi |
@@ -70,7 +73,7 @@
   Tự bám xe trước và tự vượt xe cùng chiều khi làn bên kia trống ≥50 m sau xe bị vượt và xe đối diện không kịp tới.
   Vô lăng + hai tay tự xoay theo cua thật (nhìn trước 0.4 s, tối đa 12 m; atan(curvature × 2.7) × 14 + lái tay, ±0.55 rad,
   nội suy 8/s; dừng xe thì trả giữa). Mustang: sơn đen bóng (env ×0.4), nội thất đen bóng, ghế da nâu, vô lăng da đen
-  `steerShift −0.09`, tay cầm gần 9/3 giờ. Đèn pha rig chung: màu `0xffd6a0`, `85 × lamps`, tầm 110 m, góc 0.8 rad,
+  `steerShift −0.09`, tay cầm gần 9/3 giờ. Đèn pha/hậu đặt đúng tâm bóng đèn của từng model (`lamps` trong config, đo từ model). Đèn pha rig chung: màu `0xffd6a0`, `85 × lamps`, tầm 110 m, góc 0.8 rad,
   penumbra 1, decay 0.55; quầng `0xffc477`, opacity `0.45 × lamps × hướng nhìn`, 2.835 × 1.785 m.
 - **NPC**: mật độ thấp (ngược chiều tối đa 2, cùng chiều tối đa 1); tốc độ hành trình 50–200 km/h, vào cua 60% (ngưỡng
   0.0015/0.0012 rad/m, phanh trước cua), né/phanh 30 m. Đổi làn/né: đánh lái thật (thân xoay ≤ ~11°, né gấp ≤ ~19°, bánh trước bẻ).
@@ -81,16 +84,30 @@
   gương giữa. Gương giữa (4:3, cạnh màn hình taplo) + 2 gương hông soi thật. Ánh sáng cabin từ màn hình taplo; đã bỏ dải LED
   và quầng sáng sàn. Mưa: giọt nước/vệt chảy trên kính trước + gạt mưa; kính sau dùng mask từ mesh kính thật (không phủ
   ghế/khung). Hạt mưa ngoài trời bị loại trong thể tích xe; âm thanh ngoài −60% + mưa lộp độp trên kính.
+- **Thời tiết / giờ**: "Trời trong" (đổi tên từ "Trời nắng"); đã bỏ mốc "Giờ vàng".
 - **Ánh sáng**: nắng gắt cân bằng kiểu máy ảnh: nắng ×2.3, ánh trời ×0.5, phơi sáng ×0.7. Đêm có trăng (đổ bóng), sương tự
   60% khi chọn Ban đêm. Bão/gió lớn: không rung lắc (chỉ 180 km/h rung nhẹ).
-- **Map Biển** (`sea`): địa hình `TP.sea` — đáy biển = `TP.seaLevel − 7` (+gợn), đảo ở xa (> 400 m) từ đỉnh sống núi; đường `low 7`;
-  `TP.seaLevel` = (đường thấp nhất trong 120 km tính từ chỗ xe) − 3 m, tính khi đổi map. Camera không xuống dưới mặt nước.
-- **Map núi**: vách núi bên trái lồi lõm (`terrain._height`: sống đá / khe nhiễu ridged ~42 m & ~16 m, khối ~85 m, gờ đá ngang mỗi 10 m;
-  chân vách sát lề cũng nhô / lõm, không thấp hơn mặt đường; màu đỉnh: khe tối, sống đá sáng); thị trấn nhỏ + lớn có đèn; suối/thác qua đường (`waterfalls.js`, rộng 2–5 m, lưu lượng 0.25–1, giữ 2–4 dòng
-  quanh xe, dựng tối đa 1 dòng/khung hình ~20 ms, dispose khi rời vùng/đổi map). Xem nhật ký #1.
-- **Dừng xe**: xem `stopscene.js`; người áo đen; bước ra khỏi xe là camera quay quanh + tự zoom ra xa hết cỡ trong 5 s (16 mm + lùi 20 m), không còn cận cảnh;
-  nhịp hút 3 s → 5 s → ngẫu nhiên 5–12 s; đi lanh quanh trong 10 m,
-  chỉ trong làn mình + lề phải.
+- **Map Biển** (`sea`, model `docs/assets/models/ocean_scene_animated.glb` chỉ dùng để bake): địa hình `TP.sea` — đáy biển =
+  `TP.seaLevel − 7` (+gợn), đảo ở xa (> 400 m) từ đỉnh sống núi; đường `low 7`; `TP.seaLevel` = (đường thấp nhất trong 120 km
+  tính từ chỗ xe) − 3 m, tính khi đổi map. Camera không xuống dưới mặt nước. Chống giật: xem dòng `ocean.js` ở bảng trên.
+  Máy ảo Low: biển ~590 ms/khung, núi ~647 (biển không nặng hơn).
+- **Map núi**: vách núi bên trái lồi lõm (`terrain._height`: `rel` = sống đá / khe ridged ~42 m & ~16 m + khối ~85 m, từ u 2→18 m;
+  gờ đá ngang mỗi 10 m; chân vách sau lề (HW+1.5→HW+8) cũng nhô/lõm, kẹp ≥ mặt đường; màu đỉnh: khe tối, sống sáng). Cao 15 m
+  cách tim đường 10–19 m. Thị trấn nhỏ + lớn có đèn.
+- **Suối/thác map núi** (`waterfalls.js`): mỗi ~560 m, rộng 2–5 m, lưu lượng 0.25–1; dòng dò theo dốc lên núi 230 m / xuống vực
+  190 m, uốn lượn; vách dốc => bọt trắng thành vệt, thoải => nước trong gợn; chân thác bọt + bụi nước; tràn mỏng qua đường (mặt
+  đường ướt) rồi đổ xuống vực; lớp đá ướt (blend nhân màu, không loá), đá tảng hai bờ; mặt cắt 13 điểm + nâng theo dốc để không
+  chìm vào vách lồi lõm. Xe (cả NPC) lội qua: nước bắn bánh xe + tiếng "xoè"; tiếng suối to dần khi lại gần. Giữ 2–4 dòng quanh xe,
+  dựng ≤1 dòng/khung (~30 ms). Lỗi đã gặp: quầng sáng do lớp ướt PBR; sọc do `along − uTime·speed` (=> `tau` tích phân);
+  hạt nước bắn bị mặt đường che (=> kéo về camera 4%).
+- **Đèn đường**: cột 11.1 m; ánh sáng = 3 SpotLight thật dùng chung (gán cột gần camera, mờ trước khi đổi cột; số đèn cố định),
+  140 × lamps (đã giảm 80% theo yêu cầu), nón rộng chếch vào lòng đường.
+- **Xe ngựa cổ tích** (`carriage.js`, model nén `assets/models/carriage.glb` 1.6 MB từ file gốc 11 MB): chạy trên đường như NPC
+  (15–30 s/chiếc, tối đa 2, 25–40 km/h, ngựa phi theo tốc độ; phần lớn ngược chiều; không đèn/tiếng lướt). Mây bụi dưới vó là
+  một phần model.
+- **Dừng xe**: xem `stopscene.js`; người áo đen; bước ra khỏi xe là camera quay quanh + tự zoom ra xa hết cỡ trong 5 s (16 mm +
+  lùi 20 m), không còn cận cảnh; zoom tay ở toàn cảnh qua `zoomBy` (wheel / pinch / phím ±). Nhịp hút 3 s → 5 s → ngẫu nhiên
+  5–12 s; đi lanh quanh trong 10 m, chỉ trong làn mình + lề phải.
 - **Điện thoại**: tự toàn màn hình khi nhấc tay ở lần chạm đầu (và chạm lại nếu bị thoát), nút ⛶ chỉ hiện trên điện thoại,
   khoá ngang (Android), gợi ý xoay ngang khi cầm dọc; iPhone: "Thêm vào MH chính" (manifest fullscreen/landscape).
 
@@ -100,86 +117,10 @@
 - Cảnh dừng xe: đoạn ▶️ quay lại xe mới thử bằng mô phỏng logic (máy ảo quá chậm để chạy trọn).
 - Divo / xe tải sữa: không có gương hông, không có `steer` (tay giữ tư thế animation).
 - Mưa kính sau trên Mustang xanh mới kiểm bằng script, chưa xem GUI.
+- Chưa xem trên máy thật: chuyển động sóng biển (đã sửa giật 2 lần), cảnh dừng xe mới (quay quanh + zoom 5 s), xe ngựa ban đêm,
+  map Biển ban đêm / mưa / trong xe; vân sóng lặp còn thấy khi nhìn từ trên cao.
+- Vài tảng đá terrain trông lơ lửng trên vách núi gần đường (s≈250) — chưa sửa.
 
 ## 6. Nhật ký cập nhật
-- Đã tóm tắt tới commit `925dc91` (đèn pha NPC −60%, xe ngược chiều không vượt nhau).
-
-- **#1** — Làm lại suối/thác map núi cho tự nhiên (bản cũ: dải xanh trắng đều, sọc chéo, nằm như vạch sơn trên đường).
-  - Hình: dòng dò theo dốc địa hình từ mép đường lên núi 230 m / xuống vực 190 m, quán tính + lệch ≤35° so với pháp tuyến
-    đường, uốn lượn theo nhiễu; rộng hẹp không đều, chân thác toả rộng, trên đường loe thành lớp tràn (0.6 × width mỗi bên);
-    đoạn trên cao lúc ẩn lúc hiện. Mặt cắt 9 điểm lấy độ cao thật => nước bám địa hình, trên đường cao hơn nhựa 3.5–5.5 cm.
-  - Shader nước: vách dốc => bọt trắng thành vệt dài + tách nhánh; thoải => nước trong, gợn (bump theo đạo hàm màn hình), vệt bọt
-    mảnh; xoáy bọt ở chỗ dốc giảm đột ngột (chân thác), trên đường bọt tan nhanh. Mép nham nhở. Bọt albedo ~0.62 để không kích
-    bloom (ngưỡng 0.92). polygonOffset −6/−12 (mặt đường −2/−2) + kéo về camera 0.5% khoảng cách.
-  - Lỗi đã gặp: (1) quầng sáng quanh thác = lớp đá ướt PBR phản chiếu trời => đổi sang blend nhân màu; (2) sọc ngang ở chân
-    thác = `along - uTime*speed` khi speed đổi theo dốc => dùng `tau` tích phân; (3) hạt nước bắn bị mặt đường che => kéo 4%.
-  - Đá tảng hai bờ ~90/dòng (dày gần đường, ít trên vách dốc), màu đá ướt; bụi nước chân thác + mép vực (sprite phồng/tan).
-  - Âm thanh: tiếng suối (nhiễu nâu + bọt khí, lệch trái/phải theo camera), tiếng "xoè" khi bánh xe vào lớp nước.
-  - `node scripts/check-waterfalls.mjs` (viết lại): 1000 seed; 10 dòng: lưới hữu hạn, `tau` tăng dần, nước trên nhựa/địa hình
-    (0/2800 mẫu thấp), đá không nằm trên đường, khôi phục `iCar`, chỉ bật ở map núi. Các check khác vẫn đạt.
-  - Ảnh Low: `screenshots/waterfall-road-verified.jpg`, `waterfall-base-verified.jpg`, `waterfall-cliff-verified.jpg`,
-    `waterfall-overview-verified.jpg`, `waterfall-crossing-verified.jpg`, `waterfall-splash-verified.jpg`. Script chụp tạm ở scratchpad (giữ xe/camera cố định),
-    không thêm file preview vào docs. Chưa nghe thử âm thanh thật (máy ảo không có loa) và chưa đo FPS máy thật.
-  - Thấy thêm (chưa sửa): vài **tảng đá của terrain lơ lửng** trên vách núi gần đường (cục đen to ở s≈250).
-
-- **#2** — Giảm lag xe + sửa vùng sáng đèn đường trên dốc + NPC đánh lái thật.
-  - Lag: mỗi NPC từng có 2 SpotLight; NPC hiện/ẩn làm đổi số đèn => three.js biên dịch lại shader mọi vật liệu (khựng) và
-    mỗi pixel phải tính thêm đèn. Nay NPC chỉ có quầng; 1 cặp SpotLight dùng chung luôn trong cảnh (tắt = intensity 0) gắn
-    vào NPC gần nhất. Mật độ: ngược chiều 4–10 s/tối đa 4 → 10–25 s/tối đa 2; cùng chiều 10–30 s/tối đa 2 → 25–60 s/tối đa 1.
-  - Đèn đường: tấm phẳng 24 × 28 m đặt ở độ cao chân cột => ở dốc 6–7% (vd s≈1326 map núi) nửa tấm chìm dưới mặt đường,
-    nửa lơ lửng, mép thẳng cắt vào vách/vực. Nay là lưới bám mặt đường, chỉ phủ mặt đường + lề phẳng, mờ dần ở mép.
-  - Đổi làn: trước đây `d` đổi đều 2.2–8 m/s, thân xe luôn song song tim đường (trượt ngang như robot). Nay có vận tốc ngang
-    tăng/giảm có gia tốc, trần theo tốc độ tiến; thân xe xoay theo hướng chạy thực và bánh trước bẻ lái. Xe lao tới được
-    thấy sớm hơn 1.2 s theo tốc độ của nó để kịp đánh lái từ từ.
-  - `check-traffic.mjs`/`check-traffic-policy.mjs` cập nhật: mật độ mới, pool 3, NPC không có SpotLight riêng, chùm dùng chung
-    = 20.4, xe lao tới được phát hiện sớm 1.2 s; các kịch bản né cũ (200 km/h, xe 180 km/h lao tới…) vẫn không va chạm.
-    Mô phỏng 20 phút (25/50/180 km/h): 0 chồng thân xe, tối đa 3 NPC cùng lúc, yaw tối đa ~19°.
-  - Ảnh Low: `screenshots/streetlight-slope-verified.jpg` (đêm, dốc 7% s≈1326), `npc-lane-change-verified.jpg` (fixture giữ
-    NPC giữa lúc đổi làn: thân xoay −7.8°, bánh trước 14°). Chưa đo FPS máy thật.
-
-- **#3** — Đổi "Trời nắng" → "Trời trong"; bỏ mốc "Giờ vàng". Đèn xe đúng tâm bóng đèn: đo từ model (Mustang: mesh `Headlight_emissive`/
-  `TailLight_emissive`; Divo/Milk Truck: mesh gộp nên đo bằng ảnh chiếu thẳng có lưới + tia tìm mặt kính) => `lamps` trong config,
-  `placeHeadlights` + quầng hậu xe người chơi/NPC dùng chung. Đèn đường: cột ×1.5 (11.1 m), bỏ texture vùng sáng, thay bằng
-  3 SpotLight thật dùng chung (số đèn cố định). Cảnh dừng: cận cảnh châm thuốc ~1.5 s rồi ra toàn cảnh; zoom ở toàn cảnh
-  16 mm → lùi thêm 20 m, zoom vào thì tiến lại 20 m trước rồi mới tăng tới 35 mm (wheel / pinch / phím ± qua `zoomBy` trong main).
-  - Check scripts đạt; logic zoom kiểm bằng script (26→16 mm→+20 m; vào: 20 m→0 rồi 16→35 mm). Ảnh đèn đường đêm Low (dốc s≈1206)
-    đã xem. **Chưa chạy thử cảnh dừng xe trên máy ảo** (chú dừng lượt thử để chuyển việc khác).
-
-- **#4** — Xe ngựa cổ tích bay bên phải đường (`src/carriage.js`, gọi trong main sau traffic). Model chú tải lên
-  `docs/assets/xe ngua co tich 1K.glb` (11 MB, PNG, 3 mesh skinned, animation phi 0.54 s) => nén bằng
-  `npx @gltf-transform/cli@4 webp … --quality 82` rồi `meshopt` ra `docs/assets/models/carriage.glb` (1.6 MB, giữ animation;
-  file gốc giữ nguyên). Model đầu ngựa hướng +Z => xoay 180°; vật liệu gốc BLEND => đổi sang alphaTest 0.4 (tránh tự che sai).
-  Mây bụi dưới bánh/vó là một phần model (trông như mây khi bay). Chiếc đầu xuất hiện ~4 s sau khi tải xong.
-  - Ảnh Low `screenshots/carriage-verified.jpg` (fixture giữ xe ngựa cách 22 m phía trước, camera sau xe). Chưa xem ban đêm / cận cảnh.
-
-- **#5** — Xe ngựa chạy trên đường như NPC (bỏ bay 3 m): nhập vào traffic.js. Đèn đường giảm 80% (700 → 140).
-  - Sửa lỗi cũ lộ ra khi xe mình vượt nhiều hơn: làn sinh xe theo `playerD` tức thời => đang vượt sang trái thì xe ngược
-    chiều sinh ngay trong làn mình => kẹt đối đầu vĩnh viễn. Nay theo làn nhà `_homeLane()` (`playerHome`).
-  - Xe ngựa cùng chiều chỉ khi chênh tốc độ > 3 m/s; cùng chiều đi trước quá 400 m thì gỡ (tránh lởn vởn chiếm chỗ).
-  - Mô phỏng 20 phút (25/50/180 km/h, có xe ngựa): 0 chồng thân xe, 30/48/54 lượt xe ngựa, xe mình giữ đúng tốc độ.
-    `check-traffic-policy.mjs` thêm kiểm tra xe ngựa. Ảnh `screenshots/carriage-verified.jpg` (fixture giữ cách 16 m).
-
-- **#6** — Map "Biển" từ model chú tải lên `docs/assets/models/ocean_scene_animated.glb` (12.9 MB, lưới 101×101, 100 morph
-  target = 100 khung sóng, chỉ dịch theo chiều đứng, chu kỳ 8.333 s). Bake ra atlas 1000×1000 RGB (2.6 MB): game không tải
-  file .glb. Ô sóng gốc không lặp liền (mép lệch ~0.18 m) => trộn 4 mẫu lệch nửa ô. Sóng −1.32..+1.75 m.
-  - Ảnh Low ban ngày: `screenshots/sea-map-chase.jpg`, `sea-map-drone.jpg`, `sea-map-side.jpg`. Chưa xem đêm / mưa / trong xe;
-    lặp vân sóng còn thấy được khi nhìn từ trên cao. Các check scripts vẫn đạt.
-
-- **#7** — Cảnh dừng xe: bỏ góc cận hút thuốc. Người vừa bước ra khỏi xe (2.25 s của cảnh bước ra) thì camera lùi ra toàn cảnh
-  quay quanh xe, đồng thời tự zoom ra xa hết cỡ trong 5 s (một thang liên tục: 26 → 16 mm rồi lùi thêm 20 m, ease). Người dùng
-  zoom thì dừng zoom tự động. Kiểm bằng script dòng thời gian (t=2.25 bắt đầu, t≈7.3 đạt 16 mm + 20 m, máy cách xe ~31 m);
-  chưa chạy trên máy ảo. Ghi chú việc chờ: map `landscape_forest__mountains.glb` (hỏi chú trước khi làm).
-
-- **#8** — Vách núi map núi lồi lõm lớn và nhiều hơn (trước đây vách đều tăm tắp: chỗ cao 15 m luôn cách tim đường đúng 15 m).
-  Thêm vào độ cao phía núi: `rel` = sống đá/khe (ridged 42 m ×42, 16 m ×15) + khối phình 85 m ×34, trọng số từ u 2→18 m;
-  gờ đá bậc 10 m (75%, theo vùng); chân vách sau lề phẳng (HW+1.5 → HW+8) cũng cộng `rel` (âm tối đa −8, kẹp ≥ mặt đường);
-  `_rel` → màu đỉnh ×0.62–1.2 (khe sẫm, sống sáng). Giờ cao 15 m cách tim đường 10–19 m, cao 30 m 13–30 m.
-  - Thác: lấy 13 điểm/mặt cắt (trước 9), nâng mặt nước thêm 0.4 × độ dốc để không chìm giữa các điểm. Check scripts đạt.
-  - Ảnh Low: `screenshots/cliff-before.jpg` → `cliff-after.jpg`, `cliff-after-wall.jpg`. Lưu ý chụp: phải `terrain.prime()`
-    sau khi dời xe, không thì ô địa hình gần vẫn là ô thô (trông phẳng).
-
-- **#9** — Map Biển hết giật: (1) animation sóng gốc không lặp (khung 99→0 lệch RMS 0.75 m, gấp ~6 lần hai khung liền nhau)
-  => mặt biển nhảy mỗi 8.3 s. `bake-ocean.mjs` trộn chéo 24 khung cuối vào đầu (chuẩn hoá phương sai giữ biên độ) => 76 khung,
-  chỗ nối lệch bằng hai khung thường. (2) lưới tròn bám camera làm đỉnh trượt trên sóng (rung/trôi) => lưới vuông đều nắn theo
-  bước. (3) Sóng to hơn (ô 54 m, cao ×1.3, chậm √2) + mipmap theo khoảng cách bớt lấp lánh. Máy ảo Low: biển 590 ms/khung,
-  núi 647 (không nặng hơn). Ảnh `screenshots/sea-map-chase.jpg`, `sea-map-drone.jpg`. Chưa xem chuyển động trên máy thật.
+- Đã tóm tắt tới commit `80923c3` + bản sửa giật biển lần 2 (commit ngay sau đó: nội suy khung bù chuyển động, 2 lớp sóng lệch
+  nửa vòng mờ còn 30% ở chỗ nối, bọt theo thời gian liên tục, điểm tim đường nắn bước 12 m).

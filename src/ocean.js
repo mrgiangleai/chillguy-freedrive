@@ -13,6 +13,13 @@ import { withMist } from './mist.js';
 const SCALE = 2, HSCALE = 1.3;
 const TILE = 27.119 * SCALE, H0 = -1.317 * HSCALE, H1 = 1.754 * HSCALE, SLOPE = 0.8 * HSCALE / SCALE;
 const FRAMES = 76, COLS = 10, ROWS = 8, PERIOD = 6.333 * Math.SQRT2;
+// sóng trong model trôi đều ~(−0.5, +2.25) điểm ảnh mỗi khung (đo bằng tương quan giữa các khung liền nhau): nội suy giữa
+// hai khung phải DỜI theo hướng trôi, không thì đỉnh sóng mờ đi rồi hiện ở chỗ mới (trông giật ~8 lần/giây)
+const DRIFT = [-0.5 / 99, 2.25 / 99];
+// "ẩn hiện" chỗ nối vòng lặp: hai lớp sóng lệch nhau nửa vòng; mỗi lớp mờ xuống 30% đúng lúc nó quay về khung đầu,
+// lớp kia đang ở giữa vòng (100%) che đi => không thấy điểm nối. Trộn giữ biên độ (chia √(wA² + wB²) quanh giá trị giữa)
+const SEAM_MIN = 0.3;
+const WAVE_VER = 3;                                                  // đổi khi bake lại atlas (tránh trình duyệt dùng ảnh cũ)
 const STEP = 1.5, INNER = 120, OUTER = 400, OSTEP = 8, FAR_R = 6000;   // lưới gần / vành giữa / vành xa (m)
 const CARVE0 = ROAD.halfWidth + 1.2, CARVE1 = ROAD.halfWidth + 16;   // khớp terrain.js (đê đường thoải xuống đáy biển)
 export const SEA_BED = 7;                                            // đáy biển thấp hơn mặt nước (m)
@@ -49,7 +56,7 @@ function farGeometry() {
 
 const WAVE = `
 uniform sampler2D uWave;
-uniform float uFrame, uSea, uLod;
+uniform float uFrame, uFrameB, uWA, uWB, uSea, uLod, uT;
 uniform vec3 uCamW;
 uniform vec3 uRoad[${ROAD_N}];
 const float TILE = ${TILE.toFixed(3)};
@@ -60,9 +67,14 @@ vec3 waveFrame(vec2 uv, float f) {
   vec2 o = vec2(mod(f, ${COLS}.0), floor(f / ${COLS}.0));
   return textureLod(uWave, (o * 100.0 + 0.5 + c * 99.0) / vec2(${COLS * 100}.0, ${ROWS * 100}.0), oLod).rgb;
 }
+// một lớp: giữa khung f0 và f1, dời mẫu theo hướng trôi (bù chuyển động) rồi mới trộn
+vec3 waveLayer(vec2 uv, float fr) {
+  float f0 = floor(fr), t = fr - f0, f1 = mod(f0 + 1.0, ${FRAMES}.0);
+  vec2 v = vec2(${DRIFT[0].toFixed(5)}, ${DRIFT[1].toFixed(5)});
+  return mix(waveFrame(uv - v * t, f0), waveFrame(uv + v * (1.0 - t), f1), t);
+}
 vec3 waveOne(vec2 uv) {
-  float f0 = floor(uFrame), t = uFrame - f0, f1 = mod(f0 + 1.0, ${FRAMES}.0);
-  return mix(waveFrame(uv, f0), waveFrame(uv, f1), t);
+  return 0.5 + ((waveLayer(uv, uFrame) - 0.5) * uWA + (waveLayer(uv, uFrameB) - 0.5) * uWB) / sqrt(uWA * uWA + uWB * uWB);
 }
 // (độ cao, dh/dx, dh/dz) tại điểm thế giới p (xz)
 vec3 waveAt(vec2 p) {
@@ -110,7 +122,8 @@ function oceanMaterial(u) {
         oLod = clamp(log2(camD * camD / uLod), 0.0, 2.5);           // xa / nhìn xiên: mipmap thô hơn (atlas khung 100 px => tối đa ~2.5)
         vec3 wv = waveAt(vOW.xz);
         float crest = smoothstep(0.55, 1.0, (wv.x - ${H0.toFixed(3)}) / ${(H1 - H0).toFixed(3)}) * (1.0 - smoothstep(60.0, 200.0, camD));
-        float n = oNoise(vOW.xz * 0.9 + uFrame * 0.05) * 0.6 + oNoise(vOW.xz * 2.7 - uFrame * 0.08) * 0.4;
+        // bọt trôi theo thời gian liên tục (trước dùng uFrame => bọt nhảy mỗi lần vòng sóng quay về đầu)
+        float n = oNoise(vOW.xz * 0.9 + uT * 0.45) * 0.6 + oNoise(vOW.xz * 2.7 - uT * 0.7) * 0.4;
         float dep = mix(20.0, vDepth, vShore);
         float shallow = 1.0 - smoothstep(0.5, 6.0, dep);
         // bọt: ven bờ (nước rất nông, vỗ theo nhịp sóng) + đầu ngọn sóng cao
@@ -137,13 +150,13 @@ export class Ocean {
     scene.add(this.group);
     this.level = 0;
     this.roadPts = Array.from({ length: ROAD_N }, () => new THREE.Vector3());
-    this.u = { uWave: { value: null }, uFrame: { value: 0 }, uSea: { value: 0 }, uLod: { value: 3000 }, uCamW: { value: new THREE.Vector3() }, uRoad: { value: this.roadPts } };
+    this.u = { uWave: { value: null }, uFrame: { value: 0 }, uFrameB: { value: 0 }, uWA: { value: 1 }, uWB: { value: 0 }, uT: { value: 0 }, uSea: { value: 0 }, uLod: { value: 3000 }, uCamW: { value: new THREE.Vector3() }, uRoad: { value: this.roadPts } };
     this.material = null;
     this._p = {};
   }
 
   _build() {
-    const tex = new THREE.TextureLoader().load('assets/tex/ocean-waves.png');
+    const tex = new THREE.TextureLoader().load('assets/tex/ocean-waves.png?v=' + WAVE_VER);
     tex.colorSpace = THREE.NoColorSpace;
     tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter;
     this.u.uWave.value = tex;
@@ -169,11 +182,18 @@ export class Ocean {
     // nắn theo bước lưới gần: đỉnh lưới luôn ở toạ độ thế giới cố định => sóng không trôi / rung khi camera di chuyển
     this.group.position.set(Math.round(cam.x / STEP) * STEP, this.level, Math.round(cam.z / STEP) * STEP);
     const u = this.u;
-    u.uFrame.value = ((time / PERIOD) % 1) * FRAMES;
+    const ph = (time / PERIOD) % 1, sA = Math.sin(Math.PI * ph) ** 2;
+    u.uFrame.value = ph * FRAMES;
+    u.uT.value = time % 1000;
+    u.uFrameB.value = ((ph + 0.5) % 1) * FRAMES;
+    u.uWA.value = SEAM_MIN + (1 - SEAM_MIN) * sA;            // lớp A: 30% ở chỗ nối của nó (ph = 0), 100% giữa vòng
+    u.uWB.value = SEAM_MIN + (1 - SEAM_MIN) * (1 - sA);      // lớp B: ngược lại
     u.uSea.value = this.level;
     u.uCamW.value.copy(cam);
     u.uLod.value = 1500 * Math.max(1, (cam.y - this.level) / 3);   // camera cao: nhìn bớt xiên => mipmap mịn hơn
     const p = this._p;
-    for (let k = 0; k < ROAD_N; k++) { road.at(Math.max(0, s + (k - 13) * ROAD_GAP), p); this.roadPts[k].set(p.x, p.y, p.z); }
+    // điểm tim đường nắn theo bước 12 m (cố định trên đường) => dải nước nông / bọt ven đê không "thở" theo xe
+    const s0 = Math.round(s / ROAD_GAP) * ROAD_GAP;
+    for (let k = 0; k < ROAD_N; k++) { road.at(Math.max(0, s0 + (k - 13) * ROAD_GAP), p); this.roadPts[k].set(p.x, p.y, p.z); }
   }
 }
