@@ -45,6 +45,9 @@ export class StopScene {
     this.orbitA = null;
     this.cyc = { t: 0, n: 0, rest: 3 };     // nhịp hút thuốc
     this.mouthCorr = new THREE.Vector3();
+    this.wd = { mode: 'idle', t: 0, dur: 4, face: null, target: new THREE.Vector3() };   // đi lanh quanh
+    this.lk = { t: 0, ty: 0, tp: 0, y: 0, p: 0 };                                           // quay đầu nhìn quanh
+    this._q1 = new THREE.Quaternion(); this._q2 = new THREE.Quaternion(); this._q3 = new THREE.Quaternion(); this._q4 = new THREE.Quaternion();
     this._pole = new THREE.Vector3();
     this._A = new THREE.Vector3(); this._O = new THREE.Vector3(); this._H = new THREE.Vector3(); this._t1 = new THREE.Vector3(); this._t2 = new THREE.Vector3();
     this.orbitA = 0;
@@ -85,9 +88,15 @@ export class StopScene {
   toggle(speed) {
     if (this.state === 'off') {
       this.state = 'stopping'; this.t = 0; this.v0 = Math.max(speed, 0.5); this.stopT = -1; this.smokeU = -1; this.handW = 0;
+      this.wd.mode = 'idle'; this.wd.t = 0; this.wd.dur = 3 + Math.random() * 3; this.wd.face = null; this.lk.t = 1;
       return true;
     }
-    if (this.state === 'parked') { this.state = 'enter'; this.t = 0; return true; }
+    if (this.state === 'parked') {
+      // quay lại xe từ chỗ đang đứng (đã đi lanh quanh)
+      this.stand.copy(this.person.root.position);
+      this.enterYaw = this.person.root.rotation.y;
+      this.state = 'enter'; this.t = 0; return true;
+    }
     return false;
   }
 
@@ -119,9 +128,12 @@ export class StopScene {
       this._exit(dim, dt);
     } else if (this.state === 'enter') {
       this._enter(dim, dt);
+    } else if (this.state === 'parked' && this.smokeU > 3.4) {
+      this._wander(dt, dim);
     }
     if (this.smokeU >= 0 && this.state !== 'enter') this._smoke(dt);
     this._hand();
+    this._look(dt);
     if (this.state !== 'stopping') this._camera(dt, carRoot);
     else { cam.pos.copy(P); carRoot.localToWorld(cam.pos); cam.look.copy(L); carRoot.localToWorld(cam.look); }
   }
@@ -279,6 +291,82 @@ export class StopScene {
     sm.exhale = q > 0.6 && q < 1.6;                                                               // nhả khói
   }
 
+  // đi lanh quanh trước đầu xe (trong vòng 10 m quanh chỗ dừng): đứng nhìn quanh vài giây, thỉnh thoảng đi vài bước
+  // tới chỗ khác rồi lại đứng; mọi thứ ngẫu nhiên. Chỉ đi trong làn của mình + lề phải (tránh xe chạy ngược chiều).
+  _wander(dt, dim) {
+    const p = this.person, root = p.root, w = this.wd;
+    w.t += dt;
+    if (w.mode === 'idle') {
+      p.play('Idle_Loop', 0.4);
+      if (w.face !== null) root.rotation.y = lerpAng(root.rotation.y, w.face, Math.min(1, dt * 1.6));   // xoay người tại chỗ
+      if (w.t > w.dur) {
+        w.t = 0;
+        if (Math.random() < 0.6 && this._pickTarget(dim)) { w.mode = 'walk'; return; }
+        w.dur = 3 + Math.random() * 6;
+        w.face = Math.random() < 0.5 ? root.rotation.y + (Math.random() - 0.5) * 1.6 : null;
+      }
+      return;
+    }
+    // đi thong thả tới điểm đích, mặt quay dần theo hướng đi
+    p.play('Walk_Loop', 0.35, { timeScale: 0.85 });
+    const d = this._t1.subVectors(w.target, root.position).setY(0);
+    const dist = d.length();
+    const want = Math.atan2(d.x, d.z);
+    root.rotation.y = lerpAng(root.rotation.y, want, Math.min(1, dt * 4));
+    const facing = Math.cos(root.rotation.y - want);
+    const step = Math.min(dist, WALK * 0.8 * dt * Math.max(0, facing));
+    root.position.addScaledVector(d.normalize(), step);
+    if (dist < 0.05) {
+      w.mode = 'idle'; w.t = 0; w.dur = 3 + Math.random() * 7;
+      // đứng lại: hay nhìn ra phía bên phải (thung lũng / cánh đồng), đôi khi nhìn xe hoặc nhìn dọc đường
+      const r = Math.random();
+      w.face = r < 0.5 ? FACE_CAR + (Math.random() - 0.5) * 0.9 : r < 0.75 ? FACE_REAR + (Math.random() - 0.5) * 1.2 : FACE_FRONT + (Math.random() - 0.5) * 1.2;
+    }
+  }
+
+  // chọn điểm đến ngẫu nhiên cách 1.5–4.5 m, trước đầu xe, trong vòng 10 m quanh chỗ dừng
+  _pickTarget(dim) {
+    const pos = this.person.root.position, w = this.wd;
+    const zMax = -dim.length / 2 - 0.9, zMin = -dim.length / 2 - 8;
+    for (let i = 0; i < 12; i++) {
+      const a = Math.random() * Math.PI * 2, r = 1.5 + Math.random() * 3;
+      const x = pos.x + Math.sin(a) * r, z = pos.z + Math.cos(a) * r;
+      if (x < -1.3 || x > 2.8 || z > zMax || z < zMin || Math.hypot(x, z) > 9.5) continue;
+      w.target.set(x, 0, z);
+      return true;
+    }
+    return false;
+  }
+
+  // quay đầu nhìn quanh (lên trời, sang hai bên) — ngẫu nhiên, mượt; khi đưa thuốc lên miệng thì nhìn thẳng
+  _look(dt) {
+    const p = this.person, l = this.lk;
+    if (!p.head) return;
+    const free = this.state === 'parked' && this.smokeU > 3.4;
+    if (free && (l.t -= dt) <= 0) {
+      l.t = 1.5 + Math.random() * 3.5;
+      const r = Math.random();
+      if (r < 0.25) { l.ty = (Math.random() - 0.5) * 0.4; l.tp = 0.35 + Math.random() * 0.25; }     // ngước nhìn trời
+      else if (r < 0.75) { l.ty = (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.45); l.tp = (Math.random() - 0.4) * 0.2; }   // nhìn sang bên
+      else { l.ty = (Math.random() - 0.5) * 0.3; l.tp = (Math.random() - 0.5) * 0.15; }               // nhìn thẳng
+    }
+    const keep = free ? 1 - this.smoking.atMouth : 0;
+    const k = Math.min(1, dt * 2.2);
+    l.y += (l.ty * keep - l.y) * k; l.p += (l.tp * keep - l.p) * k;
+    if (Math.abs(l.y) + Math.abs(l.p) < 1e-3) return;
+    // xoay cổ + đầu (chia đôi) quanh trục đứng và trục ngang của người, ghi đè lên tư thế animation
+    p.root.updateMatrixWorld(true);
+    const right = this._t2.set(1, 0, 0).applyQuaternion(p.root.getWorldQuaternion(this._q1));
+    this._q2.setFromAxisAngle(UP, l.y * 0.5).multiply(this._q3.setFromAxisAngle(right, -l.p * 0.5));
+    for (const b of [p.neck, p.head]) {
+      if (!b) continue;
+      b.getWorldQuaternion(this._q1);
+      b.parent.getWorldQuaternion(this._q4);
+      b.quaternion.copy(this._q4.invert().multiply(this._q2.clone().multiply(this._q1)));
+      b.updateMatrixWorld(true);
+    }
+  }
+
   // áp IK tay phải (sau khi animation đã đặt tư thế). Khuỷu tay chĩa chéo ra ngoài: đưa lên miệng thì ra ngang - xuống,
   // buông cạnh hông thì ra sau - ngoài => cánh tay không gập vào thân / xuyên qua ngực
   _hand() {
@@ -299,7 +387,7 @@ export class StopScene {
     if (t < 0.6) {
       p.play('Idle_Loop', 0.3);
       root.position.copy(this.stand);
-      root.rotation.y = lerpAng(FACE_CAR, Math.atan2(this.corner.x - this.stand.x, this.corner.z - this.stand.z), ease(t / 0.6));
+      root.rotation.y = lerpAng(this.enterYaw ?? FACE_CAR, Math.atan2(this.corner.x - this.stand.x, this.corner.z - this.stand.z), ease(t / 0.6));
       return;
     }
     const tWalk = 0.6, d2 = this.stand.distanceTo(this.corner) / WALK, d1 = this.corner.distanceTo(this.out) / WALK, dWalk = d1 + d2;

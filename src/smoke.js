@@ -147,11 +147,11 @@ export class Smoke {
     const v = this._d;
     // khói mảnh từ đầu thuốc
     if (lit) {
-      this.emitTip += dt * (sm.drag ? 16 : 9);
+      this.emitTip += dt * (sm.drag ? 16 : 12);
       while (this.emitTip >= 1) {
         this.emitTip -= 1;
         v.set(wx * 0.3 + (Math.random() - 0.5) * 0.03, 0.16 + Math.random() * 0.06, wz * 0.3 + (Math.random() - 0.5) * 0.03);
-        this._spawn(this.tip, v, 2.6 + Math.random(), 0.02, 0.17, 0.2, 0.2);
+        this._spawn(this.tip, v, 2.8 + Math.random(), 0.022, 0.2, 0.3, 0.2);   // khói đầu thuốc (cả lúc không rít)
       }
     }
     // nhả khói từ miệng: luồng phả ra trước rồi chậm lại, loang to

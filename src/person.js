@@ -34,6 +34,7 @@ export class Person {
     });
     this.tilt.add(model);
     this.head = model.getObjectByName('Head');
+    this.neck = model.getObjectByName('neck_01');
     const bone = (n) => model.getObjectByName(n);
     this.arms = { l: ['upperarm_l', 'lowerarm_l', 'hand_l'].map(bone), r: ['upperarm_r', 'lowerarm_r', 'hand_r'].map(bone) };
     if (this.arms.l.some((b) => !b)) this.arms.l = null;
