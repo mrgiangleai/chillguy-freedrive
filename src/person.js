@@ -93,9 +93,10 @@ export class Person {
 
   update(dt) { if (this.mixer && this.root.visible) this.mixer.update(dt); }
 
-  // IK 2 xương: đưa cổ tay (side 'l' | 'r') tới `target` (toạ độ thế giới); khuỷu tay giữ hướng như animation.
+  // IK 2 xương: đưa cổ tay (side 'l' | 'r') tới `target` (toạ độ thế giới); khuỷu tay giữ hướng như animation,
+  // hoặc chĩa theo `pole` (hướng thế giới, vd. ra ngoài - xuống dưới) nếu có.
   // Gọi sau mixer.update (animation ghi đè lại mỗi khung hình).
-  reach(side, target) {
+  reach(side, target, pole = null) {
     const arm = this.arms?.[side];
     if (!arm) return;
     const [up, lo, hand] = arm;
@@ -106,10 +107,11 @@ export class Person {
     dir.multiplyScalar(1 / d);
     d = Math.min(Math.max(d, Math.abs(a - c) + 1e-3), a + c - 1e-3);
     const cosA = (a * a + d * d - c * c) / (2 * a * d), sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
-    const pole = _P.subVectors(E, S).addScaledVector(dir, -_P.dot(dir));
-    if (pole.lengthSq() < 1e-8) pole.set(0, -1, 0);
-    pole.normalize();
-    const E2 = _E2.copy(S).addScaledVector(dir, a * cosA).addScaledVector(pole, a * sinA);
+    const pv = pole ? _P.copy(pole) : _P.subVectors(E, S);
+    pv.addScaledVector(dir, -pv.dot(dir));
+    if (pv.lengthSq() < 1e-8) pv.set(0, -1, 0);
+    pv.normalize();
+    const E2 = _E2.copy(S).addScaledVector(dir, a * cosA).addScaledVector(pv, a * sinA);
     turn(up, _A.subVectors(E, S).normalize(), _B.subVectors(E2, S).normalize());
     up.updateMatrixWorld(true);
     lo.getWorldPosition(E); hand.getWorldPosition(W);

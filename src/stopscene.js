@@ -39,6 +39,7 @@ export class StopScene {
     this.handW = 0;
     this.handT = new THREE.Vector3();
     this.closeK = 0;                        // 0 = trung cảnh, 1 = cận cảnh miệng + điếu thuốc
+    this._pole = new THREE.Vector3();
     this._A = new THREE.Vector3(); this._O = new THREE.Vector3(); this._H = new THREE.Vector3(); this._t1 = new THREE.Vector3(); this._t2 = new THREE.Vector3();
     this.orbitA = 0;
     this.orbitT = 0;
@@ -238,11 +239,14 @@ export class StopScene {
     sm.exhale = q > 0.6 && q < 1.6;                                                             // nhả khói
   }
 
-  // áp IK tay phải (sau khi animation đã đặt tư thế)
+  // áp IK tay phải (sau khi animation đã đặt tư thế). Khuỷu tay chĩa chéo ra ngoài: đưa lên miệng thì ra ngang - xuống,
+  // buông cạnh hông thì ra sau - ngoài => cánh tay không gập vào thân / xuyên qua ngực
   _hand() {
     if (this.handW <= 0.001 || !this.person.arms?.r) return;
+    const sm = this.smoking, m = sm.atMouth;
+    const pole = this._pole.copy(sm.R).multiplyScalar(0.55 + 0.35 * m).addScaledVector(sm.F, -0.65 * (1 - m) + 0.1 * m).addScaledVector(UP, -0.35 - 0.2 * m);
     const A = this.person.arms.r[2].getWorldPosition(this._A);
-    this.person.reach('r', A.lerp(this.handT, this.handW));
+    this.person.reach('r', A.lerp(this.handT, this.handW), pole);
   }
 
   _enter(dim, dt) {
