@@ -461,7 +461,12 @@ export class Environment {
     su.uMoonDir.value.copy(moonDir);
     su.uMoon.value = moonUp * clamp(1 - over * 1.05, 0, 1) * (1 - dk);
     // ban đêm phơi sáng nhiều hơn (mắt quen bóng tối) => cảnh dưới trăng rõ hơn
-    this.renderer.toneMappingExposure = (0.5 + 0.12 * warm) * (1 - 0.5 * dk) * (1 + 0.3 * night);
+    // nắng gắt (mặt trời cao, trời quang): cân bằng như máy ảnh thật — nắng trực tiếp mạnh hơn hẳn ánh trời
+    // (nắng : trời ≈ 4–5 : 1 trên mặt phẳng), phơi sáng giảm theo => vùng nắng giữ độ sáng, bóng râm sâu hơn,
+    // bầu trời / phản chiếu trên xe bớt trắng loá. Không ảnh hưởng hoàng hôn / trời âm u / ban đêm.
+    const sunK = sstep(3, 22, e) * clamp((w.sun - 0.3) / 0.7, 0, 1) * (1 - dk);
+    this.state.sunK = sunK;
+    this.renderer.toneMappingExposure = (0.5 + 0.12 * warm) * (1 - 0.5 * dk) * (1 + 0.3 * night) * (1 - 0.3 * sunK);
 
     // ---- màu sương xa = đúng màu hiển thị của chân trời (liền mạch đất - trời) ----
     // (màu tuyến tính = đúng radiance chân trời; fogC = màu hiển thị của nó, dùng cho ánh sáng nền)
@@ -491,7 +496,7 @@ export class Environment {
       this.sun.intensity = 0.38 * moonUp * (1 - 0.8 * over) * (1 - dk);
       this.sun.color.copy(C_MOON);
     } else {
-      this.sun.intensity = 3.4 * sstep(-2, 9, e) * w.sun;
+      this.sun.intensity = 3.4 * sstep(-2, 9, e) * w.sun * (1 + 1.3 * sunK);
       this.sun.color.copy(C_SUN_DAY).lerp(C_SUN_LOW, clamp(warm * 1.3, 0, 1));
     }
     if (focus) {
@@ -500,7 +505,7 @@ export class Environment {
     }
     this.hemi.color.copy(fogC).lerp(this._c.set('#6f8cd0'), night * 0.75).lerp(this._c.set('#c4d4ff'), flash);
     this.hemi.groundColor.set('#3a4630').multiplyScalar(0.25 + 0.75 * dayF);
-    this.hemi.intensity = (0.16 + 0.45 * dayF + 0.34 * night) * (1 - 0.4 * over) * (1 - 0.35 * dk) + flash * 3.2;
+    this.hemi.intensity = (0.16 + 0.45 * dayF + 0.34 * night) * (1 - 0.4 * over) * (1 - 0.35 * dk) * (1 - 0.45 * sunK) + flash * 3.2;
 
     // ---- đồ vật trên trời bám theo camera ----
     this.sky.position.copy(cam);
@@ -565,7 +570,7 @@ export class Environment {
     this.envTimer -= dt;
     if (this.envTimer <= 0) {
       // lượng tử hoá thô: lúc đổi thời tiết chỉ chụp lại vài lần thay vì liên tục
-      const key = [e.toFixed(1), Math.round(over * 12), Math.round(dk * 12)].join('|');
+      const key = [e.toFixed(1), Math.round(over * 12), Math.round(dk * 12), Math.round(sunK * 10)].join('|');
       if (key !== this.envKey || !this.envRT) {
         this.envKey = key;
         this._captureEnv();
@@ -585,7 +590,7 @@ export class Environment {
     // ánh sáng nền từ bầu trời: sáng hơn bầu trời hiển thị (giống bầu trời thật toả sáng khắp nơi)
     const su = this.skyMat.uniforms;
     const disc = su.uDisc.value;
-    su.uScale.value = 2.1;
+    su.uScale.value = 2.1 * (1 - 0.5 * (this.state.sunK || 0));   // nắng gắt: ánh trời bớt lấn át nắng trực tiếp
     su.uDisc.value = Math.min(disc, 4);
     const rt = this.pmrem.fromScene(this.envScene, 0, 1, 3000);
     // bản riêng cho xe: trời đúng độ sáng thật + mặt đất tối phía dưới

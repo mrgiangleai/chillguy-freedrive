@@ -11,9 +11,12 @@
 // basicMetal: thay mọi vật liệu (trừ kính) bằng kim loại cơ bản với thông số này
 // door    : regex tên node cửa tài xế (tách sẵn trong model) để mở cửa khi dừng xe
 export const CARS = [
-  { id: 'mustang', name: "Mustang '67", file: 'assets/models/mustang.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true, door: /^DriverDoor/,
+  { id: 'mustang', name: "Mustang '67 Đen", file: 'assets/models/mustang.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true, door: /^DriverDoor/,
     wheels: /^(Wheel|BrakeDisc)/,   // vành + đĩa phanh quay; lốp (dựng bẹt ở đáy) đứng yên
-    mats: { Interior: { metalness: 0, roughness: 0.62 }, BlackPolished: { roughness: 0.18 }, Paint: { clearcoatRoughness: 0.08 } },
+    // sơn đen bóng: lớp màu gần như đen, không ánh kim, không phản xạ riêng — phản chiếu chỉ đến từ lớp phủ bóng (~4% => không loá);
+    // vành bánh bớt lớp phủ bóng cho đỡ chói dưới nắng
+    mats: { Interior: { metalness: 0, roughness: 0.62 }, BlackPolished: { roughness: 0.18 },
+      Paint: { color: 0x151619, metalness: 0, roughness: 0.42, specularIntensity: 0, clearcoat: 1, clearcoatRoughness: 0.07 }, Wheel: { clearcoat: 0.25 } },
     steer: { c: [-0.385, 0.883, -0.155], n: [0, 0.338, 0.941], r: 0.17 }, steerMesh: /^(Torus\.?001|Cube\.?009)/ },   // vành + cốt giữa   // vô lăng: tâm, pháp tuyến (hướng về người lái), bán kính vành
   { id: 'mustang-blue', name: "Mustang '67 Xanh", file: 'assets/models/mustang-blue.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true, door: /^DriverDoor/,
     wheels: /^(Wheel|BrakeDisc)/,   // vành + đĩa phanh quay; lốp (dựng bẹt ở đáy) đứng yên

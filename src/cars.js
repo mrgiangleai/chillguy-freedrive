@@ -167,7 +167,8 @@ export class Cars {
         if (m.transparent && m.opacity < 0.9) glass = true;
         if (glass && !m.userData.glass) glassReflect(m);
         if (def.doubleSide && !m.transparent) m.side = THREE.DoubleSide;   // model thiếu mặt trong (mui, cột A) => nhìn từ trong xe vẫn thấy
-        if (def.mats && def.mats[m.name]) Object.assign(m, def.mats[m.name]);   // sửa vật liệu bị chuyển đổi sai
+        // sửa vật liệu bị chuyển đổi sai / đổi màu sơn (màu ghi dạng mã hex sRGB)
+        if (def.mats && def.mats[m.name]) for (const [k, v] of Object.entries(def.mats[m.name])) { if (m[k]?.isColor) m[k].set(v); else m[k] = v; }
         if (/tail|brake|emissivered|rear.?light/i.test(m.name) && m.emissive) { m.emissive.set(0xff1a0a); tailMats.push(m); }
         this._env(m);
         withMist(m);
