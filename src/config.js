@@ -10,17 +10,21 @@
 // mats    : sửa thông số vật liệu theo tên (model tải về hay bị gắn sai kim loại / độ bóng)
 // basicMetal: thay mọi vật liệu (trừ kính) bằng kim loại cơ bản với thông số này
 // door    : regex tên node cửa tài xế (tách sẵn trong model) để mở cửa khi dừng xe
+const INTERIOR = { color: 0x0c0c0e, metalness: 0, roughness: 0.3, envK: 0.6 };   // nội thất nhựa / da đen bóng
 export const CARS = [
   { id: 'mustang', name: "Mustang '67 Đen", file: 'assets/models/mustang.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true, door: /^DriverDoor/,
     wheels: /^(Wheel|BrakeDisc)/,   // vành + đĩa phanh quay; lốp (dựng bẹt ở đáy) đứng yên
-    // sơn đen bóng: lớp màu gần như đen, không ánh kim, không phản xạ riêng — phản chiếu chỉ đến từ lớp phủ bóng (~4% => không loá);
-    // vành bánh bớt lớp phủ bóng cho đỡ chói dưới nắng
-    mats: { Interior: { metalness: 0, roughness: 0.62 }, BlackPolished: { roughness: 0.18 },
-      Paint: { color: 0x151619, metalness: 0, roughness: 0.42, specularIntensity: 0, clearcoat: 1, clearcoatRoughness: 0.07 }, Wheel: { clearcoat: 0.25 } },
-    steer: { c: [-0.385, 0.883, -0.155], n: [0, 0.338, 0.941], r: 0.17 }, steerMesh: /^(Torus\.?001|Cube\.?009)/ },   // vành + cốt giữa   // vô lăng: tâm, pháp tuyến (hướng về người lái), bán kính vành
+    // sơn đen bóng: lớp màu gần như đen, không ánh kim, không phản xạ riêng — phản chiếu chỉ đến từ lớp phủ bóng;
+    // envK: phản chiếu môi trường yếu (vùng tối giữ đen, chỉ sáng ở chỗ loé nắng / mép trời). Vành bánh bớt lớp phủ bóng.
+    // Nội thất đen bóng, ghế da nâu (seatMesh), vô lăng da đen (steerMesh) đặt lùi sâu thêm steerShift mét
+    mats: { Interior: INTERIOR, BlackPolished: { roughness: 0.18 },
+      Paint: { color: 0x151619, metalness: 0, roughness: 0.42, specularIntensity: 0, clearcoat: 1, clearcoatRoughness: 0.07, envK: 0.4 }, Wheel: { clearcoat: 0.25 } },
+    seatMesh: /^Cube\.?00[678]/, steerShift: 0.07,
+    steer: { c: [-0.385, 0.883, -0.155], n: [0, 0.338, 0.941], r: 0.17 }, steerMesh: /^(Torus\.?001|Cube\.?009)/ },   // vô lăng: tâm, pháp tuyến (hướng về người lái), bán kính vành; vành + cốt giữa
   { id: 'mustang-blue', name: "Mustang '67 Xanh", file: 'assets/models/mustang-blue.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true, door: /^DriverDoor/,
     wheels: /^(Wheel|BrakeDisc)/,   // vành + đĩa phanh quay; lốp (dựng bẹt ở đáy) đứng yên
-    mats: { Interior: { metalness: 0, roughness: 0.62 }, BlackPolished: { roughness: 0.18 }, Body: { clearcoatRoughness: 0.08 } },
+    mats: { Interior: INTERIOR, BlackPolished: { roughness: 0.18 }, Body: { clearcoatRoughness: 0.08 } },
+    seatMesh: /^Seat/, steerShift: 0.07,
     steer: { c: [-0.385, 0.883, -0.155], n: [0, 0.338, 0.941], r: 0.17 }, steerMesh: /^SteeringWheel/ },   // vô lăng: tâm, pháp tuyến (hướng về người lái), bán kính vành
   { id: 'divo', name: 'Bugatti Divo', file: 'assets/models/bugatti-divo.glb', length: 4.64, flip: true, wheels: /^(4_3|5_17)$/,
     basicMetal: { metalness: 0.6, roughness: 0.38 } },   // vật liệu gốc bị chuyển đổi sai => kim loại bóng nhẹ cơ bản

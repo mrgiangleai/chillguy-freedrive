@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { CARS } from './config.js';
-import { ROAD } from './road.js';
 
 // Xe chạy ngược chiều: thỉnh thoảng (trung bình ~40 s một chiếc, tối đa 2 chiếc cùng lúc) xuất hiện xa phía trước
 // ở làn bên kia rồi chạy ngang qua. Model lấy từ các xe có sẵn (khác xe đang lái), tải ngầm sau khi vào game.
@@ -8,7 +7,7 @@ import { ROAD } from './road.js';
 // Ban đêm: đèn pha / đèn hậu (đốm sáng) + vệt sáng đèn pha trên mặt đường (không dùng đèn thật cho nhẹ).
 const MAX_ACTIVE = 2;
 const SPAWN_AHEAD = 430;
-const LANE = ROAD.halfWidth / 2;
+const LANE = 1.8;                     // xe ngược chiều chạy hơi lệch vào giữa đường (như xe mình)
 
 function poolTexture() {
   const c = document.createElement('canvas');

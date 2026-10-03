@@ -160,6 +160,7 @@ export class Cars {
     model.traverse((o) => {
       if (!o.isMesh) return;
       if (def.steerMesh && def.steerMesh.test(o.name)) o.material = leatherMaterial();   // vô lăng bọc da đen
+      if (def.seatMesh && def.seatMesh.test(o.name)) o.material = leatherMaterial(0x5a3820, 0.52);   // ghế da nâu
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       let glass = false;
       for (const m of mats) {
@@ -168,7 +169,11 @@ export class Cars {
         if (glass && !m.userData.glass) glassReflect(m);
         if (def.doubleSide && !m.transparent) m.side = THREE.DoubleSide;   // model thiếu mặt trong (mui, cột A) => nhìn từ trong xe vẫn thấy
         // sửa vật liệu bị chuyển đổi sai / đổi màu sơn (màu ghi dạng mã hex sRGB)
-        if (def.mats && def.mats[m.name]) for (const [k, v] of Object.entries(def.mats[m.name])) { if (m[k]?.isColor) m[k].set(v); else m[k] = v; }
+        if (def.mats && def.mats[m.name]) {
+          for (const [k, v] of Object.entries(def.mats[m.name])) {
+            if (k === 'envK') m.userData.envK = v; else if (m[k]?.isColor) m[k].set(v); else m[k] = v;
+          }
+        }
         if (/tail|brake|emissivered|rear.?light/i.test(m.name) && m.emissive) { m.emissive.set(0xff1a0a); tailMats.push(m); }
         this._env(m);
         withMist(m);
@@ -184,13 +189,25 @@ export class Cars {
     const shield = windshield(glassMeshes, dim);
     const wipers = wiperRig(car, model, shield);
     const screen = screenPose(car, dim);
-    return { def, group: car, dim, wheels, door, tailMats, wipers, shield, screen, anim: null };
+    // vô lăng lùi sâu vào trong (dọc trục cột lái) => tay cầm vành thấy rõ ngón cái
+    let steer = def.steer;
+    if (steer && def.steerShift) {
+      const n = new THREE.Vector3(...steer.n), v = new THREE.Vector3(), movers = [];
+      model.traverse((o) => { if (def.steerMesh.test(o.name) && o.isMesh) movers.push(o); });
+      for (const o of movers) {
+        o.getWorldPosition(v).addScaledVector(n, -def.steerShift);
+        o.parent.worldToLocal(v);
+        o.position.copy(v);
+      }
+      steer = { ...steer, c: new THREE.Vector3(...steer.c).addScaledVector(n, -def.steerShift).toArray() };
+    }
+    return { def, group: car, dim, wheels, door, tailMats, wipers, shield, screen, steer, anim: null };
   }
 
   // môi trường phản chiếu riêng cho xe (có mặt đất tối), cập nhật mỗi lần bầu trời được chụp lại
   _env(m) {
     m.envMap = this.envMap;
-    m.envMapIntensity = this.envMap ? 1 : 0.5;     // chưa có: dùng env chung (sáng gấp ~2 lần trời thật)
+    m.envMapIntensity = (this.envMap ? 1 : 0.5) * (m.userData.envK ?? 1);   // chưa có: dùng env chung (sáng gấp ~2 lần trời thật)
   }
 
   setEnvMap(tex) {
@@ -498,11 +515,12 @@ function wiperRig(car, model, sh) {
   return rig;
 }
 
-// da đen có vân sần (vân nổi tạo bằng nhiễu theo toạ độ của chính vật => không trôi khi xe chạy)
-let _leather = null;
-function leatherMaterial() {
-  if (_leather) return _leather;
-  const m = new THREE.MeshStandardMaterial({ name: 'Leather', color: 0x131212, roughness: 0.58, metalness: 0 });
+// da có vân sần (vân nổi tạo bằng nhiễu theo toạ độ của chính vật => không trôi khi xe chạy); mặc định da đen
+const _leather = new Map();
+function leatherMaterial(color = 0x131212, rough = 0.58) {
+  const key = color + '|' + rough;
+  if (_leather.has(key)) return _leather.get(key);
+  const m = new THREE.MeshStandardMaterial({ name: 'Leather', color, roughness: rough, metalness: 0 });
   m.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vLP;')
@@ -531,7 +549,7 @@ function leatherMaterial() {
         roughnessFactor = clamp(roughnessFactor + (lNoise(vLP * 330.0) - 0.5) * 0.25, 0.3, 1.0);`);
   };
   m.customProgramCacheKey = () => 'leather';
-  _leather = m;
+  _leather.set(key, m);
   return m;
 }
 

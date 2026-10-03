@@ -33,6 +33,7 @@ const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t 
 // tốc độ (m/s). Chill: 10–40 km/h (mặc định 35). Fast drive: 150 km/h.
 const KMH = 1 / 3.6;
 // cấp tốc độ (nút ⚡ / phím F xoay vòng): chill 25 → 50 → Fast drive 180 km/h (có hiệu ứng tốc độ)
+const LANE_D = 1.5;                // xe chạy lệch tim đường 1.5 m (sát vạch vàng giữa, giữa làn là 2.3 m)
 const GEARS = [25 * KMH, 50 * KMH, 180 * KMH];
 const CHILL_DEFAULT = GEARS[0], CHILL_MIN = 10 * KMH, CHILL_MAX = 60 * KMH, FAST_SPEED = GEARS[2];
 
@@ -144,7 +145,7 @@ resize();
 // ---------- trạng thái lái xe ----------
 const drive = {
   s: 150,          // độ dài cung trên đường
-  d: 0,            // lệch ngang so với tim đường (m, + = bên phải)
+  d: LANE_D,       // lệch ngang so với tim đường (m, + = bên phải)
   v: CHILL_DEFAULT,        // tốc độ (m/s)
   target: CHILL_DEFAULT,   // tốc độ mong muốn ở chế độ chill
   fast: false,             // Fast drive (cấp 3) đang bật
@@ -488,13 +489,14 @@ function stopLook(pos, look) {
 // nhưng không chúc quá mức làm mất mép trên gương chiếu hậu (ưu tiên thấy trọn gương)
 const _ck = new THREE.Vector3();
 function cockpitPitch() {
-  const sw = cars.current?.def.steer;
+  const sw = cars.current?.steer;
   if (!sw || !rig.eyeAt || !rig.eyeAt(_ck)) return 0.2;
   cars.tilt.worldToLocal(_ck);
   const [, ny, nz] = sw.n;
   const uy = 1 - ny * ny, uz = -ny * nz, ul = Math.hypot(uy, uz) || 1;    // hướng "lên" trong mặt phẳng vô lăng
-  const r = sw.r + 0.035;
-  const by = sw.c[1] - (uy / ul) * r, bz = sw.c[2] - (uz / ul) * r;     // mép dưới vành (hệ xe; đầu xe -Z)
+  // mép dưới khung hình đi ngang chỗ hai tay cầm vành (4 giờ / 8 giờ) => chỉ thấy nửa trên bàn tay
+  const r = Math.sin(GRIP) * (sw.r + 0.05);
+  const by = sw.c[1] - (uy / ul) * r, bz = sw.c[2] - (uz / ul) * r;
   const down = Math.atan2(_ck.y - by, _ck.z - bz);
   const half = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * (1 - 2 * barFrac * cineAmt));
   const mp = mirror.group.position;                                     // mép trên gương (hệ xe)
@@ -557,7 +559,7 @@ function frame(now) {
   drive.fx += (sstep(55 * KMH, FAST_SPEED, drive.v) - drive.fx) * (1 - Math.exp(-dt * 4));
 
   // lệch ngang: lái tay, hoặc tự về giữa làn khi buông tay
-  const lane = drive.d >= 0 ? ROAD.halfWidth / 2 : -ROAD.halfWidth / 2;
+  const lane = drive.d >= 0 ? LANE_D : -LANE_D;
   const wantLat = stop.active ? 0 : steer !== 0 ? steer * (2.2 + drive.v * 0.06) : (lane - drive.d) * 0.8 * Math.min(1, drive.v / 3);
   drive.latVel += (wantLat - drive.latVel) * (1 - Math.exp(-dt * 5));
   drive.d += drive.latVel * dt;
@@ -582,7 +584,7 @@ function frame(now) {
     person.head.scale.setScalar(inCar ? 0.001 : 1);
     cars.cabinLevel = inCar ? (0.35 + 0.45 * env.state.dayF) * (1 + env.state.dark) : 0;   // đèn cabin để taplo / tay không tối om (bão: bù độ phơi sáng bị giảm)
     person.update(dt);
-    const sw = cars.current?.def.steer;
+    const sw = cars.current?.steer;
     if (sw && (stop.state === 'off' || stop.state === 'stopping')) gripWheel(sw);
   }
   if (stop.active) {
