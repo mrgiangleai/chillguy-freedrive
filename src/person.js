@@ -16,6 +16,9 @@ export class Person {
     this.actions = {};
     this.current = null;
     this.headOffsetSit = new THREE.Vector3();   // vị trí xương đầu (so với root) ở tư thế lái xe
+    this.hipOffsetSit = new THREE.Vector3();    // vị trí xương chậu (so với root) ở tư thế lái xe
+    // 0..1: giày nằm trong hốc để chân tối (ngồi lái) => sẫm lại; model không có che sáng nên giày trắng nổi bật qua vô lăng
+    this.footShade = { value: 0 };
   }
 
   async load(url) {
@@ -39,6 +42,10 @@ export class Person {
     this.arms = { l: ['upperarm_l', 'lowerarm_l', 'hand_l'].map(bone), r: ['upperarm_r', 'lowerarm_r', 'hand_r'].map(bone) };
     if (this.arms.l.some((b) => !b)) this.arms.l = null;
     if (this.arms.r.some((b) => !b)) this.arms.r = null;
+    this.legs = { l: ['thigh_l', 'calf_l', 'foot_l'].map(bone), r: ['thigh_r', 'calf_r', 'foot_r'].map(bone) };
+    this.balls = { l: bone('ball_l'), r: bone('ball_r') };
+    if (this.legs.l.some((b) => !b) || this.legs.r.some((b) => !b)) this.legs = null;
+    this.spine = bone('spine_01'); this.pelvis = bone('pelvis');
     this.gripFingers = { l: bone('middle_01_l'), r: bone('middle_01_r') };
     this.mixer = new THREE.AnimationMixer(model);
     for (const clip of gltf.animations) this.actions[clip.name] = this.mixer.clipAction(clip);
@@ -47,8 +54,8 @@ export class Person {
     model.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(model, true);
     const h = box.max.y - box.min.y;
-    model.scale.setScalar(1.78 / h);
-    model.position.y = -box.min.y * (1.78 / h);
+    model.scale.setScalar(HEIGHT / h);
+    model.position.y = -box.min.y * (HEIGHT / h);
     // mắt ở phía nào của đầu => quay để mặt nhìn về +Z
     const eyes = [];
     model.traverse((o) => { if (o.isMesh && /eye/i.test(o.name + ' ' + (o.material?.name || ''))) eyes.push(o); });
@@ -62,7 +69,7 @@ export class Person {
 
     // model gốc chỉ là thân người cơ bản => "mặc" áo phông đen, quần jeans, giày sneaker (theo xương chi phối)
     model.updateMatrixWorld(true);
-    model.traverse((o) => { if (o.isSkinnedMesh && /superhero|body/i.test(o.name + ' ' + o.material?.name)) dress(o, model); });
+    model.traverse((o) => { if (o.isSkinnedMesh && /superhero|body/i.test(o.name + ' ' + o.material?.name)) dress(o, model, this.footShade); });
 
     // đo vị trí đầu ở tư thế lái xe (để đặt người vào ghế cho đúng)
     this.play('Driving_Loop', 0);
@@ -70,6 +77,7 @@ export class Person {
     this.root.updateMatrixWorld(true);
     this.headOffsetSit.copy(this.head.getWorldPosition(new THREE.Vector3()));
     this.root.worldToLocal(this.headOffsetSit);
+    if (this.pelvis) this.root.worldToLocal(this.pelvis.getWorldPosition(this.hipOffsetSit));
     this.ready = true;
     return this;
   }
@@ -104,13 +112,42 @@ export class Person {
     turn(hand, _A, _B); hand.updateMatrixWorld(true);
   }
 
+  // ngả lưng ra sau `angle` rad (xoay spine_01 quanh trục ngang của người). Gọi sau mixer.update, trước IK tay.
+  recline(angle) {
+    if (!this.spine || !angle) return;
+    // clip không có track cho spine_01 thì mixer không ghi đè => phải trả về góc gốc trước khi ngả, không thì cộng dồn mỗi khung
+    const sq = this.spine.quaternion;
+    if (this._spOut && sq.equals(this._spOut)) sq.copy(this._spIn);
+    (this._spIn ||= new THREE.Quaternion()).copy(sq);
+    this.root.getWorldQuaternion(_qp);
+    _A.set(1, 0, 0).applyQuaternion(_qp);                       // trục ngang (mặt người nhìn +Z của root)
+    _q.setFromAxisAngle(_A, -angle);
+    this.spine.getWorldQuaternion(_qw);
+    this.spine.parent.getWorldQuaternion(_qp);
+    this.spine.quaternion.copy(_qp.invert().multiply(_q.multiply(_qw)));
+    (this._spOut ||= new THREE.Quaternion()).copy(sq);
+    this.spine.updateMatrixWorld(true);
+  }
+
+  // IK chân: đưa cổ chân (side 'l' | 'r') tới `target`, đầu gối chĩa theo `pole`; `toe` (hướng thế giới): mũi bàn chân
+  // (cổ chân → khớp ngón) — đặt lên bàn đạp, không chổng lên như animation gốc khi cẳng chân duỗi ra trước
+  reachLeg(side, target, pole, toe = null) {
+    const leg = this.legs?.[side];
+    if (!leg) return;
+    ik(leg, target, pole);
+    const foot = leg[2], ball = this.balls?.[side];
+    if (toe && ball) { foot.getWorldPosition(_A); ball.getWorldPosition(_B); turn(foot, _B.sub(_A).normalize(), _A.copy(toe).normalize()); foot.updateMatrixWorld(true); }
+  }
+
   // IK 2 xương: đưa cổ tay (side 'l' | 'r') tới `target` (toạ độ thế giới); khuỷu tay giữ hướng như animation,
   // hoặc chĩa theo `pole` (hướng thế giới, vd. ra ngoài - xuống dưới) nếu có.
   // Gọi sau mixer.update (animation ghi đè lại mỗi khung hình).
-  reach(side, target, pole = null) {
-    const arm = this.arms?.[side];
-    if (!arm) return;
-    const [up, lo, hand] = arm;
+  reach(side, target, pole = null) { const arm = this.arms?.[side]; if (arm) ik(arm, target, pole); }
+}
+
+function ik(chain, target, pole) {
+  {
+    const [up, lo, hand] = chain;
     const S = up.getWorldPosition(_S), E = lo.getWorldPosition(_E), W = hand.getWorldPosition(_W);
     const a = S.distanceTo(E), c = E.distanceTo(W);
     const dir = _D.subVectors(target, S);
@@ -131,6 +168,7 @@ export class Person {
   }
 }
 
+export const HEIGHT = 1.70;          // chiều cao người lái (m) — vừa cabin Mustang (trần thấp, ghế đã hạ)
 const _S = new THREE.Vector3(), _E = new THREE.Vector3(), _W = new THREE.Vector3(), _D = new THREE.Vector3(), _P = new THREE.Vector3();
 const _E2 = new THREE.Vector3(), _A = new THREE.Vector3(), _B = new THREE.Vector3();
 const _q = new THREE.Quaternion(), _qw = new THREE.Quaternion(), _qp = new THREE.Quaternion();
@@ -144,7 +182,7 @@ function turn(bone, from, to) {
 
 // ---- quần áo vẽ lên thân người (màu + độ nhám + làm mờ vân cơ bắp ở chỗ có vải) ----
 const SHIRT = new THREE.Color('#1c1c1f'), PANTS = new THREE.Color('#2f4366'), SHOES = new THREE.Color('#dedad2');
-function dress(mesh, model) {
+function dress(mesh, model, footShade) {
   const g = mesh.geometry;
   const si = g.attributes.skinIndex, sw = g.attributes.skinWeight, pos = g.attributes.position;
   if (!si || !sw) return;
@@ -153,7 +191,7 @@ function dress(mesh, model) {
   const pelvisY = pelvis ? pelvis.getWorldPosition(new THREE.Vector3()).y : 0.9;
   const role = bones.map((b) => (/foot|ball/i.test(b.name) ? 3 : /thigh|calf/i.test(b.name) ? 2
     : /lowerarm|hand|index|middle|ring|pinky|thumb|neck|head/i.test(b.name) ? 0 : /pelvis/i.test(b.name) ? 4 : 1));
-  const out = new Float32Array(pos.count * 4);
+  const out = new Float32Array(pos.count * 4), shoe = new Float32Array(pos.count);
   const v = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
     let best = 0, bw = -1;
@@ -162,18 +200,21 @@ function dress(mesh, model) {
     if (r === 4) { v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld); r = v.y < pelvisY + 0.09 ? 2 : 1; }
     const c = r === 1 ? SHIRT : r === 2 ? PANTS : r === 3 ? SHOES : null;
     if (c) { out[i * 4] = c.r; out[i * 4 + 1] = c.g; out[i * 4 + 2] = c.b; out[i * 4 + 3] = 1; }
+    shoe[i] = r === 3 ? 1 : 0;
   }
   g.setAttribute('aGarment', new THREE.BufferAttribute(out, 4));
+  g.setAttribute('aShoe', new THREE.BufferAttribute(shoe, 1));
   const m = mesh.material;
   const prev = m.onBeforeCompile;
   m.onBeforeCompile = (sh, r) => {
     prev?.call(m, sh, r);
+    sh.uniforms.uFootShade = footShade;
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec4 aGarment;\nvarying vec4 vGarment;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGarment = aGarment;');
+      .replace('#include <common>', '#include <common>\nattribute vec4 aGarment;\nattribute float aShoe;\nvarying vec4 vGarment;\nvarying float vShoe;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGarment = aGarment;\nvShoe = aShoe;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec4 vGarment;')
-      .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vGarment.rgb * (0.9 + 0.1 * diffuseColor.r), vGarment.a);')
+      .replace('#include <common>', '#include <common>\nvarying vec4 vGarment;\nvarying float vShoe;\nuniform float uFootShade;')
+      .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vGarment.rgb * (0.9 + 0.1 * diffuseColor.r), vGarment.a);\ndiffuseColor.rgb *= 1.0 - 0.88 * uFootShade * vShoe;')
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.88, vGarment.a);')
       .replace('mapN.xy *= normalScale;', 'mapN.xy *= normalScale * (1.0 - 0.8 * vGarment.a);');
   };

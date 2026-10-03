@@ -530,6 +530,20 @@ function cockpitPitch() {
 // hai tay đặt lên vành vô lăng (animation lái gốc dùng vô lăng to/thấp hơn => tay lơ lửng ngoài vành)
 const _wc = new THREE.Vector3(), _wn = new THREE.Vector3(), _wr = new THREE.Vector3(), _wu = new THREE.Vector3(), _wt = new THREE.Vector3(), _wp = new THREE.Vector3();
 const GRIP = 0.08;            // góc cầm (rad dưới phương ngang): gần 3 giờ & 9 giờ
+// tư thế ngồi trên ghế đã đo (config `seat`): ngả lưng, chân duỗi tới sàn (gọi trước gripWheel: ngả lưng làm dời vai)
+const _ft = new THREE.Vector3(), _fp = new THREE.Vector3(), _fd = new THREE.Vector3();
+function seatPose(seat) {
+  if (!seat) return;
+  person.recline(seat.recline || 0);
+  const m = cars.tilt.matrixWorld, [fx, fy, fz] = seat.foot, cx = seat.hip[0];
+  for (const [side, x] of [['l', fx], ['r', 2 * cx - fx]]) {
+    _ft.set(x, fy, fz).applyMatrix4(m);
+    _fp.set(0, 1, -0.6).transformDirection(m);                    // đầu gối hướng lên, hơi ra trước
+    _fd.set(0, 0.45, -1).transformDirection(m);                   // mũi giày đặt lên bàn đạp (chếch lên ~24°)
+    person.reachLeg(side, _ft, _fp, _fd);
+  }
+}
+
 function gripWheel(sw) {
   cars.root.updateMatrixWorld();
   const m = cars.tilt.matrixWorld;
@@ -612,7 +626,9 @@ function frame(now) {
     cars.cabinLevel = inCar ? (0.35 + 0.45 * env.state.dayF) * (1 + env.state.dark) : 0;   // đèn cabin để taplo / tay không tối om (bão: bù độ phơi sáng bị giảm)
     person.update(dt);
     const sw = cars.current?.steer;
-    if (sw && (stop.state === 'off' || stop.state === 'stopping')) gripWheel(sw);
+    const seated = stop.state === 'off' || stop.state === 'stopping';
+    person.footShade.value = seated ? 1 : 0;                       // giày trong hốc để chân: tối
+    if (seated) { seatPose(cars.dim.seat); if (sw) gripWheel(sw); }
   }
   if (stop.active) {
     const prev = stop.state;

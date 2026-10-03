@@ -11,6 +11,10 @@
 // basicMetal: thay mọi vật liệu (trừ kính) bằng kim loại cơ bản với thông số này
 // door    : regex tên node cửa tài xế (tách sẵn trong model) để mở cửa khi dừng xe
 // lamps   : tâm bóng đèn pha (head) / đèn hậu (tail) bên phải [x, y, z] trong hệ toạ độ xe (đo từ model; bên trái lấy −x)
+// seat    : tư thế ngồi lái (đo từ model): drop = hạ cụm ghế (m), hip = vị trí xương chậu [x, y, z], foot = cổ chân trái [x, y, z]
+//           (phải lấy đối xứng quanh hip.x), recline = ngả lưng (rad)
+// Mustang '67 (cả hai bản): ghế hạ 19 cm (phần đáy đệm khuất dưới sàn 0.362), trượt lên trước 16 cm; người ngồi trên đệm, lưng ngả nhẹ, chân duỗi tới sàn
+const SEAT_67 = { drop: 0.19, forward: 0.16, hip: [-0.39, 0.45, 0.28], foot: [-0.48, 0.45, -0.48], recline: 0.1 };
 const INTERIOR = { color: 0x0c0c0e, metalness: 0, roughness: 0.3, envK: 0.6 };   // nội thất nhựa / da đen bóng
 export const CARS = [
   { id: 'mustang', name: "Mustang '67 Đen", file: 'assets/models/mustang.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true, door: /^DriverDoor/,
@@ -22,12 +26,14 @@ export const CARS = [
       Paint: { color: 0x151619, metalness: 0, roughness: 0.42, specularIntensity: 0, clearcoat: 1, clearcoatRoughness: 0.07, envK: 0.4 }, Wheel: { clearcoat: 0.25 } },
     seatMesh: /^Cube\.?00[678]/, steerShift: -0.09,
     lamps: { head: [0.839, 0.661, -2.06], tail: [0.44, 0.769, 2.26] },
+    seat: SEAT_67,
     steer: { c: [-0.385, 0.883, -0.155], n: [0, 0.338, 0.941], r: 0.17 }, steerMesh: /^(Torus\.?001|Cube\.?009)/ },   // vô lăng: tâm, pháp tuyến (hướng về người lái), bán kính vành; vành + cốt giữa
   { id: 'mustang-blue', name: "Mustang '67 Xanh", file: 'assets/models/mustang-blue.glb', length: 4.67, flip: true, eye: [-0.39, 1.08, 0.3], doubleSide: true, door: /^DriverDoor/,
     wheels: /^(Wheel|BrakeDisc)/,   // vành + đĩa phanh quay; lốp (dựng bẹt ở đáy) đứng yên
     mats: { Interior: INTERIOR, BlackPolished: { roughness: 0.18 }, Body: { clearcoatRoughness: 0.08 } },
     seatMesh: /^Seat/, steerShift: -0.09,
     lamps: { head: [0.838, 0.663, -2.065], tail: [0.44, 0.769, 2.26] },
+    seat: SEAT_67,
     steer: { c: [-0.385, 0.883, -0.155], n: [0, 0.338, 0.941], r: 0.17 }, steerMesh: /^SteeringWheel/ },   // vô lăng: tâm, pháp tuyến (hướng về người lái), bán kính vành
   { id: 'divo', name: 'Bugatti Divo', file: 'assets/models/bugatti-divo.glb', length: 4.64, flip: true, wheels: /^(4_3|5_17)$/,
     basicMetal: { metalness: 0.6, roughness: 0.38 },   // vật liệu gốc bị chuyển đổi sai => kim loại bóng nhẹ cơ bản

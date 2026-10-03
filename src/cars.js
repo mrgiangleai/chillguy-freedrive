@@ -150,6 +150,19 @@ export class Cars {
     const dim = { length: box.max.z - box.min.z, width: box.max.x - box.min.x, height: box.max.y - box.min.y };
     dim.eye = def.eye || [-dim.width * 0.2, Math.min(dim.height * 0.8, 1.15), 0];
     dim.lamps = def.lamps || lampsFor(dim);
+    dim.seat = def.seat || null;
+    // ghế trong model đặt quá cao so với trần (đệm 0.60 m, trần 1.27 m => người ngồi đúng trên đệm sẽ xuyên trần):
+    // hạ cả cụm ghế xuống sát sàn (`seat.drop`) và đẩy lên trước (`seat.forward`, như trượt ray ghế) cho vừa tầm vô lăng
+    if ((def.seat?.drop || def.seat?.forward) && def.seatMesh) {
+      car.updateMatrixWorld(true);
+      const p = new THREE.Vector3();
+      model.traverse((o) => {
+        if (!o.isMesh || !def.seatMesh.test(o.name)) return;
+        o.getWorldPosition(p); p.y -= def.seat.drop || 0; p.z -= def.seat.forward || 0;
+        o.position.copy(o.parent.worldToLocal(p));
+      });
+      car.updateMatrixWorld(true);
+    }
 
     // tuỳ chọn: thay toàn bộ vật liệu bằng kim loại bóng nhẹ cơ bản (giữ màu / ảnh màu gốc, kính vẫn trong suốt)
     if (def.basicMetal) {
