@@ -52,14 +52,14 @@ export class Traffic {
     const d = entry.dim, x = d.width * 0.3, y = Math.min(0.7, d.height * 0.45);
     const sprite = (color, size) => {
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: this.cars.glowTex, color, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending,
+        map: this.cars.softTex, color, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending,
       }));
-      sp.scale.setScalar(size);
+      sp.scale.set(size * 1.35, size * 0.7, 1);                  // quầng mềm, dẹt ngang (như đèn xe mình)
       root.add(sp);
       return sp;
     };
-    const heads = [-1, 1].map((k) => { const s = sprite(0xfff0d0, 2.6); s.position.set(k * x, y, -d.length / 2 - 0.05); return s; });
-    const tails = [-1, 1].map((k) => { const s = sprite(0xff2a1a, 0.9); s.position.set(k * x, y + 0.05, d.length / 2 + 0.05); return s; });
+    const heads = [-1, 1].map((k) => { const s = sprite(0xffb560, 3.0); s.position.set(k * x, y, -d.length / 2 - 0.05); return s; });
+    const tails = [-1, 1].map((k) => { const s = sprite(0xff2412, 1.6); s.position.set(k * x, y + 0.05, d.length / 2 + 0.05); return s; });
     const pool = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 11).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({
       map: this.poolTex, color: 0xffe2b8, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending,
       polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,

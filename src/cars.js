@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { CARS } from './config.js';
-import { glowTexture, softGlowTexture } from './textures.js';
+import { softGlowTexture } from './textures.js';
 import { screenPose } from './dashscreen.js';
 import { withMist } from './mist.js';
 
@@ -30,34 +30,27 @@ export class Cars {
     this.dim = { length: 4.5, width: 1.9, height: 1.3 };
 
     // đèn pha + đèn hậu (glow)
-    this.glowTex = glowTexture();
     this.lights = new THREE.Group();
     this.root.add(this.lights);
     this.spots = [0, 1].map(() => {
       // chùm rộng, mép rất mềm; suy giảm theo khoảng cách chậm (decay 0.55) => sát đầu xe không loá trắng, ánh sáng toả xa đều
-      const s = new THREE.SpotLight(0xffe9cc, 0, 110, 0.8, 1.0, 0.55);
+      const s = new THREE.SpotLight(0xffd6a0, 0, 110, 0.8, 1.0, 0.55);   // ánh vàng ấm
       this.lights.add(s, s.target);
       return s;
     });
-    const mk = (color, size) => {
+    // quầng đèn pha (vàng ấm) / đèn hậu (đỏ): mềm, toả rộng, dẹt ngang; vẽ đè lên mặt đường / thân xe
+    // (không bị cắt nửa vòng), mờ đi khi không nhìn từ phía trước / phía sau xe
+    const soft = this.softTex = softGlowTexture();
+    const glow = (color) => {
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: this.glowTex, color, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending,
-      }));
-      sp.scale.setScalar(size);
-      this.lights.add(sp);
-      return sp;
-    };
-    this.headGlow = [mk(0xffeccc, 1.7), mk(0xffeccc, 1.7)];
-    // quầng đèn hậu: mềm, toả rộng; vẽ đè lên mặt đường / thân xe (không bị cắt nửa vòng), mờ đi khi không nhìn từ phía sau
-    const soft = softGlowTexture();
-    this.tailGlow = [0, 1].map(() => {
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: soft, color: 0xff2412, transparent: true, opacity: 0, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, fog: false,
+        map: soft, color, transparent: true, opacity: 0, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, fog: false,
       }));
       sp.renderOrder = 6;
       this.lights.add(sp);
       return sp;
-    });
+    };
+    this.headGlow = [glow(0xffc477), glow(0xffc477)];
+    this.tailGlow = [glow(0xff2412), glow(0xff2412)];
     this.viewer = null;              // camera (để biết đang nhìn đuôi xe hay không)
     this._gv = new THREE.Vector3(); this._gb = new THREE.Vector3();
     this.lampLevel = 0;
@@ -291,6 +284,15 @@ export class Cars {
 
   setLights(level) { this.lampLevel = level; }
 
+  // 0..1: camera ở phía trước (dir -1) / phía sau (dir +1) của xe nhìn tới đốm đèn
+  _face(sprite, dir) {
+    if (!this.viewer) return 1;
+    sprite.getWorldPosition(this._gv);
+    this._gv.subVectors(this.viewer.position, this._gv).normalize();
+    this._gb.set(0, 0, dir).transformDirection(this.root.matrixWorld);
+    return THREE.MathUtils.smoothstep(this._gv.dot(this._gb), -0.05, 0.35);
+  }
+
   // góc lưỡi gạt (rad, 0 = nằm nghỉ)
   setWiper(th) {
     if (!this.current || th === this.current.wiperTh) return;
@@ -329,20 +331,15 @@ export class Cars {
 
     const L = this.lampLevel;
     this.spots.forEach((s) => { s.intensity = 85 * L; });
-    this.headGlow.forEach((g) => { g.material.opacity = 0.6 * L; });
+
     // đèn hậu: luôn sáng nhẹ, bật đèn thì sáng hẳn; giảm tốc thì sáng thêm (đèn phanh)
     const acc0 = this.brakeAcc || 0;
     this.brake += ((acc0 < -1.2 ? 1 : 0) - this.brake) * (1 - Math.exp(-dt * 8));
     const tail = 0.3 + 0.7 * L + 0.6 * this.brake;
-    // nhìn từ phía sau mới thấy quầng (nhìn từ trước / trong xe thì quầng bị thân xe che)
-    let face = 1;
-    if (this.viewer) {
-      this.tailGlow[0].getWorldPosition(this._gv);
-      this._gv.subVectors(this.viewer.position, this._gv).normalize();
-      this._gb.set(0, 0, 1).transformDirection(this.root.matrixWorld);       // hướng đuôi xe (+Z)
-      face = THREE.MathUtils.smoothstep(this._gv.dot(this._gb), -0.05, 0.35);
-    }
-    this.tailGlow.forEach((g) => { g.material.opacity = Math.min(0.8, 0.45 * tail) * face; const k = 2.0 + 1.3 * tail; g.scale.set(k * 1.35, k * 0.85, 1); g.visible = face > 0.01; });   // dẹt ngang như đèn hậu
+    // đèn hậu chỉ thấy quầng khi nhìn từ phía sau, đèn pha khi nhìn từ phía trước (thân xe che phía kia)
+    const back = this._face(this.tailGlow[0], 1), front = this._face(this.headGlow[0], -1);
+    this.tailGlow.forEach((g) => { g.material.opacity = Math.min(0.8, 0.45 * tail) * back; const k = 2.0 + 1.3 * tail; g.scale.set(k * 1.35, k * 0.85, 1); g.visible = back > 0.01; });
+    this.headGlow.forEach((g) => { g.material.opacity = 0.45 * L * front; const k = 2.1; g.scale.set(k * 1.35, k * 0.85, 1); g.visible = L * front > 0.01; });
     for (const m of this.current?.tailMats || []) m.emissiveIntensity = 0.8 + 2.6 * tail;
     this.cabin.intensity = this.cabinLevel;
   }

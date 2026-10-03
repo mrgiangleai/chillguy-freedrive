@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 // Hậu kỳ: xoá phông (depth of field) + bloom + chỉnh màu phim + hạt phim + tối viền (Cinematic)
-// và blur xuyên tâm + vệt tốc độ (Fast drive).
+// và blur xuyên tâm (Fast drive).
 // Cách làm: vẽ cảnh vào render target (màu tuyến tính HDR + độ sâu, có khử răng cưa MSAA), rồi
 //  1) xoá phông theo mô hình ống kính thật: vòng nhoè (CoC) = f² / (N·(F − f)) · |z − F| / z
 //     - nửa độ phân giải: màu + CoC có dấu (âm = tiền cảnh)
@@ -243,8 +243,6 @@ const FINAL = `
   uniform vec2 uRes;
   varying vec2 vUv;
   ${DISPLAY}
-  float hash(float n) { return fract(sin(n) * 43758.5453); }
-  float vnoise(float x) { float i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f); return mix(hash(i), hash(i + 1.0), f); }
   float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
   vec3 sceneAt(vec2 uv) {
     vec3 s = texture2D(tScene, uv).rgb;
@@ -283,10 +281,6 @@ const FINAL = `
     col = toDisplay(col);
     // bloom
     col += texture2D(tBloom, vUv).rgb * 0.45 * uCine;
-    // vệt tốc độ toả ra từ tâm
-    float ang = atan(da.y, da.x);
-    float n = vnoise(ang * 48.0 + floor(uTime * 16.0) * 7.31);
-    col += vec3(smoothstep(0.7, 1.0, n) * smoothstep(0.34, 0.85, dist) * uFx * 0.11);
     // chỉnh màu phim: bóng ngả xanh lam, vùng sáng ngả ấm, tương phản chữ S, đen hơi "sữa"
     col = clamp(col, 0.0, 1.0);
     float l = dot(col, vec3(0.299, 0.587, 0.114));
