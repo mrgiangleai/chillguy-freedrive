@@ -21,7 +21,6 @@ import { Fireflies } from './fireflies.js';
 import { ValleyTown } from './town.js';
 import { DashScreen } from './dashscreen.js';
 import { Traffic } from './traffic.js';
-import { Carriages } from './carriage.js';
 import { roadPosition } from './traffic-ai.js';
 import { Cows } from './cows.js';
 import { Waterfalls } from './waterfalls.js';
@@ -90,7 +89,6 @@ const town = new ValleyTown(scene);           // map núi: thị trấn + đèn 
 const dash = new DashScreen();                // màn hình giải trí trên taplo (hắt sáng lên người lái)
 const _trafficPerson = new THREE.Vector3();
 const traffic = new Traffic(scene, cars);     // thỉnh thoảng có xe chạy ngược chiều
-const carriages = new Carriages(scene, road, cars.loader);   // xe ngựa cổ tích bay bên phải đường
 const waterfalls = new Waterfalls(scene, road, terrain);
 const cows = new Cows(scene);                 // map đồi cỏ: đàn bò sữa sau hàng rào gỗ
 cars.tilt.add(dash.group);
@@ -665,7 +663,6 @@ function frame(now) {
     }
     traffic.playerHome = drive.home; traffic.playerGoal = stop.active ? 0 : drive.goal;
     traffic.update(dt, drive.s, drive.d, road, st.lamps, cars.current.def.id, obstacles, audio);
-    carriages.update(dt, drive.s, st.light);
   }
   town.update(drive.s, road, terrain, st.lamps, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   cars.setLights(st.lamps);
@@ -784,4 +781,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { carriages, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

@@ -3,6 +3,7 @@ import { TrafficPolicy } from './traffic-policy.js';
 import { ROAD } from './road.js';
 import { TRAFFIC, trafficSpeed, trafficCurveSpeed, stepTraffic } from './traffic-ai.js';
 import { createHeadlights, placeHeadlights, updateHeadlights, lampsFor } from './headlights.js';
+import { loadCarriage, CARRIAGE } from './carriage.js';
 
 // Xe ngược chiều: 10–25 giây, tối đa 2; cùng chiều: 25–60 giây, tối đa 1 (ít xe => nhẹ máy). Tốc độ 50–200 km/h.
 // Xe ngược chiều xuất hiện xa phía trước
@@ -11,6 +12,7 @@ import { createHeadlights, placeHeadlights, updateHeadlights, lampsFor } from '.
 // Đèn pha: mỗi NPC chỉ có quầng; chùm sáng thật là MỘT cặp SpotLight dùng chung, gắn vào NPC gần người chơi nhất
 // (số đèn trong cảnh luôn cố định => không biên dịch lại shader mỗi khi xe xuất hiện/biến mất).
 // Đổi làn / né: thân xe xoay theo hướng chạy thực (vận tốc ngang / tốc độ tiến), bánh trước đánh lái.
+// Xe ngựa cổ tích: 15–30 giây/chiếc, tối đa 2, 25–40 km/h, cùng luật bám/né/phanh với xe NPC (không đèn, không tiếng lướt).
 const SPAWN_AHEAD = 430;
 const NPC_LAMP = 0.24;                // NPC: đèn pha + quầng trước còn 24% xe người chơi (đèn hậu giữ 60%)
 const LANE = 1.8;                     // xe ngược chiều chạy hơi lệch vào giữa đường (như xe mình)
@@ -33,6 +35,38 @@ export class Traffic {
     this.beam = createHeadlights(this.beamRoot, null, { glows: false });
     this.beamFor = null;
     scene.add(this.beamRoot);
+    this.carriages = [];         // xe ngựa đã tạo (tái sử dụng)
+    this.makeCarriage = null; this.carriageLoading = false;
+    this.carriageTimer = 6;      // chiếc đầu tiên vài giây sau khi tải xong
+  }
+
+  // làn của chiều người chơi theo làn NHÀ của xe mình (không theo vị trí tức thời: đang vượt sang trái mà lấy playerD
+  // thì xe ngược chiều sẽ sinh ra ngay trong làn của mình => kẹt đối đầu)
+  _homeLane(playerD) { return (this.playerHome ?? playerD) >= 0 ? LANE : -LANE; }
+
+  async _loadCarriage() {
+    this.carriageLoading = true;
+    try { this.makeCarriage = await loadCarriage(this.cars.loader); } catch (e) { console.warn('carriage', e); }
+  }
+
+  // sinh xe ngựa: ngược chiều xuất hiện xa phía trước; cùng chiều thì vào từ phía sau nếu nhanh hơn xe mình,
+  // còn chậm hơn thì xuất hiện phía trước (xe mình bám theo rồi vượt)
+  _spawnCarriage(s, playerD, playerV) {
+    if (this.active.filter(v => v.carriage).length >= CARRIAGE.max) return false;   // đủ 2 chiếc: thử lại sau 1 s
+    const cruise = CARRIAGE.minSpeed + Math.random() * (CARRIAGE.maxSpeed - CARRIAGE.minSpeed);
+    // cùng chiều chỉ khi chênh tốc độ đủ lớn (không thì xe ngựa lởn vởn quanh xe mình rất lâu)
+    const direction = Math.random() < 0.4 && Math.abs(cruise - playerV) > 3 ? 1 : -1;
+    const at = direction === -1 ? s + SPAWN_AHEAD + Math.random() * 80
+      : cruise > playerV + 1 ? Math.max(10, s - 80 - Math.random() * 30) : s + 150 + Math.random() * 70;
+    if (this.active.some(o => Math.abs(o.s - at) < 60) || Math.abs(at - s) < 40) return false;
+    let v = this.carriages.find(c => !c.busy);
+    if (!v) { if (this.carriages.length >= CARRIAGE.max) return false; v = this._vehicle(this.makeCarriage()); this.carriages.push(v); }
+    const lane = this._homeLane(playerD);
+    Object.assign(v, { s: at, direction, busy: true, cruise, v: cruise, heard: true, policy: null, inCurve: false, avoidFor: null, latV: 0, yaw: 0 });
+    v.d = v.baseD = v.avoidD = direction === 1 ? lane : -lane;
+    v.root.visible = true;
+    this.active.push(v);
+    return true;
   }
 
   async _load(excludeId) {
@@ -61,13 +95,14 @@ export class Traffic {
       root.add(sp);
       return sp;
     };
-    const headlights = createHeadlights(root, this.cars.softTex, { spots: false });
+    const carriage = !!entry.carriage;                              // xe ngựa: không đèn pha / đèn hậu
+    const headlights = createHeadlights(root, this.cars.softTex, { spots: false, glows: !carriage });
     placeHeadlights(headlights, d);
     for (const w of entry.wheels) { w.front = w.pivot.position.z < 0; w.pivot.rotation.order = 'YXZ'; }
     const [tx, ty, tz] = lampsFor(d).tail;                         // quầng đèn hậu đúng tâm bóng đèn hậu của model
-    const tails = [-1, 1].map((k) => { const s = sprite(0xff2412, 1.6); s.position.set(k * tx, ty, tz + 0.03); return s; });
+    const tails = carriage ? [] : [-1, 1].map((k) => { const s = sprite(0xff2412, 1.6); s.position.set(k * tx, ty, tz + 0.03); return s; });
     this.scene.add(root);
-    return { root, wheels: entry.wheels, dim: d, headlights, tails, busy: false, s: 0, v: 0, d: 0 };
+    return { root, wheels: entry.wheels, dim: d, headlights, tails, busy: false, s: 0, v: 0, d: 0, carriage, mixer: entry.mixer || null };
   }
 
   // s: quãng đường xe mình; playerD: lệch ngang của xe mình (+ = bên phải); lamps 0..1; excludeId: xe đang lái
@@ -75,6 +110,11 @@ export class Traffic {
     if (!this.pool.length) {
       if (!this.loading && (this.wait -= dt) <= 0) this._load(excludeId);
       return;
+    }
+    if (this.cars.loader && !this.makeCarriage && !this.carriageLoading) this._loadCarriage();
+    const player0 = obstacles.find(o => o.id === 'player');
+    if (this.makeCarriage && (this.carriageTimer -= dt) <= 0) {
+      this.carriageTimer = this._spawnCarriage(s, playerD, player0?.speed || 0) ? CARRIAGE.gapMin + Math.random() * (CARRIAGE.gapMax - CARRIAGE.gapMin) : 1;
     }
     this.timer -= dt; this.sameTimer -= dt;
     for (const direction of [-1, 1]) {
@@ -84,9 +124,9 @@ export class Traffic {
       const max = same ? TRAFFIC.sameGapMax : TRAFFIC.gapMax;
       this[timer] = min + Math.random() * (max - min);
       const free = this.pool.filter(v => !v.busy);
-      if (!free.length || this.active.filter(v => (v.direction ?? -1) === direction).length >= (same ? TRAFFIC.sameMax : TRAFFIC.maxActive)) continue;
+      if (!free.length || this.active.filter(v => !v.carriage && (v.direction ?? -1) === direction).length >= (same ? TRAFFIC.sameMax : TRAFFIC.maxActive)) continue;
       const v = free[Math.floor(Math.random() * free.length)];
-      const lane = playerD >= 0 ? LANE : -LANE;
+      const lane = this._homeLane(playerD);
       // Xe cùng chiều vào từ phía sau để vượt xe người chơi; không sinh chồng lên xe khác.
       v.s = same ? Math.max(10, s - 80 - Math.random() * 30) : s + SPAWN_AHEAD + Math.random() * 80;
       if (this.active.some(o => Math.abs(o.s - v.s) < 60) || Math.abs(v.s - s) < 40) continue;
@@ -115,8 +155,8 @@ export class Traffic {
       const canChooseLane = d => d * v.baseD >= 0 || (decision.dT * v.baseD < 0 && this.policy._sideClear(v.policy, d));
       const next = stepTraffic(v, snapshot, ROAD.halfWidth, dt, Math.min(curveSpeed,decision.vT), canChooseLane);
       v.s = next.s; v.d = next.d; v.v = next.v; v.avoiding = next.avoiding; v.latV = next.latV;
-      if (v.s < s - (v.direction === 1 ? 180 : 90) || (v.direction === 1 && v.s > s + 750)) { v.busy = false; v.root.visible = false; this.active.splice(i, 1); continue; }
-      if (audio && player) {
+      if (v.s < s - (v.direction === 1 ? 180 : 90) || (v.direction === 1 && v.s > s + (v.carriage ? 400 : 750))) { v.busy = false; v.root.visible = false; this.active.splice(i, 1); continue; }
+      if (audio && player && !v.carriage) {
         const x=v.s-s, vr=v.v*(v.direction ?? -1)-player.speed, rel=Math.abs(vr);
         if (Math.abs(x)>70) v.heard=false;
         if (!v.heard && rel>2 && x*vr<0 && Math.abs(v.d-playerD)<7 && -x/vr<audio.passDur(rel)*0.5) {
@@ -133,6 +173,7 @@ export class Traffic {
       v.root.rotation.set(-direction * Math.atan2(yB - yA, 5), p.th + (direction === -1 ? Math.PI : 0) - direction * v.yaw, 0, 'YXZ');
       const steer = clamp(-direction * v.yaw * 1.8, -0.4, 0.4);      // bánh trước đánh lái cùng chiều xoay thân xe
       for (const w of v.wheels) { w.pivot.rotation.x += direction * (v.v * dt) / w.radius; if (w.front) w.pivot.rotation.y = steer; }
+      if (v.mixer) { v.mixer.timeScale = v.v / CARRIAGE.gallop; v.mixer.update(dt); }   // ngựa phi theo tốc độ (dừng thì đứng)
       updateHeadlights(v.headlights, v.root, this.cars.viewer, lamps * NPC_LAMP);
       for (const t of v.tails) t.material.opacity = (0.25 + 0.6 * lamps) * 0.6;
     }
@@ -142,7 +183,7 @@ export class Traffic {
   // chùm sáng thật: gắn cặp SpotLight vào NPC gần xe người chơi nhất (trong 300 m)
   _beam(s, lamps) {
     let best = null, bd = 300;
-    for (const v of this.active) { const d = Math.abs(v.s - s); if (d < bd) { bd = d; best = v; } }
+    for (const v of this.active) { if (v.carriage) continue; const d = Math.abs(v.s - s); if (d < bd) { bd = d; best = v; } }
     if (best !== this.beamFor) { this.beamFor = best; if (best) placeHeadlights(this.beam, best.dim); }
     if (best) {
       best.root.updateMatrixWorld();

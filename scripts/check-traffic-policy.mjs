@@ -25,3 +25,13 @@ for(let i=0;i<100;i++)t.update(.05,150,1.5,road,1,'player',[{id:'player',s:150,d
 assert.equal(passes,1,'One pass-by sound per encounter');assert(Math.abs(t.beam.spots[0].intensity-85*0.24)<1e-9);
 assert(t.ctrl&&Number.isFinite(t.ctrl.lane));
 console.log('PASS: upstream 50 m overtaking visibility, closing-time rejection, clear-lane pass, unsafe-lane wait; oncoming NPCs never overtake; actual merged Traffic pass-by once and headlights 20.4.');
+// xe ngựa: chạy trên mặt đường như NPC (không đèn), 15–30 s/chiếc, tối đa 2; xe ngược chiều sinh theo làn nhà của xe mình
+{const t2=new Traffic(new THREE.Scene(),cars);await t2._load('player');t2.timer=t2.sameTimer=1e9;t2.playerHome=1.5;
+ t2.makeCarriage=()=>({group:new THREE.Group(),dim:{length:5.6,width:2.8,height:2.4},wheels:[],mixer:null,carriage:true});t2.carriageTimer=0;
+ const random=Math.random;Math.random=()=>0.1;
+ try{t2.update(.05,150,-1.5,road,1,'player',[{id:'player',s:150,d:-1.5,speed:10,direction:1,width:2,length:4.7}]);}finally{Math.random=random;}
+ const c=t2.active.find(v=>v.carriage);assert(c,'carriage spawned');assert.equal(c.direction,-1);
+ assert.equal(c.baseD,-1.8,'oncoming carriage keeps the oncoming lane even while the player is overtaking on the left');
+ assert(t2.carriageTimer>=15&&t2.carriageTimer<=30);assert.equal(c.tails.length,0);assert.equal(c.headlights.glows.length,0);
+ assert.equal(c.root.position.y,0,'carriage drives on the road surface');}
+console.log('PASS: carriage spawns as an on-road NPC (no lights), 15–30 s cadence, home-lane spawn.');

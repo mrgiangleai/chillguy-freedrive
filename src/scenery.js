@@ -312,7 +312,7 @@ export class Scenery {
       l.position.set(b[0], b[1], b[2]);
       l.target.position.set(t[0], t[1], t[2]);
       l.target.updateMatrixWorld();
-      l.intensity = 700 * this.lampOn * fade * fade * (3 - 2 * fade);
+      l.intensity = 140 * this.lampOn * fade * fade * (3 - 2 * fade);
     });
   }
 
