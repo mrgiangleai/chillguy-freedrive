@@ -66,7 +66,7 @@ export class Cars {
     this.root.add(this.contact);
 
     // đèn trần cabin (luôn có trong cảnh để không phải dịch lại shader; chỉ sáng khi nhìn từ trong xe)
-    this.cabin = new THREE.PointLight(0xfff2e0, 0, 2.6, 2);
+    this.cabin = new THREE.PointLight(0xffd8ac, 0, 2.6, 2);   // ánh sáng trong xe: toả ra từ màn hình taplo (không phải đèn trần)
     this.tilt.add(this.cabin);
     this.cabinLevel = 0;
   }
@@ -297,7 +297,9 @@ export class Cars {
     this.headGlow.forEach((g, i) => g.position.set(i ? x : -x, y, -d.length / 2 - 0.05));
     this.tailGlow.forEach((g, i) => g.position.set(i ? x : -x, y + 0.05, d.length / 2 + 0.05));
     this.contact.scale.set(d.width * 1.12, 1, d.length * 1.06);
-    this.cabin.position.set(d.eye[0] * 0.5, d.eye[1] + 0.05, d.eye[2] - 0.45);
+    const scr = this.current?.screen;
+    if (scr) this.cabin.position.copy(scr.pos).add(new THREE.Vector3(0, 0.02, 0.12));   // ngay trước mặt màn hình, hướng về người lái
+    else this.cabin.position.set(d.eye[0] * 0.5, d.eye[1] - 0.2, d.eye[2] - 0.6);
   }
 
   setLights(level) { this.lampLevel = level; }

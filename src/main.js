@@ -639,10 +639,10 @@ function frame(now) {
   audio.setAmbient({ speed: drive.v, rain: st.rain, snow: st.snow, wind: st.wind, dark: st.dark, fx: drive.fx,
     inCar: CAMERAS[state.cam].id === 'cockpit' && !stop.active });
 
-  // gió mạnh / tốc độ cao: camera rung nhẹ. Trời bão: tắt mọi rung lắc (camera, cầm tay, thân xe nhún)
+  // tốc độ cao: camera rung nhẹ (gió lớn không rung). Trời bão: tắt mọi rung lắc (camera, cầm tay, thân xe nhún)
   const calm = 1 - st.dark;
   cars.calm = st.dark;
-  const shake = Math.max(0.028 * Math.max(0, st.wind - 0.55) / 0.45, 0.016 * drive.fx * drive.fx) * calm;
+  const shake = 0.016 * drive.fx * drive.fx * calm;
   if (shake > 0) {
     const t = now / 1000;
     camera.position.x += (Math.sin(t * 11.3) + Math.sin(t * 17.9) * 0.6) * shake;
