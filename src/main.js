@@ -102,6 +102,40 @@ function layoutBars() {
   document.documentElement.style.setProperty('--bar', bar.toFixed(1) + 'px');
 }
 window.addEventListener('resize', resize);
+
+// ---------- điện thoại: toàn màn hình + màn hình ngang ----------
+const IS_PHONE = matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600;
+const IS_IOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const docEl = document.documentElement;
+const CAN_FS = !!(docEl.requestFullscreen || docEl.webkitRequestFullscreen);
+const isFS = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+function enterFS() {
+  if (!CAN_FS || isFS()) return;
+  const req = docEl.requestFullscreen ? docEl.requestFullscreen({ navigationUI: 'hide' }) : docEl.webkitRequestFullscreen();
+  // toàn màn hình rồi thì khoá ngang (Android Chrome hỗ trợ; nơi khác bỏ qua)
+  Promise.resolve(req).then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
+}
+function exitFS() {
+  if (!isFS()) return;
+  try { screen.orientation?.unlock?.(); } catch { /* bỏ qua */ }
+  (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+}
+const toggleFS = () => (isFS() ? exitFS() : enterFS());
+// đổi hướng / vào-ra toàn màn hình: kích thước báo về trễ trên một số máy => đo lại vài lần
+const resizeSoon = () => { resize(); setTimeout(resize, 120); setTimeout(resize, 450); updateRotate(); };
+['fullscreenchange', 'webkitfullscreenchange'].forEach((ev) => document.addEventListener(ev, () => { resizeSoon(); refreshUI(); }));
+window.addEventListener('orientationchange', resizeSoon);
+window.visualViewport?.addEventListener('resize', resize);
+// cầm dọc trên điện thoại: gợi ý xoay ngang (có thể bỏ qua)
+let rotateOk = false;
+function updateRotate() {
+  const show = IS_PHONE && !rotateOk && window.innerHeight > window.innerWidth;
+  $('rotate').hidden = !show;
+}
+$('rotate-ok').addEventListener('click', () => { rotateOk = true; updateRotate(); });
+$('rotate').querySelector('.ios').hidden = !(IS_IOS && !CAN_FS && !navigator.standalone);
+window.addEventListener('resize', updateRotate);
+updateRotate();
 resize();
 
 // ---------- trạng thái lái xe ----------
@@ -127,7 +161,7 @@ const pointer = { active: false, id: -1, x: 0, y: 0 };
 const state = { car: 0, map: MAPS.findIndex((m) => m.id === 'mountain'), cam: CAMERAS.findIndex((c) => c.id === 'orbit'), weather: WEATHERS.findIndex((w) => w.id === 'rain'), time: TIMES.findIndex((t) => t.id === 'sunset'), music: 0, cine: true, started: false, mistCover: 0.35, mistDens: 0.2, fstop: FSTOP_DEFAULT, quality: loadQuality() };
 rig.setMode(state.cam);
 rig.focal = rig.focalS = 16;
-const el = { stop: $('b-stop'), quality: $('b-quality'), lens: $('b-lens'), mist: $('b-mist'), fast: $('b-fast'), car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
+const el = { full: $('b-full'), stop: $('b-stop'), quality: $('b-quality'), lens: $('b-lens'), mist: $('b-mist'), fast: $('b-fast'), car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
 const setBtn = (btn, icon, text) => { btn.querySelector('b').textContent = icon; btn.querySelector('span').textContent = text; btn.title = text; };
 
 function refreshUI() {
@@ -145,6 +179,8 @@ function refreshUI() {
   setBtn(el.quality, '⚙️', QUALITY[state.quality].name);
   setBtn(el.stop, stop.state === 'parked' ? '▶️' : stop.state === 'off' ? '🅿️' : '⏳', stop.state === 'parked' ? 'Đi tiếp' : stop.state === 'off' ? 'Dừng xe' : '…');
   el.lens.classList.toggle('on', !$('lenspanel').hidden);
+  el.full.hidden = !CAN_FS;
+  setBtn(el.full, isFS() ? '🗗' : '⛶', isFS() ? 'Thoát toàn màn hình' : 'Toàn màn hình');
 }
 function loadQuality() {
   try { const i = QUALITY.findIndex((q) => q.id === localStorage.getItem('chilldrive.quality')); if (i >= 0) return i; } catch { /* không có localStorage */ }
@@ -154,6 +190,7 @@ function loadQuality() {
 function applyQuality() {
   const q = QUALITY[state.quality];
   pixelRatio = q.id === 'low' ? q.ratio : Math.min(q.ratio, Math.max(1, window.devicePixelRatio || 1));
+  if (IS_PHONE && q.id === 'good') pixelRatio = Math.min(pixelRatio, 1.25);   // màn hình điện thoại nhỏ: đủ nét, nhẹ GPU hơn
   renderer.setPixelRatio(pixelRatio);
   post.setSamples(q.msaa);
   resize();
@@ -287,6 +324,7 @@ const toggleLensPanel = () => { $('lenspanel').hidden = !$('lenspanel').hidden; 
 el.lens.onclick = toggleLensPanel;
 el.quality.onclick = nextQuality;
 el.stop.onclick = toggleStop;
+el.full.onclick = toggleFS;
 const focalIn = $('lens-focal'), fstopIn = $('lens-fstop');
 focalIn.min = FOCAL_MIN; focalIn.max = FOCAL_MAX;
 fstopIn.max = FSTOPS.length - 1;
@@ -330,6 +368,7 @@ window.addEventListener('keydown', (e) => {
     case 'KeyL': toggleLensPanel(); break;
     case 'KeyQ': nextQuality(); break;
     case 'KeyP': toggleStop(); break;
+    case 'KeyU': toggleFS(); break;
   }
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
@@ -609,6 +648,7 @@ function frame(now) {
     $('speed').textContent = Math.round(drive.v * 3.6);
     $('clock').textContent = env.clock;
     if (el.lens.title !== lensLabel()) { refreshUI(); syncLens(); }
+    updateRotate();                                // (một số máy không báo resize khi xoay)
     uiTimer = 0.25;
   }
 
@@ -677,7 +717,8 @@ async function init() {
     compileFor(post.sceneRT, camera, person.root).catch(() => {});
     refreshUI();
   }).catch((e) => console.warn('Không tải được người lái', e));
-  const go = () => {
+  const go = (e) => {
+    if (IS_PHONE && e && e.type === 'pointerdown') enterFS();   // điện thoại: chạm vào là vào toàn màn hình, khoá ngang
     start.classList.add('gone');
     state.started = true;
     applyCine();

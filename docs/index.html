@@ -4,9 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0b1020">
+  <!-- điện thoại: "Thêm vào màn hình chính" => mở toàn màn hình, nằm ngang (iPhone không hỗ trợ nút toàn màn hình trong trình duyệt) -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Chill Drive">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <title>Chill Drive</title>
-  <link rel="stylesheet" href="style.css?v=d9071c7a">
-  <link rel="modulepreload" href="app.js?v=cdc0a85f">
+  <link rel="stylesheet" href="style.css?v=b94efa99">
+  <link rel="modulepreload" href="app.js?v=0dde3eee">
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -31,6 +38,7 @@
       <button id="b-mist"><b>🌫️</b><span></span></button>
       <button id="b-lens"><b>📷</b><span></span></button>
       <button id="b-quality"><b>⚙️</b><span></span></button>
+      <button id="b-full"><b>⛶</b><span></span></button>
     </nav>
     <button id="b-info" aria-label="Credits">ⓘ</button>
   </div>
@@ -45,6 +53,13 @@
     <label><span>Khẩu độ</span><input id="lens-fstop" type="range" min="0" step="1"><output id="lens-fstop-v"></output></label>
   </div>
 
+  <div id="rotate" hidden>
+    <div class="phone"></div>
+    <p>Xoay ngang điện thoại để xem đẹp nhất</p>
+    <p class="ios" hidden>iPhone: bấm <b>Chia sẻ</b> → <b>Thêm vào MH chính</b> để chơi toàn màn hình</p>
+    <button id="rotate-ok">Vẫn xem màn hình dọc</button>
+  </div>
+
   <div id="credits" hidden>
     <p><b>Chill Drive</b> — three.js · WebAudio (nhạc lo-fi tự sinh)</p>
     <ul>
@@ -55,9 +70,9 @@
       <li>Cây, đá, dương xỉ — Quaternius: Stylized Nature MegaKit, CC0</li>
       <li>Texture đất, sỏi — Babylon.js Assets, CC BY 4.0 · vách đá — Godot demo projects, MIT</li>
     </ul>
-    <p class="keys">A/D hoặc ←/→ lái · W/S hoặc ↑/↓ tốc độ · giữ chuột/vuốt: nhìn 360° · lăn chuột/chụm 2 ngón hoặc + −: zoom (16–35mm) · L ống kính · Q chất lượng · C camera · N map · F tốc độ 25/50/180 · P dừng xe / đi tiếp · G sương mù · H ẩn giao diện</p>
+    <p class="keys">A/D hoặc ←/→ lái · W/S hoặc ↑/↓ tốc độ · giữ chuột/vuốt: nhìn 360° · lăn chuột/chụm 2 ngón hoặc + −: zoom (16–35mm) · L ống kính · Q chất lượng · C camera · N map · F tốc độ 25/50/180 · P dừng xe / đi tiếp · G sương mù · H ẩn giao diện · U toàn màn hình</p>
   </div>
 
-  <script type="module" src="app.js?v=cdc0a85f"></script>
+  <script type="module" src="app.js?v=0dde3eee"></script>
 </body>
 </html>

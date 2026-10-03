@@ -17,6 +17,7 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 - **Mặt đường**: nhựa đường sần (hạt nhám, độ bóng lốm đốm), không trơn bóng; **mưa**: mặt đường ướt có **vũng nước phản chiếu** xe, đèn đường, bầu trời + gợn sóng giọt mưa; xe **tự bật gạt mưa** (bão gạt nhanh hơn; cần gạt quay thật, nhìn từ ngoài cũng thấy) — ngồi trong xe thấy giọt mưa bắn vào kính, đọng lại, chảy thành vệt, lưỡi gạt quét sạch từng lượt
 - **Trong xe**: nhìn từ mắt người lái (2 tay cầm vành vô lăng), mặc định 16 mm f/16, góc nhìn tự canh để thấy trọn vô lăng (bọc da đen) và trọn gương chiếu hậu, lấy nét gần taplo; **màn hình giải trí** trên taplo (bản đồ, bài nhạc, tốc độ, giờ) hắt ánh sáng vàng ấm lên người lái — nhìn từ ngoài xe ban đêm cũng thấy, cabin có đèn nên không tối om, kính có phản xạ, **gương chiếu hậu soi thật** cảnh phía sau
 - **Thời gian**: bình minh · ban ngày · giờ vàng · **hoàng hôn** (mặc định) · ban đêm · tự động chạy hết ngày (đèn pha, đèn đường)
+- **Điện thoại**: chạm vào màn hình bắt đầu là vào **toàn màn hình** và khoá **nằm ngang** (Android); nút ⛶ bật / tắt toàn màn hình; cầm dọc thì hiện gợi ý xoay ngang (bỏ qua được); giao diện gọn cho màn hình ngang thấp, chừa tai thỏ. iPhone (Safari không cho web tự toàn màn hình): **Chia sẻ → Thêm vào MH chính** rồi mở từ biểu tượng để chơi toàn màn hình. Mức Good trên điện thoại giới hạn độ phân giải 1.25x cho nhẹ máy
 - **Chất lượng** ⚙️ (nút hoặc phím `Q`): **Low / Good / Ultra** do người chơi chọn (mặc định **Good**; lựa chọn được nhớ trên máy). Low: độ phân giải 0.75, tắt xoá phông + phản chiếu vũng nước, cỏ thưa, chỉ cây tấm. Good: độ phân giải cao (tới mật độ điểm ảnh thật của màn hình), khử răng cưa 4x, cỏ dày, cây / bụi / đá model chi tiết trong bán kính 35 m. Ultra: **phạm vi hiển thị rộng gấp nhiều lần** — cây chi tiết tới 200 m, địa hình chi tiết xa gấp đôi, rừng xa rậm hơn, cỏ / lau trải xa gấp đôi; bóng đổ nét hơn, xoá phông mịn hơn
 - **Dừng xe** 🅿️ (nút hoặc phím `P`): cận cảnh bánh xe chậm dần rồi dừng, cửa mở, người lái bước ra đi lên đầu xe đứng dựa vào xe, camera lùi ra toàn cảnh rồi quay chậm quanh xe (giữ chuột rê / vuốt để tự xoay quanh xe); bấm lần nữa (▶️) người quay lại xe, đóng cửa, chạy tiếp. Người lái ngồi sẵn trong xe khi chạy (ẩn ở camera trong xe)
 - **Âm thanh**: nhạc lo-fi chill tự sinh bằng WebAudio + tiếng động cơ / gió / mưa
@@ -33,6 +34,7 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 | `Q` | đổi mức chất lượng Low / Good / Ultra |
 | `P` | dừng xe (cảnh người bước ra) / đi tiếp |
 | `H` | ẩn / hiện giao diện |
+| `U` | bật / tắt toàn màn hình (nút ⛶) |
 
 Chuột / màn hình cảm ứng: **bấm giữ rồi rê** (vuốt) để nhìn xung quanh 360°, thả tay camera tự quay về; **lăn chuột** hoặc **chụm / mở 2 ngón** để zoom.
 
