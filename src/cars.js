@@ -98,7 +98,7 @@ export class Cars {
     const token = ++this.token;
     let entry = this.cache.get(def.id);
     if (!entry) {
-      entry = await this._load(def);
+      entry = await this._load(def, f => { if (token === this.token) this.onProgress?.(f); });
       this.cache.set(def.id, entry);
     }
     if (token !== this.token) return false;            // đã chọn xe khác trong lúc tải
@@ -117,8 +117,8 @@ export class Cars {
     return true;
   }
 
-  async _load(def) {
-    const gltf = await this.loader.loadAsync(def.file, (e) => { if (this.onProgress && e.total) this.onProgress(e.loaded / e.total); });
+  async _load(def, onProgress) {
+    const gltf = await this.loader.loadAsync(def.file, (e) => { if (onProgress && e.total) onProgress(e.loaded / e.total); });
     const model = gltf.scene;
     const holder = new THREE.Group();
     holder.add(model);

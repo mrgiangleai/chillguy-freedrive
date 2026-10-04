@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -70,6 +70,9 @@
 - **Tốc độ**: nút ⚡/phím F: 25 → 50 → 180 km/h. 180: blur rìa, không vệt dài; camera ngoài xe chuyển 16 mm.
 - **Ống kính**: camera ngoài xe → 24 mm f/5.6; trong xe 16 mm f/16 (lấy nét taplo). Zoom 16–35 mm.
 - **Xe người chơi**: tự lái, chạy lệch tim đường `LANE_D = 1.5 m` (sát vạch vàng); lái ngang tay đổi làn `drive.home`.
+  Danh sách xe có thêm **Bugatti EB110** (phím V/nút 🚗): sơn xanh, dài 4.4 m, rộng 1.998 m, cao 1.070 m, bốn bánh quay riêng,
+  cabin/camera, kính mưa và đèn theo rig chung; dùng được trong pool NPC. File gốc giữ nguyên; `scripts/prepare-eb110.mjs`
+  tạo `assets/models/bugatti-eb110.glb` (11.3 MB), bỏ sàn/logo trưng bày, tách bánh theo từng góc, giữ texture và metadata tác giả.
   Tự bám xe trước và tự vượt xe cùng chiều khi làn bên kia trống ≥50 m sau xe bị vượt và xe đối diện không kịp tới.
   Vô lăng + hai tay tự xoay theo cua thật (nhìn trước 0.4 s, tối đa 12 m; atan(curvature × 2.7) × 14 + lái tay, ±0.55 rad,
   nội suy 8/s; dừng xe thì trả giữa). Mustang: sơn đen bóng (env ×0.4), nội thất đen bóng, ghế da nâu, vô lăng da đen
@@ -120,6 +123,8 @@
 - Chưa kiểm chứng hiệu năng trên máy thật (gương + tia nắng + mưa kính + thác tốn thêm GPU); chưa thử Good/Ultra trên máy ảo.
 - Cảnh dừng xe: đoạn ▶️ quay lại xe mới thử bằng mô phỏng logic (máy ảo quá chậm để chạy trọn).
 - Divo / xe tải sữa: không có gương hông, không có `steer` (tay giữ tư thế animation).
+- EB110: cửa/vô lăng gộp với thân/nội thất nên chưa có animation riêng, tay giữ clip lái gốc; gương hông dùng vật liệu model,
+  chưa soi thật như Mustang. Chưa kiểm tra GUI mưa kính/cảnh dừng xe hoặc hiệu năng Good/Ultra trên EB110.
 - Mưa kính sau trên Mustang xanh mới kiểm bằng script, chưa xem GUI.
 - Chưa xem trên máy thật: chuyển động sóng biển (đã sửa giật 2 lần), cảnh dừng xe mới (quay quanh + zoom 5 s), xe ngựa ban đêm,
   map Biển ban đêm / mưa / trong xe; vân sóng lặp còn thấy khi nhìn từ trên cao.
@@ -134,3 +139,15 @@
   ngả lưng, IK chân, giày sẫm khi ngồi (giày trắng lộ qua vô lăng trong góc nhìn trong xe). Đo bằng `seat-check` (scratchpad):
   đỉnh thân người / mặt đệm / tựa lưng / trần / sàn; ảnh `screenshots/seat-cutaway-before.jpg`, `seat-cutaway-after.jpg`,
   `seat-side-after.jpg`, `seat-cockpit-after.jpg`. Check scripts đạt. Chưa chạy trọn cảnh dừng xe (bước ra / vào) với ghế mới.
+
+- **#2 — Bugatti EB110 (05/10/2026)**: đồng bộ Git tới `b267bf3`, dùng model mới chú tải lên. Tạo bản game riêng,
+  bỏ đạo cụ trưng bày; tách 25.920 tam giác bánh thành bốn cụm (giữ hình học), chuẩn hoá đầu −Z, chạm đất và dài 4.4 m;
+  thêm xe sơn xanh vào `CARS`, căn đèn theo mesh bóng đèn, chỉnh chỗ ngồi cho cabin thấp. Giữ file gốc và thông tin
+  Alex.Ka. / CC BY-NC 4.0 trong metadata + credits README/game. Vô lăng/cửa chưa tách riêng nên không thêm animation giả.
+  Sửa tiến trình tải: chỉ xe đang chọn cập nhật nút xe, tải NPC và yêu cầu chọn xe cũ không ghi đè nhãn.
+  - `check-eb110.mjs`: kích thước/hướng/gầm, bốn pivot + bán kính bánh, vị trí pha/hậu trong biên mesh, cấu hình NPC,
+    tiến trình tải nền và hai yêu cầu chọn xe chồng nhau đạt. `check-traffic.mjs`, `check-traffic-policy.mjs`,
+    `check-steering.mjs`, build và diff check đạt.
+  - Fixture GUI Low `scripts/eb110-preview.js`: model tải được, nút hiển thị Bugatti EB110 sau tải NPC; quan sát trước/sau,
+    cabin và pha ban đêm, không có lỗi console. Ảnh `screenshots/eb110-{front,rear,cockpit,night}-verified.jpg`.
+    Fixture giữ xe/camera để chụp, bản NPC thứ hai chỉ kiểm tra tải/render; chưa phải lượt chạy NPC ngẫu nhiên thực tế.

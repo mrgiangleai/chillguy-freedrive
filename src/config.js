@@ -40,6 +40,12 @@ export const CARS = [
     lamps: { head: [0.84, 0.66, -1.8], tail: [0.66, 0.73, 2.05] } },
   { id: 'milktruck', name: 'Milk Truck', file: 'assets/models/milktruck.glb', length: 5.0, flip: true, eye: [-0.6, 1.8, -1.3],
     wheels: /^Wheels/, lamps: { head: [0.82, 0.9, -2.38], tail: [0.79, 0.63, 2.39] } },
+  { id: 'eb110', name: 'Bugatti EB110', file: 'assets/models/bugatti-eb110.glb', length: 4.4,
+    flip: true, wheels: /^Wheel(F|R)[LR]$/,
+    eye: [-0.36, 0.93, 0.12],
+    seat: { hip: [-0.36, 0.22, 0.18], foot: [-0.45, 0.22, -0.65], recline: 0.16 },
+    lamps: { head: [0.52, 0.53, -1.6], tail: [0.7, 0.68, 2.12] },
+    mats: { Bugatti_EB110SS_By_Alex_Ka: { color: 0x2854c9, envK: 0.6 } } },
 ];
 
 export const MAPS = [
