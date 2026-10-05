@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -70,14 +70,14 @@
 - **Tốc độ**: nút ⚡/phím F: 25 → 50 → 180 km/h. 180: blur rìa, không vệt dài; camera ngoài xe chuyển 16 mm.
 - **Ống kính**: camera ngoài xe → 24 mm f/5.6; trong xe 16 mm f/16 (lấy nét taplo). Zoom 16–35 mm.
 - **Xe người chơi**: tự lái, chạy lệch tim đường `LANE_D = 1.5 m` (sát vạch vàng); lái ngang tay đổi làn `drive.home`.
-  Danh sách xe có thêm **Bugatti EB110** (phím V/nút 🚗): sơn xanh, dài 4.4 m, rộng 1.998 m, cao 1.070 m, bốn bánh quay riêng,
-  cabin/camera, kính mưa và đèn theo rig chung; dùng được trong pool NPC. File gốc giữ nguyên; `scripts/prepare-eb110.mjs`
-  tạo `assets/models/bugatti-eb110.glb` (11.3 MB), bỏ sàn/logo trưng bày, tách bánh theo từng góc, giữ texture và metadata tác giả.
-  Thêm **Mazda RX Vision Sport**: `assets/models/mazda-rx-vision.glb`, dài trong game 4.8 m, rộng 2.114 m, cao 1.264 m;
-  sơn đỏ, nội thất tay lái bên phải, bốn cụm `WHEEL_*`, tám mesh `MazdaSteering_*` quay theo `steerAngle` + IK tay.
-  `scripts/prepare-mazda.mjs` dùng glTF-Transform/meshoptimizer (cài trong `.scratch/mazda-tools`, lệnh đầu script):
-  1.315.319 → 284.122 tam giác, 19.8 → 2.59 MB; giữ upload gốc, chỉnh kính và tên vật liệu đèn/phanh.
-  Danh sách hiện có Mustang đen / Divo / Milk Truck / EB110 / Mazda; đã gỡ cấu hình xe màu xanh trước đây, file gốc còn lưu.
+  Danh sách chỉ còn **Mustang đen / Mazda RX Vision Sport** (phím V/nút 🚗), cùng dùng cho NPC.
+  Đã xóa cấu hình, model và các script riêng của Divo/Milk Truck/EB110.
+  Mazda: `assets/models/mazda-rx-vision.glb`, dài 4.8 m, rộng 2.114 m, cao 1.265 m, nội thất tay lái bên phải,
+  bốn cụm `WHEEL_*`, tám mesh `MazdaSteering_*` quay theo `steerAngle` + IK tay.
+  `scripts/prepare-mazda.mjs` giữ hình học/texture binary giống từng byte với upload gốc: **1.315.319 tam giác, 19.8 MB**;
+  không simplify/meshopt thêm, chỉ chỉnh metadata tên mesh và vật liệu kính/đèn/sơn. Sơn `body` lấy từ JSON chú cung cấp,
+  lưu `src/mazda-paint.json`: #54545f, metalness 1, roughness 0.364192, clearcoat 1, clearcoatRoughness 0, env intensity 1.
+  File upload gốc Mazda vẫn giữ nguyên. Xe xanh cũ đã gỡ cấu hình, file gốc còn lưu.
   Tự bám xe trước và tự vượt xe cùng chiều khi làn bên kia trống ≥50 m sau xe bị vượt và xe đối diện không kịp tới.
   Vô lăng + hai tay tự xoay theo cua thật (nhìn trước 0.4 s, tối đa 12 m; atan(curvature × 2.7) × 14 + lái tay, ±0.55 rad,
   nội suy 8/s; dừng xe thì trả giữa). Mustang: sơn đen bóng (env ×0.4), nội thất đen bóng, ghế da nâu, vô lăng da đen
@@ -92,7 +92,7 @@
 - **Ngồi lái (Mustang)**: model ghế đặt quá cao so với trần (đệm 0.60, trần 1.27 m) => cụm ghế hạ 19 cm (đáy đệm khuất dưới sàn
   0.362) + trượt lên trước 16 cm (`cars.js`, `seat.drop/forward`); xương chậu đặt tại `seat.hip` (stopscene.place), lưng ngả 0.1 rad,
   chân IK duỗi tới sàn (cổ chân `seat.foot`, mũi giày chếch lên 24°), tay IK giữ vô lăng (khuỷu gập ~77°). Đo: lún đệm 1.6 cm,
-  không chạm trần (đỉnh đầu 1.254) / sàn / tựa lưng; mắt 1.21 m. Divo / xe sữa chưa có `seat` => cách đặt cũ theo mắt.
+  không chạm trần (đỉnh đầu 1.254) / sàn / tựa lưng; mắt 1.21 m.
 - **Trong xe**: mắt = xương đầu +0.15 m; góc chúc tự canh: chừa phần dưới vành để thấy cả bàn tay và cẳng tay, không cắt
   gương giữa. Gương giữa (4:3, cạnh màn hình taplo) + 2 gương hông soi thật. Ánh sáng cabin từ màn hình taplo; đã bỏ dải LED
   và quầng sáng sàn. Mưa: giọt nước/vệt chảy trên kính trước + gạt mưa; kính sau dùng mask từ mesh kính thật (không phủ
@@ -128,9 +128,6 @@
 - **Chờ chú**: map mới từ model `landscape_forest__mountains.glb` — chú dặn để lần sau, **hỏi chú trước khi làm**.
 - Chưa kiểm chứng hiệu năng trên máy thật (gương + tia nắng + mưa kính + thác tốn thêm GPU); chưa thử Good/Ultra trên máy ảo.
 - Cảnh dừng xe: đoạn ▶️ quay lại xe mới thử bằng mô phỏng logic (máy ảo quá chậm để chạy trọn).
-- Divo / xe tải sữa: không có gương hông, không có `steer` (tay giữ tư thế animation).
-- EB110: cửa/vô lăng gộp với thân/nội thất nên chưa có animation riêng, tay giữ clip lái gốc; gương hông dùng vật liệu model,
-  chưa soi thật như Mustang. Chưa kiểm tra GUI mưa kính/cảnh dừng xe hoặc hiệu năng Good/Ultra trên EB110.
 - Mazda: chưa có cửa mở/gương hông soi thật; chưa thử cảnh dừng xe trọn vẹn, GUI mưa kính sau hoặc Good/Ultra.
 - Chưa xem trên máy thật: chuyển động sóng biển (đã sửa giật 2 lần), cảnh dừng xe mới (quay quanh + zoom 5 s), xe ngựa ban đêm,
   map Biển ban đêm / mưa / trong xe; vân sóng lặp còn thấy khi nhìn từ trên cao.
@@ -186,3 +183,15 @@
   - GUI Low `grip-preview.js`: thẳng/trái/phải, tiếp xúc vành 2/2; giữ xe/camera và cấp lái ngang để quan sát,
     không phải video chạy liên tục. Ảnh `screenshots/mustang-grip-{before,straight,left,right}.jpg`.
     Check steering/Mazda/car-switch, build và diff check đạt. Bộ đếm 4/10.
+
+- **#5 — Khôi phục chi tiết Mazda, sơn theo JSON và gỡ ba xe (05/10/2026)**: bỏ bản giảm chi tiết/nén thêm,
+  dựng lại Mazda từ upload gốc. Giữ 1.315.319 tam giác và toàn bộ BIN/mesh/accessor/texture byte-identical; file 19.8 MB.
+  Chỉ chỉnh tên mesh vô lăng/vật liệu để dùng rig có sẵn. Trích riêng vật liệu sơn `body` từ JSON chú cung cấp,
+  lưu thông số xám #54545f trong `src/mazda-paint.json`; không nhập scene/scripts/camera của JSON vào game.
+  - Xóa Divo/Milk Truck/EB110 khỏi CARS và model assets, gỡ script chuẩn bị/preview/test EB110; chuyển các kiểm tra
+    tiến trình tải vốn nằm trong check EB110 sang `check-car-switch.mjs`. CARS/NPC chỉ dùng Mustang và Mazda.
+  - `check-mazda.mjs`: so byte BIN và cấu trúc hình học/texture với upload gốc, thông số sơn, kích thước, bánh, đèn,
+    vô lăng và pool NPC hai xe đạt. Check Mustang grip/car-switch/traffic/traffic-policy/steering và build/diff check đạt.
+  - GUI Low với bản đầy đủ chi tiết: trước/sau/cabin/ban đêm đạt, shader vật liệu thực đọc đúng
+    #54545f / metalness 1 / roughness 0.364192 / clearcoat 1 / clearcoatRoughness 0 / env 1; không có lỗi console.
+    Ảnh `screenshots/mazda-original-{front,rear,cockpit,night}.jpg`. Chưa kiểm chứng hiệu năng Good/Ultra của bản nặng.

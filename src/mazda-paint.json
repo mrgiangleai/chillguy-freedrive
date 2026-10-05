@@ -1,0 +1,19 @@
+{
+  "name": "body",
+  "type": "MeshPhysicalMaterial",
+  "color": 5526623,
+  "roughness": 0.364192,
+  "metalness": 1,
+  "clearcoat": 1,
+  "clearcoatRoughness": 0,
+  "specularIntensity": 1,
+  "specularColor": 16777215,
+  "reflectivity": 0.49999999999999983,
+  "iridescence": 0,
+  "iridescenceIOR": 1.3,
+  "iridescenceThicknessRange": [
+    100,
+    400
+  ],
+  "envMapIntensity": 1
+}

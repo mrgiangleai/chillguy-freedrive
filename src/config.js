@@ -1,3 +1,4 @@
+import mazdaPaint from './mazda-paint.json' with { type: 'json' };
 // Danh sách xe (xe đầu tiên là xe mặc định). Model đã nén meshopt + WebP, đặt trong docs/assets/models/.
 // length  : chiều dài xe (m) sau khi chuẩn hoá kích thước
 // rotX    : xoay model về trục Y-up nếu cần (radian)
@@ -29,24 +30,15 @@ export const CARS = [
     seat: SEAT_67,
     steer: { c: [-0.385, 0.883, -0.155], n: [0, 0.338, 0.941], r: 0.153,
       grip: { radial: 0.025, depth: 0.065, align: true } }, steerMesh: /^(Torus\.?001|Cube\.?009)/ },   // vành thật ~15.3 cm; lòng bàn tay ôm vành, giữ ngón cong của clip lái
-  { id: 'divo', name: 'Bugatti Divo', file: 'assets/models/bugatti-divo.glb', length: 4.64, flip: true, wheels: /^(4_3|5_17)$/,
-    basicMetal: { metalness: 0.6, roughness: 0.38 },   // vật liệu gốc bị chuyển đổi sai => kim loại bóng nhẹ cơ bản
-    lamps: { head: [0.84, 0.66, -1.8], tail: [0.66, 0.73, 2.05] } },
-  { id: 'milktruck', name: 'Milk Truck', file: 'assets/models/milktruck.glb', length: 5.0, flip: true, eye: [-0.6, 1.8, -1.3],
-    wheels: /^Wheels/, lamps: { head: [0.82, 0.9, -2.38], tail: [0.79, 0.63, 2.39] } },
-  { id: 'eb110', name: 'Bugatti EB110', file: 'assets/models/bugatti-eb110.glb', length: 4.4,
-    flip: true, wheels: /^Wheel(F|R)[LR]$/,
-    eye: [-0.36, 0.93, 0.12],
-    seat: { hip: [-0.36, 0.22, 0.18], foot: [-0.45, 0.22, -0.65], recline: 0.16 },
-    lamps: { head: [0.52, 0.53, -1.6], tail: [0.7, 0.68, 2.12] },
-    mats: { Bugatti_EB110SS_By_Alex_Ka: { color: 0x2854c9, envK: 0.6 } } },
   { id: 'mazda-rx-vision', name: 'Mazda RX Vision Sport', file: 'assets/models/mazda-rx-vision.glb', length: 4.8,
     flip: true, wheels: /^WHEEL_(LF|LR|RF|RR)_/,
     eye: [0.394, 1.09, 0.45],
     seat: { hip: [0.394, 0.34, 0.48], foot: [0.49, 0.26, -0.58], recline: 0.1 },
     steer: { c: [0.394, 0.795, 0.082], n: [0, 0.156, 0.9878], r: 0.18 }, steerMesh: /^MazdaSteering_/,
     lamps: { head: [0.74, 0.57, -1.99], tail: [0.7, 0.838, 2.086] },
-    mats: { body: { color: 0x9e1829, metalness: 0.25, roughness: 0.3, clearcoatRoughness: 0.1, envK: 0.65 } } },
+    mats: { body: { color: mazdaPaint.color, metalness: mazdaPaint.metalness, roughness: mazdaPaint.roughness,
+      clearcoat: mazdaPaint.clearcoat, clearcoatRoughness: mazdaPaint.clearcoatRoughness,
+      specularIntensity: mazdaPaint.specularIntensity, specularColor: mazdaPaint.specularColor, envK: mazdaPaint.envMapIntensity } } },
 ];
 
 export const MAPS = [

@@ -5,7 +5,7 @@ const oldQuality = JSON.parse(sessionStorage.getItem(qualityKey));
 localStorage.setItem('chilldrive.quality', 'low');
 await import('../src/main.js');
 const label = document.createElement('div');
-label.style.cssText = 'position:fixed;top:70px;left:12px;color:white;background:#000a;padding:5px;font:12px monospace;z-index:50';
+label.style.cssText = 'position:fixed;top:70px;left:12px;color:white;background:#000a;padding:5px;font:12px monospace;max-width:95vw;z-index:50';
 label.textContent = 'Mazda: waiting'; document.body.append(label);
 let steer = 0;
 let view = 'front', ready = false, busy = false, npc = null;
@@ -15,7 +15,7 @@ for (const mode of ['front', 'rear', 'cockpit', 'night', 'traffic', 'left', 'rig
     if (mode === 'restore') { oldQuality == null ? localStorage.removeItem('chilldrive.quality') : localStorage.setItem('chilldrive.quality', oldQuality); sessionStorage.removeItem(qualityKey); return; }
     const a = window.__app; if (mode === 'left' || mode === 'right') { steer = mode === 'left' ? .4 : -.4; return; }
     steer = 0; view = mode;
-    a.rig.setMode(mode === 'cockpit' ? 3 : 4); a.state.cam = mode === 'cockpit' ? 3 : 4;
+    a.state.cam = mode === 'cockpit' ? 2 : 3; a.nextCam(); // áp dụng cả tiêu cự/camera profile của game
     a.env.setTime(mode === 'night' ? 22.5 : 15); a.env.hour = mode === 'night' ? 22.5 : 15;
     a.env._captureEnv();
     if (npc) npc.group.visible = mode === 'traffic';
@@ -39,6 +39,7 @@ const timer = setInterval(async () => {
     }
     if (npc) { npc.group.position.copy(a.cars.root.position); npc.group.quaternion.copy(a.cars.root.quaternion); npc.group.translateX(3.3); npc.group.rotateY(Math.PI); }
     const d = a.cars.dim, e = a.cars.current;
+    let paint=null;e.group.traverse(o=>{if(o.isMesh&&o.material?.name==='body')paint=o.material;});
     let grip = 0;
     const sw = e.steer, n = new a.camera.position.constructor(...sw.n).normalize(), up = new a.camera.position.constructor(0,n.z,-n.y);
     for(const [side,angle] of [['r',-.08],['l',Math.PI+.08]]) {
@@ -46,7 +47,7 @@ const timer = setInterval(async () => {
       const wrist = a.person.arms[side][2].getWorldPosition(new a.camera.position.constructor()); a.cars.tilt.worldToLocal(wrist); grip = Math.max(grip,wrist.distanceTo(target));
     }
     const head = a.person.head.getWorldPosition(new a.camera.position.constructor()); a.cars.tilt.worldToLocal(head);
-    label.textContent = `Mazda ${e.def.id === 'mazda-rx-vision' && e.wheels.length === 4 ? 'PASS' : 'FAIL'} | ${d.length.toFixed(2)} × ${d.width.toFixed(2)} × ${d.height.toFixed(2)} m | wheels=${e.wheels.length} | glass=${!!e.shield}/${!!e.rearShield} | grip=${(grip*1000).toFixed(1)}mm | angle=${(a.cars.steerAngle*180/Math.PI).toFixed(1)}° | head=${head.y.toFixed(3)} | ${view} | Low`;
+    label.textContent = `Mazda ${e.def.id === 'mazda-rx-vision' && e.wheels.length === 4 ? 'PASS' : 'FAIL'} | ${d.length.toFixed(2)} × ${d.width.toFixed(2)} × ${d.height.toFixed(2)} m | wheels=${e.wheels.length} | glass=${!!e.shield}/${!!e.rearShield} | grip=${(grip*1000).toFixed(1)}mm | angle=${(a.cars.steerAngle*180/Math.PI).toFixed(1)}° | head=${head.y.toFixed(3)} | ${view} | Low | paint=#${paint?.color.getHexString()} metal=${paint?.metalness} rough=${paint?.roughness} coat=${paint?.clearcoat}/${paint?.clearcoatRoughness} env=${paint?.userData.envK}`;
   };
   clearInterval(timer);
 }, 100);
