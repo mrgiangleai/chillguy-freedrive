@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -17,6 +17,7 @@
   Máy chủ thử chạy nền tự tắt sau 2 giờ => bật lại. Script chụp tạm để ở scratchpad, không đưa file preview vào `docs/`.
   Máy chậm => môi trường (env map) chưa kịp chụp lại khi đổi giờ: gọi `__app.env.update(0.016, drive.pos); env._captureEnv()`.
 - **Kiểm tra tự động** (node, không cần trình duyệt): `scripts/check-traffic.mjs`, `check-traffic-policy.mjs`, `check-steering.mjs`,
+  `check-stopscene.mjs`,
   `check-waterfalls.mjs`, `check-rear-glass.mjs [model.glb]`. Model tải lên nặng: nén bằng `npx @gltf-transform/cli@4 webp … --quality 82`
   rồi `meshopt` (giữ file gốc); sóng biển bake bằng `node scripts/bake-ocean.mjs`. **Fixture GUI** `scripts/*-preview.js` (giữ cảnh cố định để chụp):
   bundle bằng esbuild ra `docs/<tên>-check.js`, sao `docs/index.html` thành trang riêng đổi script sang bundle đó; chụp xong
@@ -45,7 +46,7 @@
 | `wipers.js` | Gạt mưa tự động (pha cos) + lượng nước trên kính trước/sau |
 | `dashscreen.js` | Màn hình giải trí taplo (canvas, tông ấm, kích thước giảm 15%) + đèn hắt |
 | `person.js` | Người lái (Quaternius, animation), cao `HEIGHT` 1.70 m, áo đen/quần jeans/giày vẽ bằng shader (`footShade`: giày sẫm khi ngồi lái), IK 2 xương `reach(side, target, pole)` (tay) + `reachLeg(side, target, pole, toe)` (chân), `recline(angle)` (ngả spine_01, không cộng dồn dù clip không có track), `headOffsetSit`/`hipOffsetSit` |
-| `stopscene.js` | Cảnh dừng xe: dừng → bước ra, đóng cửa → đi lên trước xe → hút thuốc → **đi lanh quanh** (`_wander`, `_pickTarget`, `_look`) → quay lại xe; camera trung cảnh (cửa mở, bước ra) → từ `OUT_T` 2.25 s của cảnh bước ra: toàn cảnh quay quanh + `autoZoom` 5 s ra xa hết cỡ (đã bỏ cận cảnh); `zoomBy(f)` ở toàn cảnh: 16–35 mm + lùi thêm `back` ≤20 m (25 m / đơn vị ln) |
+| `stopscene.js` | Cảnh dừng xe: dừng → bước ra, đóng cửa → đi lên trước xe → hút thuốc → **đi lanh quanh** (`_wander`, `_pickTarget`, `_look`) → quay lại xe; từ `OUT_T` 2.25 s: camera quay quanh/bám người + `autoZoom` 5 s ra xa, dừng tự quay 2 s sau thao tác; `zoomBy(f)` 16–35 mm, khoảng cách 1–30 m; lúc đi về xe tự tiến dần tới 1 m |
 | `smoke.js` | Điếu thuốc (kẹp giữa ngón trỏ/giữa), đầu thuốc đỏ, lửa bật lửa, hạt khói (đầu điếu + nhả từ miệng) |
 | `terrain.js`, `terrain-noise.js` | Địa hình quadtree nhiều mức, cây tấm, cụm đá (`rockGeometry(k, detail)` export), texture ảnh; `setView` (Ultra xa ×2); `heightAt` (đặt `_d` = khoảng cách tới đường); `hash2`, `vnoise` |
 | `nature.js` | Cây/bụi/đá model chi tiết quanh camera (gần đổ bóng, xa không) |
@@ -118,9 +119,10 @@
 - **Xe ngựa cổ tích** (`carriage.js`, model nén `assets/models/carriage.glb` 1.6 MB từ file gốc 11 MB): chạy trên đường như NPC
   (15–30 s/chiếc, tối đa 2, 25–40 km/h, ngựa phi theo tốc độ; phần lớn ngược chiều; không đèn/tiếng lướt). Mây bụi dưới vó là
   một phần model.
-- **Dừng xe**: xem `stopscene.js`; người áo đen; bước ra khỏi xe là camera quay quanh + tự zoom ra xa hết cỡ trong 5 s (16 mm +
-  lùi 20 m), không còn cận cảnh; zoom tay ở toàn cảnh qua `zoomBy` (wheel / pinch / phím ±). Nhịp hút 3 s → 5 s → ngẫu nhiên
-  5–12 s; đi lanh quanh trong 10 m, chỉ trong làn mình + lề phải.
+- **Dừng xe**: xem `stopscene.js`; người áo đen; bước ra khỏi xe là camera quay quanh người + tự zoom ra xa hết cỡ trong 5 s
+  (16 mm + lùi 20 m). Rê/zoom dừng tự quay 2 s; zoom tay (wheel / pinch / phím ±) tiến sát tới 1 m. Khi đi về xe,
+  camera bám người và tiến từ khoảng cách hiện tại tới 1 m đúng lúc tới cửa. Nhịp hút 8 s → 12 s → ngẫu nhiên 12–24 s;
+  đi lanh quanh trong 10 m, chỉ trong làn mình + lề phải.
 - **Điện thoại**: tự toàn màn hình khi nhấc tay ở lần chạm đầu (và chạm lại nếu bị thoát), nút ⛶ chỉ hiện trên điện thoại,
   khoá ngang (Android), gợi ý xoay ngang khi cầm dọc; iPhone: "Thêm vào MH chính" (manifest fullscreen/landscape).
 
@@ -225,3 +227,13 @@
   - GUI Low `chisa-preview.js`: nút đổi hai chiều, góc trong/ngoài và đánh lái trái/phải; label xác nhận tiếp xúc vành
     2/2, console không có lỗi. Đổi Chisa sang Mazda tự trả Người lái và vô hiệu nút đúng phạm vi. Ảnh
     `screenshots/chisa-mustang-{exterior,left,right}.jpg`. Chưa áp dụng Chisa cho Mazda hoặc đo hiệu năng Good/Ultra.
+
+- **#9 — Camera dừng xe bám người + giảm hút thuốc (05/10/2026)**: đổi tâm camera toàn cảnh từ gốc xe sang vị trí thế giới
+  của nhân vật, nên người đi lanh quanh vẫn luôn là tâm quỹ đạo. Sau rê/zoom, tự quay đứng yên 2 giây rồi tiếp tục; zoom tay
+  có thêm khoảng tiến gần, đạt bán kính 1 m. Khi bấm đi tiếp, camera bám người và nội suy từ khoảng cách hiện tại về 1 m
+  đúng lúc người tới cửa xe. Nhịp nghỉ hút thuốc tăng từ 3/5/5–12 s lên 8/12/12–24 s.
+  - `check-stopscene.mjs`: camera dịch đúng theo người thay vì xe; giữ góc đủ 2 s; zoom tay và cuối đường về xe đều đạt 1 m.
+    `check-steering.mjs`, build và diff check đạt.
+  - GUI Low `stopscene-preview.js`: đo 10.00 m khi quay quanh người, 0.99–1.01 m khi cận, 9.51 m ở nửa đường từ
+    bán kính đầu 18 m và 1.00 m tại cửa. Ảnh `screenshots/stopscene-player-orbit.png`,
+    `screenshots/stopscene-return-close.png`. Fixture khóa tư thế/thời gian để đối chiếu khung hình, không phải video toàn cảnh.

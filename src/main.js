@@ -426,7 +426,7 @@ window.addEventListener('blur', () => keys.clear());
 // bấm giữ + rê chuột / vuốt màn hình: nhìn xung quanh 360° (thả ra camera tự về vị trí cũ)
 // lăn chuột / chụm-mở 2 ngón / phím + -: zoom
 const touches = new Map();                         // pointerId -> {x, y}
-// zoom: cảnh dừng xe đang toàn cảnh thì zoom ống kính của cảnh dừng (16–35 mm + lùi xa thêm 20 m), còn lại zoom camera chạy xe
+// zoom: cảnh dừng xe đang toàn cảnh thì zoom 16–35 mm + khoảng cách 1–30 m, còn lại zoom camera chạy xe
 function zoomBy(f) { if (!(stop.active && stop.zoomBy(f))) rig.zoomBy(f); }
 let pinchDist = 0;
 const spread = () => { const [a, b] = [...touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
@@ -450,7 +450,9 @@ canvas.addEventListener('pointermove', (e) => {
     if (pinchDist > 0 && d > 0) zoomBy(pinchDist / d);
     pinchDist = d;
   } else if (pointer.active && e.pointerId === pointer.id) {
-    rig.lookBy((e.clientX - pointer.x) * 4.7 / window.innerWidth, (e.clientY - pointer.y) * 2.2 / window.innerHeight);
+    const dx = e.clientX - pointer.x, dy = e.clientY - pointer.y;
+    rig.lookBy(dx * 4.7 / window.innerWidth, dy * 2.2 / window.innerHeight);
+    if (stop.active && Math.abs(dx) + Math.abs(dy) > 0) stop.noteCameraInput();
     pointer.x = e.clientX; pointer.y = e.clientY;
   }
 });
@@ -660,7 +662,7 @@ function frame(now) {
     const prev = stop.state;
     stop.update(dt, cars.root, drive.v);
     const c = stop.cam;
-    stopLook(c.pos, c.look);                       // giữ chuột rê: xoay vòng quanh xe / người (giữ nguyên góc đã xoay)
+    stopLook(c.pos, c.look);                       // giữ chuột rê: xoay quanh người; tự quay nghỉ 2 giây sau thao tác
     camera.lookAt(c.look);
     const fov = rig.fovFor(c.focal);
     const near = stop.closeK > 0.01 ? 0.06 : 0.3;                 // cận cảnh miệng: mặt phẳng cắt gần sát hơn (tay không bị cắt)

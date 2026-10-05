@@ -14,15 +14,19 @@ const FACE_CAR = Math.PI / 2;      // nhìn vào xe (+X)
 const FACE_DOOR = -Math.PI * 0.75; // nhìn chéo ra trước - ngoài (về phía cánh cửa đang mở)
 const WALK = 1.1;                  // m/s
 const UP = new THREE.Vector3(0, 1, 0);
-const OUT_T = 2.25;                // giây của cảnh bước ra: người vừa ra khỏi ghế => máy bắt đầu quay quanh xe (không cận cảnh)
+const OUT_T = 2.25;                // giây của cảnh bước ra: người vừa ra khỏi ghế => máy bắt đầu quay quanh người (không cận cảnh)
 const ZOOM_OUT_T = 5;              // trong 5 giây từ từ zoom ra xa hết cỡ (16 mm rồi lùi thêm 20 m)
 const WIDE_FOCAL = 26, FOCAL_MIN = 16, FOCAL_MAX = 35;
 const BACK_MAX = 20;               // toàn cảnh: zoom ra quá 16 mm thì máy lùi xa thêm tối đa 20 m
 const BACK_PER_LN = 25;            // m lùi thêm cho mỗi đơn vị ln(hệ số zoom) (16→35 mm ≈ 0.78 => ~20 m cùng biên độ thao tác)
+const NEAR_MAX = 9;                // bán kính mặc định 10 m - 9 m = có thể tiến sát người còn 1 m
+const NEAR_PER_LN = 18;
+const ORBIT_HOLD = 2;              // sau khi người dùng chỉnh camera, dừng tự quay đủ 2 giây
+const SMOKE_REST_FIRST = 8, SMOKE_REST_SECOND = 12, SMOKE_REST_MIN = 12, SMOKE_REST_SPAN = 12;
 
 // Cảnh dừng xe: cận cảnh bánh xe chậm dần -> cửa mở, người bước ra, đi vòng lên trước đầu xe, quay mặt sang phải,
 // rút điếu thuốc trong túi ra châm hút (tay đưa lên miệng bằng IK, khói vẽ ở smoke.js).
-// Camera: người vừa bước ra khỏi xe thì lùi ra toàn cảnh, quay chậm quanh xe, từ từ zoom ra xa hết cỡ trong 5 giây. Bấm lần nữa: người vứt thuốc, quay lại xe, đóng cửa, chạy tiếp.
+// Camera: người vừa bước ra khỏi xe thì lùi ra toàn cảnh, quay chậm quanh người, từ từ zoom ra xa hết cỡ trong 5 giây. Bấm lần nữa: người vứt thuốc, quay lại xe, đóng cửa, chạy tiếp.
 // Mọi toạ độ tính trong hệ của xe: đầu xe hướng -Z, bên tài xế -X, mặt đường y = 0.
 export class StopScene {
   constructor(cars, person) {
@@ -46,18 +50,18 @@ export class StopScene {
     this.handT = new THREE.Vector3();
     this.closeK = 0;                        // (đã bỏ cận cảnh hút thuốc; main.js vẫn đọc để chọn mặt phẳng cắt gần)
     this.autoZoom = { t: 0, on: true };     // zoom ra tự động khi vào toàn cảnh (người dùng zoom thì dừng)
-    this.wideK = 0;                         // 1 = toàn cảnh quay quanh xe
-    this.zoom = { focal: WIDE_FOCAL, back: 0, focalS: WIDE_FOCAL, backS: 0 };   // ống kính toàn cảnh (người dùng zoom)
+    this.wideK = 0;                         // 1 = toàn cảnh quay quanh người
+    this.zoom = { focal: WIDE_FOCAL, back: 0, near: 0, focalS: WIDE_FOCAL, backS: 0, nearS: 0 };   // ống kính + khoảng cách toàn cảnh
     this.orbitA = null;
-    this.cyc = { t: 0, n: 0, rest: 3 };     // nhịp hút thuốc
+    this.orbitHold = 0;
+    this.enterRadius = 10;
+    this.cyc = { t: 0, n: 0, rest: SMOKE_REST_FIRST };     // nhịp hút thuốc
     this.mouthCorr = new THREE.Vector3();
     this.wd = { mode: 'idle', t: 0, dur: 4, face: null, target: new THREE.Vector3() };   // đi lanh quanh
     this.lk = { t: 0, ty: 0, tp: 0, y: 0, p: 0 };                                           // quay đầu nhìn quanh
     this._q1 = new THREE.Quaternion(); this._q2 = new THREE.Quaternion(); this._q3 = new THREE.Quaternion(); this._q4 = new THREE.Quaternion();
     this._pole = new THREE.Vector3();
     this._A = new THREE.Vector3(); this._O = new THREE.Vector3(); this._H = new THREE.Vector3(); this._t1 = new THREE.Vector3(); this._t2 = new THREE.Vector3();
-    this.orbitA = 0;
-    this.orbitT = 0;
     this.shot = { pos: new THREE.Vector3(), look: new THREE.Vector3() };   // góc máy trung cảnh (trong hệ xe)
     // kết quả cho camera (toạ độ thế giới), tiêu cự, điểm lấy nét và bề dày vùng nét
     this.cam = { pos: new THREE.Vector3(), look: new THREE.Vector3(), focus: new THREE.Vector3(), focal: 28, range: 2 };
@@ -104,30 +108,41 @@ export class StopScene {
       // quay lại xe từ chỗ đang đứng (đã đi lanh quanh)
       this.stand.copy(this.person.root.position);
       this.enterYaw = this.person.root.rotation.y;
+      this.enterRadius = Math.max(1, 10 + this.zoom.backS - this.zoom.nearS);
+      this.autoZoom.on = false;
       this.state = 'enter'; this.t = 0; return true;
     }
     return false;
   }
 
   // zoom ở toàn cảnh. f > 1: zoom ra — tiêu cự giảm tới 16 mm rồi máy lùi xa thêm (tối đa 20 m);
-  // f < 1: zoom vào — máy tiến lại hết 20 m về chỗ cũ (16 mm) rồi mới tăng tiêu cự tới 35 mm. Trả về false nếu không ở toàn cảnh.
+  // f < 1: zoom vào — máy tiến lại hết 20 m, tăng tiêu cự tới 35 mm, rồi tiến sát người tới 1 m. Trả về false nếu không ở toàn cảnh.
   zoomBy(f) {
     if (this.wideK < 0.3) return false;
     this.autoZoom.on = false;                // người dùng tự zoom: thôi zoom tự động
+    this.noteCameraInput();
     const z = this.zoom;
     let ln = Math.log(f);
     if (ln > 0) {
+      const nearUse = Math.min(ln, z.near / NEAR_PER_LN);
+      z.near -= nearUse * NEAR_PER_LN; ln -= nearUse;
       const toMin = Math.log(z.focal / FOCAL_MIN), use = Math.min(ln, toMin);
       z.focal /= Math.exp(use); ln -= use;
       if (ln > 0) z.back = Math.min(BACK_MAX, z.back + ln * BACK_PER_LN);
     } else if (ln < 0) {
       const use = Math.min(-ln, z.back / BACK_PER_LN);
       z.back -= use * BACK_PER_LN; ln += use;
-      if (ln < 0) z.focal = Math.min(FOCAL_MAX, z.focal / Math.exp(ln));
+      if (ln < 0) {
+        const toMax = Math.log(FOCAL_MAX / z.focal), focalUse = Math.min(-ln, toMax);
+        z.focal *= Math.exp(focalUse); ln += focalUse;
+      }
+      if (ln < 0) z.near = Math.min(NEAR_MAX, z.near - ln * NEAR_PER_LN);
       if (z.back < 1e-6) z.back = 0;
     }
     return true;
   }
+
+  noteCameraInput() { if (this.wideK >= 0.3) this.orbitHold = ORBIT_HOLD; }
 
   // tốc độ xe trong lúc dừng: giảm đều, dừng hẳn sau ~3 giây
   speed(v, dt) {
@@ -175,17 +190,17 @@ export class StopScene {
       this.shot.pos.set(-dim.width / 2 - 4.2, 1.45, this.seat.z - 2.7);
       this.shot.look.set(-dim.width / 2 - 0.25, 0.95, this.seat.z - 0.6);
       this.closeK = 0; this.wideK = 0; this.orbitA = null; this.mouthCorr.set(0, 0, 0);
-      Object.assign(this.zoom, { focal: WIDE_FOCAL, back: 0, focalS: WIDE_FOCAL, backS: 0 });
+      Object.assign(this.zoom, { focal: WIDE_FOCAL, back: 0, near: 0, focalS: WIDE_FOCAL, backS: 0, nearS: 0 });
+      this.orbitHold = 0;
       this.autoZoom.t = 0; this.autoZoom.on = true;
     }
   }
 
-  // camera: trung cảnh thấy cửa mở, người bước ra -> vừa ra khỏi xe thì lùi ra toàn cảnh (bán kính 10 m, cao 3.4 m), quay
-  // chậm quanh xe và từ từ zoom ra xa hết cỡ trong 5 giây (26 → 16 mm rồi lùi thêm 20 m); người dùng vẫn zoom 16–35 mm / ±20 m.
-  // Đi tiếp: giữ toàn cảnh tới khi người vào xe.
+  // camera: trung cảnh thấy cửa mở, người bước ra -> vừa ra khỏi xe thì lùi ra toàn cảnh, quay chậm quanh người và tự zoom xa.
+  // Rê/zoom thì tự quay nghỉ 2 giây. Đi tiếp: bám theo người và tiến dần tới 1 m cho tới lúc người tới cửa xe.
   _camera(dt, carRoot) {
-    const cam = this.cam, dim = this.cars.dim;
-    const wantWide = (this.state === 'exit' && this.t >= OUT_T) || this.state === 'parked' || (this.state === 'enter' && this.wideK > 0.5) ? 1 : 0;
+    const cam = this.cam;
+    const wantWide = (this.state === 'exit' && this.t >= OUT_T) || this.state === 'parked' || this.state === 'enter' ? 1 : 0;
     this.wideK += (wantWide - this.wideK) * (1 - Math.exp(-dt * 0.9));
     const z = this.zoom, a = this.autoZoom;
     if (wantWide && a.on) {
@@ -194,31 +209,36 @@ export class StopScene {
       const lnF = Math.log(WIDE_FOCAL / FOCAL_MIN), L = ease(a.t / ZOOM_OUT_T) * (lnF + BACK_MAX / BACK_PER_LN);
       z.focal = WIDE_FOCAL / Math.exp(Math.min(L, lnF));
       z.back = Math.max(0, L - lnF) * BACK_PER_LN;
+      z.near = 0;
       if (a.t >= ZOOM_OUT_T) a.on = false;
     }
     const kz = 1 - Math.exp(-dt * 6);
-    z.focalS += (z.focal - z.focalS) * kz; z.backS += (z.back - z.backS) * kz;
+    z.focalS += (z.focal - z.focalS) * kz; z.backS += (z.back - z.backS) * kz; z.nearS += (z.near - z.nearS) * kz;
     const w = ease(this.wideK);
-    // trung cảnh (toạ độ xe)
+    // trung cảnh: đổi sang thế giới trước khi hoà với camera quay quanh người
     const pr = this.person.root.position;
     const P = this._p.copy(this.shot.pos), L = this._l.set(pr.x, 1.2, pr.z);
+    carRoot.localToWorld(P); carRoot.localToWorld(L);
     this.person.head.getWorldPosition(cam.focus);
     cam.focal = 32; cam.range = 0.8;
     if (w > 1e-3) {
-      // toàn cảnh: lùi ra theo hướng đang đứng (không xuyên qua xe) rồi quay chậm quanh xe
-      if (this.orbitA === null) this.orbitA = Math.atan2(P.x, P.z + 0.3);
-      this.orbitA += dt * 0.1 * w;
-      const R = 10 + z.backS;                                       // zoom ra quá 16 mm: lùi xa thêm, cao dần để vẫn nhìn xuống xe
-      const op = this._w.set(Math.sin(this.orbitA) * R, 3.4 + z.backS * 0.3, Math.cos(this.orbitA) * R - 0.3);
+      const center = this.person.root.getWorldPosition(this._t1).addScaledVector(UP, 0.95);
+      if (this.orbitA === null) this.orbitA = Math.atan2(P.x - center.x, P.z - center.z);
+      if (this.orbitHold > 0) this.orbitHold = Math.max(0, this.orbitHold - dt);
+      else this.orbitA += dt * 0.1 * w;
+      let R = Math.max(1, 10 + z.backS - z.nearS);
+      if (this.state === 'enter') {
+        const reachT = 0.6 + this.stand.distanceTo(this.corner) / WALK + this.corner.distanceTo(this.out) / WALK;
+        R = lerp(this.enterRadius, 1, ease(this.t / reachT));
+      }
+      const y = R * 0.28, xz = Math.sqrt(Math.max(0, R * R - y * y));
+      const op = this._w.set(Math.sin(this.orbitA) * xz, y, Math.cos(this.orbitA) * xz).add(center);
       P.lerp(op, w);
-      L.lerp(this._t1.set(-dim.width * 0.2, 0.8, -0.4), w);
-      this.person.head.getWorldPosition(this._t2);
-      cam.focus.lerp(this._t2, w);
+      L.lerp(center, w);
       cam.focal = lerp(cam.focal, z.focalS, w);
-      cam.range = lerp(cam.range, dim.width / 2 + 1.2, w);
+      cam.range = lerp(cam.range, 0.9, w);
     } else this.orbitA = null;
-    cam.pos.copy(P); carRoot.localToWorld(cam.pos);
-    cam.look.copy(L); carRoot.localToWorld(cam.look);
+    cam.pos.copy(P); cam.look.copy(L);
   }
 
   _exit(dim, dt) {
@@ -259,7 +279,7 @@ export class StopScene {
     // tới nơi: quay mặt sang phải rồi hút thuốc
     p.play('Idle_Loop', 0.4);
     root.position.copy(this.stand);
-    if (this.smokeU < 0) { this.smokeU = 0; this.turnFrom = root.rotation.y; this.cyc.t = 0; this.cyc.n = 0; this.cyc.rest = 3; }
+    if (this.smokeU < 0) { this.smokeU = 0; this.turnFrom = root.rotation.y; this.cyc.t = 0; this.cyc.n = 0; this.cyc.rest = SMOKE_REST_FIRST; }
     root.rotation.y = lerpAng(this.turnFrom, FACE_CAR, ease(this.smokeU / 0.6));
     if (this.smokeU > 0.8) this.state = 'parked';
   }
@@ -307,11 +327,11 @@ export class StopScene {
       return;
     }
     sm.lit = true;
-    // nhịp hút: hạ tay (nhả khói) -> cầm thuốc nghỉ (lần lượt 3 s, 5 s, rồi ngẫu nhiên 5–12 s) -> đưa lên -> rít
+    // nhịp hút thưa: hạ tay (nhả khói) -> nghỉ 8 s, 12 s, rồi ngẫu nhiên 12–24 s -> đưa lên -> rít
     const c = this.cyc;
     c.t += dt;
     const total = 0.8 + c.rest + 0.8 + 1.3;
-    if (c.t >= total) { c.t -= total; c.n++; c.rest = c.n === 1 ? 5 : 5 + Math.random() * 7; }
+    if (c.t >= total) { c.t -= total; c.n++; c.rest = c.n === 1 ? SMOKE_REST_SECOND : SMOKE_REST_MIN + Math.random() * SMOKE_REST_SPAN; }
     const q = c.t, r1 = 0.8 + c.rest, r2 = r1 + 0.8;
     if (q < 0.8) { const e = ease(q / 0.8); T.lerpVectors(mouthT, rest, e); sm.atMouth = 1 - e; }     // hạ tay
     else if (q < r1) T.copy(rest);                                                                // cầm thuốc nghỉ
