@@ -27,7 +27,8 @@ export const CARS = [
     seatMesh: /^Cube\.?00[678]/, steerShift: -0.09,
     lamps: { head: [0.839, 0.661, -2.06], tail: [0.44, 0.769, 2.26] },
     seat: SEAT_67,
-    steer: { c: [-0.385, 0.883, -0.155], n: [0, 0.338, 0.941], r: 0.17 }, steerMesh: /^(Torus\.?001|Cube\.?009)/ },   // vô lăng: tâm, pháp tuyến (hướng về người lái), bán kính vành; vành + cốt giữa
+    steer: { c: [-0.385, 0.883, -0.155], n: [0, 0.338, 0.941], r: 0.153,
+      grip: { radial: 0.025, depth: 0.065, align: true } }, steerMesh: /^(Torus\.?001|Cube\.?009)/ },   // vành thật ~15.3 cm; lòng bàn tay ôm vành, giữ ngón cong của clip lái
   { id: 'divo', name: 'Bugatti Divo', file: 'assets/models/bugatti-divo.glb', length: 4.64, flip: true, wheels: /^(4_3|5_17)$/,
     basicMetal: { metalness: 0.6, roughness: 0.38 },   // vật liệu gốc bị chuyển đổi sai => kim loại bóng nhẹ cơ bản
     lamps: { head: [0.84, 0.66, -1.8], tail: [0.66, 0.73, 2.05] } },

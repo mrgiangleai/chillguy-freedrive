@@ -554,11 +554,13 @@ function gripWheel(sw) {
   _wu.crossVectors(_wn, _wr);
   for (const [side, ang] of [['r', -GRIP], ['l', Math.PI + GRIP]]) {
     const a = ang + (cars.steerAngle || 0), cx = Math.cos(a), cy = Math.sin(a);
-    // Cổ tay ngoài vành 2 cm; lòng bàn tay tiến tới vành, khuỷu gập xuống hai bên.
-    _wt.copy(_wc).addScaledVector(_wr, cx * (sw.r + 0.02)).addScaledVector(_wu, cy * (sw.r + 0.02)).addScaledVector(_wn, 0.065);
+    // Offset theo xe: căn lòng bàn tay với vành thật, giữ tư thế ngón của animation.
+    const radius = sw.r + (sw.grip?.radial ?? 0.02), depth = sw.grip?.depth ?? 0.065;
+    _wt.copy(_wc).addScaledVector(_wr, cx * radius).addScaledVector(_wu, cy * radius).addScaledVector(_wn, depth);
     const pole = _wp.copy(_wr).multiplyScalar(side === 'r' ? 0.25 : -0.25).addScaledVector(_wu, -1).addScaledVector(_wn, 0.2);
     person.reach(side, _wt, pole);
-    person.faceGrip(side, _wn);
+    const tangent = sw.grip?.align ? _wp.copy(_wu).multiplyScalar(cx).addScaledVector(_wr, -cy).multiplyScalar(side === 'r' ? 1 : -1) : null;
+    person.faceGrip(side, _wn, tangent);
   }
 }
 

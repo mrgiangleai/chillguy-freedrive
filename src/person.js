@@ -47,6 +47,7 @@ export class Person {
     if (this.legs.l.some((b) => !b) || this.legs.r.some((b) => !b)) this.legs = null;
     this.spine = bone('spine_01'); this.pelvis = bone('pelvis');
     this.gripFingers = { l: bone('middle_01_l'), r: bone('middle_01_r') };
+    this.gripKnuckles = { l: [bone('index_01_l'), bone('pinky_01_l')], r: [bone('index_01_r'), bone('pinky_01_r')] };
     this.mixer = new THREE.AnimationMixer(model);
     for (const clip of gltf.animations) this.actions[clip.name] = this.mixer.clipAction(clip);
 
@@ -104,12 +105,23 @@ export class Person {
   update(dt) { if (this.mixer && this.root.visible) this.mixer.update(dt); }
 
   // Hướng các khớp gốc ngón tay về vành; giữ độ cong ngón của animation lái.
-  faceGrip(side, normal) {
+  faceGrip(side, normal, tangent = null) {
     const hand = this.arms?.[side]?.[2], middle = this.gripFingers?.[side];
     if (!hand || !middle) return;
     hand.getWorldPosition(_A); middle.getWorldPosition(_B);
     _A.subVectors(_B, _A).normalize(); _B.copy(normal).negate();
     turn(hand, _A, _B); hand.updateMatrixWorld(true);
+    const knuckles = this.gripKnuckles?.[side];
+    if (tangent && knuckles?.every(Boolean)) {
+      // Xoay bàn tay quanh trục lòng bàn tay để hàng khớp ngón chạy dọc vành, không nắm vào nan ngang.
+      knuckles[0].getWorldPosition(_A); knuckles[1].getWorldPosition(_B);
+      _A.sub(_B).addScaledVector(normal, -_A.dot(normal)).normalize();
+      _B.copy(tangent).addScaledVector(normal, -tangent.dot(normal)).normalize();
+      const angle = Math.atan2(_D.crossVectors(_A, _B).dot(normal), _A.dot(_B));
+      _q.setFromAxisAngle(normal, angle);
+      hand.getWorldQuaternion(_qw); hand.parent.getWorldQuaternion(_qp);
+      hand.quaternion.copy(_qp.invert().multiply(_q.multiply(_qw))); hand.updateMatrixWorld(true);
+    }
   }
 
   // ngả lưng ra sau `angle` rad (xoay spine_01 quanh trục ngang của người). Gọi sau mixer.update, trước IK tay.

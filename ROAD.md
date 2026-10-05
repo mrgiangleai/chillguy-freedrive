@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -81,7 +81,8 @@
   Tự bám xe trước và tự vượt xe cùng chiều khi làn bên kia trống ≥50 m sau xe bị vượt và xe đối diện không kịp tới.
   Vô lăng + hai tay tự xoay theo cua thật (nhìn trước 0.4 s, tối đa 12 m; atan(curvature × 2.7) × 14 + lái tay, ±0.55 rad,
   nội suy 8/s; dừng xe thì trả giữa). Mustang: sơn đen bóng (env ×0.4), nội thất đen bóng, ghế da nâu, vô lăng da đen
-  `steerShift −0.09`, tay cầm gần 9/3 giờ. Đèn pha/hậu đặt đúng tâm bóng đèn của từng model (`lamps` trong config, đo từ model). Đèn pha rig chung: màu `0xffd6a0`, `85 × lamps`, tầm 110 m, góc 0.8 rad,
+  `steerShift −0.09`, vành đo 0.153 m; cổ tay ở bán kính 0.178 m, sâu 0.065 m,
+  lòng bàn tay/ngón cong ôm vành gần 9/3 giờ; hàng khớp ngón xoay theo tiếp tuyến vành (`steer.grip`). Đèn pha/hậu đặt đúng tâm bóng đèn của từng model (`lamps` trong config, đo từ model). Đèn pha rig chung: màu `0xffd6a0`, `85 × lamps`, tầm 110 m, góc 0.8 rad,
   penumbra 1, decay 0.55; quầng `0xffc477`, opacity `0.45 × lamps × hướng nhìn`, 2.835 × 1.785 m.
 - **NPC**: mật độ thấp (ngược chiều tối đa 2, cùng chiều tối đa 1); tốc độ hành trình 50–200 km/h, vào cua 60% (ngưỡng
   0.0015/0.0012 rad/m, phanh trước cua), né/phanh 30 m. Đổi làn/né: đánh lái thật (thân xoay ≤ ~11°, né gấp ≤ ~19°, bánh trước bẻ).
@@ -174,3 +175,14 @@
     chỉ đặt ghế khi có xe. `check-car-switch.mjs` kiểm tra lượt hủy trước/sau khi có xe và lượt thành công.
     Reload bản game chính, đổi xe liên tiếp rồi chọn Mazda ở Low: người lái có mặt và bám vô lăng, không phát sinh cảnh báo mới;
     ảnh `screenshots/mazda-cockpit-live.jpg`. Đã trả chất lượng Good của chú sau khi kiểm tra.
+
+- **#4 — Căn điểm bám tay Mustang mặc định (05/10/2026)**: giữ model người và độ cong ngón của `Driving_Loop`.
+  Đo vành thật thay bán kính ước lượng 0.17 → 0.153 m; cấu hình `steer.grip` riêng Mustang: radial 0.025,
+  depth 0.065, align true. Cổ tay ở bán kính 0.178 thay 0.190 m; vành nằm giữa lòng bàn tay và ngón cong.
+  `Person.faceGrip` nhận tiếp tuyến tùy chọn, xoay hàng khớp index/pinky theo vành; các xe khác giữ offset/hướng cũ.
+  - `check-mustang-grip.mjs`: giải mã GLB Mustang/người thật, ray từ vùng lòng bàn tay chạm mesh vành ở năm góc
+    −0.55…+0.55 rad; pose thực ở sáu trạng thái (có trả giữa), vành nằm giữa lòng bàn tay/ngón cong, hàng khớp
+    theo tiếp tuyến, sai số cổ tay tối đa 0.016 mm. Tái hiện điểm bám cũ không chạm vành.
+  - GUI Low `grip-preview.js`: thẳng/trái/phải, tiếp xúc vành 2/2; giữ xe/camera và cấp lái ngang để quan sát,
+    không phải video chạy liên tục. Ảnh `screenshots/mustang-grip-{before,straight,left,right}.jpg`.
+    Check steering/Mazda/car-switch, build và diff check đạt. Bộ đếm 4/10.
