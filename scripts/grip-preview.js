@@ -5,7 +5,6 @@ let ready=false,steering=0;
 for(const [name,value] of [['Lái trái',-2],['Thẳng',0],['Lái phải',2]]){
  const b=document.createElement('button');b.textContent=name;b.style.cssText='position:relative;z-index:51';b.onclick=()=>steering=value;document.body.append(b);
 }
-const blue=document.createElement('button');blue.textContent='Mustang xanh';blue.style.cssText='position:relative;z-index:51';blue.onclick=()=>window.__app.chooseCar(1);document.body.append(blue);
 const timer=setInterval(()=>{
  const a=window.__app;if(!a?.state.started||!a.person.ready||!a.cars.current)return;
  if(!ready){ready=true;a.env.snapWeather('clear');a.env.setTime(15);a.env.hour=15;a.rig.setMode(3);a.state.cam=3;a.traffic.wait=a.traffic.timer=a.traffic.sameTimer=1e9;

@@ -13,11 +13,11 @@ const timer=setInterval(async()=>{
  let collisions=0, detected=false, held=false, anchor=0;
  try {
   const entries=[];
-  for(let i=0;i<3;i++) entries.push(await app.cars._load(CARS.find(c=>c.id==='mustang-blue')));
+  for(let i=0;i<3;i++) entries.push(await app.cars._load(CARS.find(c=>c.id==='mustang')));
   for(const [i,spec] of [[35,app.drive.d,200],[100,-1.8,50],[132,-1.8,200]].entries()){
    const entry=entries[i];
    const v=app.traffic._vehicle(entry);
-   v.s=app.drive.s+spec[0];v.d=v.baseD=spec[1];v.cruise=v.v=spec[2]/3.6;
+   v.s=app.drive.s+spec[0];v.direction=-1;v.d=v.baseD=spec[1];v.cruise=v.v=spec[2]/3.6;
    v.busy=true;v.root.visible=true;app.traffic.pool.push(v);app.traffic.active.push(v);
   }
   const sample=setInterval(()=>{

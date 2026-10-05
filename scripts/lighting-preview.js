@@ -16,18 +16,19 @@ const timer = setInterval(async () => {
   app.env.snapWeather('clear');
   app.state.cam = 0; app.rig.setMode(0);
   try {
-    const entry = await app.cars._load(CARS.find(car => car.id === 'mustang-blue'));
+    const entry = await app.cars._load(CARS.find(car => car.id === 'mustang'));
     const vehicle = app.traffic._vehicle(entry);
     vehicle.s = app.drive.s + 24; vehicle.v = 0; vehicle.d = app.drive.d >= 0 ? -1.8 : 1.8;
+    vehicle.direction = -1; vehicle.cruise = 0; vehicle.baseD = vehicle.avoidD = vehicle.d;
     vehicle.busy = true; vehicle.root.visible = true;
     app.traffic.pool.push(vehicle); app.traffic.active.push(vehicle);
     const keep = setInterval(() => {
       vehicle.s = app.drive.s + 24; vehicle.v = 0;
       vehicle.d = app.drive.d >= 0 ? -1.8 : 1.8;
-      const a = app.cars.spots[0], b = vehicle.headlights.spots[0];
-      const ratioOK = Math.abs(b.intensity - a.intensity * 0.6) < 1e-6;
+      const a = app.cars.spots[0], b = app.traffic.beam.spots[0];
+      const ratioOK = Math.abs(b.intensity - a.intensity * 0.24) < 1e-6;
       const same = ['angle','penumbra','distance','decay'].every(key => a[key] === b[key]) && a.color.equals(b.color);
-      status.textContent = `Lighting check: ${same && ratioOK ? 'PASS NPC brightness 60%' : 'FAIL'}; player=${a.intensity.toFixed(1)} traffic=${b.intensity.toFixed(1)}`;
+      status.textContent = `Lighting check: ${same && ratioOK ? 'PASS NPC brightness 24%' : 'FAIL'}; player=${a.intensity.toFixed(1)} traffic=${b.intensity.toFixed(1)}`;
     }, 30);
     window.addEventListener('pagehide', () => clearInterval(keep), { once: true });
   } catch (error) { status.textContent = 'Lighting check failed: ' + error.message; }

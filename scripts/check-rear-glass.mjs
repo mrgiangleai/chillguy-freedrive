@@ -7,7 +7,7 @@ import { windshield } from '../src/cars.js';
 
 // Decode the real model without textures (Node has no image loader).
 const modelFile = process.argv[2] || 'mustang.glb';
-assert(['mustang.glb', 'mustang-blue.glb'].includes(modelFile));
+assert.equal(modelFile, 'mustang.glb');
 const input = fs.readFileSync(new URL('../docs/assets/models/' + modelFile, import.meta.url));
 const length = input.readUInt32LE(12);
 const data = JSON.parse(input.subarray(20, 20 + length));
