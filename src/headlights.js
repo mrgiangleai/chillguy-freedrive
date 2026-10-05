@@ -1,5 +1,10 @@
 import * as THREE from 'three';
 
+export const HEADLIGHT_DEFAULTS = Object.freeze({
+  intensity: 85, distance: 110, angle: 0.8, penumbra: 1, decay: 0.55,
+  glowOpacity: 0.45, glowSize: 2.1, color: '#ffd6a0', glowColor: '#ffc477',
+});
+
 // Dùng chung cho xe người chơi và xe NPC.
 // spots=false: chỉ có quầng (xe NPC — chùm sáng thật dùng chung một cặp SpotLight trong traffic.js, để số đèn trong cảnh
 // không đổi khi xe xuất hiện/biến mất => three.js không phải biên dịch lại toàn bộ shader, không bị giật).
@@ -20,7 +25,7 @@ export function createHeadlights(group, texture, { spots: withSpots = true, glow
     group.add(glow);
     return glow;
   });
-  return { spots, glows, eye: new THREE.Vector3(), forward: new THREE.Vector3() };
+  return { spots, glows, tune: { ...HEADLIGHT_DEFAULTS }, eye: new THREE.Vector3(), forward: new THREE.Vector3() };
 }
 
 // vị trí bóng đèn (bên phải, bên trái lấy −x) khi model không khai báo `lamps` trong config
@@ -42,7 +47,11 @@ export function placeHeadlights(rig, dim) {
 }
 
 export function updateHeadlights(rig, root, camera, level) {
-  rig.spots.forEach(light => { light.intensity = 85 * level; });
+  const t = rig.tune || HEADLIGHT_DEFAULTS;
+  rig.spots.forEach(light => {
+    light.color.set(t.color); light.intensity = t.intensity * level; light.distance = t.distance;
+    light.angle = t.angle; light.penumbra = t.penumbra; light.decay = t.decay;
+  });
   let front = 1;
   if (camera) {
     root.updateWorldMatrix(true, true);
@@ -52,7 +61,9 @@ export function updateHeadlights(rig, root, camera, level) {
     front = THREE.MathUtils.smoothstep(rig.eye.dot(rig.forward), -0.05, 0.35);
   }
   rig.glows.forEach(glow => {
-    glow.material.opacity = 0.45 * level * front;
+    glow.material.color.set(t.glowColor);
+    glow.material.opacity = t.glowOpacity * level * front;
+    glow.scale.set(t.glowSize * 1.35, t.glowSize * 0.85, 1);
     glow.visible = level * front > 0.01;
   });
 }

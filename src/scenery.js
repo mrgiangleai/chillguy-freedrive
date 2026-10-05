@@ -98,6 +98,10 @@ const LAMP_H = 11.1, BULB_H = LAMP_H - 0.22;
 // Ánh sáng đèn đường = SpotLight thật (chiếu cả mặt đường, cỏ, cây, xe). Số đèn cố định (không biên dịch lại shader),
 // gán cho các cột gần camera nhất; đèn sắp bị đổi sang cột khác mờ dần về 0 trước khi đổi => không chớp.
 const LAMP_LIGHTS = 3;
+export const STREETLIGHT_DEFAULTS = Object.freeze({
+  intensity: 140, distance: 80, angle: 1.2, penumbra: 0.8, decay: 0.6,
+  glowOpacity: 0.9, glowSize: 9, color: '#ffc98a',
+});
 
 function lampGeometry() {
   // cột đèn: cột + tay đòn kéo về phía -x (hướng vào đường)
@@ -237,6 +241,7 @@ export class Scenery {
     // nón sáng rộng (nửa góc 1.2 rad, chếch vào lòng đường như chao đèn đường thật => vùng sáng ~Ø 60 m dọc đường),
     // suy giảm chậm (decay 0.6, như đèn pha) để vùng sáng trải đều thay vì một đốm gắt dưới chân cột
     this.lampOn = 0;
+    this.lampTune = { ...STREETLIGHT_DEFAULTS };
     this.lampLights = Array.from({ length: LAMP_LIGHTS }, () => {
       const l = new THREE.SpotLight(0xffc98a, 0, 80, 1.2, 0.8, 0.6);
       this.scene.add(l, l.target);
@@ -279,10 +284,12 @@ export class Scenery {
 
   apply(st) {
     const on = st.lamps;
-    const c = new THREE.Color(0x8a8a86).lerp(new THREE.Color(0xffd9a0), on);
+    const c = new THREE.Color(0x8a8a86).lerp(new THREE.Color(this.lampTune.color), on);
     this.bulbMat.color.copy(c).multiplyScalar(0.6 + 1.6 * on);
     this.lampOn = on;
-    this.glowMat.opacity = on * 0.9;
+    this.glowMat.opacity = on * this.lampTune.glowOpacity;
+    this.glowMat.size = this.lampTune.glowSize;
+    this.glowMat.color.set(this.lampTune.color);
     this.roadMat.roughness = 0.92 - 0.3 * st.wet;          // ướt vẫn sần (chỉ vũng nước mới nhẵn bóng)
     this.roadMat.envMapIntensity = 0.38 + 0.3 * st.wet;    // đường khô: ít phản chiếu trời (không bị ngả xanh)
     const d = (1 - 0.4 * st.wet) * (1 - 0.25 * st.dark);
@@ -312,8 +319,24 @@ export class Scenery {
       l.position.set(b[0], b[1], b[2]);
       l.target.position.set(t[0], t[1], t[2]);
       l.target.updateMatrixWorld();
-      l.intensity = 140 * this.lampOn * fade * fade * (3 - 2 * fade);
+      const tune = this.lampTune;
+      l.color.set(tune.color); l.distance = tune.distance; l.angle = tune.angle;
+      l.penumbra = tune.penumbra; l.decay = tune.decay;
+      l.intensity = tune.intensity * this.lampOn * fade * fade * (3 - 2 * fade);
     });
+  }
+
+  // Trả về true khi người dùng bấm gần một bóng đèn đường đang nhìn thấy.
+  hitLamp(camera, clientX, clientY, rect, radius = 48) {
+    const p = new THREE.Vector3();
+    for (const c of this.chunks.values()) for (const [b] of c.userData.lamps || []) {
+      p.set(b[0], b[1], b[2]).project(camera);
+      if (p.z < -1 || p.z > 1) continue;
+      const x = rect.left + (p.x + 1) * rect.width * 0.5;
+      const y = rect.top + (1 - p.y) * rect.height * 0.5;
+      if (Math.hypot(clientX - x, clientY - y) <= radius) return true;
+    }
+    return false;
   }
 
   // gắn texture phản chiếu (hoặc tắt) cho mặt đường

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ROAD, Road } from './road.js';
-import { Scenery } from './scenery.js';
+import { Scenery, STREETLIGHT_DEFAULTS } from './scenery.js';
 import { Terrain } from './terrain.js';
 import { setTerrainMap, TP } from './terrain-noise.js';
 import { Environment } from './world.js';
@@ -26,6 +26,7 @@ import { roadPosition } from './traffic-ai.js';
 import { Cows } from './cows.js';
 import { Waterfalls } from './waterfalls.js';
 import { Smoke } from './smoke.js';
+import { HEADLIGHT_DEFAULTS } from './headlights.js';
 
 installMist();   // thay shader sương của three.js (phải chạy trước khi vật liệu được biên dịch)
 import { MAPS, WEATHERS, TIMES, CAMERAS, MUSIC_MODES, FSTOPS, FSTOP_DEFAULT, QUALITY, QUALITY_DEFAULT } from './config.js';
@@ -185,6 +186,8 @@ try {
   if (savedTuning?.camera) for (const [id, values] of Object.entries(savedTuning.camera)) if (rig.tune[id]) Object.assign(rig.tune[id], values);
   if (savedTuning?.weather) for (const [id, values] of Object.entries(savedTuning.weather)) if (env.weatherProfiles[id]) Object.assign(env.weatherProfiles[id], values);
   if (savedTuning?.environment) Object.assign(env.tune, savedTuning.environment);
+  if (savedTuning?.carLights) Object.assign(cars.headlights.tune, savedTuning.carLights);
+  if (savedTuning?.streetLights) Object.assign(scenery.lampTune, savedTuning.streetLights);
 } catch { /* thông số cũ/hỏng: dùng mặc định trong code */ }
 rig.setMode(state.cam);
 rig.focal = rig.focalS = 16;
@@ -428,7 +431,7 @@ const ENV_FIELDS = [
 ];
 const tunePanel = $('tunepanel'), tuneMode = $('tune-mode'), tuneFields = $('tune-fields');
 const saveTuning = () => {
-  try { localStorage.setItem(TUNE_KEY, JSON.stringify({ camera: rig.tune, weather: env.weatherProfiles, environment: env.tune, lens: { focal: rig.focal, fstop: state.fstop } })); } catch { /* chế độ riêng tư */ }
+  try { localStorage.setItem(TUNE_KEY, JSON.stringify({ camera: rig.tune, weather: env.weatherProfiles, environment: env.tune, carLights: cars.headlights.tune, streetLights: scenery.lampTune, lens: { focal: rig.focal, fstop: state.fstop } })); } catch { /* chế độ riêng tư */ }
 };
 const addHeading = (text) => { const h = document.createElement('h4'); h.textContent = text; tuneFields.append(h); };
 const addNumber = ({ label, min, max, step, get, set }) => {
@@ -461,6 +464,24 @@ const environmentSpecs = () => ENV_FIELDS.map(([key,label,min,max,step]) => ({ l
 renderTune = () => {
   if (!tuneKind) return;
   tuneFields.replaceChildren(); tuneMode.replaceChildren();
+  if (tuneKind === 'carLight' || tuneKind === 'streetLight') {
+    tuneMode.hidden = true;
+    const carLight = tuneKind === 'carLight', values = carLight ? cars.headlights.tune : scenery.lampTune;
+    $('tune-title').textContent = carLight ? 'Đèn xe người chơi' : 'Đèn đường';
+    addHeading(carLight ? 'Chùm sáng và quầng đèn' : 'Ánh sáng phủ mặt đường');
+    const specs = carLight ? [
+      ['intensity','Cường độ',0,300,1],['distance','Tầm chiếu (m)',10,250,1],['angle','Góc mở (rad)',.1,1.55,.01],
+      ['penumbra','Độ mềm viền',0,1,.01],['decay','Suy giảm',0,2,.01],['glowOpacity','Độ sáng quầng',0,2,.01],['glowSize','Kích thước quầng',.2,8,.05],
+    ] : [
+      ['intensity','Cường độ',0,500,1],['distance','Tầm phủ (m)',10,250,1],['angle','Góc mở (rad)',.1,1.55,.01],
+      ['penumbra','Độ mềm viền',0,1,.01],['decay','Suy giảm',0,2,.01],['glowOpacity','Độ sáng quầng',0,2,.01],['glowSize','Kích thước quầng',1,24,.1],
+    ];
+    specs.map(([key,label,min,max,step]) => ({ label,min,max,step,get:()=>values[key],set:(v)=>{ values[key]=v; } })).forEach(addNumber);
+    addColor({ label: 'Màu ánh sáng', get: () => values.color, set: (v) => { values.color = v; } });
+    if (carLight) addColor({ label: 'Màu quầng', get: () => values.glowColor, set: (v) => { values.glowColor = v; } });
+    return;
+  }
+  tuneMode.hidden = false;
   const list = tuneKind === 'camera' ? CAMERAS : tuneKind === 'weather' ? WEATHERS : TIMES;
   const selected = state[tuneKind === 'camera' ? 'cam' : tuneKind];
   list.forEach((item, i) => { const o = document.createElement('option'); o.value = i; o.textContent = item.name; o.selected = i === selected; tuneMode.append(o); });
@@ -499,7 +520,9 @@ $('tune-close').onclick = closeTune;
 $('tune-reset').onclick = () => {
   if (tuneKind === 'camera') { rig.resetTune(CAMERAS[state.cam].id); onCamChange(); }
   else if (tuneKind === 'weather') { env.resetWeather(WEATHERS[state.weather].id); env.resetTune(); env.snapWeather(WEATHERS[state.weather].id); }
-  else { env.resetTune(); env.setTime(TIMES[state.time].hour); }
+  else if (tuneKind === 'time') { env.resetTune(); env.setTime(TIMES[state.time].hour); }
+  else if (tuneKind === 'carLight') Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS);
+  else Object.assign(scenery.lampTune, STREETLIGHT_DEFAULTS);
   saveTuning(); refreshUI(); renderTune();
 };
 el.car.onclick = nextCar;
@@ -537,12 +560,14 @@ window.addEventListener('blur', () => keys.clear());
 // bấm giữ + rê chuột / vuốt màn hình: nhìn xung quanh 360° (thả ra camera tự về vị trí cũ)
 // lăn chuột / chụm-mở 2 ngón / phím + -: zoom
 const touches = new Map();                         // pointerId -> {x, y}
+const clickStart = new Map();
 // zoom: cảnh dừng xe đang toàn cảnh thì zoom 16–35 mm + khoảng cách 1–30 m, còn lại zoom camera chạy xe
 function zoomBy(f) { if (!(stop.active && stop.zoomBy(f))) rig.zoomBy(f); }
 let pinchDist = 0;
 const spread = () => { const [a, b] = [...touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
 canvas.addEventListener('pointerdown', (e) => {
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  clickStart.set(e.pointerId, { x: e.clientX, y: e.clientY, moved: false });
   canvas.setPointerCapture(e.pointerId);
   if (touches.size === 1) {
     pointer.active = true; pointer.id = e.pointerId; pointer.x = e.clientX; pointer.y = e.clientY;
@@ -556,6 +581,7 @@ canvas.addEventListener('pointermove', (e) => {
   const t = touches.get(e.pointerId);
   if (!t) return;
   t.x = e.clientX; t.y = e.clientY;
+  const start = clickStart.get(e.pointerId); if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8) start.moved = true;
   if (touches.size === 2) {
     const d = spread();
     if (pinchDist > 0 && d > 0) zoomBy(pinchDist / d);
@@ -568,6 +594,20 @@ canvas.addEventListener('pointermove', (e) => {
   }
 });
 const endPointer = (e) => {
+  const start = clickStart.get(e.pointerId);
+  if (start && !start.moved && e.type === 'pointerup') {
+    cars.root.updateWorldMatrix(true, true);
+    const rect = canvas.getBoundingClientRect(), p = new THREE.Vector3();
+    const hitCarLight = cars.headGlow.some((glow) => {
+      if (!glow.visible) return false;
+      glow.getWorldPosition(p).project(camera);
+      const x = rect.left + (p.x + 1) * rect.width * .5, y = rect.top + (1 - p.y) * rect.height * .5;
+      return p.z >= -1 && p.z <= 1 && Math.hypot(e.clientX - x, e.clientY - y) <= 56;
+    });
+    if (hitCarLight) openTune('carLight');
+    else if (stop.active && scenery.hitLamp(camera, e.clientX, e.clientY, rect)) openTune('streetLight');
+  }
+  clickStart.delete(e.pointerId);
   touches.delete(e.pointerId);
   if (touches.size < 2) pinchDist = 0;
   if (touches.size === 0) { pointer.active = false; rig.look.hold = false; }
