@@ -169,3 +169,8 @@
     không có lỗi console. Ảnh `screenshots/mazda-{front,rear,cockpit,night}-verified.jpg`, `mazda-steering-{left,right}.jpg`.
     Fixture giữ vị trí và cấp curvature để quan sát động tác, không phải video lái liên tục; chưa thử Good/Ultra hoặc cảnh
     dừng xe/mưa kính sau trọn vẹn. Bộ đếm 3/10.
+  - Kiểm tra tab game chính phát hiện đổi xe nhanh ngay khi khởi động có thể hủy lượt tải đầu, khiến đặt taplo trên
+    `cars.current = null` và bỏ qua tải người lái. `chooseCar` dừng phần setup của lượt bị thay thế; tải người lái vẫn tiếp tục,
+    chỉ đặt ghế khi có xe. `check-car-switch.mjs` kiểm tra lượt hủy trước/sau khi có xe và lượt thành công.
+    Reload bản game chính, đổi xe liên tiếp rồi chọn Mazda ở Low: người lái có mặt và bám vô lăng, không phát sinh cảnh báo mới;
+    ảnh `screenshots/mazda-cockpit-live.jpg`. Đã trả chất lượng Good của chú sau khi kiểm tra.

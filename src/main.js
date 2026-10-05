@@ -228,7 +228,7 @@ async function chooseCar(i) {
   state.car = (i + cars.list.length) % cars.list.length;
   setBtn(el.car, '🚗', 'Đang tải…');
   try {
-    await cars.select(state.car);
+    if (!await cars.select(state.car)) return;     // lượt tải đã bị thay thế: chưa đặt gương/taplo khi xe chưa có
   } catch (e) {
     console.error('Không tải được xe', cars.list[state.car].name, e);
     if (cars.list.length > 1) { cars.list.splice(state.car, 1); return chooseCar(state.car); }
@@ -781,8 +781,7 @@ async function init() {
   }).catch((e) => console.warn('Không tải được cây / đá chi tiết', e));
   chooseCar(0).then(() => person.load('assets/models/person.glb')).then(() => {
     cars.tilt.add(person.root);
-    stop.place(cars.dim);
-    stop.sit();
+    if (cars.current) { stop.place(cars.dim); stop.sit(); }
     compileFor(post.sceneRT, camera, person.root).catch(() => {});
     refreshUI();
   }).catch((e) => console.warn('Không tải được người lái', e));
