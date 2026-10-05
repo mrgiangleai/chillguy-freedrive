@@ -6,6 +6,8 @@
 - Remote: `https://github.com/mrgiangleai/chillguy-freedrive.git`
 - Nhánh: `claude/focused-gates-gcpbj9`
 - Mã tính năng đã push thành công đến `b0d0515`. Đây là thông tin bàn giao tại thời điểm ghi; không cần kiểm tra lại nếu công việc mới không phụ thuộc trạng thái Git.
+- Cảnh mở đầu mới: đồi cỏ, camera quay quanh, nhiều mây, ban đêm, 180 km/h dưới lớp mờ. Bấm Start bỏ mờ, giữ 180 km/h thêm 3 giây rồi giảm đều về 25 km/h và chuyển camera sau xe bằng nội suy 2 giây.
+- Kiểm tra thay đổi mở đầu: `npm run build` thành công; chưa xác nhận GUI.
 - Không còn mục chức năng đang chờ. Chờ yêu cầu tiếp theo của người dùng.
 - Quy tắc làm việc hiện tại nằm trong `AGENTS.md`.
 

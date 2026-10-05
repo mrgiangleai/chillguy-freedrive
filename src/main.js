@@ -162,10 +162,10 @@ const drive = {
   home: LANE_D, goal: 0, manual: false,
   s: 150,          // độ dài cung trên đường
   d: LANE_D,       // lệch ngang so với tim đường (m, + = bên phải)
-  v: CHILL_DEFAULT,        // tốc độ (m/s)
+  v: FAST_SPEED,           // cảnh mở đầu: 180 km/h
   target: CHILL_DEFAULT,   // tốc độ mong muốn ở chế độ chill
-  fast: false,             // Fast drive (cấp 3) đang bật
-  gear: 0,                 // cấp tốc độ 0 / 1 / 2
+  fast: true,              // Fast drive (cấp 3) đang bật
+  gear: 2,                 // cấp tốc độ 0 / 1 / 2
   fx: 0,                   // cường độ hiệu ứng tốc độ 0..1 (theo tốc độ thực tế)
   latVel: 0,
   pitch: 0,
@@ -176,9 +176,9 @@ const keys = new Set();
 const pointer = { active: false, id: -1, x: 0, y: 0 };
 
 // ---------- giao diện ----------
-// mặc định vào game: đồi thông, sương mù, hoàng hôn
-// mặc định lúc vào game: map núi, camera quay quanh, mưa, hoàng hôn, 16 mm f/1.4
-const state = { car: 0, character: 0, map: MAPS.findIndex((m) => m.id === 'mountain'), cam: CAMERAS.findIndex((c) => c.id === 'orbit'), weather: WEATHERS.findIndex((w) => w.id === 'rain'), time: TIMES.findIndex((t) => t.id === 'sunset'), music: 0, cine: true, started: false, mistCover: 0.9, mistDens: 0.4, fstop: FSTOP_DEFAULT, quality: loadQuality() };
+// cảnh chờ Start: đồi cỏ, camera quay quanh, nhiều mây, ban đêm
+const state = { car: 0, character: 0, map: MAPS.findIndex((m) => m.id === 'meadow'), cam: CAMERAS.findIndex((c) => c.id === 'orbit'), weather: WEATHERS.findIndex((w) => w.id === 'cloudy'), time: TIMES.findIndex((t) => t.id === 'night'), music: 0, cine: true, started: false, mistCover: 0.9, mistDens: 0.4, fstop: FSTOP_DEFAULT, quality: loadQuality() };
+let openingElapsed = null; // tính thời gian chạy sau khi bấm Start
 const TUNE_KEY = 'chilldrive.tuning.v1';
 let savedTuning = null;
 try {
@@ -750,6 +750,19 @@ function frame(now) {
   const dt = clamp((now - last) / 1000, 0, 0.05);
   last = now;
 
+  if (openingElapsed !== null) {
+    openingElapsed += dt;
+    if (openingElapsed >= 3) {
+      openingElapsed = null;
+      setGear(0);
+      state.cam = CAMERAS.findIndex((c) => c.id === 'chase');
+      rig.setMode(state.cam);
+      onCamChange();
+      refreshUI();
+    }
+  }
+  const opening = !state.started || openingElapsed !== null;
+
   // điều khiển
   const left = keys.has('ArrowLeft') || keys.has('KeyA');
   const right = keys.has('ArrowRight') || keys.has('KeyD');
@@ -760,8 +773,9 @@ function frame(now) {
   if (keys.has('Minus') || keys.has('NumpadSubtract')) zoomBy(Math.exp(1.2 * dt));
   drive.target = clamp(drive.target, CHILL_MIN, CHILL_MAX);
   drive.goal = drive.fast ? FAST_SPEED : drive.target;
-  const goal = Math.min(drive.goal, traffic.ctrl.maxV);
-  if (stop.active) drive.v = stop.speed(drive.v, dt);    // cảnh dừng xe: giảm tốc đều tới khi dừng hẳn
+  const goal = opening ? FAST_SPEED : Math.min(drive.goal, traffic.ctrl.maxV);
+  if (opening) drive.v = FAST_SPEED;
+  else if (stop.active) drive.v = stop.speed(drive.v, dt);    // cảnh dừng xe: giảm tốc đều tới khi dừng hẳn
   else drive.v += clamp(goal - drive.v, -8 * dt, 6 * dt);
   drive.s += drive.v * dt;
   // hiệu ứng tốc độ tăng dần theo tốc độ thực tế (không có gì dưới ~55 km/h)
@@ -959,9 +973,7 @@ async function init() {
     start.classList.add('gone');
     state.started = true;
     applyCine();
-    rig.startIntro();                              // camera lia vòng ra sau xe
-    document.body.classList.add('intro');
-    setTimeout(() => document.body.classList.remove('intro'), 6000);
+    openingElapsed = 0;
     audio.start().catch((e) => console.warn('Audio:', e));
     window.removeEventListener('keydown', go);
     start.removeEventListener('pointerdown', go);
