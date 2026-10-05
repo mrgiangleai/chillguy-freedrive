@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -201,3 +201,16 @@
   hụt biên độ. `check-ocean-loop.mjs` kiểm tra tuần hoàn/đạo hàm/biên trọng số và đo trực tiếp atlas: thay đổi trước/sau nối
   dưới 0.5% RMS. GUI Low khóa camera tại phase 0.999 / 0 / 0.001, không thấy cú nhảy; ảnh
   `screenshots/ocean-loop-{before,seam,after}.png`. Chưa đo hiệu năng Good/Ultra.
+
+- **#7 — Sửa nguyên nhân giật atlas biển (05/10/2026)**: atlas ghi hàng từ trên xuống nhưng TextureLoader mặc định
+  flipY=true; shader vì thế đọc đảo hàng, gồm bốn ô trống tại frame 6–9. Đặt flipY=false, giữ hướng bù trôi đã đo.
+  Bake ô 128×128: dữ liệu 100×100 + viền lặp 14 px, căn ô theo mipmap để footprint tới LOD 2.5 không lẫn khung khác;
+  atlas 1280×1024 / 2.61 MB, tăng phiên bản texture lên 4. Giữ chu kỳ, hình học và fade 10%.
+  - Thay phép kiểm tra cũ bằng bilinear/trilinear, bù trôi và bốn mẫu lệch như shader; kiểm tra 76 khung có dữ liệu,
+    padding byte-identical, footprint mip 0–3 nằm cùng ô và hướng bù trôi giảm sai số. Đo bước 60 Hz qua hai điểm nối:
+    RMS LOD 0 = 0.00611 (thông thường 0.00611), LOD 1 = 0.00485 (0.00451), LOD 2.5 = 0.00267 (0.00267).
+  - Đính chính mục #6: phép đo trước bỏ qua flipY/bù trôi/mipmap; kết luận đã mượt chưa đủ căn cứ.
+  - GUI Low: fixture khoá s và camera theo thế giới, bọt dùng thời gian liên tục khi chạy và cố định khi so ảnh;
+    render hết hai vòng (cycles=2.00), đọc flipY=false / atlas=1280×1024, console không có lỗi/cảnh báo.
+    Ảnh `screenshots/ocean-atlas-fixed-{before,seam,after}.jpg` tại phase 0.999 / 0 / 0.001.
+    Tab game chính đã reload hash mới, trả Mazda / Biển / Trời trong / Good. Chưa đo FPS Good/Ultra.

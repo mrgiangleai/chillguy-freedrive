@@ -1,5 +1,5 @@
 // Bake sóng biển từ model ocean_scene_animated.glb (lưới 101×101, 100 morph target = 100 khung hình, 8.33 s)
-// thành atlas PNG 10 cột, mỗi khung 100×100: R = độ cao, G/B = độ dốc theo u/v.
+// thành atlas PNG 10 cột, mỗi ô 128×128 (100×100 + viền lặp 14 px): R = độ cao, G/B = độ dốc theo u/v.
 // Animation gốc KHÔNG lặp liền (khung cuối → khung đầu lệch gấp ~6 lần hai khung liền nhau => mặt biển giật mỗi vòng):
 // trộn chéo XF khung cuối vào XF khung đầu (giữ biên độ bằng chuẩn hoá phương sai) => còn 100 − XF khung lặp liền. Game lặp ô sóng này khắp mặt biển
 // (src/ocean.js) nên không phải tải file .glb 12.9 MB. Chạy: node scripts/bake-ocean.mjs
@@ -54,12 +54,12 @@ const slopes = H.map((h) => {
   return s;
 });
 sMax = Math.ceil(sMax * 10) / 10;
-const COLS = 10, W = COLS * R, Hh = Math.ceil(F / COLS) * R, px = Buffer.alloc(W * Hh * 3);
+const COLS = 10, PAD = 14, CELL = R + PAD * 2, W = COLS * CELL, Hh = Math.ceil(F / COLS) * CELL, px = Buffer.alloc(W * Hh * 3);
 const q = (v) => Math.max(0, Math.min(255, Math.round(v * 255)));
 H.forEach((h, f) => {
-  const ox = (f % COLS) * R, oy = Math.floor(f / COLS) * R;
-  for (let y = 0; y < R; y++) for (let x = 0; x < R; x++) {
-    const o = ((oy + y) * W + ox + x) * 3, k = y * R + x;
+  const ox = (f % COLS) * CELL, oy = Math.floor(f / COLS) * CELL;
+  for (let y = 0; y < CELL; y++) for (let x = 0; x < CELL; x++) {
+    const o = ((oy + y) * W + ox + x) * 3, k = ((y - PAD + R) % R) * R + (x - PAD + R) % R;
     px[o] = q((h[k] - hMin) / (hMax - hMin));
     px[o + 1] = q(slopes[f][k * 2] / (2 * sMax) + 0.5);
     px[o + 2] = q(slopes[f][k * 2 + 1] / (2 * sMax) + 0.5);

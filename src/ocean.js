@@ -20,7 +20,7 @@ const DRIFT = [-0.5 / 99, 2.25 / 99];
 // lớp kia đang ở giữa vòng (100%) che đi. sin² có tiếp tuyến bằng 0 ở hai đầu nên độ mờ không đổi giật tại điểm lặp.
 // Shader chuẩn hoá √(wA² + wB²) quanh giá trị giữa để fade không làm hụt biên độ sóng.
 export const OCEAN_SEAM_MIN = 0.1;
-const WAVE_VER = 3;                                                  // đổi khi bake lại atlas (tránh trình duyệt dùng ảnh cũ)
+const WAVE_VER = 4;                                                  // đổi khi bake lại atlas (tránh trình duyệt dùng ảnh cũ)
 const STEP = 1.5, INNER = 120, OUTER = 400, OSTEP = 8, FAR_R = 6000;   // lưới gần / vành giữa / vành xa (m)
 const CARVE0 = ROAD.halfWidth + 1.2, CARVE1 = ROAD.halfWidth + 16;   // khớp terrain.js (đê đường thoải xuống đáy biển)
 export const SEA_BED = 7;                                            // đáy biển thấp hơn mặt nước (m)
@@ -73,10 +73,11 @@ uniform vec3 uRoad[${ROAD_N}];
 const float TILE = ${TILE.toFixed(3)};
 const mat2 ROT = mat2(0.906, 0.423, -0.423, 0.906);      // ô sóng xoay ~25° so với trục thế giới
 float oLod = 0.0;                                         // mức mipmap (fragment: theo khoảng cách)
+// Mỗi ô 128 px gồm 100 px dữ liệu + viền lặp 14 px: mipmap ≤ 2.5 không trộn khung bên cạnh.
 vec3 waveFrame(vec2 uv, float f) {
   vec2 c = fract(uv);
   vec2 o = vec2(mod(f, ${COLS}.0), floor(f / ${COLS}.0));
-  return textureLod(uWave, (o * 100.0 + 0.5 + c * 99.0) / vec2(${COLS * 100}.0, ${ROWS * 100}.0), oLod).rgb;
+  return textureLod(uWave, (o * 128.0 + 14.5 + c * 99.0) / vec2(${COLS * 128}.0, ${ROWS * 128}.0), oLod).rgb;
 }
 // một lớp: giữa khung f0 và f1, dời mẫu theo hướng trôi (bù chuyển động) rồi mới trộn
 vec3 waveLayer(vec2 uv, float fr) {
@@ -130,7 +131,7 @@ function oceanMaterial(u) {
           return mix(mix(oHash(i), oHash(i + vec2(1.0, 0.0)), f.x), mix(oHash(i + vec2(0.0, 1.0)), oHash(i + vec2(1.0, 1.0)), f.x), f.y); }`)
       .replace('#include <map_fragment>', `
         float camD = length(vOW.xz - uCamW.xz);
-        oLod = clamp(log2(camD * camD / uLod), 0.0, 2.5);           // xa / nhìn xiên: mipmap thô hơn (atlas khung 100 px => tối đa ~2.5)
+        oLod = clamp(log2(camD * camD / uLod), 0.0, 2.5);           // xa / nhìn xiên: mipmap thô hơn (ô 128 px có viền đệm => tối đa ~2.5)
         vec3 wv = waveAt(vOW.xz);
         float crest = smoothstep(0.55, 1.0, (wv.x - ${H0.toFixed(3)}) / ${(H1 - H0).toFixed(3)}) * (1.0 - smoothstep(60.0, 200.0, camD));
         // bọt trôi theo thời gian liên tục (trước dùng uFrame => bọt nhảy mỗi lần vòng sóng quay về đầu)
@@ -168,6 +169,7 @@ export class Ocean {
 
   _build() {
     const tex = new THREE.TextureLoader().load('assets/tex/ocean-waves.png?v=' + WAVE_VER);
+    tex.flipY = false; // atlas ghi hàng từ trên xuống; giữ đúng thứ tự 0…75 và hướng trôi
     tex.colorSpace = THREE.NoColorSpace;
     tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter;
     this.u.uWave.value = tex;
