@@ -178,8 +178,17 @@ const pointer = { active: false, id: -1, x: 0, y: 0 };
 // mặc định vào game: đồi thông, sương mù, hoàng hôn
 // mặc định lúc vào game: map núi, camera quay quanh, mưa, hoàng hôn, 16 mm f/1.4
 const state = { car: 0, character: 0, map: MAPS.findIndex((m) => m.id === 'mountain'), cam: CAMERAS.findIndex((c) => c.id === 'orbit'), weather: WEATHERS.findIndex((w) => w.id === 'rain'), time: TIMES.findIndex((t) => t.id === 'sunset'), music: 0, cine: true, started: false, mistCover: 0.35, mistDens: 0.2, fstop: FSTOP_DEFAULT, quality: loadQuality() };
+const TUNE_KEY = 'chilldrive.tuning.v1';
+let savedTuning = null;
+try {
+  savedTuning = JSON.parse(localStorage.getItem(TUNE_KEY));
+  if (savedTuning?.camera) for (const [id, values] of Object.entries(savedTuning.camera)) if (rig.tune[id]) Object.assign(rig.tune[id], values);
+  if (savedTuning?.weather) for (const [id, values] of Object.entries(savedTuning.weather)) if (env.weatherProfiles[id]) Object.assign(env.weatherProfiles[id], values);
+  if (savedTuning?.environment) Object.assign(env.tune, savedTuning.environment);
+} catch { /* thông số cũ/hỏng: dùng mặc định trong code */ }
 rig.setMode(state.cam);
 rig.focal = rig.focalS = 16;
+if (savedTuning?.lens) { rig.focal = rig.focalS = clamp(savedTuning.lens.focal, FOCAL_MIN, FOCAL_MAX); state.fstop = clamp(savedTuning.lens.fstop, 0, FSTOPS.length - 1); }
 const el = { full: $('b-full'), stop: $('b-stop'), character: $('b-character'), quality: $('b-quality'), lens: $('b-lens'), mist: $('b-mist'), fast: $('b-fast'), car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
 const setBtn = (btn, icon, text) => { btn.querySelector('b').textContent = icon; btn.querySelector('span').textContent = text; btn.title = text; };
 
@@ -201,6 +210,9 @@ function refreshUI() {
   setBtn(el.quality, '⚙️', QUALITY[state.quality].name);
   setBtn(el.stop, stop.state === 'parked' ? '▶️' : stop.state === 'off' ? '🅿️' : '⏳', stop.state === 'parked' ? 'Đi tiếp' : stop.state === 'off' ? 'Dừng xe' : '…');
   el.lens.classList.toggle('on', !$('lenspanel').hidden);
+  el.cam.classList.toggle('on', tuneKind === 'camera');
+  el.weather.classList.toggle('on', tuneKind === 'weather');
+  el.time.classList.toggle('on', tuneKind === 'time');
   el.full.hidden = !(CAN_FS && IS_PHONE);          // nút toàn màn hình chỉ có trên điện thoại (máy tính: phím U)
   setBtn(el.full, isFS() ? '🗗' : '⛶', isFS() ? 'Thoát toàn màn hình' : 'Toàn màn hình');
 }
@@ -335,13 +347,16 @@ function onCamChange() {
   }
   syncLens();
 }
-const nextCam = () => { state.cam = (state.cam + 1) % CAMERAS.length; rig.setMode(state.cam); onCamChange(); refreshUI(); };
-const nextWeather = () => { state.weather = (state.weather + 1) % WEATHERS.length; env.setWeather(WEATHERS[state.weather].id); refreshUI(); };
+let tuneKind = null;
+let renderTune = () => {};
+const nextCam = () => { state.cam = (state.cam + 1) % CAMERAS.length; rig.setMode(state.cam); onCamChange(); refreshUI(); if (tuneKind === 'camera') renderTune(); };
+const nextWeather = () => { state.weather = (state.weather + 1) % WEATHERS.length; env.setWeather(WEATHERS[state.weather].id); refreshUI(); if (tuneKind === 'weather') renderTune(); };
 const nextTime = () => {
   state.time = (state.time + 1) % TIMES.length;
   env.setTime(TIMES[state.time].hour);
   if (TIMES[state.time].id === 'night') setMist(0.6, 0.6);     // ban đêm: sương phủ + dày 60%
   refreshUI();
+  if (tuneKind === 'time') renderTune();
 };
 // đặt độ phủ / độ dày sương (0..1) và cập nhật thanh trượt
 function setMist(cover, dens) {
@@ -364,10 +379,11 @@ const nextMusic = () => { state.music = (state.music + 1) % MUSIC_MODES.length; 
 
 el.fast.onclick = toggleFast;
 // bảng chỉnh sương mù: độ phủ + độ dày
-const toggleMistPanel = () => { $('mistpanel').hidden = !$('mistpanel').hidden; $('lenspanel').hidden = true; refreshUI(); };
+const closeTune = () => { tuneKind = null; $('tunepanel').hidden = true; refreshUI(); };
+const toggleMistPanel = () => { closeTune(); $('mistpanel').hidden = !$('mistpanel').hidden; $('lenspanel').hidden = true; refreshUI(); };
 el.mist.onclick = toggleMistPanel;
 // bảng chỉnh ống kính: tiêu cự (= zoom) + khẩu độ (độ xoá phông)
-const toggleLensPanel = () => { $('lenspanel').hidden = !$('lenspanel').hidden; $('mistpanel').hidden = true; refreshUI(); };
+const toggleLensPanel = () => { closeTune(); $('lenspanel').hidden = !$('lenspanel').hidden; $('mistpanel').hidden = true; refreshUI(); };
 el.lens.onclick = toggleLensPanel;
 el.quality.onclick = nextQuality;
 el.stop.onclick = toggleStop;
@@ -391,11 +407,106 @@ for (const [id, key] of [['mist-cover', 'mistCover'], ['mist-dens', 'mistDens']]
   input.addEventListener('input', () => { state[key] = input.value / 100; $(id + '-v').textContent = input.value; refreshUI(); });
   input.addEventListener('change', () => input.blur());   // trả phím mũi tên lại cho việc lái xe
 }
+
+const CAM_FIELDS = {
+  chase: [['distance','Khoảng lùi (m)',1,20,.1],['height','Độ cao (m)',.2,8,.05],['carHeight','Theo chiều cao xe',0,1,.01],['lookAhead','Nhìn trước (m)',0,40,.5],['lookHeight','Cao điểm nhìn (m)',0,5,.05],['slopeLook','Bám dốc',0,25,.5],['speedBack','Lùi theo tốc độ',0,6,.1],['cineBack','Lùi cinematic',0,6,.1],['follow','Mượt vị trí',.2,20,.1],['lookFollow','Mượt điểm nhìn',.2,20,.1],['near','Cắt gần (m)',.02,2,.01]],
+  low: [['distance','Khoảng lùi (m)',1,20,.1],['height','Độ cao (m)',.2,5,.05],['lookAhead','Nhìn trước (m)',0,40,.5],['lookHeight','Cao điểm nhìn (m)',0,5,.05],['slopeLook','Bám dốc',0,25,.5],['follow','Mượt vị trí',.2,20,.1],['lookFollow','Mượt điểm nhìn',.2,20,.1],['near','Cắt gần (m)',.02,2,.01]],
+  side: [['distance','Khoảng ngang (m)',1,25,.1],['height','Độ cao (m)',.2,8,.05],['lookHeight','Tỉ lệ cao xe',0,1,.01],['follow','Mượt vị trí',.2,20,.1],['lookFollow','Mượt điểm nhìn',.2,20,.1],['near','Cắt gần (m)',.02,2,.01]],
+  cockpit: [['eyeSide','Dịch ngang (m)',-.5,.5,.005],['eyeHeight','Dịch cao (m)',-.5,.5,.005],['eyeForward','Dịch trước (m)',-.5,.5,.005],['pitch','Góc chúc (rad)',-.2,.8,.005],['lookDistance','Tầm nhìn (m)',5,80,1],['follow','Mượt vị trí',.2,20,.1],['lookFollow','Mượt điểm nhìn',.2,20,.1],['near','Cắt gần (m)',.01,.5,.005]],
+  orbit: [['radius','Bán kính (m)',1,30,.1],['height','Độ cao (m)',.2,12,.05],['heightWave','Nhấp nhô (m)',0,4,.05],['waveRate','Nhịp nhấp nhô',0,3,.05],['speed','Tốc độ quay',-.8,.8,.01],['lookHeight','Cao điểm nhìn (m)',0,5,.05],['follow','Mượt vị trí',.2,20,.1],['lookFollow','Mượt điểm nhìn',.2,20,.1],['near','Cắt gần (m)',.02,2,.01]],
+  drone: [['distance','Khoảng lùi (m)',1,50,.5],['height','Độ cao (m)',2,50,.5],['lookAhead','Nhìn trước (m)',-10,40,.5],['lookHeight','Cao điểm nhìn (m)',0,8,.05],['follow','Mượt vị trí',.2,20,.1],['lookFollow','Mượt điểm nhìn',.2,20,.1],['near','Cắt gần (m)',.02,2,.01]],
+};
+const WEATHER_FIELDS = [
+  ['fog','Mật độ sương',0,.012,.0001],['overcast','Độ âm u',0,1,.01],['clouds','Mây che phủ',0,1,.01],['sun','Cường độ nắng',0,2,.01],
+  ['rain','Lượng mưa',0,1,.01],['snow','Lượng tuyết',0,1,.01],['wet','Độ ướt đường',0,1,.01],['cover','Tuyết phủ đất',0,1,.01],
+  ['wind','Sức gió',0,1,.01],['dark','Độ tối',0,1,.01],
+];
+const ENV_FIELDS = [
+  ['exposure','Phơi sáng',.2,2.5,.01],['skyBrightness','Độ sáng trời',0,3,.01],['directLight','Ánh sáng chính',0,3,.01],
+  ['ambientLight','Ánh sáng phủ',0,3,.01],['sunGlow','Quầng mặt trời',0,3,.01],['sunDisc','Đĩa mặt trời',0,3,.01],
+  ['cloudBrightness','Độ sáng mây',0,3,.01],['rays','Tia sáng',0,3,.01],
+];
+const tunePanel = $('tunepanel'), tuneMode = $('tune-mode'), tuneFields = $('tune-fields');
+const saveTuning = () => {
+  try { localStorage.setItem(TUNE_KEY, JSON.stringify({ camera: rig.tune, weather: env.weatherProfiles, environment: env.tune, lens: { focal: rig.focal, fstop: state.fstop } })); } catch { /* chế độ riêng tư */ }
+};
+const addHeading = (text) => { const h = document.createElement('h4'); h.textContent = text; tuneFields.append(h); };
+const addNumber = ({ label, min, max, step, get, set }) => {
+  const row = document.createElement('label'), name = document.createElement('span'), range = document.createElement('input'), number = document.createElement('input');
+  name.textContent = label; range.type = 'range'; number.type = 'number';
+  for (const input of [range, number]) { input.min = min; input.max = max; input.step = step; input.value = get(); }
+  const apply = (value) => { value = clamp(Number(value), Number(min), Number(max)); set(value); range.value = number.value = value; saveTuning(); };
+  range.oninput = () => apply(range.value); number.onchange = () => { apply(number.value); number.blur(); };
+  row.append(name, range, number); tuneFields.append(row);
+};
+const addColor = ({ label, get, set }) => {
+  const row = document.createElement('label'), name = document.createElement('span'), input = document.createElement('input');
+  name.textContent = label; input.type = 'color'; input.value = get(); input.oninput = () => { set(input.value); saveTuning(); };
+  row.append(name, input); tuneFields.append(row);
+};
+const addChoice = ({ label, options, get, set }) => {
+  const row = document.createElement('label'), name = document.createElement('span'), select = document.createElement('select');
+  name.textContent = label;
+  options.forEach((text, value) => { const option = document.createElement('option'); option.value = value; option.textContent = text; option.selected = value === get(); select.append(option); });
+  select.onchange = () => { set(Number(select.value)); saveTuning(); }; row.append(name, select); tuneFields.append(row);
+};
+const cameraSpecs = () => {
+  const id = CAMERAS[state.cam].id, values = rig.tune[id];
+  return CAM_FIELDS[id].map(([key,label,min,max,step]) => ({ label, min, max, step, get: () => values[key], set: (v) => {
+    values[key] = v; if (key === 'near') { camera.near = v; camera.updateProjectionMatrix(); }
+  } }));
+};
+const environmentSpecs = () => ENV_FIELDS.map(([key,label,min,max,step]) => ({ label, min, max, step, get: () => env.tune[key], set: (v) => { env.tune[key] = v; env.envKey = ''; } }));
+
+renderTune = () => {
+  if (!tuneKind) return;
+  tuneFields.replaceChildren(); tuneMode.replaceChildren();
+  const list = tuneKind === 'camera' ? CAMERAS : tuneKind === 'weather' ? WEATHERS : TIMES;
+  const selected = state[tuneKind === 'camera' ? 'cam' : tuneKind];
+  list.forEach((item, i) => { const o = document.createElement('option'); o.value = i; o.textContent = item.name; o.selected = i === selected; tuneMode.append(o); });
+  $('tune-title').textContent = tuneKind === 'camera' ? 'Camera · ' + CAMERAS[state.cam].name : tuneKind === 'weather' ? 'Thời tiết · ' + WEATHERS[state.weather].name : 'Thời gian · ' + TIMES[state.time].name;
+  if (tuneKind === 'camera') {
+    addHeading('Vị trí và chuyển động'); cameraSpecs().forEach(addNumber);
+    addHeading('Ống kính');
+    addNumber({ label: 'Tiêu cự (mm)', min: FOCAL_MIN, max: FOCAL_MAX, step: 1, get: () => rig.focal, set: (v) => { rig.focal = v; syncLens(); refreshUI(); } });
+    addChoice({ label: 'Khẩu độ', options: FSTOPS.map((v) => 'f/' + v), get: () => state.fstop, set: (v) => { state.fstop = v; syncLens(); refreshUI(); } });
+  } else if (tuneKind === 'weather') {
+    const id = WEATHERS[state.weather].id, profile = env.weatherProfiles[id];
+    addHeading('Preset ' + WEATHERS[state.weather].name);
+    WEATHER_FIELDS.map(([key,label,min,max,step]) => ({ label,min,max,step,get:()=>profile[key],set:(v)=>{ profile[key]=v; env.w[key]=v; } })).forEach(addNumber);
+    addColor({ label: 'Màu khí quyển', get: () => profile.tint, set: (v) => { profile.tint = v; env.tint.set(v); env.envKey = ''; } });
+    addHeading('Ánh sáng chung'); environmentSpecs().forEach(addNumber);
+  } else {
+    addHeading('Chu kỳ ngày đêm');
+    addNumber({ label: 'Giờ hiện tại', min: 0, max: 23.99, step: .05, get: () => env.hour, set: (v) => { env.hour = v; env.tween = null; env.envKey = ''; } });
+    addNumber({ label: 'Tốc độ tự chạy', min: 0, max: 1, step: .005, get: () => env.tune.autoSpeed, set: (v) => { env.tune.autoSpeed = v; } });
+    addNumber({ label: 'Hướng mặt trời', min: -3.142, max: 3.142, step: .01, get: () => env.tune.sunAzimuth, set: (v) => { env.tune.sunAzimuth = v; env.envKey = ''; } });
+    addNumber({ label: 'Hướng mặt trăng', min: -3.142, max: 3.142, step: .01, get: () => env.tune.moonAzimuth, set: (v) => { env.tune.moonAzimuth = v; env.envKey = ''; } });
+    addHeading('Ánh sáng chung'); environmentSpecs().forEach(addNumber);
+  }
+};
+const openTune = (kind) => {
+  tuneKind = kind; $('mistpanel').hidden = $('lenspanel').hidden = true; tunePanel.hidden = false; renderTune(); refreshUI();
+};
+tuneMode.onchange = () => {
+  const i = Number(tuneMode.value);
+  if (tuneKind === 'camera') { state.cam = i; rig.setMode(i); onCamChange(); }
+  else if (tuneKind === 'weather') { state.weather = i; env.setWeather(WEATHERS[i].id); }
+  else { state.time = i; env.setTime(TIMES[i].hour); }
+  refreshUI(); renderTune();
+};
+$('tune-close').onclick = closeTune;
+$('tune-reset').onclick = () => {
+  if (tuneKind === 'camera') { rig.resetTune(CAMERAS[state.cam].id); onCamChange(); }
+  else if (tuneKind === 'weather') { env.resetWeather(WEATHERS[state.weather].id); env.resetTune(); env.snapWeather(WEATHERS[state.weather].id); }
+  else { env.resetTune(); env.setTime(TIMES[state.time].hour); }
+  saveTuning(); refreshUI(); renderTune();
+};
 el.car.onclick = nextCar;
 el.map.onclick = nextMap;
-el.cam.onclick = nextCam;
-el.weather.onclick = nextWeather;
-el.time.onclick = nextTime;
+el.cam.onclick = () => openTune('camera');
+el.weather.onclick = () => openTune('weather');
+el.time.onclick = () => openTune('time');
 el.music.onclick = nextMusic;
 $('b-info').onclick = () => { const c = $('credits'); c.hidden = !c.hidden; };
 

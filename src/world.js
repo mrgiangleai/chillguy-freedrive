@@ -126,6 +126,7 @@ const C_MOON_DISC = new THREE.Color(1.7, 1.78, 1.95);        // đĩa trăng (HD
 // Mặt trời lặn / trăng treo gần hướng đó (hơi lệch phải) để hay lọt vào khung hình khi chạy.
 const SUN_AZ = Math.PI - 1.0;
 const MOON_AZ = Math.PI - 1.15;
+const ENV_TUNE_DEFAULTS = { exposure: 1, skyBrightness: 1, directLight: 1, ambientLight: 1, sunGlow: 1, sunDisc: 1, cloudBrightness: 1, rays: 1, autoSpeed: 0.06, sunAzimuth: SUN_AZ, moonAzimuth: MOON_AZ };
 
 // Lớp mây: nhiễu fbm chiếu lên mặt phẳng trên cao, tô sáng theo hướng mặt trời (mép sáng, đáy tối)
 const CLOUD_VERT = `
@@ -192,9 +193,11 @@ export class Environment {
     this.auto = false;
     this.tween = null;
     this.weather = 'clear';
-    this.w = { ...WEATHER.clear };
-    this.tint = new THREE.Color(WEATHER.clear.tint);
-    this.target = WEATHER.clear;
+    this.weatherProfiles = Object.fromEntries(Object.entries(WEATHER).map(([id, value]) => [id, { ...value }]));
+    this.w = { ...this.weatherProfiles.clear };
+    this.tint = new THREE.Color(this.weatherProfiles.clear.tint);
+    this.target = this.weatherProfiles.clear;
+    this.tune = { ...ENV_TUNE_DEFAULTS };
     this.windDir = new THREE.Vector2(0.78, 0.62).normalize();
 
     // sương phủ trời + mây (dùng chung)
@@ -332,9 +335,16 @@ export class Environment {
 
   setWeather(id) {
     this.weather = id;
-    this.target = WEATHER[id];
+    this.target = this.weatherProfiles[id];
     if (id === 'storm') this.nextStrike = Math.min(this.nextStrike, 1.2);
   }
+
+  resetWeather(id) {
+    Object.assign(this.weatherProfiles[id], WEATHER[id]);
+    if (this.weather === id) this.setWeather(id);
+  }
+
+  resetTune() { Object.assign(this.tune, ENV_TUNE_DEFAULTS); this.envKey = ''; }
 
   // hour: đặt giờ (chuyển cảnh mượt). null => bật chế độ tự chạy
   setTime(hour) {
@@ -384,7 +394,7 @@ export class Environment {
     const cam = this.camera.position;
 
     // ---- thời gian ----
-    if (this.auto) this.hour = (this.hour + dt * 0.06) % 24;
+    if (this.auto) this.hour = (this.hour + dt * this.tune.autoSpeed) % 24;
     else if (this.tween != null) {
       const d = ((this.tween - this.hour + 36) % 24) - 12;      // quãng ngắn nhất, -12..12
       const step = 5 * dt;
@@ -422,15 +432,15 @@ export class Environment {
     // ---- mặt trời ----
     const e = 65 * Math.sin(((this.hour - 6) / 24) * Math.PI * 2);   // độ cao mặt trời (độ)
     const sunDir = this.state.sunDir;
-    sunDir.setFromSphericalCoords(1, Math.PI / 2 - e * DEG, SUN_AZ);
+    sunDir.setFromSphericalCoords(1, Math.PI / 2 - e * DEG, this.tune.sunAzimuth);
     const dayF = sstep(-4, 14, e);
     const night = 1 - sstep(-12, 0, e);
     const warm = Math.exp(-Math.pow((e - 3) / 10, 2));
     // trăng: mọc lúc chạng vạng, treo thấp (~12°) phía trước đường => dễ thấy trong khung hình.
     // ánh trăng chiếu từ cao hơn (cùng phương) để mặt đất đủ sáng, bóng không dài quá
     const moonDir = this.state.moonDir;
-    moonDir.setFromSphericalCoords(1, Math.PI / 2 - (3 + 9 * sstep(-3, -30, e)) * DEG, MOON_AZ);
-    const moonLightDir = this._v.setFromSphericalCoords(1, Math.PI / 2 - 38 * DEG, MOON_AZ);
+    moonDir.setFromSphericalCoords(1, Math.PI / 2 - (3 + 9 * sstep(-3, -30, e)) * DEG, this.tune.moonAzimuth);
+    const moonLightDir = this._v.setFromSphericalCoords(1, Math.PI / 2 - 38 * DEG, this.tune.moonAzimuth);
     const moonUp = sstep(-2, -11, e);
 
     // ---- bầu trời gradient: nội suy mốc màu theo độ cao mặt trời ----
@@ -449,14 +459,14 @@ export class Environment {
     S.mid.lerp(this._lit.copy(oc).multiplyScalar(0.92), m);
     S.hor.lerp(oc, m);
     S.band.lerp(oc, m);
-    const skyI = SKY_I * (1 - 0.6 * dk);
+    const skyI = SKY_I * this.tune.skyBrightness * (1 - 0.6 * dk);
     for (const n of ['zen', 'mid', 'hor', 'band']) S[n].multiplyScalar(skyI).add(this._c2.setRGB(0.55, 0.65, 1.0).multiplyScalar(flash * 1.6));
     const su = this.skyMat.uniforms;
     su.uZenith.value.copy(S.zen); su.uMid.value.copy(S.mid); su.uHorizon.value.copy(S.hor); su.uBand.value.copy(S.band);
-    su.uSunCol.value.copy(S.sun).multiplyScalar(SKY_I);
+    su.uSunCol.value.copy(S.sun).multiplyScalar(SKY_I * this.tune.skyBrightness);
     su.uSunDir.value.copy(sunDir);
-    su.uGlow.value = (1 - over * 0.95) * sstep(-6, 1, e) * (1 - dk);
-    su.uDisc.value = (1 - over) * sstep(-1.5, 0.5, e) * 22;
+    su.uGlow.value = (1 - over * 0.95) * sstep(-6, 1, e) * (1 - dk) * this.tune.sunGlow;
+    su.uDisc.value = (1 - over) * sstep(-1.5, 0.5, e) * 22 * this.tune.sunDisc;
     su.uBandAmt.value = (1 - over * 0.85) * (0.25 + 0.75 * warm) * sstep(-11, -2, e);
     su.uMoonDir.value.copy(moonDir);
     su.uMoon.value = moonUp * clamp(1 - over * 1.05, 0, 1) * (1 - dk);
@@ -466,7 +476,7 @@ export class Environment {
     // bầu trời / phản chiếu trên xe bớt trắng loá. Không ảnh hưởng hoàng hôn / trời âm u / ban đêm.
     const sunK = sstep(3, 22, e) * clamp((w.sun - 0.3) / 0.7, 0, 1) * (1 - dk);
     this.state.sunK = sunK;
-    this.renderer.toneMappingExposure = (0.5 + 0.12 * warm) * (1 - 0.5 * dk) * (1 + 0.3 * night) * (1 - 0.3 * sunK);
+    this.renderer.toneMappingExposure = (0.5 + 0.12 * warm) * (1 - 0.5 * dk) * (1 + 0.3 * night) * (1 - 0.3 * sunK) * this.tune.exposure;
 
     // ---- màu sương xa = đúng màu hiển thị của chân trời (liền mạch đất - trời) ----
     // (màu tuyến tính = đúng radiance chân trời; fogC = màu hiển thị của nó, dùng cho ánh sáng nền)
@@ -493,10 +503,10 @@ export class Environment {
     const byMoon = e < -2.5;
     const lightDir = this.state.lightDir.copy(byMoon ? moonLightDir : sunDir);
     if (byMoon) {
-      this.sun.intensity = 0.38 * moonUp * (1 - 0.8 * over) * (1 - dk);
+      this.sun.intensity = 0.38 * moonUp * (1 - 0.8 * over) * (1 - dk) * this.tune.directLight;
       this.sun.color.copy(C_MOON);
     } else {
-      this.sun.intensity = 3.4 * sstep(-2, 9, e) * w.sun * (1 + 1.3 * sunK);
+      this.sun.intensity = 3.4 * sstep(-2, 9, e) * w.sun * (1 + 1.3 * sunK) * this.tune.directLight;
       this.sun.color.copy(C_SUN_DAY).lerp(C_SUN_LOW, clamp(warm * 1.3, 0, 1));
     }
     if (focus) {
@@ -505,7 +515,7 @@ export class Environment {
     }
     this.hemi.color.copy(fogC).lerp(this._c.set('#6f8cd0'), night * 0.75).lerp(this._c.set('#c4d4ff'), flash);
     this.hemi.groundColor.set('#3a4630').multiplyScalar(0.25 + 0.75 * dayF);
-    this.hemi.intensity = (0.16 + 0.45 * dayF + 0.34 * night) * (1 - 0.4 * over) * (1 - 0.35 * dk) * (1 - 0.45 * sunK) + flash * 3.2;
+    this.hemi.intensity = ((0.16 + 0.45 * dayF + 0.34 * night) * (1 - 0.4 * over) * (1 - 0.35 * dk) * (1 - 0.45 * sunK) + flash * 3.2) * this.tune.ambientLight;
 
     // ---- đồ vật trên trời bám theo camera ----
     this.sky.position.copy(cam);
@@ -524,7 +534,7 @@ export class Environment {
     // ---- mây ----
     // sáng (lit): trắng ban ngày, cam lúc hoàng hôn, xanh nhạt dưới trăng; tối (shade): xanh xám / tím nhạt
     const cw = clamp(warm * 1.1, 0, 1) * (1 - 0.92 * dk);   // bão: mây luôn xám xanh, không ngả cam
-    const lit = this._lit.set('#ffffff').lerp(this._c2.set('#ff9d66'), cw).multiplyScalar(2.4 * dayF);
+    const lit = this._lit.set('#ffffff').lerp(this._c2.set('#ff9d66'), cw).multiplyScalar(2.4 * dayF * this.tune.cloudBrightness);
     lit.add(this._c2.set('#8fa6e0').multiplyScalar(0.32 * night * (1 - over * 0.6)));   // mây được trăng chiếu
     // phần tối của mây lấy theo màu trời (hài hoà với gradient), ngả tím hồng lúc hoàng hôn
     const shade = this._shade.copy(S.mid).multiplyScalar(0.5).lerp(this._c2.copy(S.hor).multiplyScalar(0.62), 0.45)
@@ -557,8 +567,8 @@ export class Environment {
     st.moon = su.uMoon.value;
     // tia nắng: rõ khi mặt trời thấp và khi có sương (ánh sáng tán xạ); ban đêm tia trăng rất nhẹ
     const fogK = sstep(0.0005, 0.0065, w.fog);
-    st.rays = byMoon ? 0.22 * su.uMoon.value * (1 + fogK)
-      : sstep(-2.5, 2.5, e) * (1 - 0.55 * over) * (1 - dk) * (0.55 + 0.45 * warm) * (1 + 1.3 * fogK);
+    st.rays = (byMoon ? 0.22 * su.uMoon.value * (1 + fogK)
+      : sstep(-2.5, 2.5, e) * (1 - 0.55 * over) * (1 - dk) * (0.55 + 0.45 * warm) * (1 + 1.3 * fogK)) * this.tune.rays;
     st.rayDir.copy(byMoon ? moonDir : sunDir);
     st.rayCol.copy(byMoon ? C_MOON : this.sun.color);
     st.light = (0.14 + 0.08 * night + 0.86 * dayF * (1 - 0.3 * over) * (1 - 0.55 * dk)) + flash * 0.6;

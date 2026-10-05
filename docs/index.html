@@ -12,8 +12,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Chill Drive</title>
-  <link rel="stylesheet" href="style.css?v=b94efa99">
-  <link rel="modulepreload" href="app.js?v=75b16d92">
+  <link rel="stylesheet" href="style.css?v=099a73e5">
+  <link rel="modulepreload" href="app.js?v=186fdb00">
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -54,6 +54,13 @@
     <label><span>Khẩu độ</span><input id="lens-fstop" type="range" min="0" step="1"><output id="lens-fstop-v"></output></label>
   </div>
 
+  <section id="tunepanel" hidden>
+    <header><strong id="tune-title">Thông số</strong><button id="tune-reset" type="button">Mặc định</button><button id="tune-close" type="button" aria-label="Đóng">×</button></header>
+    <select id="tune-mode" aria-label="Chế độ đang chỉnh"></select>
+    <div id="tune-fields"></div>
+    <small>Thay đổi áp dụng ngay và được giữ trên trình duyệt này.</small>
+  </section>
+
   <div id="rotate" hidden>
     <div class="phone"></div>
     <p>Xoay ngang điện thoại để xem đẹp nhất</p>
@@ -74,6 +81,6 @@
     <p class="keys">A/D hoặc ←/→ lái · W/S hoặc ↑/↓ tốc độ · giữ chuột/vuốt: nhìn 360° · lăn chuột/chụm 2 ngón hoặc + −: zoom (16–35mm) · L ống kính · Q chất lượng · C camera · N map · F tốc độ 25/50/180 · P dừng xe / đi tiếp · G sương mù · H ẩn giao diện · U toàn màn hình</p>
   </div>
 
-  <script type="module" src="app.js?v=75b16d92"></script>
+  <script type="module" src="app.js?v=186fdb00"></script>
 </body>
 </html>
