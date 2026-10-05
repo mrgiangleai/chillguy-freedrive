@@ -178,7 +178,7 @@ const pointer = { active: false, id: -1, x: 0, y: 0 };
 // ---------- giao diện ----------
 // mặc định vào game: đồi thông, sương mù, hoàng hôn
 // mặc định lúc vào game: map núi, camera quay quanh, mưa, hoàng hôn, 16 mm f/1.4
-const state = { car: 0, character: 0, map: MAPS.findIndex((m) => m.id === 'mountain'), cam: CAMERAS.findIndex((c) => c.id === 'orbit'), weather: WEATHERS.findIndex((w) => w.id === 'rain'), time: TIMES.findIndex((t) => t.id === 'sunset'), music: 0, cine: true, started: false, mistCover: 0.35, mistDens: 0.2, fstop: FSTOP_DEFAULT, quality: loadQuality() };
+const state = { car: 0, character: 0, map: MAPS.findIndex((m) => m.id === 'mountain'), cam: CAMERAS.findIndex((c) => c.id === 'orbit'), weather: WEATHERS.findIndex((w) => w.id === 'rain'), time: TIMES.findIndex((t) => t.id === 'sunset'), music: 0, cine: true, started: false, mistCover: 0.9, mistDens: 0.4, fstop: FSTOP_DEFAULT, quality: loadQuality() };
 const TUNE_KEY = 'chilldrive.tuning.v1';
 let savedTuning = null;
 try {
@@ -190,8 +190,7 @@ try {
   if (savedTuning?.streetLights) Object.assign(scenery.lampTune, savedTuning.streetLights);
 } catch { /* thông số cũ/hỏng: dùng mặc định trong code */ }
 rig.setMode(state.cam);
-rig.focal = rig.focalS = 16;
-if (savedTuning?.lens) { rig.focal = rig.focalS = clamp(savedTuning.lens.focal, FOCAL_MIN, FOCAL_MAX); state.fstop = clamp(savedTuning.lens.fstop, 0, FSTOPS.length - 1); }
+state.fstop = FSTOPS.indexOf(rig.aperture);
 const el = { full: $('b-full'), stop: $('b-stop'), character: $('b-character'), quality: $('b-quality'), lens: $('b-lens'), mist: $('b-mist'), fast: $('b-fast'), car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
 const setBtn = (btn, icon, text) => { btn.querySelector('b').textContent = icon; btn.querySelector('span').textContent = text; btn.title = text; };
 
@@ -239,7 +238,7 @@ function applyQuality() {
   try { localStorage.setItem('chilldrive.quality', q.id); } catch { /* bỏ qua */ }
 }
 const nextQuality = () => { state.quality = (state.quality + 1) % QUALITY.length; applyQuality(); refreshUI(); };
-function lensLabel() { return Math.round(rig.focal) + 'mm f/' + FSTOPS[state.fstop]; }
+function lensLabel() { return Math.round(rig.focal) + 'mm f/' + rig.aperture; }
 
 let characterLoading = false, characterRequest = 0;
 async function chooseCharacter(i) {
@@ -337,17 +336,8 @@ const applyMap = () => {
   warmShaders();
 };
 const nextMap = () => { state.map = (state.map + 1) % MAPS.length; applyMap(); refreshUI(); };
-// camera trong xe: ống kính 16 mm, khẩu độ f/16 (nét sâu), lấy nét ở taplo; ra ngoài thì trả lại như cũ
-// camera ngoài xe: 24 mm f/5.6 (đang chạy 180 km/h thì 16 mm)
-const OUT_FOCAL = 24, FAST_FOCAL = 16, OUT_FSTOP = FSTOPS.indexOf(5.6);
 function onCamChange() {
-  if (CAMERAS[state.cam].id === 'cockpit') {
-    rig.focal = rig.focalS = 16;
-    state.fstop = FSTOPS.indexOf(16);
-  } else {
-    rig.focal = drive.fast ? FAST_FOCAL : OUT_FOCAL;
-    state.fstop = OUT_FSTOP;
-  }
+  state.fstop = Math.max(0, FSTOPS.indexOf(rig.aperture));
   syncLens();
 }
 let tuneKind = null;
@@ -374,8 +364,7 @@ const applyCine = () => document.body.classList.toggle('cine', state.cine && sta
 function setGear(g) {
   const was = drive.fast;
   drive.gear = g; drive.fast = g === 2; drive.target = GEARS[Math.min(g, 1)];
-  // 180 km/h: camera ngoài xe mở rộng góc về 16 mm; thôi chạy nhanh thì về 24 mm (camera trong xe không đổi)
-  if (drive.fast !== was && CAMERAS[state.cam].id !== 'cockpit') { rig.focal = drive.fast ? FAST_FOCAL : OUT_FOCAL; syncLens(); }
+  if (drive.fast !== was) syncLens();
 }
 const toggleFast = () => { if (stop.active) return; setGear((drive.gear + 1) % GEARS.length); refreshUI(); };
 const nextMusic = () => { state.music = (state.music + 1) % MUSIC_MODES.length; audio.setMode(state.music); refreshUI(); };
@@ -397,10 +386,11 @@ focalIn.min = FOCAL_MIN; focalIn.max = FOCAL_MAX;
 fstopIn.max = FSTOPS.length - 1;
 const syncLens = () => {
   focalIn.value = Math.round(rig.focal); $('lens-focal-v').textContent = Math.round(rig.focal) + 'mm';
-  fstopIn.value = state.fstop; $('lens-fstop-v').textContent = 'f/' + FSTOPS[state.fstop];
+  state.fstop = Math.max(0, FSTOPS.indexOf(rig.aperture));
+  fstopIn.value = state.fstop; $('lens-fstop-v').textContent = 'f/' + rig.aperture;
 };
-focalIn.addEventListener('input', () => { rig.focal = Number(focalIn.value); syncLens(); refreshUI(); });
-fstopIn.addEventListener('input', () => { state.fstop = Number(fstopIn.value); syncLens(); refreshUI(); });
+focalIn.addEventListener('input', () => { const t = rig.tune[CAMERAS[state.cam].id]; t.focal = rig.focal = Number(focalIn.value); syncLens(); refreshUI(); });
+fstopIn.addEventListener('input', () => { const t = rig.tune[CAMERAS[state.cam].id]; state.fstop = Number(fstopIn.value); t.aperture = rig.aperture = FSTOPS[state.fstop]; syncLens(); refreshUI(); });
 for (const i of [focalIn, fstopIn]) i.addEventListener('change', () => i.blur());
 syncLens();
 for (const [id, key] of [['mist-cover', 'mistCover'], ['mist-dens', 'mistDens']]) {
@@ -431,7 +421,7 @@ const ENV_FIELDS = [
 ];
 const tunePanel = $('tunepanel'), tuneMode = $('tune-mode'), tuneFields = $('tune-fields');
 const saveTuning = () => {
-  try { localStorage.setItem(TUNE_KEY, JSON.stringify({ camera: rig.tune, weather: env.weatherProfiles, environment: env.tune, carLights: cars.headlights.tune, streetLights: scenery.lampTune, lens: { focal: rig.focal, fstop: state.fstop } })); } catch { /* chế độ riêng tư */ }
+  try { localStorage.setItem(TUNE_KEY, JSON.stringify({ camera: rig.tune, weather: env.weatherProfiles, environment: env.tune, carLights: cars.headlights.tune, streetLights: scenery.lampTune })); } catch { /* chế độ riêng tư */ }
 };
 const addHeading = (text) => { const h = document.createElement('h4'); h.textContent = text; tuneFields.append(h); };
 const addNumber = ({ label, min, max, step, get, set }) => {
@@ -487,10 +477,11 @@ renderTune = () => {
   list.forEach((item, i) => { const o = document.createElement('option'); o.value = i; o.textContent = item.name; o.selected = i === selected; tuneMode.append(o); });
   $('tune-title').textContent = tuneKind === 'camera' ? 'Camera · ' + CAMERAS[state.cam].name : tuneKind === 'weather' ? 'Thời tiết · ' + WEATHERS[state.weather].name : 'Thời gian · ' + TIMES[state.time].name;
   if (tuneKind === 'camera') {
+    const values = rig.tune[CAMERAS[state.cam].id];
     addHeading('Vị trí và chuyển động'); cameraSpecs().forEach(addNumber);
     addHeading('Ống kính');
-    addNumber({ label: 'Tiêu cự (mm)', min: FOCAL_MIN, max: FOCAL_MAX, step: 1, get: () => rig.focal, set: (v) => { rig.focal = v; syncLens(); refreshUI(); } });
-    addChoice({ label: 'Khẩu độ', options: FSTOPS.map((v) => 'f/' + v), get: () => state.fstop, set: (v) => { state.fstop = v; syncLens(); refreshUI(); } });
+    addNumber({ label: 'Tiêu cự (mm)', min: FOCAL_MIN, max: FOCAL_MAX, step: 1, get: () => values.focal, set: (v) => { values.focal = rig.focal = v; syncLens(); refreshUI(); } });
+    addChoice({ label: 'Khẩu độ', options: FSTOPS.map((v) => 'f/' + v), get: () => Math.max(0, FSTOPS.indexOf(values.aperture)), set: (v) => { values.aperture = rig.aperture = FSTOPS[v]; state.fstop = v; syncLens(); refreshUI(); } });
   } else if (tuneKind === 'weather') {
     const id = WEATHERS[state.weather].id, profile = env.weatherProfiles[id];
     addHeading('Preset ' + WEATHERS[state.weather].name);
@@ -649,7 +640,7 @@ function dofParams(dt) {
   if (stop.active) _focusP.copy(stop.cam.focus);
   const target = inCar && !stop.active ? 0.8 : Math.max(0.5, camera.position.distanceTo(_focusP));
   dof.focus += (target - dof.focus) * (dof.amt > 0.01 ? 1 - Math.exp(-dt * 6) : 1);
-  const f = rig.focalEff, N = FSTOPS[state.fstop], F = dof.focus * 1000;
+  const f = rig.focalEff, N = rig.apertureS, F = dof.focus * 1000;
   dof.cocK = ((f * f) / (N * Math.max(F - f, 1))) * (post.longSide / 36) * BOKEH;
   dof.maxCoc = Math.max(6, post.longSide * 0.0125);
   // cả chiếc xe nằm trong vùng nét: nửa bề dày xe theo hướng nhìn

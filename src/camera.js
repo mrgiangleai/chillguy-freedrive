@@ -9,12 +9,12 @@ const lerpAngle = (a, b, t) => {
 };
 
 const CAMERA_DEFAULTS = {
-  chase: { distance: 6.2, speedBack: 1.4, cineBack: 1.8, height: 2.3, carHeight: 0.4, lookAhead: 13, lookHeight: 1.75, slopeLook: 10, follow: 5, lookFollow: 7, near: 0.3 },
-  low: { distance: 4.2, height: 0.95, lookAhead: 10, lookHeight: 1, slopeLook: 10, follow: 5, lookFollow: 7, near: 0.3 },
-  side: { distance: 11, height: 1.5, lookHeight: 0.42, follow: 9, lookFollow: 12, near: 0.3 },
-  cockpit: { eyeSide: 0, eyeHeight: 0, eyeForward: 0, pitch: 0.24, lookDistance: 30, follow: 9, lookFollow: 9, near: 0.04 },
-  orbit: { radius: 8.5, height: 2.2, heightWave: 0.8, waveRate: 0.7, speed: 0.2, lookHeight: 0.8, follow: 5, lookFollow: 7, near: 0.3 },
-  drone: { distance: 15, height: 13, lookAhead: 6, lookHeight: 0.5, follow: 3.5, lookFollow: 7, near: 0.3 },
+  chase: { distance: 6.2, speedBack: 1.4, cineBack: 1.8, height: 2.3, carHeight: 0.4, lookAhead: 13, lookHeight: 1.75, slopeLook: 10, follow: 5, lookFollow: 7, near: 0.3, focal: 24, aperture: 3.5 },
+  low: { distance: 4.2, height: 0.95, lookAhead: 10, lookHeight: 1, slopeLook: 10, follow: 5, lookFollow: 7, near: 0.3, focal: 24, aperture: 3.5 },
+  side: { distance: 11, height: 1.5, lookHeight: 0.42, follow: 9, lookFollow: 12, near: 0.3, focal: 24, aperture: 3.5 },
+  cockpit: { eyeSide: 0, eyeHeight: 0, eyeForward: 0, pitch: 0.24, lookDistance: 30, follow: 9, lookFollow: 9, near: 0.04, focal: 24, aperture: 3.5 },
+  orbit: { radius: 8.5, height: 2.2, heightWave: 0.8, waveRate: 0.7, speed: 0.2, lookHeight: 0.8, follow: 5, lookFollow: 7, near: 0.3, focal: 24, aperture: 3.5 },
+  drone: { distance: 15, height: 13, lookAhead: 6, lookHeight: 0.5, follow: 3.5, lookFollow: 7, near: 0.3, focal: 24, aperture: 3.5 },
 };
 
 export class CameraRig {
@@ -27,7 +27,7 @@ export class CameraRig {
     this.relL = new THREE.Vector3();   // điểm nhìn so với xe (được làm mượt)
     this.fov = 60;
     this.first = true;
-    this.blend = 0;                    // thời gian chuyển cảnh sau khi đổi camera
+    this.transition = null;             // nội suy vị trí, điểm nhìn và ống kính trong 2 giây khi đổi camera
     this.cine = 0;                     // 0..1: chế độ cinematic (ống kính tele hơn, camera xa hơn)
     this.intro = -1;                   // >=0: đang chạy cảnh mở đầu (giây)
     this._p = new THREE.Vector3();
@@ -44,14 +44,16 @@ export class CameraRig {
     this.sideSign = 0;                 // camera bên hông: -1 trái / +1 phải (0 = chưa chọn)
     this.sidePref = 0;                 // ưu tiên bên (đường núi: phía thung lũng)
     this.tune = structuredClone(CAMERA_DEFAULTS);   // thông số camera chỉnh trực tiếp từ bảng công cụ
-    // ống kính (quy đổi full-frame 36x24 mm): mặc định 28 mm, zoom trong khoảng 16–35 mm
-    this.focal = 28;                   // tiêu cự đặt (mm)
-    this.focalS = 28;                  // đã làm mượt
-    this.focalEff = 28;                // tiêu cự thực tế khung hình này (Fast drive mở rộng góc)
+    // ống kính (quy đổi full-frame 36x24 mm), mỗi chế độ camera giữ cấu hình riêng
+    this.focal = this.focalS = this.focalEff = 24;
+    this.aperture = this.apertureS = 3.5;
   }
 
   // f > 1: zoom ra (góc rộng hơn), f < 1: zoom vào
-  zoomBy(f) { this.focal = clamp(this.focal / f, FOCAL_MIN, FOCAL_MAX); }
+  zoomBy(f) {
+    this.focal = clamp(this.focal / f, FOCAL_MIN, FOCAL_MAX);
+    this.tune[CAMERAS[this.mode].id].focal = this.focal;
+  }
 
   // góc nhìn dọc (độ) của ống kính tiêu cự f mm: cạnh dài khung hình ứng với cạnh 36 mm của cảm biến
   fovFor(f) {
@@ -74,15 +76,25 @@ export class CameraRig {
   startIntro() { this.intro = 0; this.first = true; }
 
   setMode(i) {
-    this.mode = i % CAMERAS.length;
+    const next = i % CAMERAS.length;
+    if (!this.first && next !== this.mode) {
+      this.transition = {
+        elapsed: 0, duration: 2,
+        fromP: this.relP.clone(), fromL: this.relL.clone(),
+        fromFocal: this.focalS, fromAperture: this.apertureS, fromNear: this.camera.near,
+      };
+    }
+    this.mode = next;
     this.intro = -1;
     this.sideSign = 0;
-    this.blend = 0.7;
     this.look.yaw = this.look.pitch = 0;
     const id = CAMERAS[this.mode].id;
-    const rigid = id === 'cockpit';
-    this.camera.near = this.tune[id]?.near ?? (rigid ? 0.04 : 0.3);
-    this.camera.updateProjectionMatrix();
+    const tune = this.tune[id];
+    this.focal = tune.focal; this.aperture = tune.aperture;
+    if (!this.transition) {
+      this.focalS = this.focal; this.apertureS = this.aperture;
+      this.camera.near = tune.near; this.camera.updateProjectionMatrix();
+    }
   }
 
   // car: { pos, yaw, speed, dim }
@@ -142,9 +154,7 @@ export class CameraRig {
         break;
     }
 
-    // ống kính: zoom mượt; chạy nhanh thì góc rộng ra một chút (28 -> ~20 mm khi Fast drive)
-    this.focalS += (this.focal - this.focalS) * (1 - Math.exp(-dt * 8));
-    this.focalEff = this.focalS * (1 - 0.04 * sp);    // (180 km/h: góc rộng do đổi sang 16 mm, xem setGear)
+    this.focalEff = this.focalS * (1 - 0.04 * sp);
     let fov = this.fovFor(this.focalEff);
 
     // cảnh mở đầu: lia vòng quanh xe (chỉ khi đang ở camera sau xe)
@@ -169,14 +179,28 @@ export class CameraRig {
       }
     } else if (this.intro >= 0) this.intro = -1;
 
-    // làm mượt phần lệch so với xe (không làm mượt vị trí tuyệt đối để camera không tụt lại khi chạy nhanh)
-    this.blend = Math.max(0, this.blend - dt);
-    let kp = 1 - Math.exp(-dt * follow), kl = 1 - Math.exp(-dt * lookFollow);
-    if (rigid) kp = kl = this.blend > 0 ? 1 - Math.exp(-dt * 9) : 1;
-    if (this.first || intro) kp = kl = 1;
-    this.relP.lerp(p.sub(pos), kp);
-    this.relL.lerp(l.sub(pos), kl);
-    this.fov += (fov - this.fov) * (this.first ? 1 : 1 - Math.exp(-dt * 3));
+    // Nội suy toàn bộ góc camera trong đúng 2 giây; dùng tọa độ tương đối để xe vẫn tiếp tục di chuyển tự nhiên.
+    const targetP = p.sub(pos), targetL = l.sub(pos);
+    const transitioning = !!this.transition && !intro;
+    if (transitioning) {
+      const tr = this.transition, q = clamp((tr.elapsed += dt) / tr.duration, 0, 1), e = q * q * (3 - 2 * q);
+      this.relP.lerpVectors(tr.fromP, targetP, e); this.relL.lerpVectors(tr.fromL, targetL, e);
+      this.focalS = THREE.MathUtils.lerp(tr.fromFocal, this.focal, e);
+      this.apertureS = THREE.MathUtils.lerp(tr.fromAperture, this.aperture, e);
+      this.camera.near = THREE.MathUtils.lerp(tr.fromNear, t.near, e);
+      if (q >= 1) this.transition = null;
+    } else {
+      let kp = 1 - Math.exp(-dt * follow), kl = 1 - Math.exp(-dt * lookFollow);
+      if (rigid) kp = kl = 1;
+      if (this.first || intro) kp = kl = 1;
+      this.relP.lerp(targetP, kp); this.relL.lerp(targetL, kl);
+      this.focalS += (this.focal - this.focalS) * (1 - Math.exp(-dt * 8));
+      this.apertureS += (this.aperture - this.apertureS) * (1 - Math.exp(-dt * 8));
+      this.camera.near = t.near;
+    }
+    this.focalEff = this.focalS * (1 - 0.04 * sp);
+    if (!intro) fov = this.fovFor(this.focalEff);
+    this.fov += (fov - this.fov) * (this.first ? 1 : this.transition ? 1 : 1 - Math.exp(-dt * 3));
     this.first = false;
 
     // nhìn xung quanh: camera ngoài bay vòng quanh xe, camera trong xe thì quay đầu
@@ -208,7 +232,7 @@ export class CameraRig {
     }
     this._l.copy(pos).add(cl);
     this.camera.lookAt(this._l);
-    if (Math.abs(this.camera.fov - this.fov) > 0.01) {
+    if (Math.abs(this.camera.fov - this.fov) > 0.01 || transitioning) {
       this.camera.fov = this.fov;
       this.camera.updateProjectionMatrix();
     }
