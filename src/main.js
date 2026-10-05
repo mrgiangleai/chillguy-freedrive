@@ -179,6 +179,7 @@ const pointer = { active: false, id: -1, x: 0, y: 0 };
 // cảnh chờ Start: đồi cỏ, camera quay quanh, nhiều mây, ban đêm
 const state = { car: 0, character: 0, map: MAPS.findIndex((m) => m.id === 'meadow'), cam: CAMERAS.findIndex((c) => c.id === 'orbit'), weather: WEATHERS.findIndex((w) => w.id === 'cloudy'), time: TIMES.findIndex((t) => t.id === 'night'), music: 0, cine: true, started: false, mistCover: 0.9, mistDens: 0.4, fstop: FSTOP_DEFAULT, quality: loadQuality() };
 let openingElapsed = null; // tính thời gian chạy sau khi bấm Start
+let openingCameraPending = false;
 const TUNE_KEY = 'chilldrive.tuning.v1';
 let savedTuning = null;
 try {
@@ -755,10 +756,7 @@ function frame(now) {
     if (openingElapsed >= 3) {
       openingElapsed = null;
       setGear(0);
-      state.cam = CAMERAS.findIndex((c) => c.id === 'chase');
-      rig.setMode(state.cam);
-      onCamChange();
-      refreshUI();
+      openingCameraPending = true;
     }
   }
   const opening = !state.started || openingElapsed !== null;
@@ -777,6 +775,14 @@ function frame(now) {
   if (opening) drive.v = FAST_SPEED;
   else if (stop.active) drive.v = stop.speed(drive.v, dt);    // cảnh dừng xe: giảm tốc đều tới khi dừng hẳn
   else drive.v += clamp(goal - drive.v, -8 * dt, 6 * dt);
+  if (openingCameraPending && drive.v <= CHILL_DEFAULT + 0.01) {
+    openingCameraPending = false;
+    drive.v = CHILL_DEFAULT;
+    state.cam = CAMERAS.findIndex((c) => c.id === 'chase');
+    rig.setMode(state.cam);
+    onCamChange();
+    refreshUI();
+  }
   drive.s += drive.v * dt;
   // hiệu ứng tốc độ tăng dần theo tốc độ thực tế (không có gì dưới ~55 km/h)
   drive.fx += (sstep(55 * KMH, FAST_SPEED, drive.v) - drive.fx) * (1 - Math.exp(-dt * 4));
