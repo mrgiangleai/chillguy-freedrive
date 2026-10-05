@@ -16,14 +16,25 @@ const FRAMES = 76, COLS = 10, ROWS = 8, PERIOD = 6.333 * Math.SQRT2;
 // sóng trong model trôi đều ~(−0.5, +2.25) điểm ảnh mỗi khung (đo bằng tương quan giữa các khung liền nhau): nội suy giữa
 // hai khung phải DỜI theo hướng trôi, không thì đỉnh sóng mờ đi rồi hiện ở chỗ mới (trông giật ~8 lần/giây)
 const DRIFT = [-0.5 / 99, 2.25 / 99];
-// "ẩn hiện" chỗ nối vòng lặp: hai lớp sóng lệch nhau nửa vòng; mỗi lớp mờ xuống 30% đúng lúc nó quay về khung đầu,
-// lớp kia đang ở giữa vòng (100%) che đi => không thấy điểm nối. Trộn giữ biên độ (chia √(wA² + wB²) quanh giá trị giữa)
-const SEAM_MIN = 0.3;
+// "ẩn hiện" chỗ nối vòng lặp: hai lớp sóng lệch nhau nửa vòng; mỗi lớp chỉ còn 10% đúng lúc quay về khung đầu/cuối,
+// lớp kia đang ở giữa vòng (100%) che đi. sin² có tiếp tuyến bằng 0 ở hai đầu nên độ mờ không đổi giật tại điểm lặp.
+// Shader chuẩn hoá √(wA² + wB²) quanh giá trị giữa để fade không làm hụt biên độ sóng.
+export const OCEAN_SEAM_MIN = 0.1;
 const WAVE_VER = 3;                                                  // đổi khi bake lại atlas (tránh trình duyệt dùng ảnh cũ)
 const STEP = 1.5, INNER = 120, OUTER = 400, OSTEP = 8, FAR_R = 6000;   // lưới gần / vành giữa / vành xa (m)
 const CARVE0 = ROAD.halfWidth + 1.2, CARVE1 = ROAD.halfWidth + 16;   // khớp terrain.js (đê đường thoải xuống đáy biển)
 export const SEA_BED = 7;                                            // đáy biển thấp hơn mặt nước (m)
 export const ROAD_N = 27, ROAD_GAP = 12;
+
+// Tách phép fade ra để kiểm tra chính xác vòng lặp mà không cần WebGL.
+export function oceanSeamWeights(phase) {
+  const ph = ((phase % 1) + 1) % 1;
+  const sA = Math.sin(Math.PI * ph) ** 2;
+  return {
+    a: OCEAN_SEAM_MIN + (1 - OCEAN_SEAM_MIN) * sA,
+    b: OCEAN_SEAM_MIN + (1 - OCEAN_SEAM_MIN) * (1 - sA),
+  };
+}
 
 function geometry(pos, idx) {
   const g = new THREE.BufferGeometry();
@@ -182,12 +193,12 @@ export class Ocean {
     // nắn theo bước lưới gần: đỉnh lưới luôn ở toạ độ thế giới cố định => sóng không trôi / rung khi camera di chuyển
     this.group.position.set(Math.round(cam.x / STEP) * STEP, this.level, Math.round(cam.z / STEP) * STEP);
     const u = this.u;
-    const ph = (time / PERIOD) % 1, sA = Math.sin(Math.PI * ph) ** 2;
+    const ph = (time / PERIOD) % 1, fade = oceanSeamWeights(ph);
     u.uFrame.value = ph * FRAMES;
     u.uT.value = time % 1000;
     u.uFrameB.value = ((ph + 0.5) % 1) * FRAMES;
-    u.uWA.value = SEAM_MIN + (1 - SEAM_MIN) * sA;            // lớp A: 30% ở chỗ nối của nó (ph = 0), 100% giữa vòng
-    u.uWB.value = SEAM_MIN + (1 - SEAM_MIN) * (1 - sA);      // lớp B: ngược lại
+    u.uWA.value = fade.a;                                     // lớp A: 10% ở đầu/cuối vòng, 100% giữa vòng
+    u.uWB.value = fade.b;                                     // lớp B lệch nửa vòng: 100% khi A nối, 10% tại nối riêng của B
     u.uSea.value = this.level;
     u.uCamW.value.copy(cam);
     u.uLod.value = 1500 * Math.max(1, (cam.y - this.level) / 3);   // camera cao: nhìn bớt xiên => mipmap mịn hơn

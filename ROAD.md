@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -54,7 +54,7 @@
 | `town.js` | Map núi: thị trấn nhỏ + **thị trấn lớn** dưới thung lũng, đèn đường |
 | `waterfalls.js` | Map núi: suối/thác (`waterfallSpec`, `waterfallGeometry` → nodes/water/wet/rocks/sprays; `Waterfalls.setMap`, `update(time, s, light, {d, v, dim, npcs, cam, audio})`). Dòng dò theo dốc (`trace`) + uốn lượn (`meander`); nước = MeshStandardMaterial + nhiễu theo **thời gian chảy `tau`** (không dùng `along - uTime*speed` => tránh sọc); lớp ướt = blend nhân màu; đá tảng dùng `rockGeometry(k, 2)` + `terrain.rockMat`; nước bắn bánh xe (`Splash`, Points kéo về camera 4%) |
 | `carriage.js` | `loadCarriage(loader)` → hàm tạo xe ngựa `{group, dim 5.6×2.8, wheels: [], mixer, carriage: true}`; `CARRIAGE` (15–30 s, tối đa 2, 25–40 km/h). traffic.js sinh/điều khiển như NPC (`_spawnCarriage`, `carriageTimer`, không đèn, không tiếng lướt, không nhận chùm pha dùng chung) |
-| `ocean.js` | Map Biển: `Ocean.setMap(on, level)`, `update(time, cam, road, s)`. Lưới vuông 1.5 m ±120 m (sóng nhô lên ≤ ~100 m) + vành 8 m tới ±400 m + khung phẳng tới 6 km, **nắn theo bước 1.5 m** (đỉnh cố định trong thế giới). `waveAt`: atlas `assets/tex/ocean-waves.png?v=WAVE_VER` (76 khung, 10×8; bake bằng `scripts/bake-ocean.mjs`, trộn chéo 24 khung cuối vào đầu), ô ×2 = 54.2 m, cao ×1.3, chu kỳ ≈ 9 s; 4 mẫu lệch nửa ô; nội suy khung **dời theo hướng trôi** `DRIFT` (−0.5, +2.25 px/khung); **2 lớp lệch nửa vòng**, lớp nào về chỗ nối thì mờ còn `SEAM_MIN` 30% (trộn giữ biên độ); bọt ven bờ theo `uT` liên tục; `textureLod` theo khoảng cách (`uLod`); độ sâu ven đê từ 27 điểm tim đường (nắn bước 12 m) |
+| `ocean.js` | Map Biển: `Ocean.setMap(on, level)`, `update(time, cam, road, s)`. Lưới vuông 1.5 m ±120 m (sóng nhô lên ≤ ~100 m) + vành 8 m tới ±400 m + khung phẳng tới 6 km, **nắn theo bước 1.5 m** (đỉnh cố định trong thế giới). `waveAt`: atlas `assets/tex/ocean-waves.png?v=WAVE_VER` (76 khung, 10×8; bake bằng `scripts/bake-ocean.mjs`, trộn chéo 24 khung cuối vào đầu), ô ×2 = 54.2 m, cao ×1.3, chu kỳ ≈ 9 s; 4 mẫu lệch nửa ô; nội suy khung **dời theo hướng trôi** `DRIFT` (−0.5, +2.25 px/khung); **2 lớp lệch nửa vòng**, lớp tới chỗ nối fade sin² còn 10%, lớp kia giữ 100%, chuẩn hoá giữ biên độ; bọt ven bờ theo `uT` liên tục; `textureLod` theo khoảng cách (`uLod`); độ sâu ven đê từ 27 điểm tim đường (nắn bước 12 m) |
 | `cows.js` | Map đồi cỏ: đàn 5 bò sữa + hàng rào gỗ |
 | `fireflies.js` | Đom đóm ban đêm |
 | `traffic.js` | Spawn/pool/vẽ NPC: ngược chiều (10–25 s/chiếc, tối đa 2) + cùng chiều (25–60 s, tối đa 1, vào từ phía sau 80–110 m); pool 3 xe; NPC chỉ có quầng pha, chùm sáng thật = 1 cặp SpotLight dùng chung (`beam`, gắn NPC gần nhất ≤300 m, `_beam`); đèn `lamps × NPC_LAMP(0.24)`, đèn hậu ×0.6; thân xe xoay `yaw = atan(latV/v)` (≤0.35, nội suy 8/s), bánh trước `w.front` đánh lái `yaw × 1.8`; âm thanh lướt qua 1 lần/lượt; xuất `ctrl {lane, maxV}` cho xe người chơi |
@@ -195,3 +195,9 @@
   - GUI Low với bản đầy đủ chi tiết: trước/sau/cabin/ban đêm đạt, shader vật liệu thực đọc đúng
     #54545f / metalness 1 / roughness 0.364192 / clearcoat 1 / clearcoatRoughness 0 / env 1; không có lỗi console.
     Ảnh `screenshots/mazda-original-{front,rear,cockpit,night}.jpg`. Chưa kiểm chứng hiệu năng Good/Ultra của bản nặng.
+
+- **#6 — Làm mượt vòng lặp sóng biển (05/10/2026)**: giảm đóng góp lớp chạm điểm đầu/cuối từ 30% xuống 10%; lớp sóng
+  lệch nửa vòng vẫn ở 100% để che. Dùng fade sin² có độ dốc bằng 0 tại điểm nối và tiếp tục chuẩn hoá hai trọng số để không
+  hụt biên độ. `check-ocean-loop.mjs` kiểm tra tuần hoàn/đạo hàm/biên trọng số và đo trực tiếp atlas: thay đổi trước/sau nối
+  dưới 0.5% RMS. GUI Low khóa camera tại phase 0.999 / 0 / 0.001, không thấy cú nhảy; ảnh
+  `screenshots/ocean-loop-{before,seam,after}.png`. Chưa đo hiệu năng Good/Ultra.
