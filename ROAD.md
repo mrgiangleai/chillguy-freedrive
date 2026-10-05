@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -214,3 +214,14 @@
     render hết hai vòng (cycles=2.00), đọc flipY=false / atlas=1280×1024, console không có lỗi/cảnh báo.
     Ảnh `screenshots/ocean-atlas-fixed-{before,seam,after}.jpg` tại phase 0.999 / 0 / 0.001.
     Tab game chính đã reload hash mới, trả Mazda / Biển / Trời trong / Good. Chưa đo FPS Good/Ultra.
+
+- **#8 — Nút đổi nhân vật + Chisa cho Mustang (05/10/2026)**: thêm nút 🧑 đổi Người lái / Chisa; khóa nút ở Mazda
+  và tự trả người lái gốc khi đổi khỏi Mustang. Model Chisa không kèm animation nên ánh xạ 52 xương thân/tay/chân/ngón
+  sang rig Quaternius, chuyển delta quay theo bind pose rồi tiếp tục dùng IK tay/chân có sẵn. Chisa ngồi thẳng hơn vì tay
+  ngắn hơn; xương chậu đúng tâm ghế Mustang, đầu nằm trong cabin, tay bám và xoay cùng vô lăng ở toàn dải lái.
+  - `check-chisa.mjs`: model/bộ xương thật, 52 cặp retarget, hai tay chạm vành ở 5 góc -0.55…+0.55 rad, sai số
+    cổ tay tối đa 0.004 mm; kiểm tra đầu/ghế và thay rig không đổi root mà camera/StopScene đang giữ. Các check Mustang,
+    steering, car-switch và build đạt.
+  - GUI Low `chisa-preview.js`: nút đổi hai chiều, góc trong/ngoài và đánh lái trái/phải; label xác nhận tiếp xúc vành
+    2/2, console không có lỗi. Đổi Chisa sang Mazda tự trả Người lái và vô hiệu nút đúng phạm vi. Ảnh
+    `screenshots/chisa-mustang-{exterior,left,right}.jpg`. Chưa áp dụng Chisa cho Mazda hoặc đo hiệu năng Good/Ultra.

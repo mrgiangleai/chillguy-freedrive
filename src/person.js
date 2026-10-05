@@ -21,12 +21,13 @@ export class Person {
     this.footShade = { value: 0 };
   }
 
-  async load(url) {
+  async load(url, { chisa = false } = {}) {
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
     const gltf = await loader.loadAsync(url);
     const model = gltf.scene;
     this.model = model;
+    this.seatRecline = chisa ? 0 : null; // tay Chisa ngắn hơn: ngồi thẳng để đủ tầm vô lăng ở cả hai góc cua
     model.traverse((o) => {
       if (!o.isMesh) return;
       o.castShadow = true;
@@ -36,9 +37,9 @@ export class Person {
       for (const m of mats) { m.envMapIntensity = 0.6; withMist(m); }
     });
     this.tilt.add(model);
-    this.head = model.getObjectByName('Head');
-    this.neck = model.getObjectByName('neck_01');
-    const bone = (n) => model.getObjectByName(n);
+    const bone = (n) => chisa ? model.getObjectByName(chisaBoneName(model, n)) : model.getObjectByName(n);
+    this.head = bone('Head');
+    this.neck = bone('neck_01');
     this.arms = { l: ['upperarm_l', 'lowerarm_l', 'hand_l'].map(bone), r: ['upperarm_r', 'lowerarm_r', 'hand_r'].map(bone) };
     if (this.arms.l.some((b) => !b)) this.arms.l = null;
     if (this.arms.r.some((b) => !b)) this.arms.r = null;
@@ -72,9 +73,25 @@ export class Person {
     model.updateMatrixWorld(true);
     model.traverse((o) => { if (o.isSkinnedMesh && /superhero|body/i.test(o.name + ' ' + o.material?.name)) dress(o, model, this.footShade); });
 
+    // Lưu bind pose trong hệ root trước khi animation/IK đổi xương.
+    this.bindRotations = new Map();
+    model.traverse(o => { if (o.isBone) this.bindRotations.set(o.name, o.getWorldQuaternion(new THREE.Quaternion())); });
+    if (chisa) {
+      // Model Chisa không có clip: dùng animation hiện có, chuyển delta quay giữa hai bind pose.
+      this.reference = await new Person().load('assets/models/person.glb');
+      this.actions = this.reference.actions; this.mixer = this.reference.mixer; this.current = this.reference.current;
+      this.retargetPairs = [];
+      model.traverse(o => {
+        if (!o.isBone) return;
+        const name = chisaCanonical(o.name), from = name && this.reference.model.getObjectByName(name);
+        if (from) this.retargetPairs.push({ bone: o, from, sourceBind: this.reference.bindRotations.get(name).clone().invert(), targetBind: this.bindRotations.get(o.name).clone() });
+      });
+    }
+
     // đo vị trí đầu ở tư thế lái xe (để đặt người vào ghế cho đúng)
     this.play('Driving_Loop', 0);
     this.mixer.update(0.01);
+    this.applyRetarget();
     this.root.updateMatrixWorld(true);
     this.headOffsetSit.copy(this.head.getWorldPosition(new THREE.Vector3()));
     this.root.worldToLocal(this.headOffsetSit);
@@ -102,7 +119,44 @@ export class Person {
 
   duration(name) { return this.actions[name]?.getClip().duration ?? 1; }
 
-  update(dt) { if (this.mixer && this.root.visible) this.mixer.update(dt); }
+  update(dt) {
+    if (this.mixer && this.root.visible) { this.mixer.update(dt); this.applyRetarget(); }
+  }
+
+  applyRetarget() {
+    if (!this.retargetPairs) return;
+    this.reference.root.updateMatrixWorld(true); this.root.updateMatrixWorld(true);
+    const rootQ = this.root.getWorldQuaternion(new THREE.Quaternion());
+    for (const { bone, from, sourceBind, targetBind } of this.retargetPairs) {
+      from.getWorldQuaternion(_qw).multiply(sourceBind).multiply(targetBind).premultiply(rootQ);
+      bone.parent.getWorldQuaternion(_qp);
+      bone.quaternion.copy(_qp.invert().multiply(_qw)); bone.updateMatrixWorld(true);
+    }
+  }
+
+  // Giữ root mà xe/camera/StopScene đang tham chiếu; thay rig sau khi tải thành công.
+  replace(next) {
+    const root = this.root, visible = root.visible;
+    this.dispose(); root.clear();
+    for (const key of Object.keys(next)) if (key !== 'root') this[key] = next[key];
+    root.add(this.tilt); root.visible = visible; this.root = root;
+  }
+
+  dispose() {
+    this.mixer?.stopAllAction();
+    const textures = new Set();
+    for (const model of [this.model, this.reference?.model]) model?.traverse(o => {
+      if (!o.isMesh) return;
+      o.geometry.dispose();
+      for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+        for (const v of Object.values(m)) if (v?.isTexture) textures.add(v);
+        m.dispose();
+      }
+    });
+    textures.forEach(t => t.dispose());
+    // Không giữ các trường rig riêng của nhân vật trước sau khi đổi về mặc định.
+    delete this.reference; delete this.retargetPairs; delete this._spIn; delete this._spOut;
+  }
 
   // Hướng các khớp gốc ngón tay về vành; giữ độ cong ngón của animation lái.
   faceGrip(side, normal, tangent = null) {
@@ -126,6 +180,7 @@ export class Person {
 
   // ngả lưng ra sau `angle` rad (xoay spine_01 quanh trục ngang của người). Gọi sau mixer.update, trước IK tay.
   recline(angle) {
+    angle = this.seatRecline ?? angle;
     if (!this.spine || !angle) return;
     // clip không có track cho spine_01 thì mixer không ghi đè => phải trả về góc gốc trước khi ngả, không thì cộng dồn mỗi khung
     const sq = this.spine.quaternion;
@@ -232,4 +287,19 @@ function dress(mesh, model, footShade) {
   };
   const prevKey = m.customProgramCacheKey?.bind(m);
   m.customProgramCacheKey = () => (prevKey ? prevKey() : '') + '|garment';
+}
+
+// Tên xương Bip của upload -> tên rig Quaternius; giữ nguyên tên/bind/geometry của GLB.
+function chisaCanonical(name) {
+  const plain = name.replace(/_\d+$/, '');
+  const torso = { Bip001Pelvis: 'pelvis', Bip001Spine: 'spine_01', Bip001Spine1: 'spine_02', Bip001Spine2: 'spine_03', Bip001Neck: 'neck_01', Bip001Head: 'Head' };
+  if (torso[plain]) return torso[plain];
+  const limb = plain.match(/^Bip001([LR])(Clavicle|UpperArm|Forearm|Hand|Thigh|Calf|Foot|Toe0)$/);
+  if (limb) return ({ Clavicle: 'clavicle', UpperArm: 'upperarm', Forearm: 'lowerarm', Hand: 'hand', Thigh: 'thigh', Calf: 'calf', Foot: 'foot', Toe0: 'ball' })[limb[2]] + '_' + limb[1].toLowerCase();
+  const finger = plain.match(/^Bip001([LR])Finger([0-4])([12])?$/);
+  if (finger) return ['thumb', 'index', 'middle', 'ring', 'pinky'][+finger[2]] + '_0' + (+(finger[3] || 0) + 1) + '_' + finger[1].toLowerCase();
+  return null;
+}
+function chisaBoneName(model, canonical) {
+  let name; model.traverse(o => { if (o.isBone && chisaCanonical(o.name) === canonical) name = o.name; }); return name;
 }

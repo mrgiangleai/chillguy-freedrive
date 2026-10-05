@@ -11,7 +11,7 @@ const source = fs.readFileSync('src/main.js', 'utf8');
 const code = source.slice(source.indexOf('async function chooseCar('), source.indexOf('const nextCar ='));
 let applied = 0;
 const context = vm.createContext({
-  state: { car: 0 }, stop: { active: false }, person: { ready: false },
+  state: { car: 0 }, characterLoading: false, chooseCharacter: async () => {}, stop: { active: false }, person: { ready: false },
   el: { car: {} }, setBtn() {}, console,
   cars: { list: [{ name: 'Mazda' }], current: null, select: async () => false },
   mirror: { place() { applied++; } }, dash: { place() { applied++; } },

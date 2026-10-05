@@ -177,14 +177,17 @@ const pointer = { active: false, id: -1, x: 0, y: 0 };
 // ---------- giao diện ----------
 // mặc định vào game: đồi thông, sương mù, hoàng hôn
 // mặc định lúc vào game: map núi, camera quay quanh, mưa, hoàng hôn, 16 mm f/1.4
-const state = { car: 0, map: MAPS.findIndex((m) => m.id === 'mountain'), cam: CAMERAS.findIndex((c) => c.id === 'orbit'), weather: WEATHERS.findIndex((w) => w.id === 'rain'), time: TIMES.findIndex((t) => t.id === 'sunset'), music: 0, cine: true, started: false, mistCover: 0.35, mistDens: 0.2, fstop: FSTOP_DEFAULT, quality: loadQuality() };
+const state = { car: 0, character: 0, map: MAPS.findIndex((m) => m.id === 'mountain'), cam: CAMERAS.findIndex((c) => c.id === 'orbit'), weather: WEATHERS.findIndex((w) => w.id === 'rain'), time: TIMES.findIndex((t) => t.id === 'sunset'), music: 0, cine: true, started: false, mistCover: 0.35, mistDens: 0.2, fstop: FSTOP_DEFAULT, quality: loadQuality() };
 rig.setMode(state.cam);
 rig.focal = rig.focalS = 16;
-const el = { full: $('b-full'), stop: $('b-stop'), quality: $('b-quality'), lens: $('b-lens'), mist: $('b-mist'), fast: $('b-fast'), car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
+const el = { full: $('b-full'), stop: $('b-stop'), character: $('b-character'), quality: $('b-quality'), lens: $('b-lens'), mist: $('b-mist'), fast: $('b-fast'), car: $('b-car'), map: $('b-map'), cam: $('b-cam'), weather: $('b-weather'), time: $('b-time'), music: $('b-music') };
 const setBtn = (btn, icon, text) => { btn.querySelector('b').textContent = icon; btn.querySelector('span').textContent = text; btn.title = text; };
 
 function refreshUI() {
   setBtn(el.car, '🚗', cars.list[state.car]?.name ?? '…');
+  setBtn(el.character, '🧑', characterLoading ? 'Đang tải…' : state.character === 1 ? 'Chisa' : 'Người lái');
+  el.character.disabled = characterLoading || !person.ready || stop.active || cars.current?.def?.id !== 'mustang';
+  el.character.title = cars.current?.def?.id === 'mustang' ? 'Đổi nhân vật' : 'Chisa hiện hỗ trợ Mustang';
   setBtn(el.map, MAPS[state.map].icon, MAPS[state.map].name);
   setBtn(el.cam, '🎥', CAMERAS[state.cam].name);
   setBtn(el.weather, WEATHERS[state.weather].icon, WEATHERS[state.weather].name);
@@ -223,6 +226,24 @@ function applyQuality() {
 const nextQuality = () => { state.quality = (state.quality + 1) % QUALITY.length; applyQuality(); refreshUI(); };
 function lensLabel() { return Math.round(rig.focal) + 'mm f/' + FSTOPS[state.fstop]; }
 
+let characterLoading = false, characterRequest = 0;
+async function chooseCharacter(i) {
+  if (stop.active) return;
+  i = cars.current?.def?.id === 'mustang' ? i % 2 : 0;
+  const request = ++characterRequest;
+  characterLoading = true; refreshUI();
+  let next;
+  try {
+    next = await new Person().load(i ? 'assets/models/chisa_wuthering_waves.glb' : 'assets/models/person.glb', { chisa: i === 1 });
+    if (request !== characterRequest || (i && cars.current?.def?.id !== 'mustang')) { next.dispose(); return; }
+    person.replace(next); state.character = i;
+    stop.place(cars.dim); stop.sit();
+    compileFor(post.sceneRT, camera, person.root).catch(() => {});
+  } catch (e) { next?.dispose(); console.warn('Không tải được nhân vật', e); }
+  finally { if (request === characterRequest) { characterLoading = false; refreshUI(); } }
+}
+const nextCharacter = () => { if (!characterLoading && person.ready && cars.current?.def?.id === 'mustang') return chooseCharacter(state.character + 1); };
+
 async function chooseCar(i) {
   if (stop.active) return;                        // đang dừng xe: không đổi xe
   state.car = (i + cars.list.length) % cars.list.length;
@@ -233,6 +254,8 @@ async function chooseCar(i) {
     console.error('Không tải được xe', cars.list[state.car].name, e);
     if (cars.list.length > 1) { cars.list.splice(state.car, 1); return chooseCar(state.car); }
   }
+  // Chisa chỉ được căn cho Mustang; xe khác dùng lại người lái mặc định.
+  if (cars.current?.def?.id !== 'mustang' && (state.character || characterLoading)) await chooseCharacter(0);
   if (person.ready && !stop.active) { stop.place(cars.dim); stop.sit(); }
   mirror.place(cars.dim, cars.current.screen);
   dash.place(cars.current.screen);
@@ -244,7 +267,7 @@ const nextCar = () => chooseCar(state.car + 1);
 
 // dừng xe / đi tiếp (cảnh người bước ra khỏi xe)
 function toggleStop() {
-  if (!person.ready || !state.started) return;
+  if (!person.ready || !state.started || characterLoading) return;
   if (stop.state === 'off') { setGear(0); stop.place(cars.dim); }
   if (stop.toggle(drive.v)) refreshUI();
 }
@@ -348,6 +371,7 @@ const toggleLensPanel = () => { $('lenspanel').hidden = !$('lenspanel').hidden; 
 el.lens.onclick = toggleLensPanel;
 el.quality.onclick = nextQuality;
 el.stop.onclick = toggleStop;
+el.character.onclick = nextCharacter;
 el.full.onclick = toggleFS;
 const focalIn = $('lens-focal'), fstopIn = $('lens-fstop');
 focalIn.min = FOCAL_MIN; focalIn.max = FOCAL_MAX;
@@ -804,4 +828,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
