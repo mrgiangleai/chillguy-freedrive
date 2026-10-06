@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 
 export const HEADLIGHT_DEFAULTS = Object.freeze({
-  intensity: 85, distance: 110, angle: 0.8, penumbra: 1, decay: 0.55,
-  glowOpacity: 0.45, glowSize: 2.1, color: '#ffd6a0', glowColor: '#ffc477',
+  intensity: 36, distance: 165, angle: 1.29, penumbra: 0.9, decay: 0.87,
+  glowOpacity: 0.29, glowSize: 2.9, color: '#ffe4a8', glowColor: '#ffb43f',
 });
 
 // Dùng chung cho xe người chơi và xe NPC.

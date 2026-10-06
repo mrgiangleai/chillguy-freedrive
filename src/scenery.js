@@ -99,7 +99,7 @@ const LAMP_H = 11.1, BULB_H = LAMP_H - 0.22;
 // gán cho các cột gần camera nhất; đèn sắp bị đổi sang cột khác mờ dần về 0 trước khi đổi => không chớp.
 const LAMP_LIGHTS = 3;
 export const STREETLIGHT_DEFAULTS = Object.freeze({
-  intensity: 140, distance: 80, angle: 1.2, penumbra: 0.8, decay: 0.6,
+  intensity: 28, distance: 118, angle: 1.2, penumbra: 0.8, decay: 0.6,
   glowOpacity: 0.9, glowSize: 9, color: '#ffc98a',
 });
 

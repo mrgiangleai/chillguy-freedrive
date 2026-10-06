@@ -9,11 +9,11 @@ const lerpAngle = (a, b, t) => {
 };
 
 const CAMERA_DEFAULTS = {
-  chase: { distance: 6.2, speedBack: 1.4, cineBack: 1.8, height: 2.3, carHeight: 0.4, lookAhead: 13, lookHeight: 1.75, slopeLook: 10, follow: 5, lookFollow: 7, near: 0.3, focal: 24, aperture: 3.5 },
+  chase: { distance: 6.2, speedBack: 1.4, cineBack: 1.8, height: 2.3, carHeight: 0.4, lookAhead: 13, lookHeight: 1.75, slopeLook: 10, follow: 5, lookFollow: 7, near: 0.3, focal: 16, aperture: 3.5 },
   low: { distance: 4.2, height: 0.95, lookAhead: 10, lookHeight: 1, slopeLook: 10, follow: 5, lookFollow: 7, near: 0.3, focal: 24, aperture: 3.5 },
-  side: { distance: 11, height: 1.5, lookHeight: 0.42, follow: 9, lookFollow: 12, near: 0.3, focal: 24, aperture: 3.5 },
+  side: { distance: 23.2, height: 4.35, lookHeight: 0.42, follow: 9, lookFollow: 12, near: 0.3, focal: 24, aperture: 1.8 },
   cockpit: { eyeSide: 0, eyeHeight: 0, eyeForward: 0, pitch: 0.24, lookDistance: 30, follow: 9, lookFollow: 9, near: 0.04, focal: 24, aperture: 3.5 },
-  orbit: { radius: 8.5, height: 2.2, heightWave: 0.8, waveRate: 0.7, speed: 0.2, lookHeight: 0.8, follow: 5, lookFollow: 7, near: 0.3, focal: 24, aperture: 3.5 },
+  orbit: { radius: 30, height: 7.5, heightWave: 3, waveRate: 2, speed: 0.13, lookHeight: 0.8, follow: 5, lookFollow: 7, near: 0.3, focal: 24, aperture: 2.8 },
   drone: { distance: 15, height: 13, lookAhead: 6, lookHeight: 0.5, follow: 3.5, lookFollow: 7, near: 0.3, focal: 24, aperture: 3.5 },
 };
 

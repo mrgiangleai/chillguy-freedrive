@@ -10,6 +10,7 @@
 - Kiểm tra thay đổi mở đầu: `npm run build` thành công; chưa xác nhận GUI.
 - Không còn mục chức năng đang chờ. Chờ yêu cầu tiếp theo của người dùng.
 - Quy tắc làm việc hiện tại nằm trong `AGENTS.md`.
+- Đã lấy bộ `chilldrive.tuning.v1` cuối từ Safari ngày 06/10/2026 và ghi thành mặc định trong source: camera sau xe 16 mm; bên hông cách 23.2 m, cao 4.35 m, f/1.8; quay quanh bán kính 30 m, cao 7.5 m, nhấp nhô 3 m/nhịp 2, quay 0.13, f/2.8; đèn xe và đèn đường theo bộ đã chỉnh. Thời tiết và ánh sáng chung trong bộ lưu trùng với mặc định source. Trình duyệt mới dùng bộ mặc định này; các chỉnh sửa tiếp theo vẫn lưu riêng bằng localStorage, cần ghi source và push lại để chia sẻ.
 
 ## Các mục vừa hoàn tất
 
