@@ -9,7 +9,7 @@
 - Cảnh mở đầu mới: đồi cỏ, camera quay quanh, nhiều mây, ban đêm, 180 km/h dưới lớp mờ. Bấm Start bỏ mờ, giữ 180 km/h thêm 3 giây rồi giảm đều về 25 km/h; chỉ khi đạt 25 km/h mới chuyển camera sau xe bằng nội suy 2 giây.
 - Kiểm tra thay đổi mở đầu: `npm run build` thành công; chưa xác nhận GUI.
 - Không còn mục chức năng đang chờ. Chờ yêu cầu tiếp theo của người dùng.
-- Quy tắc làm việc hiện tại nằm trong `AGENTS.md`.
+- Quy tắc làm việc hiện tại nằm trong `AGENTS.md`. Context mới chỉ cần đọc `CONTEXT.md` + `AGENTS.md`; không đọc lại toàn bộ context/lịch sử cũ hoặc quét codebase. Task đơn giản xử lý trực tiếp, chỉ mở file code liên quan khi cần; không gọi agent phụ nếu agent chính tự làm được. Tránh poll/retry/verify lặp. Riêng khi chạy bằng Codex: `git add`/`git commit` có thể bị sandbox chặn `.git/index.lock` (`Operation not permitted`); dùng cơ chế quyền phù hợp, chỉ retry tối đa 1 lần, lần hai vẫn lỗi thì dừng và báo người dùng cách xử lý. Commit theo task/mốc hợp lý, không theo từng chỉnh sửa nhỏ. Khi thread dài hoặc xong phase, cập nhật handoff ngắn rồi mở context mới.
 - Đã lấy bộ `chilldrive.tuning.v1` cuối từ Safari ngày 06/10/2026 và ghi thành mặc định trong source: camera sau xe 16 mm; bên hông cách 23.2 m, cao 4.35 m, f/1.8; quay quanh bán kính 30 m, cao 7.5 m, nhấp nhô 3 m/nhịp 2, quay 0.13, f/2.8; đèn xe và đèn đường theo bộ đã chỉnh. Thời tiết và ánh sáng chung trong bộ lưu trùng với mặc định source. Trình duyệt mới dùng bộ mặc định này; các chỉnh sửa tiếp theo vẫn lưu riêng bằng localStorage, cần ghi source và push lại để chia sẻ.
 
 ## Các mục vừa hoàn tất
