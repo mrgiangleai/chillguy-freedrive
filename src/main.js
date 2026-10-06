@@ -162,7 +162,7 @@ const drive = {
   home: LANE_D, goal: 0, manual: false,
   s: 150,          // độ dài cung trên đường
   d: LANE_D,       // lệch ngang so với tim đường (m, + = bên phải)
-  v: FAST_SPEED,           // cảnh mở đầu: 180 km/h
+  v: CHILL_DEFAULT,        // bắt đầu 25 km/h; khung hình đầu chuyển ngay lên 180 km/h
   target: CHILL_DEFAULT,   // tốc độ mong muốn ở chế độ chill
   fast: true,              // Fast drive (cấp 3) đang bật
   gear: 2,                 // cấp tốc độ 0 / 1 / 2
