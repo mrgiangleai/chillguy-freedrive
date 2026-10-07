@@ -19,9 +19,14 @@
   - Hệ quả: hash 9 commit local đã đổi (nhánh chưa push nên an toàn); lần push đầu cần `git push -u origin experiment/webgpu-vertical-slice`.
 - Chưa cài `git-lfs` / `git-filter-repo` (đã dùng `git filter-branch` có sẵn).
 
-## Kiểm tra gần nhất
+## Kiểm tra gần nhất (07/10/2026)
 - `npm run build` (game chính): OK, `docs/app.js` khớp `src/` (không phát sinh diff).
-- Experiment: **chưa** chạy build/test (Vite + WebGPU); `npm test` mặc định còn báo lỗi.
+- Experiment WebGPU: **baseline đã kiểm chứng chạy được**.
+  - `npm install` (up to date) + `npx vite build`: OK, `dist/` ~3.3 MB (gzip 1.15 MB).
+  - `npx vite preview` + trình duyệt: `navigator.gpu` có, WebGPU renderer chạy **60 FPS**, nạp đủ 6 model test (**8 object, 3.14M tam giác, 625 MB**).
+  - 9 tab editor render đúng, không có "Module error"; **Global Physics mặc định OFF**.
+  - Console: **không lỗi**, chỉ 3 warning (deprecated `init` params, extension `KHR_materials_pbrSpecularGlossiness` của GLB, `THREE.Clock` deprecated).
+  - Lưu ý: 6 model test nặng (~625 MB) tự nạp khi mở scene nên lần đầu tải khá lâu; ảnh chụp lại cần cửa sổ desktop hiển thị.
 
 ## Next action
 - Xây dựng vertical slice WebGPU theo roadmap (ưu tiên slice chơi được sớm). Hỏi chủ dự án chọn milestone trước khi mở rộng.
