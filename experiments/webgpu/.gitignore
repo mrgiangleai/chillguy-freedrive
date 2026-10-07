@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.store/
 
 # Model test nặng, chỉ dùng cục bộ để đo hiệu năng (không track để tránh phình repo/GitHub)
 public/models/stress/
