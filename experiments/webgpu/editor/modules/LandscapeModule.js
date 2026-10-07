@@ -1,6 +1,6 @@
 export function createLandscapeModule(ctx){
   function render(){
-    const {state,num,materialLibraryHTML,t}=ctx;
+    const {state,num,materialLibraryHTML,t,icon}=ctx;
     let h='<b>'+icon('world')+' '+t('terrainTitle')+'</b><div class="actions"><button data-terrain="create">'+icon('plus')+' '+t('create')+'</button><button data-terrain="infinite">'+t('infinite')+' '+(state.terrainInfinite?t('on'):t('off'))+'</button></div>';
     h+=num(t('size')+' '+Math.round(state.terrainSize)+'m',state.terrainSize,20,500,10,'terrainsize');
     h+=num(t('terrainRough')+' '+state.terrainRough.toFixed(1),state.terrainRough,0,35,.5,'terrainrough');

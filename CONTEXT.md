@@ -18,6 +18,8 @@ Editor + runtime WebGPU/TSL + Rapier (Vite), tách khỏi game chính. Đang là
 - **Cache tĩnh**: `server.mjs` phục vụ `/assets/*` immutable 1 năm, media/model `max-age=86400`; `index.html`/API `no-store`. Sửa xong phải **restart server** mới áp dụng. Nếu reload lại tải 625 MB thì kiểm tra server cũ còn gửi `no-store`.
 
 ### Tính năng đã có
+- **Thời tiết** (mới): preset Clear/Cloudy/Windy/Rain/Storm/Snow/Foggy (số liệu port từ `src/world.js` game gốc) + slider Mưa/Tuyết/Gió/Sương; hạt mưa (LineSegments) và tuyết (Points) bám camera, nghiêng theo gió; bão làm tối trời + mưa to + gió mạnh. Lưu/khôi phục trong `state.scene.weather`. File `editor/core/weather.js`.
+- **UI-first + model lazy**: UI dựng ngay; 6 model test mặc định `unloaded` → chỉ Ground/Road khi mở; tile "Load" + nút "Tải tất cả model test" theo mode.
 - **Tự lưu**: mọi thay đổi (object, đèn, vật liệu, terrain mesh, import GLB, scene/camera/DOF, effects, layers) + flush khi thoát. Lưu cả localStorage lẫn server.
 - **Server lưu chung + chống đè**: có `rev`/conflict (409); tab cũ không ghi đè bản mới; tab tự reload khi có thay đổi từ trình duyệt khác (không realtime tức thời).
 - **UI kiểu Lumion**: mode bar ở đáy (icon + nhãn) + nút **UI** (chỉnh độ mờ/màu nền/màu chữ) + **Theatre** (H) ẩn UI; **library trái** (lưới thumbnail + search) / **inspector phải**; **Effects stack** (thêm/bật-tắt/đổi thứ tự/xoá); **placement Move/Rotate/Scale** + Layers; panel **kéo-thả, snap 2 chiều, không đè** (hẹp thì tự xếp dọc).
