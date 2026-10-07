@@ -22,12 +22,12 @@ Editor + runtime WebGPU/TSL + Rapier (Vite), tách khỏi game chính. Đang là
 - Đã sửa lỗi handler thiếu: `objectCamera`, `selectModelTransform`.
 
 ## Commit gần đây
-- `77eca29` P5 polish UI (khoảng cách/icon/EN-VI/tương phản) · `a2d22f1` docs · `d99fd90` panel kéo-thả + cấu hình UI · `4f72c6b` P4.
+- `d8b142f` docs handoff P5 · `77eca29` P5 polish UI (khoảng cách/icon/EN-VI/tương phản) · `a2d22f1` docs · `d99fd90` panel kéo-thả + cấu hình UI · `4f72c6b` P4.
 - Đã commit toàn bộ thay đổi panel/UI trước đó (không còn thay đổi dở).
 
 ## Việc còn mở / next action
-- **P5 — polish**: đã làm 1 lượt: token tương phản (`--ui-line`/`--ui-fg-dim` sáng hơn, focus-visible), khoảng cách (`.row` cột label 104px, nút lib 22px), bộ icon thống nhất (thêm `theatre/arrow*/close/world/brush/water`, đổi icon Theatre khỏi trùng `eye`, nút reorder effects dùng icon), và EN-VI toàn UI + module landscape (truyền `t` vào `LandscapeModule`).
-- Còn giữ EN (cố ý): FOV/Cam X-Y-Z/Target, tên preset camera, tên effect Sun/Environment, tên material Sand/Rock…, nhãn HUD. Có thể Việt hoá tiếp nếu chủ dự án muốn.
+- **P5 — polish**: đã làm: token tương phản (`--ui-line`/`--ui-fg-dim` sáng hơn, focus-visible), khoảng cách (`.row` cột label 104px, nút lib 22px), bộ icon thống nhất (thêm `theatre/arrow*/close/world/brush/water`, đổi icon Theatre khỏi trùng `eye`, nút reorder effects dùng icon), và **EN-VI toàn UI** (rail/library/effects/light/inspector/physics/camera/layers/UI-settings/HUD, module landscape + lighting, `index.html`).
+- Đã Việt hoá cả nhãn kỹ thuật (FOV→Góc nhìn, Cam X/Y/Z→Vị trí, Target→Ngắm, Aperture→Khẩu độ, Focal Length→Tiêu cự, preset camera, Static/Dynamic, tên light, tên material). Chỉ còn giữ nguyên danh từ riêng/tên asset (Venom, Lily 4K, Mazda…) và nhãn `UI`/`Theatre`/`WEBGPU SANDBOX`.
 - Chưa xem trực quan (harness không chụp được); đã build `vite build` OK, `dist/` là gitignore nên cần `npm run build` trước khi `npm start`.
 - Giới hạn đã biết: import GLB **nén meshopt** lỗi (`setMeshoptDecoder must be called`) — lỗi loader có sẵn, không liên quan lưu trữ.
 - Chưa push nhánh experiment; lần đầu cần `git push -u origin experiment/webgpu-vertical-slice`.
