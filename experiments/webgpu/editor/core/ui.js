@@ -29,20 +29,28 @@ export function installEditorStyles() {
   --ui-fg:#e6e6e6;--ui-fg-dim:#98a0a6;--ui-accent:#ff9a3c;
   --ui-btn:28px;--ui-rail:44px;--ui-font:12px system-ui;
 }
-#customize{position:fixed;right:14px;top:14px;z-index:6;display:flex;flex-direction:row-reverse;align-items:flex-start;gap:var(--ui-gap);font:var(--ui-font);color:var(--ui-fg)}
-.toolrail{display:flex;flex-direction:column;gap:var(--ui-gap)}
-.tooltab{width:var(--ui-rail);height:var(--ui-rail);padding:0;border:1px solid var(--ui-line);border-radius:var(--ui-radius);background:var(--ui-bg);color:#cfd4d8;display:grid;place-items:center;transition:.15s}
+#customize{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:7;display:flex;flex-direction:row;align-items:center;gap:6px;padding:6px;width:max-content;max-width:calc(100vw - 24px);background:var(--ui-bg);border:1px solid var(--ui-line);border-radius:14px;font:var(--ui-font);color:var(--ui-fg);backdrop-filter:blur(8px)}
+.toolrail{display:flex;flex-direction:row;flex-wrap:wrap;justify-content:center;gap:4px}
+.tooltab{min-width:62px;height:48px;padding:2px 10px;border:1px solid var(--ui-line);border-radius:10px;background:#ffffff0d;color:#cfd4d8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:.15s}
+.tooltab span{font-size:10px;line-height:1;opacity:.9;white-space:nowrap}
 .tooltab:hover{background:#ffffff14;color:#fff}
 .tooltab.on{background:#666a;border-color:var(--ui-accent);color:#fff;box-shadow:0 0 0 1px #ff9a3c55}
 .ico{display:inline-block;vertical-align:-3px;flex:none;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-.tooltab .ico{width:22px;height:22px}
+.tooltab .ico{width:20px;height:20px}
 #afBox{position:fixed;z-index:8;width:34px;height:24px;pointer-events:none;transform:translate(-50%,-50%);opacity:0;transition:opacity .12s}
 #afBox:before,#afBox:after{content:'';position:absolute;inset:0;border-left:2px solid #bfffc8;border-right:2px solid #bfffc8}
 #afBox:before{clip-path:polygon(0 0,35% 0,35% 2px,0 2px,0 100%,35% 100%,35% calc(100% - 2px),0 calc(100% - 2px))}
 #afBox:after{clip-path:polygon(65% 0,100% 0,100% 100%,65% 100%,65% calc(100% - 2px),98% calc(100% - 2px),98% 2px,65% 2px)}
 button{cursor:pointer;font:inherit;color:inherit}
 #editBtn{background:#111e;color:#fff;border:1px solid var(--ui-line-hi);padding:8px 12px;border-radius:var(--ui-radius)}
-#editor{width:320px;max-height:82vh;overflow:auto;background:var(--ui-panel);padding:10px;border-radius:var(--ui-radius);backdrop-filter:blur(8px)}
+#editor{position:fixed;left:0;right:0;top:10px;bottom:76px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:0 12px;pointer-events:none;overflow:visible}
+#editor[hidden]{display:none!important}
+#editor .library,#editor .inspector{pointer-events:auto;width:300px;max-height:100%;overflow:auto;background:var(--ui-panel);padding:10px;border-radius:var(--ui-radius);backdrop-filter:blur(8px)}
+#editor .library:empty,#editor .inspector:empty{display:none}
+.panelHead{margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid var(--ui-line)}
+.panelHead small{display:block;color:var(--ui-fg-dim);margin-top:2px}
+.hint{color:var(--ui-fg-dim);display:block;padding:4px 0}
+body.theatre #customize,body.theatre #editor{display:none!important}
 .tabs,.actions{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}
 .actions{align-items:center}
 .tabs button,.actions button{height:var(--ui-btn);padding:0 8px;border:1px solid var(--ui-line);border-radius:var(--ui-radius-sm);background:#ffffff0d;color:var(--ui-fg);display:inline-flex;align-items:center;gap:4px;line-height:1;white-space:nowrap;transition:.12s}
