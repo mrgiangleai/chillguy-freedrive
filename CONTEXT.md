@@ -14,6 +14,8 @@ Editor + runtime WebGPU/TSL + Rapier (Vite), tách khỏi game chính. Đang là
 - Server phục vụ `dist/` + API lưu dự án ra `experiments/webgpu/.store/` (gitignore): `project.json`, `blobs/` (GLB import), `meshes/` (terrain sculpt/paint).
 - `npm run build` = `vite build`; `npm run preview` = `vite preview` (khi đó tự fallback lưu theo từng trình duyệt: localStorage + IndexedDB).
 - Lưu ý: scene tự nạp 6 model test (~625 MB) → lần đầu tải ~45–60 s. Ảnh chụp từ agent cần cửa sổ desktop hiển thị (thường fail trong harness).
+- **Cache tĩnh**: `server.mjs` phục vụ `/assets/*` immutable 1 năm, media/model `max-age=86400`; `index.html`/API `no-store`. Sửa xong phải **restart server** mới áp dụng. Nếu reload lại tải 625 MB thì kiểm tra server cũ còn gửi `no-store`.
+- **UI dựng sau khi nạp model** (`renderRail` chạy sau vòng `await loadAsset`) nên lần tải đầu trông như treo; HUD có tiến độ `(n/6)`. Muốn hết cảm giác treo thì cần dựng rail/panel trước vòng nạp model (chưa làm).
 
 ### Tính năng đã có
 - **Tự lưu**: mọi thay đổi (object, đèn, vật liệu, terrain mesh, import GLB, scene/camera/DOF, effects, layers) + flush khi thoát. Lưu cả localStorage lẫn server.
@@ -22,7 +24,7 @@ Editor + runtime WebGPU/TSL + Rapier (Vite), tách khỏi game chính. Đang là
 - Đã sửa lỗi handler thiếu: `objectCamera`, `selectModelTransform`.
 
 ## Commit gần đây
-- `d8b142f` docs handoff P5 · `77eca29` P5 polish UI (khoảng cách/icon/EN-VI/tương phản) · `a2d22f1` docs · `d99fd90` panel kéo-thả + cấu hình UI · `4f72c6b` P4.
+- `eaf4e20` fix TDZ crash · `78e7fef` hoàn tất EN-VI · `d8b142f` docs handoff P5 · `77eca29` P5 polish UI (khoảng cách/icon/EN-VI/tương phản) · `d99fd90` panel kéo-thả + cấu hình UI · `4f72c6b` P4.
 - Đã commit toàn bộ thay đổi panel/UI trước đó (không còn thay đổi dở).
 
 ## Việc còn mở / next action

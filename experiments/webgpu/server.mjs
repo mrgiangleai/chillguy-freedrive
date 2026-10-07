@@ -87,7 +87,14 @@ const server = http.createServer(async (req, res) => {
     if (!file.startsWith(ROOT)) return send(res, 403, 'forbidden');
     if (p === '/' || !existsSync(file) || statSync(file).isDirectory()) file = join(ROOT, 'index.html');
     if (!existsSync(file)) return send(res, 404, 'not found');
-    res.writeHead(200, {'Content-Type': MIME[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store'});
+    const ext = extname(file);
+    const relPosix = rel.split('\\').join('/');
+    const cache = relPosix.startsWith('/assets/')
+      ? 'public, max-age=31536000, immutable'
+      : /\.(glb|gltf|bin|png|jpe?g|webp|wasm|ico|svg|ktx2|hdr|exr|mp3|ogg|wav)$/i.test(ext)
+        ? 'public, max-age=86400'
+        : 'no-store';
+    res.writeHead(200, {'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': cache});
     createReadStream(file).pipe(res);
   } catch (err) {
     send(res, 500, String((err && err.message) || err));
