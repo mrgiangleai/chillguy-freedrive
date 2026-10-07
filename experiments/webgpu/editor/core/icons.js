@@ -31,7 +31,7 @@ export const ICONS = {
   target: '<circle cx="12" cy="12" r="7"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/><circle cx="12" cy="12" r="2"/>',
   dot: '<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/>',
   sparkle: '<path d="M12 3l1.7 5.1L19 10l-5.3 1.9L12 17l-1.7-5.1L5 10l5.3-1.9L12 3Z"/>',
-  effects: '<path d="M12 3l1.7 5.1L19 10l-5.3 1.9L12 17l-1.7-5.1L5 10l5.3-1.9L12 3Z"/>',
+  effects: '<path d="M6 20 17.5 8.5"/><path d="M15.5 3.5l1.2 2.6 2.8 1.2-2.8 1.2-1.2 2.6-1.2-2.6L11.5 7.3l2.8-1.2L15.5 3.5Z"/><path d="M6 20l-2.4 2.4"/>',
   upload: '<path d="M12 16V4m0 0L8 8m4-4 4 4"/><path d="M4 20h16"/>',
   minus: '<path d="M5 12h14"/>',
   star: '<path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 17l-5.2 2.7 1-5.9-4.3-4.1 5.9-.8L12 3.5Z"/>',
@@ -42,4 +42,15 @@ export const ICONS = {
   lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   unlock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-1.9"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M19.1 4.9l-2.1 2.1M6.9 17.1l-2.1 2.1"/>',
+  theatre: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
+  world: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
+  brush: '<path d="M14 4l6 6-8 8H6v-6l8-8Z"/><path d="M6 18l-3.5 3.5"/>',
+  water: '<path d="M12 3s6 6.4 6 10.5a6 6 0 0 1-12 0C6 9.4 12 3 12 3Z"/>',
+
+  // --- Direction / list controls ---
+  arrowUp: '<path d="M12 19V5M12 5l-5 5M12 5l5 5"/>',
+  arrowDown: '<path d="M12 5v14M12 19l-5-5M12 19l5 5"/>',
+  arrowLeft: '<path d="M19 12H5M5 12l5-5M5 12l5 5"/>',
+  arrowRight: '<path d="M5 12h14M19 12l-5-5M19 12l-5 5"/>',
+  close: '<path d="M6 6l12 12M18 6 6 18"/>',
 };
