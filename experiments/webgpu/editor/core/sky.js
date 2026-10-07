@@ -1,6 +1,6 @@
 // Sky dome + sun/moon, ported from the main game (src/world.js SKY_KEYS + SKY_FRAG).
-// Kept engine-safe for WebGPU: the vertical gradient is baked to a small canvas
-// texture (tone-mapped off) and the sun/moon discs are billboarded sprites.
+// Engine-safe for WebGPU: the vertical gradient is baked into per-vertex colours
+// (no UV / flipY issues) and the sun/moon discs are billboarded sprites.
 import * as THREE from 'three/webgpu';
 
 // [sun elevation (deg), zenith, mid, horizon, warm band, sun glow]
@@ -19,11 +19,11 @@ const R = 1800;
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
-function radial(cv, w, h, inner, outer) {
-  cv.width = w; cv.height = h;
-  const x = cv.getContext('2d'); const g = x.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
-  for (const [stop, col] of outer) g.addColorStop(stop, col);
-  x.fillStyle = g; x.fillRect(0, 0, w, h);
+function radial(size, stops) {
+  const cv = document.createElement('canvas'); cv.width = cv.height = size;
+  const x = cv.getContext('2d'); const g = x.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  for (const [stop, col] of stops) g.addColorStop(stop, col);
+  x.fillStyle = g; x.fillRect(0, 0, size, size);
   return cv;
 }
 
@@ -31,10 +31,10 @@ function moonCanvas(size) {
   const cv = document.createElement('canvas'); cv.width = cv.height = size;
   const x = cv.getContext('2d'); const c = size / 2;
   const g = x.createRadialGradient(c, c, 0, c, c, c);
-  g.addColorStop(0, 'rgba(238,242,255,1)'); g.addColorStop(0.8, 'rgba(220,228,245,1)'); g.addColorStop(1, 'rgba(200,210,235,0)');
+  g.addColorStop(0, 'rgba(238,242,255,1)'); g.addColorStop(0.82, 'rgba(220,228,245,1)'); g.addColorStop(1, 'rgba(200,210,235,0)');
   x.fillStyle = g; x.beginPath(); x.arc(c, c, c, 0, Math.PI * 2); x.fill();
   x.globalCompositeOperation = 'source-atop';
-  x.fillStyle = 'rgba(150,158,178,0.55)';
+  x.fillStyle = 'rgba(150,158,178,0.5)';
   for (const [mx, my, mr] of [[0.36, 0.32, 0.14], [0.62, 0.55, 0.1], [0.46, 0.7, 0.08], [0.6, 0.28, 0.06]]) {
     x.beginPath(); x.arc(size * mx, size * my, size * mr, 0, Math.PI * 2); x.fill();
   }
@@ -42,22 +42,22 @@ function moonCanvas(size) {
 }
 
 export function createSky({scene}) {
-  // --- gradient dome ---
-  const cv = document.createElement('canvas'); cv.width = 4; cv.height = 256;
-  const ctx = cv.getContext('2d');
-  const tex = new THREE.CanvasTexture(cv);
-  tex.colorSpace = THREE.SRGBColorSpace; tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(R, 48, 24), new THREE.MeshBasicMaterial({map: tex, side: THREE.BackSide, depthWrite: false, fog: false, toneMapped: false}));
+  // --- gradient dome (per-vertex colours, no texture) ---
+  const geo = new THREE.SphereGeometry(R, 64, 40);
+  const pos = geo.attributes.position;
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(pos.count * 3), 3));
+  const colAttr = geo.attributes.color;
+  const dome = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({vertexColors: true, side: THREE.BackSide, depthWrite: false, fog: false, toneMapped: false}));
   dome.renderOrder = -10; dome.frustumCulled = false; scene.add(dome);
 
   // --- sun / moon sprites ---
-  const sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({map: new THREE.CanvasTexture(radial(document.createElement('canvas'), 128, 128, 0, [[0, 'rgba(255,247,224,1)'], [0.18, 'rgba(255,238,190,0.92)'], [0.5, 'rgba(255,206,130,0.28)'], [1, 'rgba(255,190,110,0)']])), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, toneMapped: false}));
+  const sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({map: new THREE.CanvasTexture(radial(128, [[0, 'rgba(255,247,224,1)'], [0.18, 'rgba(255,238,190,0.92)'], [0.5, 'rgba(255,206,130,0.28)'], [1, 'rgba(255,190,110,0)']])), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, toneMapped: false, opacity: 0}));
   sunSprite.material.map.colorSpace = THREE.SRGBColorSpace;
-  sunSprite.scale.setScalar(560); sunSprite.renderOrder = -9; sunSprite.frustumCulled = false; scene.add(sunSprite);
+  sunSprite.scale.setScalar(560); sunSprite.renderOrder = -9; sunSprite.frustumCulled = false; sunSprite.visible = false; scene.add(sunSprite);
 
-  const moonSprite = new THREE.Sprite(new THREE.SpriteMaterial({map: new THREE.CanvasTexture(moonCanvas(128)), transparent: true, depthWrite: false, fog: false, toneMapped: false}));
+  const moonSprite = new THREE.Sprite(new THREE.SpriteMaterial({map: new THREE.CanvasTexture(moonCanvas(128)), transparent: true, depthWrite: false, fog: false, toneMapped: false, opacity: 0}));
   moonSprite.material.map.colorSpace = THREE.SRGBColorSpace;
-  moonSprite.scale.setScalar(190); moonSprite.renderOrder = -9; moonSprite.frustumCulled = false; scene.add(moonSprite);
+  moonSprite.scale.setScalar(190); moonSprite.renderOrder = -9; moonSprite.frustumCulled = false; moonSprite.visible = false; scene.add(moonSprite);
 
   const S = {zen: new THREE.Color(), mid: new THREE.Color(), hor: new THREE.Color(), band: new THREE.Color(), sun: new THREE.Color()};
   const _oc = new THREE.Color(), _tmp = new THREE.Color(), _v = new THREE.Vector3();
@@ -81,19 +81,14 @@ export function createSky({scene}) {
   }
 
   function bake() {
-    const H = cv.height;
-    for (let j = 0; j < H; j++) {
-      const t = j / (H - 1); const y = Math.sin((0.5 - t) * Math.PI); const h = Math.max(y, 0);
-      const col = _tmp.copy(S.hor).lerp(S.mid, sstep(0, 0.24, h)).lerp(S.zen, sstep(0.16, 0.92, h));
-      if (y < 0) col.lerp(_oc.copy(S.hor).multiplyScalar(0.9), sstep(0, -0.1, y));
-      ctx.fillStyle = '#' + col.getHexString(); ctx.fillRect(0, j, cv.width, 1);
+    const arr = colAttr.array;
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i) / R; const h = Math.max(y, 0);
+      const c = _tmp.copy(S.hor).lerp(S.mid, sstep(0, 0.24, h)).lerp(S.zen, sstep(0.16, 0.92, h));
+      if (y < 0) c.lerp(_oc.copy(S.hor).multiplyScalar(0.9), sstep(0, -0.1, y));
+      arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b;
     }
-    tex.needsUpdate = true;
-  }
-
-  function place(cam, dir, sprite, dist, up) {
-    sprite.position.copy(cam).addScaledVector(dir, dist);
-    sprite.visible = up > 0.01;
+    colAttr.needsUpdate = true;
   }
 
   /** Recompute sky colours + sun/moon for the given time / weather. */

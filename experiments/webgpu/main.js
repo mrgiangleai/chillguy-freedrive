@@ -20,6 +20,7 @@ const scene=new THREE.Scene(),sky=new THREE.Color(0x9db7c7);scene.background=sky
 const camera=new THREE.PerspectiveCamera(45,1,.05,3000);camera.position.set(18,9,22);const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.target.set(0,2,-6);controls.zoomToCursor=true;controls.addEventListener('end',()=>{autosave()});
 const weatherSystem=createWeatherSystem({scene,camera});
 const skySystem=createSky({scene});
+window.__editor={scene,camera,renderer,weatherSystem,skySystem,get weather(){return weather},get timeOfDay(){return timeOfDay},get weatherId(){return weatherId}};
 const _sunDir=new THREE.Vector3(-.5,.8,.33);
 const WKEYS=['fog','overcast','sun','rain','snow','wind','dark','cover'],_flash=new THREE.Color(0xe8f0ff),_snow=new THREE.Color(0xf3f7ff);
 let weatherId='clear',weather={...WEATHER.clear},weatherTarget={...WEATHER.clear},weatherFrom={...weather};
