@@ -43,7 +43,7 @@ export function installEditorStyles() {
 #afBox:after{clip-path:polygon(65% 0,100% 0,100% 100%,65% 100%,65% calc(100% - 2px),98% calc(100% - 2px),98% 2px,65% 2px)}
 button{cursor:pointer;font:inherit;color:inherit}
 #editBtn{background:#111e;color:#fff;border:1px solid var(--ui-line-hi);padding:8px 12px;border-radius:var(--ui-radius)}
-#editor{position:fixed;left:0;right:0;top:10px;bottom:76px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:0 12px;pointer-events:none;overflow:visible}
+#editor{position:fixed;left:0;right:0;top:10px;bottom:76px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:0 12px;pointer-events:none;overflow:visible;color:var(--ui-fg);font:var(--ui-font)}
 #editor[hidden]{display:none!important}
 #editor .library,#editor .inspector{pointer-events:auto;width:300px;max-height:100%;overflow:auto;background:var(--ui-panel);padding:10px;border-radius:var(--ui-radius);backdrop-filter:blur(8px)}
 #editor .library:empty,#editor .inspector:empty{display:none}
@@ -76,6 +76,14 @@ button{cursor:pointer;font:inherit;color:inherit}
 .fxbtns{display:flex;gap:3px}
 .fxbtns button{height:22px;min-width:22px;padding:0 6px;font-size:10px;border:1px solid var(--ui-line);border-radius:5px;background:#ffffff12;color:var(--ui-fg)}
 .fxbtns button:hover{background:#ffffff22}
+.placebar button.on{background:#666a;border-color:var(--ui-accent);color:#fff}
+.layers{display:flex;flex-direction:column;gap:3px;margin:6px 0}
+.layerRow{display:flex;align-items:center;gap:6px;padding:3px 5px;border-radius:6px;background:#ffffff0d}
+.layerRow.off{opacity:.5}
+.layerRow .lname{flex:1;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.layerRow button{width:24px;height:22px;padding:0;display:grid;place-items:center;border:1px solid var(--ui-line);border-radius:5px;background:#ffffff12;color:var(--ui-fg)}
+.layerRow button:hover{background:#ffffff22}
+.inspector select,.library select{width:100%;height:26px;border:1px solid var(--ui-line);border-radius:6px;background:#ffffff0d;color:var(--ui-fg);font:11px system-ui;box-sizing:border-box}
 body.theatre #customize,body.theatre #editor{display:none!important}
 .tabs,.actions{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}
 .actions{align-items:center}
