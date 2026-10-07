@@ -5,13 +5,13 @@
 import * as THREE from 'three/webgpu';
 
 export const WEATHER = {
-  clear:  {fog:0.0006, overcast:0.0,  sun:1.0,  rain:0,    snow:0,   wind:0.30, dark:0,    cover:0, tint:'#b9d6ee'},
-  cloudy: {fog:0.0012, overcast:0.75, sun:0.30, rain:0,    snow:0,   wind:0.38, dark:0.12, cover:0, tint:'#a6b1bb'},
-  windy:  {fog:0.0009, overcast:0.20, sun:0.85, rain:0,    snow:0,   wind:0.95, dark:0,    cover:0, tint:'#b4c6d8'},
-  rain:   {fog:0.0022, overcast:1.0,  sun:0.10, rain:0.85, snow:0,   wind:0.50, dark:0.35, cover:0, tint:'#7a858f'},
-  storm:  {fog:0.0032, overcast:1.0,  sun:0.05, rain:1.0,  snow:0,   wind:1.0,  dark:1.0,  cover:0, tint:'#3f4852'},
-  snow:   {fog:0.0026, overcast:0.85, sun:0.35, rain:0,    snow:1.0, wind:0.32, dark:0.10, cover:1, tint:'#d3dbe2'},
-  fog:    {fog:0.030,  overcast:0.55, sun:0.30, rain:0,    snow:0,   wind:0.08, dark:0.05, cover:0, tint:'#c4c9cd'},
+  clear:  {fog:0.0006, overcast:0.0,  sun:1.0,  rain:0,    snow:0,   wind:0.30, dark:0,    cover:0, fogBright:0.35, tint:'#b9d6ee'},
+  cloudy: {fog:0.0012, overcast:0.75, sun:0.30, rain:0,    snow:0,   wind:0.38, dark:0.12, cover:0, fogBright:0.35, tint:'#a6b1bb'},
+  windy:  {fog:0.0009, overcast:0.20, sun:0.85, rain:0,    snow:0,   wind:0.95, dark:0,    cover:0, fogBright:0.35, tint:'#b4c6d8'},
+  rain:   {fog:0.0022, overcast:1.0,  sun:0.10, rain:0.85, snow:0,   wind:0.50, dark:0.35, cover:0, fogBright:0.4, tint:'#7a858f'},
+  storm:  {fog:0.0032, overcast:1.0,  sun:0.05, rain:1.0,  snow:0,   wind:1.0,  dark:1.0,  cover:0, fogBright:0.5, tint:'#3f4852'},
+  snow:   {fog:0.0026, overcast:0.85, sun:0.35, rain:0,    snow:1.0, wind:0.32, dark:0.10, cover:1, fogBright:0.45, tint:'#d3dbe2'},
+  fog:    {fog:0.030,  overcast:0.55, sun:0.30, rain:0,    snow:0,   wind:0.08, dark:0.05, cover:0, fogBright:0.6, tint:'#c4c9cd'},
 };
 export const WEATHER_IDS = Object.keys(WEATHER);
 
@@ -31,7 +31,7 @@ export function createWeatherSystem({scene, camera}) {
   rain.frustumCulled = false; rain.renderOrder = 10; rain.visible = false; scene.add(rain);
 
   // --- snow: several layers, each a different flake size ---
-  const SNOW_SIZES = [0.14, 0.26, 0.44, 0.72];
+  const SNOW_SIZES = [0.45, 0.8, 1.3, 2.0];
   const SNOW_PER = 700;
   const snows = SNOW_SIZES.map((base) => {
     const n = SNOW_PER;
@@ -57,7 +57,7 @@ export function createWeatherSystem({scene, camera}) {
     rainGeo.setDrawRange(0, 2 * Math.round(RN * Math.min(1, rainAmt)));
     // snow: 0..1 density, above 1 grows flake size (up to 5x range)
     const sf = Math.min(1, snowAmt);
-    const sizeBoost = 1 + 0.22 * Math.max(0, Math.min(4, snowAmt - 1));
+    const sizeBoost = 1 + 0.35 * Math.max(0, Math.min(4, snowAmt - 1));
     for (const g of snows) {
       g.mesh.visible = snowAmt > 0.02;
       g.mesh.material.opacity = 0.92 * sf;
