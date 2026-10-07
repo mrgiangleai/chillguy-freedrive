@@ -68,6 +68,14 @@ button{cursor:pointer;font:inherit;color:inherit}
 .libbtns{position:relative;z-index:2;display:flex;gap:3px;flex-wrap:wrap}
 .libbtns button{height:20px;padding:0 6px;font-size:10px;border:1px solid var(--ui-line);border-radius:5px;background:#ffffff12;color:var(--ui-fg)}
 .libbtns button:hover{background:#ffffff22}
+.fxstack{display:flex;flex-direction:column;gap:8px;margin:6px 0}
+.fxcard{border:1px solid var(--ui-line);border-radius:10px;background:#ffffff0a;padding:8px}
+.fxcard.off{opacity:.5}
+.fxhead{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px}
+.fxname{font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:5px}
+.fxbtns{display:flex;gap:3px}
+.fxbtns button{height:22px;min-width:22px;padding:0 6px;font-size:10px;border:1px solid var(--ui-line);border-radius:5px;background:#ffffff12;color:var(--ui-fg)}
+.fxbtns button:hover{background:#ffffff22}
 body.theatre #customize,body.theatre #editor{display:none!important}
 .tabs,.actions{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}
 .actions{align-items:center}

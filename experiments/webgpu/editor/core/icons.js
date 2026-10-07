@@ -31,6 +31,7 @@ export const ICONS = {
   target: '<circle cx="12" cy="12" r="7"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/><circle cx="12" cy="12" r="2"/>',
   dot: '<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/>',
   sparkle: '<path d="M12 3l1.7 5.1L19 10l-5.3 1.9L12 17l-1.7-5.1L5 10l5.3-1.9L12 3Z"/>',
+  effects: '<path d="M12 3l1.7 5.1L19 10l-5.3 1.9L12 17l-1.7-5.1L5 10l5.3-1.9L12 3Z"/>',
   upload: '<path d="M12 16V4m0 0L8 8m4-4 4 4"/><path d="M4 20h16"/>',
   minus: '<path d="M5 12h14"/>',
   star: '<path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 17l-5.2 2.7 1-5.9-4.3-4.1 5.9-.8L12 3.5Z"/>',
