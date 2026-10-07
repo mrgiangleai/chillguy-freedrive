@@ -22,12 +22,13 @@ Editor + runtime WebGPU/TSL + Rapier (Vite), tách khỏi game chính. Đang là
 - Đã sửa lỗi handler thiếu: `objectCamera`, `selectModelTransform`.
 
 ## Commit gần đây
-- `592dcb2` UI refresh + auto-save + shared store · `0aceb09` P1 shell · `2ff12e5` P2 library grid · `90675ff` P3 effects · `4f72c6b` P4 placement + layers.
-- **Chưa commit**: panel kéo-thả/snap/không đè + nút cấu hình UI (`main.js`, `editor/core/ui.js`, `editor/core/icons.js`) — cần commit.
+- `77eca29` P5 polish UI (khoảng cách/icon/EN-VI/tương phản) · `a2d22f1` docs · `d99fd90` panel kéo-thả + cấu hình UI · `4f72c6b` P4.
+- Đã commit toàn bộ thay đổi panel/UI trước đó (không còn thay đổi dở).
 
 ## Việc còn mở / next action
-- Commit thay đổi panel/UI-settings đang dở.
-- **P5 — polish**: khoảng cách/đồng bộ icon/tăng tương phản/EN-VI; và các yêu cầu tiếp của chủ dự án.
+- **P5 — polish**: đã làm 1 lượt: token tương phản (`--ui-line`/`--ui-fg-dim` sáng hơn, focus-visible), khoảng cách (`.row` cột label 104px, nút lib 22px), bộ icon thống nhất (thêm `theatre/arrow*/close/world/brush/water`, đổi icon Theatre khỏi trùng `eye`, nút reorder effects dùng icon), và EN-VI toàn UI + module landscape (truyền `t` vào `LandscapeModule`).
+- Còn giữ EN (cố ý): FOV/Cam X-Y-Z/Target, tên preset camera, tên effect Sun/Environment, tên material Sand/Rock…, nhãn HUD. Có thể Việt hoá tiếp nếu chủ dự án muốn.
+- Chưa xem trực quan (harness không chụp được); đã build `vite build` OK, `dist/` là gitignore nên cần `npm run build` trước khi `npm start`.
 - Giới hạn đã biết: import GLB **nén meshopt** lỗi (`setMeshoptDecoder must be called`) — lỗi loader có sẵn, không liên quan lưu trữ.
 - Chưa push nhánh experiment; lần đầu cần `git push -u origin experiment/webgpu-vertical-slice`.
 
