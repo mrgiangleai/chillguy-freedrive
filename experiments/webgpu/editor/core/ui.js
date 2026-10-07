@@ -25,11 +25,11 @@ export function installEditorStyles() {
   css.textContent = `
 :root{
   --ui-gap:6px;--ui-radius:8px;--ui-radius-sm:6px;
-  --ui-bg:#111d;--ui-panel:#111e;--ui-line:#ffffff26;--ui-line-hi:#ffffff40;
+  --ui-bg-rgb:17 17 17;--ui-panel-rgb:17 17 17;--ui-panel-a:.93;--ui-bar-a:.9;--ui-line:#ffffff26;--ui-line-hi:#ffffff40;
   --ui-fg:#e6e6e6;--ui-fg-dim:#98a0a6;--ui-accent:#ff9a3c;
   --ui-btn:28px;--ui-rail:44px;--ui-font:12px system-ui;
 }
-#customize{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:7;display:flex;flex-direction:row;align-items:center;gap:6px;padding:6px;width:max-content;max-width:calc(100vw - 24px);background:var(--ui-bg);border:1px solid var(--ui-line);border-radius:14px;font:var(--ui-font);color:var(--ui-fg);backdrop-filter:blur(8px)}
+#customize{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:7;display:flex;flex-direction:row;align-items:center;gap:6px;padding:6px;width:max-content;max-width:calc(100vw - 24px);background:rgb(var(--ui-bg-rgb) / var(--ui-bar-a));border:1px solid var(--ui-line);border-radius:14px;font:var(--ui-font);color:var(--ui-fg);backdrop-filter:blur(8px)}
 .toolrail{display:flex;flex-direction:row;flex-wrap:wrap;justify-content:center;gap:4px}
 .tooltab{min-width:62px;height:48px;padding:2px 10px;border:1px solid var(--ui-line);border-radius:10px;background:#ffffff0d;color:#cfd4d8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:.15s}
 .tooltab span{font-size:10px;line-height:1;opacity:.9;white-space:nowrap}
@@ -45,9 +45,9 @@ button{cursor:pointer;font:inherit;color:inherit}
 #editBtn{background:#111e;color:#fff;border:1px solid var(--ui-line-hi);padding:8px 12px;border-radius:var(--ui-radius)}
 #editor{position:fixed;left:0;right:0;top:10px;bottom:76px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:0 12px;pointer-events:none;overflow:visible;color:var(--ui-fg);font:var(--ui-font)}
 #editor[hidden]{display:none!important}
-#editor .library,#editor .inspector{pointer-events:auto;width:300px;max-height:100%;overflow:auto;background:var(--ui-panel);padding:10px;border-radius:var(--ui-radius);backdrop-filter:blur(8px)}
+#editor .library,#editor .inspector{position:fixed;pointer-events:auto;width:300px;max-height:calc(100vh - 96px);overflow:auto;background:rgb(var(--ui-panel-rgb) / var(--ui-panel-a));padding:10px;border-radius:var(--ui-radius);backdrop-filter:blur(8px);box-shadow:0 8px 24px #0007}
 #editor .library:empty,#editor .inspector:empty{display:none}
-.panelHead{margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid var(--ui-line)}
+.panelHead{margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid var(--ui-line);cursor:move;user-select:none;-webkit-user-select:none}
 .panelHead small{display:block;color:var(--ui-fg-dim);margin-top:2px}
 .hint{color:var(--ui-fg-dim);display:block;padding:4px 0}
 .libsearchRow{margin:6px 0}
@@ -121,7 +121,9 @@ body.theatre #customize,body.theatre #editor{display:none!important}
 .lightcard{cursor:pointer}
 .lightcard:hover{background:#ffffff1a}
 .lightcard.on{border-color:var(--ui-accent);background:#666a}
-.langSwitch{position:fixed;right:18px;bottom:18px;z-index:10;display:flex;background:var(--ui-bg);border:1px solid var(--ui-line);border-radius:999px;padding:3px;backdrop-filter:blur(8px)}
+.langSwitch{position:fixed;right:18px;bottom:18px;z-index:10;display:flex;background:rgb(var(--ui-bg-rgb) / var(--ui-bar-a));border:1px solid var(--ui-line);border-radius:999px;padding:3px;backdrop-filter:blur(8px)}
+#uicfg{position:fixed;left:12px;bottom:80px;z-index:9;width:230px;background:rgb(var(--ui-panel-rgb) / var(--ui-panel-a));border:1px solid var(--ui-line);border-radius:10px;padding:10px;color:var(--ui-fg);font:var(--ui-font);backdrop-filter:blur(8px);box-shadow:0 8px 24px #0007}
+#uicfg[hidden]{display:none!important}
 .langSwitch button{border:0;background:transparent;color:#aaa;padding:5px 9px;border-radius:999px;font:700 11px system-ui}
 .langSwitch button.on{background:#fff;color:#111}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#000d;color:#fff;padding:8px 12px;border-radius:var(--ui-radius-sm);z-index:9}
