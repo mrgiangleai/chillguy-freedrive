@@ -15,6 +15,8 @@ export const VEHICLE_DEFS = {
     yawOffset: Math.PI,           // model forward axis correction
     dims: {length: 4.8, width: 2.0, height: 1.4},
     cameras: CAMS,
+    seat: {x: -0.35, y: 0.55, z: -0.25, ry: 0},
+    eye: {x: -0.35, y: 1.15, z: 0.15},
     speedTiers: [6, 12, 20, 30, 42], // metres / second
     tint: '#c0392b',
   },
@@ -23,6 +25,8 @@ export const VEHICLE_DEFS = {
     yawOffset: Math.PI,
     dims: {length: 4.3, width: 1.9, height: 1.3},
     cameras: CAMS,
+    seat: {x: -0.32, y: 0.5, z: -0.2, ry: 0},
+    eye: {x: -0.32, y: 1.1, z: 0.15},
     speedTiers: [5, 10, 17, 26, 36],
     tint: '#2c3e50',
   },
