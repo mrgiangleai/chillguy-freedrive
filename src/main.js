@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { ROAD, Road } from './road.js';
+import { ROAD, ROAD_HW, CITY, Road } from './road.js';
+import { City } from './city.js';
 import { Scenery, STREETLIGHT_DEFAULTS } from './scenery.js';
 import { Terrain } from './terrain.js';
 import { setTerrainMap, TP } from './terrain-noise.js';
@@ -88,6 +89,7 @@ const wing = new WingMirrors(renderer);       // gương chiếu hậu hai bên 
 const wipers = new Wipers();
 const fireflies = new Fireflies(scene);
 const town = new ValleyTown(scene);           // map núi: thị trấn + đèn đường dưới thung lũng
+const city = new City(scene, road, scenery.roadMat);   // map Phố: nhà, vỉa hè, ngã tư, vạch kẻ
 const dash = new DashScreen();                // màn hình giải trí trên taplo (hắt sáng lên người lái)
 const _trafficPerson = new THREE.Vector3();
 const traffic = new Traffic(scene, cars);     // thỉnh thoảng có xe chạy ngược chiều
@@ -180,6 +182,7 @@ const pointer = { active: false, id: -1, x: 0, y: 0 };
 const state = { car: 0, character: 0, map: MAPS.findIndex((m) => m.id === 'meadow'), cam: CAMERAS.findIndex((c) => c.id === 'orbit'), weather: WEATHERS.findIndex((w) => w.id === 'cloudy'), time: TIMES.findIndex((t) => t.id === 'night'), music: 0, cine: true, started: false, mistCover: 0.9, mistDens: 0.4, fstop: FSTOP_DEFAULT, quality: loadQuality() };
 let openingElapsed = null; // tính thời gian chạy sau khi bấm Start
 let openingCameraPending = false;
+const QUICK_OPENING = true;          // TẠM: đầu game rút còn 0.5 s (đặt false để có lại đoạn 3 s ở 180 km/h rồi giảm tốc)
 const TUNE_KEY = 'chilldrive.tuning.v1';
 let savedTuning = null;
 try {
@@ -315,6 +318,9 @@ function warmShaders(delay = 500) {
 const applyMap = () => {
   const id = MAPS[state.map].id;
   setTerrainMap(id);            // đổi tham số địa hình (đồi thấp / đồi núi)
+  const isCity = id === 'city';
+  ROAD.halfWidth = isCity ? CITY.hw : ROAD_HW;   // phố: 4 làn
+  road.setShape(isCity);        // phố: đường thẳng theo đoạn + ngã tư
   road.dirt = id === 'forest';  // đồi thông: có đoạn đường đất xuyên rừng
   road.recomputeHeights();      // độ cao đường theo địa hình mới
   // map Biển: mực nước thấp hơn chỗ thấp nhất của đường 3 m (xét 120 km đường phía trước)
@@ -330,6 +336,14 @@ const applyMap = () => {
   cows.visible = id === 'meadow';
   town.reset();
   town.visible = id === 'mountain';
+  city.visible = isCity;
+  city.prime(drive.s);
+  fireflies.ground.clear();     // độ cao mặt đất nhớ theo hình đường cũ
+  traffic.policy.city = isCity;
+  rig.sideDist = isCity ? 13 : null;            // phố: camera bên hông đứng trên đường, không chui vào nhà
+  rig.orbitR = isCity ? 10 : null;
+  // làn nhà của xe mình: phố chạy làn ngoài bên phải; map khác sát vạch giữa
+  drive.home = isCity ? CITY.lanes[1] : LANE_D;
   waterfalls.setMap(id);
   rig.sidePref = id === 'mountain' ? 1 : 0;      // camera bên hông đứng phía thung lũng
   nature.setRadius(QUALITY[state.quality].trees);   // tính lại cây chi tiết cho map mới
@@ -774,10 +788,11 @@ function frame(now) {
 
   if (openingElapsed !== null) {
     openingElapsed += dt;
-    if (openingElapsed >= 3) {
+    if (openingElapsed >= (QUICK_OPENING ? 0.5 : 3)) {
       openingElapsed = null;
       setGear(0);
       openingCameraPending = true;
+      if (QUICK_OPENING) drive.v = CHILL_DEFAULT;   // tạm thời: bỏ đoạn giảm tốc 180 → 25 km/h (chú muốn chờ ít); bật lại: QUICK_OPENING = false
     }
   }
   const opening = !state.started || openingElapsed !== null;
@@ -810,7 +825,12 @@ function frame(now) {
 
   // lệch ngang: lái tay, hoặc tự về giữa làn khi buông tay
   if (steer !== 0) drive.manual = true;
-  else if (drive.manual) { drive.manual = false; drive.home = drive.d >= 0 ? LANE_D : -LANE_D; }
+  else if (drive.manual) {
+    drive.manual = false;
+    // buông tay: về làn gần nhất (phố 4 làn: ±1.75 / ±5.25)
+    const lanes = MAPS[state.map].id === 'city' ? CITY.lanes : [LANE_D];
+    drive.home = Math.sign(drive.d || 1) * lanes.reduce((b, l) => (Math.abs(Math.abs(drive.d) - l) < Math.abs(Math.abs(drive.d) - b) ? l : b), lanes[0]);
+  }
   const lane = traffic.ctrl.lane ?? drive.home;
   const wantLat = stop.active ? 0 : steer !== 0 ? steer * (2.2 + drive.v * 0.06) : (lane - drive.d) * 0.8 * Math.min(1, drive.v / 3);
   drive.latVel += (wantLat - drive.latVel) * (1 - Math.exp(-dt * 5));
@@ -884,7 +904,7 @@ function frame(now) {
   terrain.apply(st);
   // đom đóm: lúc trời tối, không mưa / tuyết / gió mạnh
   const ss = THREE.MathUtils.smoothstep;
-  const ffAmt = ss(st.night, 0.35, 0.9) * (1 - Math.min(1, st.rain * 2)) * (1 - st.snow) * (1 - st.cover) * (1 - ss(st.wind, 0.6, 0.9));
+  const ffAmt = (MAPS[state.map].id === 'city' ? 0 : 1) * ss(st.night, 0.35, 0.9) * (1 - Math.min(1, st.rain * 2)) * (1 - st.snow) * (1 - st.cover) * (1 - ss(st.wind, 0.6, 0.9));
   fireflies.update(now / 1000, drive.s, road, terrain, ffAmt, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   dash.update(dt, drive.v * 3.6, env.clock);
   smoke.update(dt, stop.smoking, st, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
@@ -897,6 +917,7 @@ function frame(now) {
     traffic.playerHome = drive.home; traffic.playerGoal = stop.active ? 0 : drive.goal;
     traffic.update(dt, drive.s, drive.d, road, st.lamps, cars.current.def.id, obstacles, audio);
   }
+  city.update(drive.s, st.lamps);
   town.update(drive.s, road, terrain, st.lamps, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   cars.setLights(st.lamps);
   audio.setAmbient({ speed: drive.v, rain: st.rain, snow: st.snow, wind: st.wind, dark: st.dark, fx: drive.fx,
@@ -1012,4 +1033,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { city, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

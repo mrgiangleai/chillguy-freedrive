@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -56,6 +56,7 @@
 | `waterfalls.js` | Map núi: suối/thác (`waterfallSpec`, `waterfallGeometry` → nodes/water/wet/rocks/sprays; `Waterfalls.setMap`, `update(time, s, light, {d, v, dim, npcs, cam, audio})`). Dòng dò theo dốc (`trace`) + uốn lượn (`meander`); nước = MeshStandardMaterial + nhiễu theo **thời gian chảy `tau`** (không dùng `along - uTime*speed` => tránh sọc); lớp ướt = blend nhân màu; đá tảng dùng `rockGeometry(k, 2)` + `terrain.rockMat`; nước bắn bánh xe (`Splash`, Points kéo về camera 4%) |
 | `carriage.js` | `loadCarriage(loader)` → hàm tạo xe ngựa `{group, dim 5.6×2.8, wheels: [], mixer, carriage: true}`; `CARRIAGE` (15–30 s, tối đa 2, 25–40 km/h). traffic.js sinh/điều khiển như NPC (`_spawnCarriage`, `carriageTimer`, không đèn, không tiếng lướt, không nhận chùm pha dùng chung) |
 | `ocean.js` | Map Biển: `Ocean.setMap(on, level)`, `update(time, cam, road, s)`. Lưới vuông 1.5 m ±120 m (sóng nhô lên ≤ ~100 m) + vành 8 m tới ±400 m + khung phẳng tới 6 km, **nắn theo bước 1.5 m** (đỉnh cố định trong thế giới). `waveAt`: atlas `assets/tex/ocean-waves.png?v=WAVE_VER` (76 khung, 10×8; bake bằng `scripts/bake-ocean.mjs`, trộn chéo 24 khung cuối vào đầu), ô ×2 = 54.2 m, cao ×1.3, chu kỳ ≈ 9 s; 4 mẫu lệch nửa ô; nội suy khung **dời theo hướng trôi** `DRIFT` (−0.5, +2.25 px/khung); **2 lớp lệch nửa vòng**, lớp tới chỗ nối fade sin² còn 10%, lớp kia giữ 100%, chuẩn hoá giữ biên độ; bọt ven bờ theo `uT` liên tục; `textureLod` theo khoảng cách (`uLod`); độ sâu ven đê từ 27 điểm tim đường (nắn bước 12 m) |
+| `city.js` | Map Phố (kiểu phố Nhật): dựng theo **khối phố** n (giữa ngã tư `road.junction(n)` và n+1): đường ngang + vỉa hè + vạch (vằn qua đường, vạch dừng, tim vàng đôi, chia làn đứt/liền 30 m trước ngã tư, mũi tên), vỉa hè lát gạch + gạch dẫn đường vàng, nhà instancing (hộp + mái dốc) mặt tiền vẽ bằng shader (tầng trệt cửa hàng + biển chữ atlas, 4 kiểu cửa sổ, đèn đêm), biển dọc, máy bán nước, cột điện + dây võng. Nhà tới `DEPTH` 180 m, khối dựng ±1.2 km |
 | `cows.js` | Map đồi cỏ: đàn 5 bò sữa + hàng rào gỗ |
 | `fireflies.js` | Đom đóm ban đêm |
 | `traffic.js` | Spawn/pool/vẽ NPC: ngược chiều (10–25 s/chiếc, tối đa 2) + cùng chiều (25–60 s, tối đa 1, vào từ phía sau 80–110 m); pool 3 xe; NPC chỉ có quầng pha, chùm sáng thật = 1 cặp SpotLight dùng chung (`beam`, gắn NPC gần nhất ≤300 m, `_beam`); đèn `lamps × NPC_LAMP(0.24)`, đèn hậu ×0.6; thân xe xoay `yaw = atan(latV/v)` (≤0.35, nội suy 8/s), bánh trước `w.front` đánh lái `yaw × 1.8`; âm thanh lướt qua 1 lần/lượt; xuất `ctrl {lane, maxV}` cho xe người chơi |
@@ -127,6 +128,12 @@
   (16 mm + lùi 20 m). Rê/zoom dừng tự quay 2 s; zoom tay (wheel / pinch / phím ±) tiến sát tới 1 m. Khi đi về xe,
   camera bám người và tiến từ khoảng cách hiện tại tới 1 m đúng lúc tới cửa. Nhịp hút 8 s → 12 s → ngẫu nhiên 12–24 s;
   đi lanh quanh trong 10 m, chỉ trong làn mình + lề phải.
+- **Map Phố** (`city`, đang làm theo 4 bước — xem Nhật ký #5): `road.setShape(true)` => đường thẳng theo đoạn 720 m, đầu đoạn
+  có thể bẻ ≤ ~0.3 rad trong 140 m; 3 ngã tư/đoạn (~240 m) trên phần thẳng. `ROAD.halfWidth` = 7.2 (4 làn: tâm làn ±1.75 / ±5.25,
+  chia làn ±3.5), vỉa hè 4 m cao 0.2; đường ngang rộng 7 m + vỉa hè 2.5 m. Mặt đất phẳng y = 0, đồi xanh > 500 m.
+  `terrain.js`/`scenery.js` đọc bề rộng đường lúc reset/setMap. Xe mình chạy làn ngoài phải (5.25), buông tay về làn gần nhất;
+  vượt xe sang làn cùng chiều bên cạnh (`TrafficPolicy._other`). Camera bên hông 13 m, quay quanh 10 m. Không đom đóm.
+  **Tạm thời** `QUICK_OPENING = true` (main.js): đầu game chỉ 0.5 s rồi về 25 km/h (chú yêu cầu, bật lại khi cần).
 - **Chụp ảnh**: nút 📸 / phím K — chụp canvas ngay sau `post.render` (không cần preserveDrawingBuffer), tải PNG
   `chill-drive-<thời gian>.png`; điện thoại dùng bảng chia sẻ nếu có (lưu vào Ảnh).
 - **Đom đóm**: đoạn có đom đóm ~2/3 chiều dài đường (nhiễu `sst(0.38, 0.58)`), 90% ô 5 m có, 1–3 con/ô, ra tới ~16 m hai bên,
@@ -161,3 +168,8 @@
 
 - **#4 — Đom đóm nhỏ hơn nữa, sáng hơn, ít hơn (08/10/2026)**: điểm vẽ ~0.55 lần (0.45 → 0.25, 2.5–22 px), màu sáng ×1.6,
   1–3 con/ô 5 m (trước 2–6), tối đa 200.
+
+- **#5 — Map Phố bước 1 (08/10/2026)**: thêm map 🏙️ Phố (đường thẳng 4 làn, vỉa hè, ngã tư + vạch kẻ, nhà phố Nhật có biển
+  hiệu/cửa hàng/máy bán nước/cột điện, đèn đêm). Kế hoạch còn lại: B2 đèn giao thông + chú tự phanh (phanh tay, báo lỗi vượt đèn
+  đỏ/không nhường); B3 NPC 4 làn, đông hơn, xe máy + xe buýt (model free nhẹ, gửi chú duyệt); B4 người đi bộ qua vạch.
+  Đầu game tạm rút còn 0.5 s. `check-traffic-policy`/`check-traffic` đang lỗi sẵn từ trước (lỗi cả khi bỏ thay đổi này).

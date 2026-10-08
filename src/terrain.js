@@ -15,8 +15,8 @@ import { SEA_BED } from './ocean.js';
 // - Núi cao chỉ mọc ở xa đường (> 500 m), có đá ở sườn dốc và tuyết trên đỉnh.
 // - Cây mọc thành rừng theo mảng nhiễu; ô xa dùng cây ít đa giác.
 const SEG = 32, MIN = 64, ROOT = 8192;
-const HW = ROAD.halfWidth;
-const CARVE0 = HW + 1.2, CARVE1 = HW + 16;
+let HW = ROAD.halfWidth, CARVE0 = HW + 1.2, CARVE1 = HW + 16;     // bề rộng đường đổi theo map (đọc lại khi reset)
+const syncHW = () => { HW = ROAD.halfWidth; CARVE0 = HW + 1.2; CARVE1 = HW + 16; };
 const FAR = 1e6;
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const col = (hex) => new THREE.Color(hex);   // hex sRGB -> màu tuyến tính
@@ -26,7 +26,10 @@ const PAL = {
   mountain: { a: col('#789a45'), b: col('#9eaa5a'), c: col('#557236'), snowLine: 300, trees: true },
   meadow: { a: col('#6f9a4c'), b: col('#86ad5c'), c: col('#5c8541'), snowLine: 400, trees: false, bare: true },
   sea: { a: col('#cbb98c'), b: col('#bba97c'), c: col('#7f8f55'), snowLine: 600, trees: false, bare: true },   // cát, đá kè, cỏ trên đảo
+  // phố: nền bê tông xám giữa các nhà; đồi núi ở xa ngả xanh theo độ cao (CITY_HILL)
+  city: { a: col('#77787a'), b: col('#828280'), c: col('#6c6e6c'), snowLine: 900, trees: false, bare: true },
 };
+const CITY_HILL = col('#5f7f45');
 const FOREST = col('#3e5d2b');
 const ROCK = col('#8a8072'), ROCK2 = col('#6b6259'), SNOW = col('#eef2f6'), GRAVEL = col('#8f887c'), FLOOR = col('#5f6c36');
 const KEEP = { 64: 1, 128: 0.5, 256: 0.22, 512: 0.08 };   // tỉ lệ cây giữ lại theo cỡ ô (tập con lồng nhau => ít "nhảy" cây)
@@ -250,6 +253,7 @@ export class Terrain {
     const pal = PAL[TP.id];
     const n1 = vnoise(x / 150 + 2.3, z / 150 + 6.1), n2 = vnoise(x / 37 + 8.8, z / 37 + 1.2);
     out.copy(pal.a).lerp(pal.b, sstep(0.3, 0.75, n1)).lerp(pal.c, sstep(0.45, 0.9, n2) * 0.55);
+    if (TP.id === 'city') out.lerp(CITY_HILL, sstep(1, 20, h));
     if (pal.trees) out.lerp(FOREST, sstep(0.44, 0.66, vnoise(x / 260 + 3.1, z / 260 + 8.7)) * 0.6);
     const dirtK = s >= 0 ? this.road.dirtAt(s) : 0;
     const dirtNear = dirtK * (1 - sstep(HW + 1, HW + 28, d));
@@ -508,6 +512,7 @@ export class Terrain {
   }
 
   reset() {
+    syncHW();
     for (const t of this.tiles.values()) this._dispose(t);
     this.tiles.clear();
     this.queue.length = 0;

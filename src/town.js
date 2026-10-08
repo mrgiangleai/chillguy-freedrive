@@ -28,7 +28,7 @@ function bigTownAt(b) {
 }
 
 // nhà mẫu 1×1×1 (thân) + mái dốc cao 0.45, nóc chạy theo trục x; aRoof = 1 ở mái
-function houseGeometry() {
+export function houseGeometry() {
   const body = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0).toNonIndexed();
   const o = 0.54, y0 = 1, y1 = 1.45;           // mái chìa ra một chút
   const v = [

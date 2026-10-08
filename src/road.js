@@ -2,7 +2,13 @@ import { hLow } from './terrain-noise.js';
 
 // Đường vô tận: hướng đi theo độ dài cung s là tổng của vài sóng sin (bị chặn) nên đường uốn lượn nhẹ.
 // Vị trí được tích phân dần và nhớ lại; độ cao (y) men theo phần đồi lớn của địa hình => lên/xuống dốc êm.
-export const ROAD = { halfWidth: 4.6, chunkLen: 120, step: 2 };
+export const ROAD = { halfWidth: 4.6, chunkLen: 120, step: 2 };   // halfWidth đổi theo map (Phố: 4 làn => 7.2)
+export const ROAD_HW = 4.6;
+
+// Map Phố: đường thẳng theo từng đoạn CITY.seg mét; đầu mỗi đoạn có thể bẻ hướng nhẹ (≤ ~0.3 rad trong CITY.bend mét,
+// bán kính ≥ ~300 m). Ngã tư nằm trên phần thẳng: 3 cái mỗi đoạn (cách nhau ~240 m), đường ngang vuông góc.
+export const CITY = { seg: 720, bend: 140, hw: 7.2, walk: 4.0, side: 3.5, sideWalk: 2.5, lanes: [1.75, 5.25] };
+const JPOS = [205, 445, 688];
 
 const H = (s) => 0.9 * Math.sin(0.0021 * s + 1.0) + 0.5 * Math.sin(0.0053 * s + 2.2) + 0.25 * Math.sin(0.0117 * s + 0.3);
 const H0 = H(0);
@@ -11,12 +17,53 @@ const H0 = H(0);
 // Mặt đường đất hơi gồ ghề: vài sóng dài >= 4 m (bước điểm đường 2 m) cộng lại, biên độ ~±15 cm.
 export const DIRT = { period: 2600, start: 450, len: 800, ramp: 70 };
 const sst = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const hashR = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 const bump = (s) => 0.07 * Math.sin(0.9 * s) + 0.045 * Math.sin(1.37 * s + 1.3) + 0.05 * Math.sin(0.31 * s + 2.0);
 
 export class Road {
   constructor() {
     this.pts = [{ x: 0, z: 0, y: hLow(0, 0) }];
     this.dirt = false;            // bật ở map đồi thông
+    this.city = false;            // map Phố: đường thẳng + ngã tư
+    this._cum = [0];              // map Phố: tổng góc bẻ tới hết đoạn k
+  }
+
+  // đổi hình đường (Phố / các map khác) => tính lại toàn bộ điểm đường
+  setShape(city) {
+    if (city === this.city) return;
+    this.city = city;
+    this.pts = [{ x: 0, z: 0, y: 0 }];
+  }
+
+  // góc bẻ ở đầu đoạn k (map Phố): một nửa số đoạn đi thẳng; kéo dần về hướng gốc để đường không xoay vòng
+  _delta(k) {
+    if (k <= 0) return 0;
+    const h = hashR(k * 1.37 + 0.5);
+    if (h < 0.45) return 0;
+    return (hashR(k * 2.71 + 3.3) - 0.5) * 0.6 - 0.35 * this._sum(k - 1);
+  }
+  _sum(k) {
+    if (k < 0) return 0;
+    while (this._cum.length <= k) { const j = this._cum.length; this._cum.push(this._cum[j - 1] + this._delta(j)); }
+    return this._cum[k];
+  }
+
+  // ngã tư thứ n (map Phố): độ dài cung tâm ngã tư
+  junction(n) {
+    const k = Math.floor(n / 3), i = n - k * 3;
+    return k * CITY.seg + JPOS[i] + (hashR(n * 3.17 + 1.9) - 0.5) * (i === 2 ? 10 : 24);
+  }
+  // chỉ số ngã tư đầu tiên có tâm >= s
+  junctionIndex(s) {
+    let n = Math.floor(s / CITY.seg) * 3 - 1;
+    while (this.junction(n) < s) n++;
+    return n;
+  }
+  // tâm ngã tư gần s nhất (map Phố) hoặc null
+  nearJunction(s) {
+    if (!this.city) return null;
+    const n = this.junctionIndex(s), a = this.junction(n - 1), b = this.junction(n);
+    return s - a < b - s ? a : b;
   }
 
   // 0..1: mức "đường đất" tại độ dài cung s
@@ -26,9 +73,13 @@ export class Road {
     return sst(DIRT.start, DIRT.start + DIRT.ramp, m) * (1 - sst(DIRT.start + DIRT.len - DIRT.ramp, DIRT.start + DIRT.len, m));
   }
 
-  _y(x, z, s) { return hLow(x, z) + this.dirtAt(s) * bump(s); }
+  _y(x, z, s) { return this.city ? 0 : hLow(x, z) + this.dirtAt(s) * bump(s); }
 
-  heading(s) { return H(s) - H0; }
+  heading(s) {
+    if (!this.city) return H(s) - H0;
+    const k = Math.floor(s / CITY.seg);
+    return this._sum(k - 1) + this._delta(k) * sst(0, CITY.bend, s - k * CITY.seg);
+  }
 
   // Độ cong có dấu: dương cua trái, âm cua phải, làm mượt trên 12 m đường.
   curvature(s) {

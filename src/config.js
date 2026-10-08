@@ -47,6 +47,7 @@ export const MAPS = [
   { id: 'mountain', name: 'Đường núi', icon: '⛰️' },
   { id: 'meadow', name: 'Đồi cỏ', icon: '🌿' },
   { id: 'sea', name: 'Biển', icon: '🌊' },
+  { id: 'city', name: 'Phố', icon: '🏙️' },
 ];
 
 export const WEATHERS = [

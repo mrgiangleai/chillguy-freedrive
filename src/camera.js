@@ -43,6 +43,7 @@ export class CameraRig {
     this.look = { yaw: 0, pitch: 0, hold: false, idle: 0 };
     this.sideSign = 0;                 // camera bên hông: -1 trái / +1 phải (0 = chưa chọn)
     this.sidePref = 0;                 // ưu tiên bên (đường núi: phía thung lũng)
+    this.sideDist = null; this.orbitR = null;   // map Phố: camera bên hông / quay quanh gần xe hơn (null = theo tune)
     this.tune = structuredClone(CAMERA_DEFAULTS);   // thông số camera chỉnh trực tiếp từ bảng công cụ
     // ống kính (quy đổi full-frame 36x24 mm), mỗi chế độ camera giữ cấu hình riêng
     this.focal = this.focalS = this.focalEff = 24;
@@ -128,7 +129,7 @@ export class CameraRig {
         // ngang hông xe, cách ~11 m (ống kính 28 mm => xe chiếm ~1/3 bề ngang khung hình). Chọn bên một lần khi vào chế độ
         // (phía tim đường; đường núi: phía thung lũng) để camera không nhảy qua lại khi xe đổi làn
         if (!this.sideSign) this.sideSign = this.sidePref || car.side || 1;
-        p.copy(pos).addScaledVector(r, this.sideSign * t.distance).setY(pos.y + t.height);
+        p.copy(pos).addScaledVector(r, this.sideSign * (this.sideDist ?? t.distance)).setY(pos.y + t.height);   // sideDist: map Phố đặt gần hơn (không chui vào nhà)
         l.copy(pos).setY(pos.y + dim.height * t.lookHeight);
         break;
       }
@@ -145,7 +146,10 @@ export class CameraRig {
       }
       case 'orbit':
         this.orbit += dt * t.speed;
-        p.set(pos.x + Math.cos(this.orbit) * t.radius, pos.y + t.height + Math.sin(this.orbit * t.waveRate) * t.heightWave, pos.z + Math.sin(this.orbit) * t.radius);
+        {
+          const R = this.orbitR ?? t.radius;                                // orbitR: map Phố quay sát xe hơn
+          p.set(pos.x + Math.cos(this.orbit) * R, pos.y + t.height + Math.sin(this.orbit * t.waveRate) * t.heightWave, pos.z + Math.sin(this.orbit) * R);
+        }
         l.copy(pos).setY(pos.y + t.lookHeight);
         break;
       case 'drone':

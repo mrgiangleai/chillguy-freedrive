@@ -4,7 +4,8 @@ import { ROAD } from './road.js';
 import { roadTexture, glowTexture, photoTexture } from './textures.js';
 import { withMist } from './mist.js';
 
-const { halfWidth: HW, chunkLen: L, step: STEP } = ROAD;
+const { chunkLen: L, step: STEP } = ROAD;
+let HW = ROAD.halfWidth;                // đổi theo map (đọc lại ở setMap)
 const AHEAD = 7;   // số chunk đường dựng phía trước xe
 const BEHIND = 1;
 
@@ -187,8 +188,10 @@ export class Scenery {
     this.map = 'reed';
     this.lastS = 150;
 
+    this.roadTex = roadTexture(renderer);
+    this.cityTex = roadTexture(renderer, true);       // phố: nhựa trơn, vạch kẻ vẽ riêng (city.js)
     this.roadMat = new THREE.MeshStandardMaterial({
-      map: roadTexture(renderer), roughness: 0.9, metalness: 0,
+      map: this.roadTex, roughness: 0.9, metalness: 0,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
     });
     // đường ướt: vũng nước + gợn sóng giọt mưa + phản chiếu (planar reflection)
@@ -257,6 +260,8 @@ export class Scenery {
   // dựng lại toàn bộ (đổi map => đổi độ cao đường)
   setMap(map) {
     this.map = map;
+    HW = ROAD.halfWidth;
+    this.roadMat.map = map === 'city' ? this.cityTex : this.roadTex;
     for (const c of this.chunks.values()) this._dispose(c);
     this.chunks.clear();
     this.queue.length = 0;
@@ -390,7 +395,7 @@ export class Scenery {
 
     // cọc tiêu hai bên đường
     const posts = [];
-    for (let s = s0; s < s0 + L; s += 12) {
+    for (let s = s0; s < s0 + L && this.map !== 'city'; s += 12) {
       if (road.dirtAt(s) > 0.05) continue;          // đường đất: không có cọc tiêu
       road.at(s, p);
       for (const side of (this.map === 'mountain' ? [-1] : [-1, 1])) {
@@ -429,13 +434,15 @@ export class Scenery {
 
     // đèn đường (xen kẽ hai bên)
     const lamps = [], bulbs = [], targets = [];
-    const lampN = this.map === 'reed' ? 2 : 1, lampGap = L / lampN;
+    const city = this.map === 'city';
+    const lampN = city ? 4 : this.map === 'reed' ? 2 : 1, lampGap = L / lampN;
     for (let i = 0; i < lampN; i++) {
-      const s = s0 + i * lampGap + 6;
+      const s = s0 + i * lampGap + (city ? 21 : 6);          // phố: lệch khỏi cột điện (mỗi 30 m, ở +8)
       if (road.dirtAt(s) > 0.05) continue;          // đường đất: không có đèn đường
+      if (city) { const j = road.nearJunction(s); if (j !== null && Math.abs(s - j) < 16) continue; }   // phố: không đặt giữa ngã tư / vạch qua đường
       road.at(s, p);
       const side = this.map === 'mountain' ? -1 : (Math.round(s / lampGap) % 2) ? 1 : -1;
-      const off = HW + 1.4;
+      const off = HW + (city ? 0.9 : 1.4);
       const x = p.x + Math.cos(p.th) * off * side;
       const z = p.z - Math.sin(p.th) * off * side;
       // tay đòn hướng về tim đường: side=+1 (bên phải) => local -x => yaw = th ; bên trái => xoay thêm PI

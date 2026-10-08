@@ -12,6 +12,8 @@ export const TERRAIN_MAPS = {
   meadow: { low: 22, det: 3.2, fine: 0.5, mount: 380 },
   // biển: đường chạy trên đê giữa biển (lên xuống nhẹ), xa xa có đảo; mực nước đặt ở main (thấp hơn chỗ thấp nhất của đường 3 m)
   sea: { low: 7, det: 2.5, fine: 0.4, mount: 260, sea: true },
+  // phố: mặt đất phẳng tuyệt đối (y = 0, đường + vỉa hè + nhà đặt thẳng lên), đồi núi xanh ở xa (> 500 m)
+  city: { low: 0, det: 0, fine: 0, mount: 300 },
 };
 export const TP = { id: 'reed', ...TERRAIN_MAPS.reed };
 export function setTerrainMap(id) { Object.assign(TP, { side: false, sea: false }, TERRAIN_MAPS[id], { id }); }

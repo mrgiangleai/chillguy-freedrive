@@ -13,7 +13,9 @@ const laneOther = (A) => (A.home !== undefined ? -A.home : otherLane(A.dir));
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 
 export class TrafficPolicy {
-  constructor(){this.player={player:true,state:"cruise",target:null,dir:1};this.active=[];}
+  constructor(){this.player={player:true,state:"cruise",target:null,dir:1};this.active=[];this.city=false;}
+  // làn để vượt: map Phố (2 làn mỗi chiều) vượt sang làn cùng chiều bên cạnh, không lấn sang chiều ngược lại
+  _other(A) { if (!this.city) return laneOther(A); const o = laneOwn(A); return Math.sign(o) * (Math.abs(o) < 3.5 ? 5.25 : 1.75); }
   // ---------- hình học làn ----------
   _overlapLat(e, d, w) { return Math.abs(e.d - d) < (e.w + w) / 2 + 0.25; }
   _all() { return [this.player, ...this.active]; }
@@ -34,7 +36,7 @@ export class TrafficPolicy {
 
   // làn bên kia có trống để vượt L không (tầm nhìn 50 m sau xe bị vượt + xe ngược chiều không kịp tới)
   _canOvertake(A, L, vOver) {
-    const lane = laneOther(A);
+    const lane = this._other(A);
     const rel = (L.s - A.s) * A.dir;
     const margin = L.player && L.v < 1 ? 16 : MARGIN;             // vượt xe đang đỗ: chừa chỗ cho người đứng trước xe
     const dv = Math.max(1, vOver - L.v);
@@ -54,7 +56,7 @@ export class TrafficPolicy {
 
   // đang vượt: còn an toàn không (xe ngược chiều trong làn vượt có kịp tránh)
   _overtakeDanger(A, L, vOver) {
-    const lane = laneOther(A);
+    const lane = this._other(A);
     const rem = (L.s - A.s) * A.dir + (A.len + L.len) / 2 + MARGIN;
     const T = Math.max(0, rem) / Math.max(1, vOver - L.v);
     for (const e of this._all()) {
@@ -80,7 +82,7 @@ export class TrafficPolicy {
 
   // quyết định của một xe: trả về { dT: làn đích, vT: tốc độ đích }. vDes: tốc độ muốn chạy
   _decide(A, vDes) {
-    const own = laneOwn(A), other = laneOther(A);
+    const own = laneOwn(A), other = this._other(A);
     let dT = own, vT = vDes;
     const range = 60 + 3 * Math.max(A.v, vDes);
     if (A.state === 'overtake' && A.target && this.active.concat([this.player]).includes(A.target)) {

@@ -8,7 +8,7 @@ function canvas(w, h) {
 }
 
 // Mặt đường nhựa: 1 tile = bề ngang đường x 12 m chiều dài (vạch đứt 4 m, vạch biên liền)
-export function roadTexture(renderer) {
+export function roadTexture(renderer, plain = false) {
   const W = 512, H = 512;
   const [c, g] = canvas(W, H);
   g.fillStyle = '#3c3f45';
@@ -21,13 +21,14 @@ export function roadTexture(renderer) {
   g.putImageData(img, 0, 0);
   const pxPerM = W / (ROAD.halfWidth * 2);
   // vệt bánh xe sẫm màu
-  for (const cx of [0.27, 0.73]) {
+  for (const cx of plain ? [] : [0.27, 0.73]) {
     const grd = g.createLinearGradient((cx - 0.09) * W, 0, (cx + 0.09) * W, 0);
     grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(0.5, 'rgba(0,0,0,0.22)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = grd; g.fillRect((cx - 0.09) * W, 0, 0.18 * W, H);
   }
   g.fillStyle = '#dcdcd4';
   const lw = 0.16 * pxPerM, off = 0.35 * pxPerM;
+  if (plain) { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t; }
   g.fillRect(off, 0, lw, H);
   g.fillRect(W - off - lw, 0, lw, H);
   g.fillStyle = '#e9d36a';
