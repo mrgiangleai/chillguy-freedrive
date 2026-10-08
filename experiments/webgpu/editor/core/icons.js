@@ -49,6 +49,7 @@ export const ICONS = {
   brush: '<path d="M14 4l6 6-8 8H6v-6l8-8Z"/><path d="M6 18l-3.5 3.5"/>',
   pencil: '<path d="M14 4l6 6-9.5 9.5H4v-6.5L14 4Z"/><path d="M13 5l6 6"/>',
   water: '<path d="M12 3s6 6.4 6 10.5a6 6 0 0 1-12 0C6 9.4 12 3 12 3Z"/>',
+  material: '<circle cx="12" cy="12" r="9"/><circle cx="9" cy="9.5" r="1.3"/><circle cx="15" cy="9.5" r="1.3"/><circle cx="9.5" cy="15" r="1.3"/><path d="M12.5 21a3 3 0 0 1 0-6h2.2"/>',
 
   // --- Direction / list controls ---
   arrowUp: '<path d="M12 19V5M12 5l-5 5M12 5l5 5"/>',

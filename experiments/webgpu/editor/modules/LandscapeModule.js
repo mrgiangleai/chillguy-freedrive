@@ -14,7 +14,7 @@ export function createLandscapeModule(ctx) {
       h += '<small>' + t('terrainInfiniteHint') + '</small>';
       if (state.selected?.userData.editor?.terrain) {
         h += '<hr><b>' + icon('brush') + ' ' + t('terrainBrush') + '</b><div class="actions fit"><button data-brushtool="sculpt">' + t('sculpt') + '</button><button data-brushtool="paint">' + t('paint') + '</button></div>';
-        h += state.brushTool === 'sculpt' ? '<div class="actions fit">' + [['raise', t('raise')], ['lower', t('lower')], ['smooth', t('smooth')], ['flatten', t('flatten')]].map(x => '<button data-sculpt="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>' : '<small>' + t('paintHint') + '</small>';
+        h += state.brushTool === 'sculpt' ? '<div class="actions fit">' + [['raise', t('raise')], ['lower', t('lower')], ['smooth', t('smooth')], ['flatten', t('flatten')]].map(x => '<button data-sculpt="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>' : '<small>' + t('paintHint') + ' · ' + t('materialLibrary') + ': ' + t(state.activeMaterial || 'grassmat') + '</small>';
         h += num(t('brush') + ' ' + state.sculptSize.toFixed(1) + 'm', state.sculptSize, 1, 40, .5, 'sculptSize');
         h += state.brushTool === 'sculpt' ? num(t('strengthLabel') + ' ' + state.sculptStrength.toFixed(2), state.sculptStrength, .02, 1, .02, 'sculptStrength') : num(t('paintStrength') + ' ' + state.paintStrength.toFixed(2), state.paintStrength, .02, 1, .02, 'paintStrength');
         h += '<small>' + t('brushHint') + '</small>';
