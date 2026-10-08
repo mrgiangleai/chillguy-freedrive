@@ -21,6 +21,9 @@ export function createProjectStore({loadProject, saveProject, flushProject}) {
     st.traffic ??= {enabled: false, count: 4, minSpeed: 8, maxSpeed: 22};
     st.audio ??= {enabled: false, volume: .6};
     st.driver ??= {characterId: null, vehicleId: null, clip: 0, preview: false, cam: false};
+    st.ocean ??= {enabled: false, level: -2, color: '#2f6f8f'};
+    st.waterfalls ??= {enabled: false, count: 4, seed: 7};
+    st.post ??= {enabled: false, grade: 1, vignette: .6, grain: .3, wet: true};
     if (st.version < PROJECT_VERSION) st.version = PROJECT_VERSION;
     return st;
   }
