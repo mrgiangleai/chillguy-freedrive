@@ -41,6 +41,23 @@ function moonCanvas(size) {
   return cv;
 }
 
+function cloudCanvas(size) {
+  const cv = document.createElement('canvas'); cv.width = cv.height = size;
+  const x = cv.getContext('2d'); const img = x.createImageData(size, size);
+  const hash = (i, j) => { let h = (Math.imul(i, 374761393) + Math.imul(j, 668265263)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967295; };
+  const noise = (fx, fy) => { const ix = Math.floor(fx), iy = Math.floor(fy); let ax = fx - ix, ay = fy - iy; ax = ax * ax * (3 - 2 * ax); ay = ay * ay * (3 - 2 * ay); const a = hash(ix, iy), b = hash(ix + 1, iy), c = hash(ix, iy + 1), d = hash(ix + 1, iy + 1); return a + (b - a) * ax + (c - a) * ay + (a - b - c + d) * ax * ay; };
+  for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
+    let f = 0, amp = 0.5, fr = 1 / 40;
+    for (let o = 0; o < 5; o++) { f += amp * noise(i * fr + o * 13.7, j * fr + o * 7.3); amp *= 0.5; fr *= 2.05; }
+    f /= 0.96875;
+    const a = Math.max(0, Math.min(1, (f - 0.48) / 0.34));
+    const k = (j * size + i) * 4;
+    img.data[k] = 255; img.data[k + 1] = 255; img.data[k + 2] = 255; img.data[k + 3] = Math.round(a * 255);
+  }
+  x.putImageData(img, 0, 0);
+  return cv;
+}
+
 export function createSky({scene}) {
   // --- gradient dome (per-vertex colours, no texture) ---
   const geo = new THREE.SphereGeometry(R, 64, 40);
@@ -74,9 +91,16 @@ export function createSky({scene}) {
   const stars = new THREE.Points(starGeo, starMat);
   stars.renderOrder = -8; stars.frustumCulled = false; stars.visible = false; scene.add(stars);
 
+  // --- cloud layer (flat, above the camera; opacity from overcast) ---
+  const cloudTex = new THREE.CanvasTexture(cloudCanvas(256));
+  cloudTex.colorSpace = THREE.SRGBColorSpace; cloudTex.wrapS = cloudTex.wrapT = THREE.RepeatWrapping; cloudTex.repeat.set(3, 3);
+  const cloudMat = new THREE.MeshBasicMaterial({map: cloudTex, transparent: true, opacity: 0, depthWrite: false, fog: false, toneMapped: false, side: THREE.DoubleSide});
+  const clouds = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), cloudMat);
+  clouds.rotation.x = -Math.PI / 2; clouds.renderOrder = -7; clouds.frustumCulled = false; clouds.visible = false; scene.add(clouds);
+
   const S = {zen: new THREE.Color(), mid: new THREE.Color(), hor: new THREE.Color(), band: new THREE.Color(), sun: new THREE.Color()};
-  const _oc = new THREE.Color(), _tmp = new THREE.Color(), _v = new THREE.Vector3();
-  let lastSig = '';
+  const _oc = new THREE.Color(), _tmp = new THREE.Color(), _v = new THREE.Vector3(), _cloudWhite = new THREE.Color(0xffffff);
+  let lastSig = '', lastCloud = 0;
   const sunDir = new THREE.Vector3(0, 1, 0), moonDir = new THREE.Vector3(0, -1, 0);
 
   function colors(elev, w, tint) {
@@ -122,12 +146,18 @@ export function createSky({scene}) {
     moonSprite.material.opacity = 0.95 * moonUp;
     const starUp = sstep(2, -6, elev) * clamp(1 - w.overcast * 0.9, 0, 1) * (1 - w.dark * 0.6);
     starMat.opacity = starUp; stars.visible = starUp > 0.02;
+    cloudMat.opacity = Math.min(0.9, w.overcast * 0.9);
+    cloudMat.color.copy(tint).lerp(_cloudWhite, 0.55);
+    clouds.visible = cloudMat.opacity > 0.02;
     follow(cam);
   }
 
   function follow(cam) {
     dome.position.copy(cam);
     stars.position.copy(cam);
+    const now = performance.now(), cdt = Math.min(0.1, (now - lastCloud) / 1000); lastCloud = now;
+    cloudTex.offset.x += cdt * 0.004;
+    clouds.position.set(cam.x, cam.y + 420, cam.z);
     sunSprite.visible = sunSprite.material.opacity > 0.01;
     moonSprite.visible = moonSprite.material.opacity > 0.01;
     sunSprite.position.copy(cam).addScaledVector(sunDir, R * 0.92);
