@@ -63,5 +63,8 @@ export async function createPhysicsModule(){
     }
   }
   function bindObject(o){const e=entries.get(key(o));if(e)e.object=o}
-  return {world,attach(o,type){attach(o,type);bindObject(o)},remove,setEnabled(o,on,type){setEnabled(o,on,type);bindObject(o)},setType(o,type){setType(o,type);bindObject(o)},syncObjectToBody,beginControl,endControl,drive,step,autoType,has:o=>entries.has(key(o))};
+  let hf=null;
+  function setTerrainWindow(cfg){clearTerrainWindow();if(!cfg)return;try{const rb=RAPIER.RigidBodyDesc.fixed().setTranslation(cfg.position.x,cfg.position.y,cfg.position.z);const body=world.createRigidBody(rb);const desc=RAPIER.ColliderDesc.heightfield(cfg.rows,cfg.cols,cfg.heights,cfg.scale);desc.setFriction(.9).setRestitution(.03);const collider=world.createCollider(desc,body);hf={body,collider}}catch(err){console.warn('terrain window failed',err)}}
+  function clearTerrainWindow(){if(!hf)return;try{world.removeRigidBody(hf.body)}catch(err){}hf=null}
+  return {world,attach(o,type){attach(o,type);bindObject(o)},remove,setEnabled(o,on,type){setEnabled(o,on,type);bindObject(o)},setType(o,type){setType(o,type);bindObject(o)},syncObjectToBody,beginControl,endControl,drive,step,autoType,setTerrainWindow,clearTerrainWindow,has:o=>entries.has(key(o))};
 }
