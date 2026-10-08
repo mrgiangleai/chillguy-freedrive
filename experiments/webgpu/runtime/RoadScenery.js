@@ -4,7 +4,7 @@ import * as THREE from 'three/webgpu';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
 
-export function buildRoadScenery(path, {to = 260, halfWidth = 4.6, shoulder = 1.4} = {}) {
+export function buildRoadScenery(path, {to = 260, halfWidth = 4.6, shoulder = 1.4, lights = false, lightSide = 'both'} = {}) {
   const g = new THREE.Group();
   const edge = halfWidth + shoulder - 0.25;
 
@@ -60,21 +60,25 @@ export function buildRoadScenery(path, {to = 260, halfWidth = 4.6, shoulder = 1.
     g.add(railBeams);
   }
 
-  // --- street lights on the right ---
-  const poleGeo = new THREE.CylinderGeometry(0.09, 0.11, 6, 8);
-  const armGeo = new THREE.BoxGeometry(1.4, 0.12, 0.12);
-  const headGeo = new THREE.BoxGeometry(0.5, 0.16, 0.3);
-  const poleMat = new THREE.MeshStandardMaterial({color: 0x6b7075, metalness: .5, roughness: .5});
-  const lampMat = new THREE.MeshStandardMaterial({color: 0xfff2c8, emissive: 0xffd98a, emissiveIntensity: 1.2, roughness: .4});
-  const lightStep = 45, lo = halfWidth + shoulder + 0.5;
-  for (let s = lightStep / 2; s <= to; s += lightStep) {
-    const p = path.at(s), rx = Math.cos(p.th), rz = -Math.sin(p.th), x = p.x + rx * lo, z = p.z + rz * lo;
-    const pole = new THREE.Mesh(poleGeo, poleMat); pole.position.set(x, p.y + 3, z);
-    const dirx = -rx, dirz = -rz;
-    const arm = new THREE.Mesh(armGeo, poleMat); arm.position.set(x + dirx * 0.7, p.y + 5.95, z + dirz * 0.7);
-    arm.rotation.y = Math.atan2(dirx, dirz) + Math.PI / 2;
-    const head = new THREE.Mesh(headGeo, lampMat); head.position.set(x + dirx * 1.35, p.y + 5.85, z + dirz * 1.35);
-    g.add(pole, arm, head);
+  // --- street lights (spacing from the request: 200 m/side staggered, or 150 m one side) ---
+  if (lights) {
+    const poleGeo = new THREE.CylinderGeometry(0.09, 0.11, 6, 8);
+    const armGeo = new THREE.BoxGeometry(1.4, 0.12, 0.12);
+    const headGeo = new THREE.BoxGeometry(0.5, 0.16, 0.3);
+    const poleMat = new THREE.MeshStandardMaterial({color: 0x6b7075, metalness: .5, roughness: .5});
+    const lampMat = new THREE.MeshStandardMaterial({color: 0xfff2c8, emissive: 0xffd98a, emissiveIntensity: 1.2, roughness: .4});
+    const lo = halfWidth + shoulder + 0.6;
+    const place = (s, side) => {
+      const p = path.at(s), rx = Math.cos(p.th), rz = -Math.sin(p.th), x = p.x + rx * side * lo, z = p.z + rz * side * lo;
+      const dirx = -side * rx, dirz = -side * rz;
+      const pole = new THREE.Mesh(poleGeo, poleMat); pole.position.set(x, p.y + 3, z);
+      const arm = new THREE.Mesh(armGeo, poleMat); arm.position.set(x + dirx * 0.7, p.y + 5.95, z + dirz * 0.7);
+      arm.rotation.y = Math.atan2(dirx, dirz) + Math.PI / 2;
+      const head = new THREE.Mesh(headGeo, lampMat); head.position.set(x + dirx * 1.35, p.y + 5.85, z + dirz * 1.35);
+      g.add(pole, arm, head);
+    };
+    if (lightSide === 'one') { for (let s = 0; s <= to; s += 150) place(s, 1); }
+    else { let k = 0; for (let s = 0; s <= to; s += 100) { place(s, k % 2 === 0 ? 1 : -1); k++; } }
   }
 
   g.userData.scenery = true;

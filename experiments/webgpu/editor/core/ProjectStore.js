@@ -23,6 +23,7 @@ export function createProjectStore({loadProject, saveProject, flushProject}) {
     st.placed ??= [];
     if (!st.libraryModeV1) { st.placed = []; st.libraryModeV1 = true; }
     st.land ??= 'land';
+    st.landTab ??= 'land';
     st.traffic ??= {enabled: false, count: 4, minSpeed: 8, maxSpeed: 22};
     st.audio ??= {enabled: false, volume: .6};
     st.driver ??= {characterId: null, vehicleId: null, clip: 0, preview: false, cam: false};
