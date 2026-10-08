@@ -11,6 +11,7 @@ import {createRoadModule} from './editor/modules/RoadModule.js';
 import {createDriveModule} from './editor/modules/DriveModule.js';
 import {createRoadPath, ROAD} from './runtime/RoadPath.js';
 import {buildRoadGeometry} from './runtime/RoadMeshBuilder.js';
+import {buildRoadScenery} from './runtime/RoadScenery.js';
 import {createDriveController, SPEED_TIERS} from './runtime/DriveController.js';
 import {createVehicleCameraRig} from './runtime/VehicleCameraRig.js';
 import {createCharacterController} from './editor/modules/CharacterController.js';
@@ -47,7 +48,7 @@ function setStreamMap(id){if(streamer)streamer.setMap(id);else streamer=createTe
 function stopStream(){if(streamer){streamer.dispose();streamer=null}state.streamTerrain=null;ground.visible=true;if(state.road)regenRoad();else{autosave();renderEditor()}}
 let roadObject=null,roadPath=null,driving=false,driveStart=null;const driveKeys=new Set(),driveController=createDriveController(),vehicleCam=createVehicleCameraRig({camera,controls});
 function makeRoadPath(){roadPath=createRoadPath({step:ROAD.step,heightAt:(x,z)=>streamer?streamer.heightAt(x,z):0.06});roadPath.halfWidth=state.road.halfWidth;return roadPath}
-function buildRoadObject(){const r=state.road;makeRoadPath();const g=buildRoadGeometry(roadPath,{to:r.length,step:2,halfWidth:r.halfWidth,shoulder:r.shoulder||1.4,dirt:!!r.dirt});g.userData.editor={id:r.id,name:t('roadTitle'),category:'landscape',builtin:true,road:true};register(g,g.userData.editor);restoreObjectState(g);roadObject=g;if(streamer){streamer.setRoad(roadPath,state.road.length,state.road.halfWidth);streamer.update(camera)}road.visible=false}
+function buildRoadObject(){const r=state.road;makeRoadPath();const g=buildRoadGeometry(roadPath,{to:r.length,step:2,halfWidth:r.halfWidth,shoulder:r.shoulder||1.4,dirt:!!r.dirt});g.add(buildRoadScenery(roadPath,{to:r.length,halfWidth:r.halfWidth,shoulder:r.shoulder||1.4}));g.userData.editor={id:r.id,name:t('roadTitle'),category:'landscape',builtin:true,road:true};register(g,g.userData.editor);restoreObjectState(g);roadObject=g;if(streamer){streamer.setRoad(roadPath,state.road.length,state.road.halfWidth);streamer.update(camera)}road.visible=false}
 function removeRoadObject(){if(!roadObject)return;removeObjectLightHelpers(roadObject,false);physics.remove(roadObject);scene.remove(roadObject);dispose(roadObject);const i=objects.indexOf(roadObject);if(i>=0)objects.splice(i,1);roadObject=null;road.visible=true}
 function createRoad(){if(state.road){if(roadObject)select(roadObject);return}state.road={id:'road-'+Date.now(),length:260,halfWidth:ROAD.halfWidth,shoulder:1.4,dirt:false};buildRoadObject();select(roadObject);autosave();renderEditor()}
 function regenRoad(){if(!state.road)return;const tr=roadObject?roadObject.position.clone():null,rr=roadObject?roadObject.rotation.clone():null;removeRoadObject();buildRoadObject();if(tr){roadObject.position.copy(tr);roadObject.rotation.copy(rr);snapshotObject(roadObject)}autosave();renderEditor()}
