@@ -96,7 +96,12 @@ export function createTerrainStreamer({scene, size = 2400, segments = 240, mapId
   function setMap(id) { if (!TERRAIN_MAPS[id]) return; map = id; loadPalette(); cx = cz = Infinity; }
   function setRoad(p, len, half) { road = p; roadLen = len || 0; roadHalf = half || 4.6; cx = cz = Infinity; if (p) p.at(roadLen); }
   function dispose() { scene.remove(mesh); geo.dispose(); mat.dispose(); }
-  function heightAt(x, z) { return height(x, z); }
+  function heightAt(x, z) {
+    let h = height(x, z);
+    const d = Math.abs(x);
+    if (d > mountStart) h += mountains(x, z) * Math.min(1, (d - mountStart) / (mountFull - mountStart));
+    return h;
+  }
 
   loadPalette();
   setTerrainMap(map);

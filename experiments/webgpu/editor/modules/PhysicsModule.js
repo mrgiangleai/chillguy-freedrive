@@ -66,5 +66,14 @@ export async function createPhysicsModule(){
   let hf=null;
   function setTerrainWindow(cfg){clearTerrainWindow();if(!cfg)return;try{const rb=RAPIER.RigidBodyDesc.fixed().setTranslation(cfg.position.x,cfg.position.y,cfg.position.z);const body=world.createRigidBody(rb);const desc=RAPIER.ColliderDesc.heightfield(cfg.rows,cfg.cols,cfg.heights,cfg.scale);desc.setFriction(.9).setRestitution(.03);const collider=world.createCollider(desc,body);hf={body,collider}}catch(err){console.warn('terrain window failed',err)}}
   function clearTerrainWindow(){if(!hf)return;try{world.removeRigidBody(hf.body)}catch(err){}hf=null}
-  return {world,attach(o,type){attach(o,type);bindObject(o)},remove,setEnabled(o,on,type){setEnabled(o,on,type);bindObject(o)},setType(o,type){setType(o,type);bindObject(o)},syncObjectToBody,beginControl,endControl,drive,step,autoType,setTerrainWindow,clearTerrainWindow,has:o=>entries.has(key(o))};
+  // Safety net: never let a dynamic body sink below the landscape surface, even
+  // outside the finite heightfield window (the default Land is "infinite").
+  function clampToTerrain(heightAt){
+    for(const e of entries.values()){
+      if(e.type!=='dynamic'||!e.object||!e.body.isDynamic())continue;
+      const o=e.object,gy=heightAt(o.position.x,o.position.z);
+      if(o.position.y<gy){o.position.y=gy;const off=e.offset.clone().applyQuaternion(o.quaternion);e.body.setTranslation({x:o.position.x+off.x,y:o.position.y+off.y,z:o.position.z+off.z},true);const v=e.body.linvel();e.body.setLinvel({x:v.x,y:Math.max(0,v.y),z:v.z},true)}
+    }
+  }
+  return {world,attach(o,type){attach(o,type);bindObject(o)},remove,setEnabled(o,on,type){setEnabled(o,on,type);bindObject(o)},setType(o,type){setType(o,type);bindObject(o)},syncObjectToBody,beginControl,endControl,drive,step,autoType,setTerrainWindow,clearTerrainWindow,clampToTerrain,has:o=>entries.has(key(o))};
 }
