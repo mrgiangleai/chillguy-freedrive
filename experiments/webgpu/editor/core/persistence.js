@@ -12,12 +12,16 @@ let mode = 'local'; // 'server' | 'local'
 let probe = null;
 let rev = 0;          // server revision this tab has loaded/saved
 let remoteStale = false;
-let projectId = localStorage.getItem('wgpuSandbox.project') || null;
+const ENTER_KEY = 'wgpuSandbox.entered';
+function entered() { try { return sessionStorage.getItem(ENTER_KEY) === '1'; } catch (err) { return false; } }
+// On a fresh tab/window we always land on the projects screen: the remembered
+// project is only auto-loaded after the user has explicitly entered one.
+let projectId = entered() ? (localStorage.getItem('wgpuSandbox.project') || null) : null;
 
 const q = () => projectId ? ('?project=' + encodeURIComponent(projectId)) : '';
 export function currentProject() { return projectId; }
-export function setProject(id) { projectId = id || null; if (projectId) localStorage.setItem('wgpuSandbox.project', projectId); else localStorage.removeItem('wgpuSandbox.project'); probe = null; rev = 0; }
-export function clearProject() { projectId = null; localStorage.removeItem('wgpuSandbox.project'); probe = null; rev = 0; }
+export function setProject(id) { projectId = id || null; try { if (projectId) { localStorage.setItem('wgpuSandbox.project', projectId); sessionStorage.setItem(ENTER_KEY, '1'); } else { localStorage.removeItem('wgpuSandbox.project'); } } catch (err) { /* ignore */ } probe = null; rev = 0; }
+export function clearProject() { projectId = null; try { localStorage.removeItem('wgpuSandbox.project'); sessionStorage.removeItem(ENTER_KEY); } catch (err) { /* ignore */ } probe = null; rev = 0; }
 export async function listProjects() { try { const r = await fetch('/api/projects', {cache: 'no-store'}); if (r.ok) return await r.json(); } catch (err) { /* ignore */ } return []; }
 export async function createProject(name) { try { const r = await fetch('/api/projects', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name})}); if (r.ok) return await r.json(); } catch (err) { /* ignore */ } return null; }
 export async function renameProject(id, name) { try { const r = await fetch('/api/projects', {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id, name})}); if (r.ok) return await r.json(); } catch (err) { /* ignore */ } return null; }
@@ -49,7 +53,7 @@ export function storageMode() { return mode; }
 /** Load the project (server first, then local cache). */
 export async function loadProject() {
   await (probe || (probe = probeServer()));
-  if (!projectId) { try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch (err) { return {}; } }
+  if (!projectId) return {};
   if (mode === 'server') {
     try {
       const r = await fetch('/api/project' + q(), {cache: 'no-store'});
@@ -68,6 +72,7 @@ export async function loadProject() {
 
 /** Save the project (local cache always; shared store when available). */
 export function saveProject(state) {
+  if (!projectId) return;
   const json = JSON.stringify(state);
   try { localStorage.setItem(LS_KEY, json); } catch (err) { /* ignore */ }
   if (mode === 'server') {
@@ -85,6 +90,7 @@ export function saveProject(state) {
 
 /** Best-effort flush during page unload (respects revision via query). */
 export function flushProject(state) {
+  if (!projectId) return;
   const json = JSON.stringify(state);
   try { localStorage.setItem(LS_KEY, json); } catch (err) { /* ignore */ }
   if (mode === 'server' && typeof navigator !== 'undefined' && navigator.sendBeacon) {

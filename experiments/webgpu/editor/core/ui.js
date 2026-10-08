@@ -189,6 +189,10 @@ body.theatre #driveHud{display:none!important}
 .catThumb{display:grid;place-items:center;width:100%;height:52px;border-radius:7px;background:#00000040;color:#cfd8de}
 #saveStatus{position:fixed;left:14px;bottom:14px;z-index:9;padding:4px 10px;border-radius:999px;background:rgb(var(--ui-bg-rgb) / var(--ui-bar-a));border:1px solid var(--ui-line);color:var(--ui-fg-dim);font:11px system-ui;backdrop-filter:blur(8px);opacity:.55;transition:opacity .3s,color .3s;pointer-events:none}
 #saveStatus.on{opacity:1;color:#7ee0a1;border-color:#7ee0a166}
+#backToProjects{position:fixed;left:14px;bottom:44px;z-index:9;height:30px;padding:0 12px;border:1px solid var(--ui-line);border-radius:999px;background:rgb(var(--ui-bg-rgb) / var(--ui-bar-a));color:var(--ui-fg);font:var(--ui-font);display:inline-flex;align-items:center;gap:6px;backdrop-filter:blur(8px);cursor:pointer}
+#backToProjects:hover{border-color:var(--ui-accent);background:#ffffff1c;color:#fff}
+#backToProjects .ico{width:14px;height:14px}
+body.theatre #backToProjects{display:none!important}
 body.theatre #saveStatus{display:none!important}
 .panelHead{padding-bottom:6px;margin-bottom:8px}
 #editor,#customize,#uicfg,#keys,#projects,#catalog,#toast,#driveHud,#saveStatus,#hud{user-select:none;-webkit-user-select:none}
