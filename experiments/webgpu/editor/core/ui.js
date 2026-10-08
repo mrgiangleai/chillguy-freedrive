@@ -71,6 +71,8 @@ input[type=range]{accent-color:var(--ui-accent)}
 .libbtns{position:relative;z-index:2;display:flex;gap:4px;flex-wrap:wrap}
 .libbtns button{height:22px;padding:0 7px;font-size:10.5px;border:1px solid var(--ui-line);border-radius:5px;background:#ffffff12;color:var(--ui-fg)}
 .libbtns button:hover{background:#ffffff22}
+.libbtns button.danger{color:#ffb3ad;border-color:#ff6b6b55}
+.libbtns button.danger:hover{background:#ff6b6b22;border-color:#ff6b6b}
 .fxstack{display:flex;flex-direction:column;gap:8px;margin:6px 0}
 .fxcard{border:1px solid var(--ui-line);border-radius:10px;background:#ffffff0a;padding:8px}
 .fxcard.off{opacity:.58}
