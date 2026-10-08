@@ -42,6 +42,7 @@ export const ICONS = {
   lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   unlock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-1.9"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M19.1 4.9l-2.1 2.1M6.9 17.1l-2.1 2.1"/>',
+  road: '<path d="M6 3 4 21M18 3l2 18"/><path d="M12 4v3m0 5v3m0 5v3"/>',
   theatre: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
   world: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
   brush: '<path d="M14 4l6 6-8 8H6v-6l8-8Z"/><path d="M6 18l-3.5 3.5"/>',
