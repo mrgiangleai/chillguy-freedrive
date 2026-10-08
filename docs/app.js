@@ -4516,7 +4516,8 @@ roughnessFactor = mix(roughnessFactor, 0.88, vGarment.a);`).replace("mapN.xy *= 
   varying float vGlow;
   void main() {
     float d = length(gl_PointCoord - 0.5) * 2.0;
-    float core = smoothstep(0.22, 0.0, d), halo = exp(-d * d * 6.0) * 0.5;
+    // lõi nhỏ (bằng nửa trước), quầng rộng + mờ dần về 0 ở mép điểm (nhoè, không lộ khung vuông)
+    float core = smoothstep(0.11, 0.0, d), halo = exp(-d * d * 3.5) * max(0.0, 1.0 - d * d) * 0.45;
     float a = (core + halo) * vGlow * uAmt;
     if (a < 0.003) discard;
     gl_FragColor = vec4(uColor * a, 1.0);
