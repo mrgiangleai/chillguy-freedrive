@@ -24,9 +24,10 @@ export function createCharacterController({camera,controls,canvas,physics}){
     const orientation=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(new THREE.Vector3(),forward,up));
     const correction=anchor?anchor.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(orientation):null;
     rig={object,view,height,head,eyes,anchor,correction,localForward,offset:object.worldToLocal(box.getCenter(new THREE.Vector3()).setY(box.min.y+height*.78)),snap:true};
-    physics.beginControl(object,height,localForward);clearInput();controls.enabled=false;canvas.tabIndex=0;canvas.focus();
+    try{physics.beginControl(object,height,localForward)}catch(err){console.warn('character physics failed',err)}
+    clearInput();controls.enabled=false;canvas.tabIndex=0;canvas.focus();
   }
-  function input(dt){if(!rig)return;controls.enabled=false;physics.drive(rig.object,(keys.has('KeyW')?1:0)-(keys.has('KeyS')?1:0),(keys.has('KeyQ')?1:0)-(keys.has('KeyE')?1:0),jump);jump=false}
+  function input(dt){if(!rig)return;controls.enabled=false;const f=(keys.has('KeyW')?1:0)-(keys.has('KeyS')?1:0),t=(keys.has('KeyQ')?1:0)-(keys.has('KeyE')?1:0);if(physics.has&&physics.has(rig.object)){physics.drive(rig.object,f,t,jump)}else{const fwd=rig.localForward.clone().applyQuaternion(rig.object.quaternion).setY(0).normalize();rig.object.position.addScaledVector(fwd,f*4*dt);rig.object.rotation.y+=t*2.2*dt}jump=false}
   function updateCamera(dt){
     if(!rig)return;
     const {object,height,head,eyes,anchor,correction,localForward}=rig;
