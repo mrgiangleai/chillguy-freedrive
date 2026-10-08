@@ -29,14 +29,14 @@ export function installEditorStyles() {
   --ui-fg:#e8eaec;--ui-fg-dim:#aab3ba;--ui-accent:#ff9a3c;
   --ui-btn:28px;--ui-rail:44px;--ui-font:12px system-ui;
 }
-#customize{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:7;display:flex;flex-direction:row;align-items:center;gap:6px;padding:6px;width:max-content;max-width:calc(100vw - 24px);background:rgb(var(--ui-bg-rgb) / var(--ui-bar-a));border:1px solid var(--ui-line);border-radius:14px;font:var(--ui-font);color:var(--ui-fg);backdrop-filter:blur(8px)}
-.toolrail{display:flex;flex-direction:row;flex-wrap:wrap;justify-content:center;gap:4px}
-.tooltab{min-width:62px;height:48px;padding:2px 10px;border:1px solid var(--ui-line);border-radius:10px;background:#ffffff0d;color:#dae0e4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:.15s}
-.tooltab span{font-size:10px;line-height:1;letter-spacing:.2px;opacity:1;white-space:nowrap}
+#customize{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:7;display:flex;flex-direction:row;align-items:center;gap:8px;padding:8px;width:min(1120px,calc(100vw - 24px));background:rgb(var(--ui-bg-rgb) / var(--ui-bar-a));border:1px solid var(--ui-line);border-radius:16px;font:var(--ui-font);color:var(--ui-fg);backdrop-filter:blur(8px)}
+.toolrail{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));grid-auto-rows:auto;gap:8px;width:100%}
+.tooltab{min-width:0;height:54px;padding:4px 6px;border:1px solid var(--ui-line);border-radius:11px;background:#ffffff0d;color:#dae0e4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;transition:.15s}
+.tooltab span{font-size:11px;line-height:1;letter-spacing:.2px;opacity:1;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .tooltab:hover{background:#ffffff14;color:#fff}
 .tooltab.on{background:#666a;border-color:var(--ui-accent);color:#fff;box-shadow:0 0 0 1px #ff9a3c55}
 .ico{display:inline-block;vertical-align:-3px;flex:none;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-.tooltab .ico{width:20px;height:20px}
+.tooltab .ico{width:22px;height:22px}
 #afBox{position:fixed;z-index:8;width:34px;height:24px;pointer-events:none;transform:translate(-50%,-50%);opacity:0;transition:opacity .12s}
 #afBox:before,#afBox:after{content:'';position:absolute;inset:0;border-left:2px solid #bfffc8;border-right:2px solid #bfffc8}
 #afBox:before{clip-path:polygon(0 0,35% 0,35% 2px,0 2px,0 100%,35% 100%,35% calc(100% - 2px),0 calc(100% - 2px))}
@@ -45,9 +45,9 @@ button{cursor:pointer;font:inherit;color:inherit}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ui-accent);outline-offset:1px}
 input[type=range]{accent-color:var(--ui-accent)}
 #editBtn{background:#111e;color:#fff;border:1px solid var(--ui-line-hi);padding:8px 12px;border-radius:var(--ui-radius)}
-#editor{position:fixed;left:0;right:0;top:10px;bottom:76px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:0 12px;pointer-events:none;overflow:visible;color:var(--ui-fg);font:var(--ui-font)}
+#editor{position:fixed;left:0;right:0;top:10px;bottom:150px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:0 12px;pointer-events:none;overflow:visible;color:var(--ui-fg);font:var(--ui-font)}
 #editor[hidden]{display:none!important}
-#editor .library,#editor .inspector{position:fixed;pointer-events:auto;width:300px;max-height:calc(100vh - 96px);overflow:auto;background:rgb(var(--ui-panel-rgb) / var(--ui-panel-a));padding:10px;border-radius:var(--ui-radius);backdrop-filter:blur(8px);box-shadow:0 8px 24px #0007}
+#editor .library,#editor .inspector{position:fixed;pointer-events:auto;width:300px;max-height:calc(100vh - 176px);overflow:auto;background:rgb(var(--ui-panel-rgb) / var(--ui-panel-a));padding:10px;border-radius:var(--ui-radius);backdrop-filter:blur(8px);box-shadow:0 8px 24px #0007}
 #editor .library:empty,#editor .inspector:empty{display:none}
 .panelHead{margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid var(--ui-line);cursor:move;user-select:none;-webkit-user-select:none}
 .panelHead small{display:block;color:var(--ui-fg-dim);margin-top:2px}
@@ -187,9 +187,9 @@ body.theatre #driveHud{display:none!important}
 .catItem span{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .catTag{position:absolute;top:12px;right:12px;font:600 9px system-ui;font-style:normal;background:#ff9a3ccc;color:#1a1206;padding:1px 5px;border-radius:999px}
 .catThumb{display:grid;place-items:center;width:100%;height:52px;border-radius:7px;background:#00000040;color:#cfd8de}
-#saveStatus{position:fixed;left:14px;bottom:14px;z-index:9;padding:4px 10px;border-radius:999px;background:rgb(var(--ui-bg-rgb) / var(--ui-bar-a));border:1px solid var(--ui-line);color:var(--ui-fg-dim);font:11px system-ui;backdrop-filter:blur(8px);opacity:.55;transition:opacity .3s,color .3s;pointer-events:none}
+#saveStatus{position:fixed;left:126px;top:16px;bottom:auto;z-index:9;padding:4px 10px;border-radius:999px;background:rgb(var(--ui-bg-rgb) / var(--ui-bar-a));border:1px solid var(--ui-line);color:var(--ui-fg-dim);font:11px system-ui;backdrop-filter:blur(8px);opacity:.55;transition:opacity .3s,color .3s;pointer-events:none}
 #saveStatus.on{opacity:1;color:#7ee0a1;border-color:#7ee0a166}
-#backToProjects{position:fixed;left:14px;bottom:44px;z-index:9;height:30px;padding:0 12px;border:1px solid var(--ui-line);border-radius:999px;background:rgb(var(--ui-bg-rgb) / var(--ui-bar-a));color:var(--ui-fg);font:var(--ui-font);display:inline-flex;align-items:center;gap:6px;backdrop-filter:blur(8px);cursor:pointer}
+#backToProjects{position:fixed;left:12px;top:12px;bottom:auto;z-index:10;height:30px;padding:0 12px;border:1px solid var(--ui-line);border-radius:999px;background:rgb(var(--ui-bg-rgb) / var(--ui-bar-a));color:var(--ui-fg);font:var(--ui-font);display:inline-flex;align-items:center;gap:6px;backdrop-filter:blur(8px);cursor:pointer}
 #backToProjects:hover{border-color:var(--ui-accent);background:#ffffff1c;color:#fff}
 #backToProjects .ico{width:14px;height:14px}
 body.theatre #backToProjects{display:none!important}

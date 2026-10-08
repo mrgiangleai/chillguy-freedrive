@@ -39,7 +39,7 @@ Editor + runtime WebGPU/TSL + Rapier (Vite), tách khỏi game chính. Đang là
 - **UI-first + model lazy**: UI dựng ngay; 6 model test mặc định `unloaded` → chỉ Ground/Road khi mở; tile "Load" + nút "Tải tất cả model test" theo mode.
 - **Tự lưu**: mọi thay đổi (object, đèn, vật liệu, terrain mesh, import GLB, scene/camera/DOF, effects, layers) + flush khi thoát. Lưu cả localStorage lẫn server.
 - **Server lưu chung + chống đè**: có `rev`/conflict (409); tab cũ không ghi đè bản mới; tab tự reload khi có thay đổi từ trình duyệt khác (không realtime tức thời).
-- **UI kiểu Lumion**: mode bar ở đáy (icon + nhãn) + nút **UI** (chỉnh độ mờ/màu nền/màu chữ) + **Theatre** (H) ẩn UI; **library trái** (lưới thumbnail + search) / **inspector phải**; **Effects stack** (thêm/bật-tắt/đổi thứ tự/xoá); **placement Move/Rotate/Scale** + Layers; panel **kéo-thả, snap 2 chiều, không đè** (hẹp thì tự xếp dọc).
+- **UI kiểu Lumion**: mode bar ở đáy (icon + nhãn) + nút **UI** (chỉnh độ mờ/màu nền/màu chữ) + **Theatre** (H) ẩn UI; **library trái** (lưới thumbnail + search) / **inspector phải**; **Effects stack** (thêm/bật-tắt/đổi thứ tự/xoá); **placement Move/Rotate/Scale** + Layers; panel **kéo-thả, snap 2 chiều, không đè** (hẹp thì tự xếp dọc). **Bố cục mới**: nút **← Projects** + trạng thái **Đã lưu** ở **góc trên-trái** (`top:12/16`); **rail đáy = 2 hàng × 10 cột**, nút lớn hơn (min 66→ cột ~90px × **54px**, icon 22, gap 8, khung rộng `min(1120px, 100vw-24px)`); `#editor` bottom **150px**, panel max-height `calc(100vh - 176px)`, library mặc định `y=58` cho khỏi đè nút trên.
 - Đã sửa lỗi handler thiếu: `objectCamera`, `selectModelTransform`.
 
 ## Commit gần đây
