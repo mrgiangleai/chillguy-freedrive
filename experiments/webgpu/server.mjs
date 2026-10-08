@@ -3,7 +3,7 @@
 // browser/tab on this machine sees the same state.
 // Run: node server.mjs   (open http://localhost:4173)
 import http from 'node:http';
-import {createReadStream, existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync, readdirSync} from 'node:fs';
+import {createReadStream, existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync, readdirSync, rmSync, cpSync} from 'node:fs';
 import {extname, join, normalize, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -52,17 +52,32 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/projects') {
       if (req.method === 'GET') {
         const out = [];
-        if (existsSync(join(STORE, 'project.json'))) { const m = metaOf(STORE, 'default'); out.push({id: 'default', name: m.name || 'Default', updatedAt: m.updatedAt || 0}); }
+        if (existsSync(join(STORE, 'project.json'))) { const m = metaOf(STORE, 'default'); out.push({id: 'default', name: m.name || 'Default', updatedAt: m.updatedAt || 0, thumb: m.thumb || null}); }
         if (existsSync(PROJECTS)) for (const d of readdirSync(PROJECTS)) {
           const pd = join(PROJECTS, d);
-          if (existsSync(join(pd, 'project.json'))) { const m = metaOf(pd, d); out.push({id: m.id || d, name: m.name || d, updatedAt: m.updatedAt || 0}); }
+          if (existsSync(join(pd, 'project.json'))) { const m = metaOf(pd, d); out.push({id: m.id || d, name: m.name || d, updatedAt: m.updatedAt || 0, thumb: m.thumb || null}); }
         }
+        out.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
         return send(res, 200, JSON.stringify(out), 'application/json');
       }
       if (req.method === 'POST') {
         const raw = (await readBody(req)).toString();
         const body = raw ? JSON.parse(raw) : {};
         const name = String(body.name || 'Project').slice(0, 60);
+        // duplicate an existing project (copies state, blobs, meshes and thumbnail)
+        if (body.duplicate && body.id) {
+          const src = projDir(body.id);
+          if (!existsSync(join(src, 'project.json'))) return send(res, 404, 'no source');
+          const pid = 'p-' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+          const pd = projDir(pid); mkdirSync(pd, {recursive: true});
+          for (const it of ['project.json', 'rev.txt', 'thumb.png', 'blobs', 'meshes']) {
+            const s = join(src, it);
+            if (existsSync(s)) cpSync(s, join(pd, it), {recursive: true});
+          }
+          const sm = metaOf(src, body.id);
+          writeFileSync(join(pd, 'meta.json'), JSON.stringify({id: pid, name, updatedAt: Date.now(), thumb: sm.thumb || null}));
+          return send(res, 200, JSON.stringify({id: pid, name}), 'application/json');
+        }
         const pid = 'p-' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
         const pd = projDir(pid); ensureDir(pd);
         writeFileSync(join(pd, 'meta.json'), JSON.stringify({id: pid, name, updatedAt: Date.now()}));
@@ -70,6 +85,31 @@ const server = http.createServer(async (req, res) => {
         writeFileSync(join(pd, 'rev.txt'), '0');
         return send(res, 200, JSON.stringify({id: pid, name}), 'application/json');
       }
+      if (req.method === 'PATCH') { // rename
+        const raw = (await readBody(req)).toString();
+        const body = raw ? JSON.parse(raw) : {};
+        const target = projDir(body.id || '');
+        if (!body.id || !existsSync(join(target, 'project.json'))) return send(res, 404, 'not found');
+        const m = metaOf(target, body.id);
+        m.name = String(body.name || m.name || 'Project').slice(0, 60);
+        m.updatedAt = Date.now();
+        writeFileSync(join(target, 'meta.json'), JSON.stringify(m));
+        return send(res, 200, JSON.stringify({id: body.id, name: m.name}), 'application/json');
+      }
+      if (req.method === 'DELETE') {
+        const did = url.searchParams.get('id');
+        if (!did || did === 'default') return send(res, 400, 'cannot delete');
+        const target = projDir(did);
+        if (existsSync(target)) rmSync(target, {recursive: true, force: true});
+        return send(res, 200, 'ok');
+      }
+      return send(res, 405, 'method');
+    }
+    if (p === '/api/thumb') { // project thumbnail (raw image bytes)
+      const td = projDir(id); const f = join(td, 'thumb.png');
+      if (req.method === 'GET') return existsSync(f) ? send(res, 200, readFileSync(f), 'image/png') : send(res, 404, '');
+      if (req.method === 'PUT' || req.method === 'POST') { const bytes = await readBody(req); if (bytes.length > 2 * 1024 * 1024) return send(res, 413, 'too large'); writeFileSync(f, bytes); try { const mf = join(td, 'meta.json'); const m = existsSync(mf) ? JSON.parse(readFileSync(mf, 'utf8')) : {}; m.thumb = readFileSync(f).toString('base64'); m.updatedAt = Date.now(); writeFileSync(mf, JSON.stringify(m)); } catch (e) { /* ignore */ } return send(res, 200, 'ok'); }
+      if (req.method === 'DELETE') { if (existsSync(f)) unlinkSync(f); return send(res, 200, 'ok'); }
       return send(res, 405, 'method');
     }
     if (p === '/api/project') {

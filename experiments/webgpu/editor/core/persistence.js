@@ -20,6 +20,17 @@ export function setProject(id) { projectId = id || null; if (projectId) localSto
 export function clearProject() { projectId = null; localStorage.removeItem('wgpuSandbox.project'); probe = null; rev = 0; }
 export async function listProjects() { try { const r = await fetch('/api/projects', {cache: 'no-store'}); if (r.ok) return await r.json(); } catch (err) { /* ignore */ } return []; }
 export async function createProject(name) { try { const r = await fetch('/api/projects', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name})}); if (r.ok) return await r.json(); } catch (err) { /* ignore */ } return null; }
+export async function renameProject(id, name) { try { const r = await fetch('/api/projects', {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id, name})}); if (r.ok) return await r.json(); } catch (err) { /* ignore */ } return null; }
+export async function deleteProject(id) { try { const r = await fetch('/api/projects?id=' + encodeURIComponent(id), {method: 'DELETE'}); if (r.ok) return true; } catch (err) { /* ignore */ } return false; }
+export async function duplicateProject(id, name) { try { const r = await fetch('/api/projects', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id, duplicate: true, name})}); if (r.ok) return await r.json(); } catch (err) { /* ignore */ } return null; }
+export async function putProjectThumb(id, dataURL) {
+  try {
+    const blob = await (await fetch(dataURL)).blob();
+    await fetch('/api/thumb?project=' + encodeURIComponent(id), {method: 'PUT', headers: {'Content-Type': 'image/png'}, body: blob});
+    return true;
+  } catch (err) { /* ignore */ }
+  return false;
+}
 
 async function probeServer() {
   if (!projectId) { mode = 'local'; return mode; }

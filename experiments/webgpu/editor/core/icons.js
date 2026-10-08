@@ -47,6 +47,7 @@ export const ICONS = {
   theatre: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
   world: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
   brush: '<path d="M14 4l6 6-8 8H6v-6l8-8Z"/><path d="M6 18l-3.5 3.5"/>',
+  pencil: '<path d="M14 4l6 6-9.5 9.5H4v-6.5L14 4Z"/><path d="M13 5l6 6"/>',
   water: '<path d="M12 3s6 6.4 6 10.5a6 6 0 0 1-12 0C6 9.4 12 3 12 3Z"/>',
 
   // --- Direction / list controls ---

@@ -30,6 +30,8 @@ export function createProjectStore({loadProject, saveProject, flushProject}) {
     st.ocean ??= {enabled: false, level: -2, color: '#2f6f8f'};
     st.waterfalls ??= {enabled: false, count: 4, seed: 7};
     st.post ??= {enabled: false, grade: 1, vignette: .6, grain: .3, wet: true};
+    st.post.ao ??= {enabled: true};
+    st.post.bloom ??= {enabled: true, strength: .35, radius: .45, threshold: .95};
     if (st.version < PROJECT_VERSION) st.version = PROJECT_VERSION;
     return st;
   }
