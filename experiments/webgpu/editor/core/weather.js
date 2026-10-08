@@ -5,7 +5,7 @@
 import * as THREE from 'three/webgpu';
 
 export const WEATHER = {
-  clear:  {fog:0.0006, overcast:0.0,  sun:1.0,  rain:0,    snow:0,   wind:0.30, dark:0,    cover:0, fogBright:0.35, tint:'#b9d6ee'},
+  clear:  {fog:0,      overcast:0.0,  sun:1.0,  rain:0,    snow:0,   wind:0.30, dark:0,    cover:0, fogBright:0.35, tint:'#b9d6ee'},
   cloudy: {fog:0.0012, overcast:0.75, sun:0.30, rain:0,    snow:0,   wind:0.38, dark:0.12, cover:0, fogBright:0.35, tint:'#a6b1bb'},
   windy:  {fog:0.0009, overcast:0.20, sun:0.85, rain:0,    snow:0,   wind:0.95, dark:0,    cover:0, fogBright:0.35, tint:'#b4c6d8'},
   rain:   {fog:0.0022, overcast:1.0,  sun:0.10, rain:0.85, snow:0,   wind:0.50, dark:0.35, cover:0, fogBright:0.4, tint:'#7a858f'},

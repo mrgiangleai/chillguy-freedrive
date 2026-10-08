@@ -32,6 +32,7 @@ export function createProjectStore({loadProject, saveProject, flushProject}) {
     st.post ??= {enabled: false, grade: 1, vignette: .6, grain: .3, wet: true};
     st.post.ao ??= {enabled: true};
     st.post.bloom ??= {enabled: true, strength: .35, radius: .45, threshold: .95};
+    st.groundCreated ??= false;
     if (st.version < PROJECT_VERSION) st.version = PROJECT_VERSION;
     return st;
   }
