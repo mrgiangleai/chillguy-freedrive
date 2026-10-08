@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -132,7 +132,10 @@
   bẻ hướng 0.25–0.75 rad trong 190 m đầu đoạn (bán kính ≥ ~130 m); 3 ngã tư/đoạn (~240 m) trên phần thẳng. Dốc: `TP.hill` 9
   (hLow phố = đồi ~260 m trong vùng mặt nạ ~900 m, dốc tới ~10%), đường cao theo hLow; nhà có chân móng (plinth, mã trong
   aInfo.z) khi đất dốc; phía trong khúc cua bỏ nhà xa hơn 0.55·R. Dãy mặt tiền: ~13% hẻm bậc thang (`_alley`), ~8% bãi đất trống
-  (`_lot`). Camera không xuyên nhà: `rig.collide` → `city.collide` (tia xe→camera, OBB nhà, kéo vào tức thì, nhả từ từ). `ROAD.halfWidth` = 7.2 (4 làn: tâm làn ±1.75 / ±5.25,
+  (`_lot`). **Đèn giao thông** (`SIGNAL`, chu kỳ 46 s lệch pha theo ngã tư; `_phase(n)`, `mainLight(n)`, `stopAhead(s, dir, v)`):
+  2 cột tay vươn cho đường chính (phía bên kia ngã tư) + 2 cột thấp cho đường ngang, mặt đèn xanh–vàng–đỏ trái→phải; màu
+  thấu kính đổi mỗi khung (instanceColor). NPC dừng trước vạch (`traffic.stopFor`, phanh ≤ 3.2 m/s²). Xe mình KHÔNG tự dừng:
+  giữ Space/B hoặc nút PHANH (−7.5 m/s²); đầu xe qua vạch dừng lúc đèn đỏ => toast "Vượt đèn đỏ! (lỗi thứ n)". Camera không xuyên nhà: `rig.collide` → `city.collide` (tia xe→camera, OBB nhà, kéo vào tức thì, nhả từ từ). `ROAD.halfWidth` = 7.2 (4 làn: tâm làn ±1.75 / ±5.25,
   chia làn ±3.5), vỉa hè 4 m cao 0.2; đường ngang rộng 7 m + vỉa hè 2.5 m. Mặt đất phẳng y = 0, đồi xanh > 500 m.
   `terrain.js`/`scenery.js` đọc bề rộng đường lúc reset/setMap. Xe mình chạy làn ngoài phải (5.25), buông tay về làn gần nhất;
   vượt xe sang làn cùng chiều bên cạnh (`TrafficPolicy._other`). Camera bên hông 13 m, quay quanh 10 m. Không đom đóm.
@@ -179,3 +182,7 @@
 
 - **#6 — Phố: hẻm bậc thang, bãi đất trống, cua sâu, dốc, camera không xuyên nhà (08/10/2026)**: xem mục Map Phố. Thử Low:
   map đổi được, khối dựng đủ, camera bên hông/trên cao bị kéo lại gần xe khi vướng nhà.
+
+- **#7 — Phố bước 2: đèn giao thông + phanh tay + báo lỗi (08/10/2026)**: xem mục Map Phố. Thử Low: stopAhead đúng hai chiều,
+  vượt vạch lúc đỏ hiện toast lỗi, nút PHANH hiện ở map Phố. Chưa chụp được cận cảnh cột đèn. Xe ngang qua ngã tư để sang B3
+  (cần model xe nhẹ).

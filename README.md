@@ -44,6 +44,7 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 | `Q` | đổi mức chất lượng Low / Good / Ultra |
 | `P` | dừng xe (cảnh người bước ra) / đi tiếp |
 | `K` | chụp ảnh màn hình (nút 📸) |
+| `Space` / `B` | phanh (giữ) — map Phố, nút PHANH trên điện thoại |
 | `H` | ẩn / hiện giao diện |
 | `U` | bật / tắt toàn màn hình (nút ⛶) |
 

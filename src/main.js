@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ROAD, ROAD_HW, CITY, Road } from './road.js';
-import { City } from './city.js';
+import { City, SIGNAL } from './city.js';
 import { Scenery, STREETLIGHT_DEFAULTS } from './scenery.js';
 import { Terrain } from './terrain.js';
 import { setTerrainMap, TP } from './terrain-noise.js';
@@ -94,6 +94,7 @@ rig.collide = (pos, cam, dt) => city.collide(pos, cam, dt);
 const dash = new DashScreen();                // màn hình giải trí trên taplo (hắt sáng lên người lái)
 const _trafficPerson = new THREE.Vector3();
 const traffic = new Traffic(scene, cars);     // thỉnh thoảng có xe chạy ngược chiều
+traffic.stopFor = (s, dir, v) => city.stopAhead(s, dir, v);   // xe NPC dừng đèn đỏ (map Phố)
 const ocean = new Ocean(scene);               // map Biển: mặt biển sóng (bake từ ocean_scene_animated.glb)
 const waterfalls = new Waterfalls(scene, road, terrain);
 const cows = new Cows(scene);                 // map đồi cỏ: đàn bò sữa sau hàng rào gỗ
@@ -341,6 +342,9 @@ const applyMap = () => {
   city.prime(drive.s);
   fireflies.ground.clear();     // độ cao mặt đất nhớ theo hình đường cũ
   traffic.policy.city = isCity;
+  $('brake').hidden = !isCity;
+  if (isCity && state.started) toast('Map Phố: tự phanh khi gặp đèn đỏ — giữ phím Space hoặc nút PHANH');
+  cityFront = null;
   rig.sideDist = isCity ? 13 : null;            // phố: camera bên hông đứng trên đường, không chui vào nhà
   rig.orbitR = isCity ? 10 : null;
   // làn nhà của xe mình: phố chạy làn ngoài bên phải; map khác sát vạch giữa
@@ -399,6 +403,23 @@ el.character.onclick = nextCharacter;
 el.full.onclick = toggleFS;
 // chụp ảnh màn hình: đánh dấu, chụp canvas ngay sau khi vẽ xong khung hình (canvas WebGL không giữ ảnh sau khi trình duyệt hiển thị)
 let shotPending = false;
+// map Phố: phanh (giữ nút / phím Space, B) + thông báo lỗi
+let brakeHeld = false, cityFront = null, violations = 0, toastTimer = 0;
+{
+  const b = $('brake');
+  const on = (e) => { brakeHeld = true; b.classList.add('on'); e.preventDefault(); };
+  const off = () => { brakeHeld = false; b.classList.remove('on'); };
+  b.addEventListener('pointerdown', on);
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, off);
+}
+function toast(text, bad = false) {
+  const t = $('toast');
+  t.textContent = text;
+  t.classList.toggle('bad', bad);
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), bad ? 2800 : 4500);
+}
 $('b-shot').onclick = () => { shotPending = true; };
 function saveShot() {
   shotPending = false;
@@ -811,6 +832,7 @@ function frame(now) {
   const goal = opening ? FAST_SPEED : Math.min(drive.goal, traffic.ctrl.maxV);
   if (opening) drive.v = FAST_SPEED;
   else if (stop.active) drive.v = stop.speed(drive.v, dt);    // cảnh dừng xe: giảm tốc đều tới khi dừng hẳn
+  else if (keys.has('Space') || keys.has('KeyB') || brakeHeld) drive.v = Math.max(0, drive.v - 7.5 * dt);   // phanh tay (giữ)
   else drive.v += clamp(goal - drive.v, -8 * dt, 6 * dt);
   if (openingCameraPending && drive.v <= CHILL_DEFAULT + 0.01) {
     openingCameraPending = false;
@@ -918,7 +940,19 @@ function frame(now) {
     traffic.playerHome = drive.home; traffic.playerGoal = stop.active ? 0 : drive.goal;
     traffic.update(dt, drive.s, drive.d, road, st.lamps, cars.current.def.id, obstacles, audio);
   }
-  city.update(drive.s, st.lamps);
+  city.update(drive.s, st.lamps, dt);
+  // map Phố: vượt vạch dừng khi đèn đỏ => báo lỗi
+  if (city.visible && state.started && !stop.active && cars.dim) {
+    const front = drive.s + cars.dim.length / 2;
+    if (cityFront !== null && front > cityFront && drive.d > 0) {
+      const n = road.junctionIndex(cityFront + SIGNAL.stopA);
+      if (road.junction(n) - SIGNAL.stopA <= front && city.mainLight(n) === 2) {
+        violations++;
+        toast(`🚨 Vượt đèn đỏ! (lỗi thứ ${violations})`, true);
+      }
+    }
+    cityFront = front;
+  }
   town.update(drive.s, road, terrain, st.lamps, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   cars.setLights(st.lamps);
   audio.setAmbient({ speed: drive.v, rain: st.rain, snow: st.snow, wind: st.wind, dark: st.dark, fx: drive.fx,

@@ -153,7 +153,13 @@ export class Traffic {
       const curveSpeed = trafficCurveSpeed(v, road);
       const decision = this.policy._decide(v.policy, curveSpeed);
       const canChooseLane = d => d * v.baseD >= 0 || (decision.dT * v.baseD < 0 && this.policy._sideClear(v.policy, d));
-      const next = stepTraffic(v, snapshot, ROAD.halfWidth, dt, Math.min(curveSpeed,decision.vT), canChooseLane);
+      // map Phố: đèn đỏ / vàng => phanh êm (≤ 3.2 m/s²) để dừng trước vạch (tính từ đầu xe)
+      let cap = decision.vT;
+      if (this.stopFor) {
+        const dir = v.direction ?? -1, st = this.stopFor(v.s + dir * v.dim.length / 2, dir, v.v);
+        if (st < Infinity) cap = Math.min(cap, Math.sqrt(2 * 3.2 * Math.max(0, st - 1)));
+      }
+      const next = stepTraffic(v, snapshot, ROAD.halfWidth, dt, Math.min(curveSpeed, cap), canChooseLane);
       v.s = next.s; v.d = next.d; v.v = next.v; v.avoiding = next.avoiding; v.latV = next.latV;
       if (v.s < s - (v.direction === 1 ? 180 : 90) || (v.direction === 1 && v.s > s + (v.carriage ? 400 : 750))) { v.busy = false; v.root.visible = false; this.active.splice(i, 1); continue; }
       if (audio && player && !v.carriage) {

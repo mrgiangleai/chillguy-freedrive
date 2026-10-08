@@ -16,6 +16,10 @@ const DEPTH = 180;                  // nhà trải ra hai bên tới cách tim �
 const AHEAD = 1150, BEHIND = 260;
 const WALK_Y = 0.2, MARK_Y = 0.055;          // so với mặt đường tại chỗ đó
 const POLE_GAP = 30;
+// đèn giao thông mỗi ngã tư (chu kỳ 46 s, lệch pha ngẫu nhiên theo ngã tư): đường chính xanh 22 s → vàng 3 s → đỏ;
+// đường ngang xanh 15.5 s → vàng 3 s; giữa hai pha đỏ cả hai 1.5 s
+export const SIGNAL = { cycle: 46, mainG: 22, y: 3, allRed: 1.5, crossG: 15.5, stopA: 11.45 };
+const LENS_ON = [[0.15, 1.0, 0.6], [1.0, 0.72, 0.05], [1.0, 0.08, 0.04]], LENS_OFF = [[0.03, 0.06, 0.05], [0.07, 0.06, 0.02], [0.07, 0.02, 0.02]];
 const FONT = '"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Noto Sans CJK JP","Yu Gothic","Meiryo",sans-serif';
 // biển ngang cửa hàng: [chữ, nền, màu chữ]
 const SHOPS = [
@@ -303,6 +307,38 @@ export class City {
     this._up = new THREE.Vector3(0, 1, 0); this._c = new THREE.Color();
     this.lastS = 0;
     this.camF = 1;
+    this.clock = 0;                                              // đồng hồ đèn giao thông (s)
+    this.sigMat = new THREE.MeshStandardMaterial({ color: 0x2b2d30, roughness: 0.6, metalness: 0.3 });
+    this.lensMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
+    withMist(this.sigMat); withMist(this.lensMat);
+    this.headGeo = new THREE.BoxGeometry(1.3, 0.44, 0.3);
+    this.lensGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.04, 14).rotateX(Math.PI / 2);
+    this.sigPoleGeo = new THREE.CylinderGeometry(0.1, 0.12, 1, 8).translate(0, 0.5, 0);
+    this.armGeo = new THREE.BoxGeometry(1, 0.1, 0.1).translate(0.5, 0, 0);
+  }
+
+  // pha đèn đường chính / đường ngang tại ngã tư n: 0 xanh, 1 vàng, 2 đỏ
+  _phase(n) {
+    const S = SIGNAL, off = (Math.sin(n * 91.7 + 13.1) * 43758.5453 % 1 + 1) % 1 * S.cycle;
+    const t = ((this.clock + off) % S.cycle + S.cycle) % S.cycle;
+    const main = t < S.mainG ? 0 : t < S.mainG + S.y ? 1 : 2;
+    const c0 = S.mainG + S.y + S.allRed;
+    const cross = t >= c0 && t < c0 + S.crossG ? 0 : t >= c0 + S.crossG && t < c0 + S.crossG + S.y ? 1 : 2;
+    return { main, cross, t };
+  }
+  mainLight(n) { return this._phase(n).main; }
+
+  // khoảng cách tới vạch dừng phía trước (theo chiều dir) nếu đèn bắt dừng; Infinity nếu được đi.
+  // Đèn vàng: chỉ dừng khi còn kịp phanh êm (≥ v²/8 m)
+  stopAhead(s, dir, v) {
+    if (!this.group.visible) return Infinity;
+    const road = this.road, A = SIGNAL.stopA;
+    const n = dir > 0 ? road.junctionIndex(s + A - 1) : road.junctionIndex(s - A + 1) - 1;
+    const line = road.junction(n) - dir * A, dist = (line - s) * dir;
+    if (dist > 160 || dist < -1) return Infinity;
+    const ph = this._phase(n).main;
+    if (ph === 2 || (ph === 1 && dist > v * v / 8)) return dist;
+    return Infinity;
   }
 
   // camera không xuyên nhà: đi dọc tia từ xe (cao 1.3 m) tới camera, gặp khối nhà (nới 0.6 m) thì kéo camera về trước chỗ đó.
@@ -344,8 +380,21 @@ export class City {
   }
 
   // s: quãng đường xe; lamps: 0..1 (đèn bật)
-  update(s, lamps, budget = 1) {
+  update(s, lamps, dt = 0, budget = 1) {
     if (!this.group.visible) return;
+    this.clock += dt;
+    const c = this._c;
+    for (const [n, g] of this.blocks) {
+      const L = g.userData.lens;
+      if (!L) continue;
+      const ph = this._phase(n), k = 3 + 4 * lamps;
+      for (let i = 0; i < L.kind.length; i++) {
+        const on = (L.kind[i] ? ph.cross : ph.main) === L.col[i];
+        const v = on ? LENS_ON[L.col[i]] : LENS_OFF[L.col[i]];
+        L.mesh.setColorAt(i, c.setRGB(v[0] * (on ? k : 1), v[1] * (on ? k : 1), v[2] * (on ? k : 1)));
+      }
+      L.mesh.instanceColor.needsUpdate = true;
+    }
     this.lastS = s;
     this.uLit.value = lamps;
     this.uGlow.value = 0.15 + 1.6 * lamps;
@@ -360,7 +409,7 @@ export class City {
     for (const [n, g] of this.blocks) if (n < n0 || n > n1) { this._dispose(g); this.blocks.delete(n); }
   }
 
-  prime(s) { if (this.group.visible) this.update(s, this.uLit.value, 99); }
+  prime(s) { if (this.group.visible) this.update(s, this.uLit.value, 0, 99); }
 
   _dispose(g) {
     this.group.remove(g);
@@ -693,8 +742,59 @@ export class City {
       ls.frustumCulled = false;
       group.add(ls);
     }
+    this._signals(group, F, gJ);
     this.group.add(group);
     return group;
+  }
+
+  // đèn giao thông ngã tư (khung F): 2 cột tay vươn cho đường chính (đặt phía bên kia ngã tư, đầu đèn ngang trên làn),
+  // 2 cột thấp cho đường ngang. Mặt đèn: xanh – vàng – đỏ từ trái sang phải (nhìn từ người lái)
+  _signals(group, F, gJ) {
+    const HW = CITY.hw, CW = CITY.side;
+    const P = (a, u) => [F.x + F.fx * a + F.rx * u, F.z + F.fz * a + F.rz * u];
+    const heads = [], poles = [], arms = [];
+    // [a cột, u cột, u đầu đèn, a đầu đèn, hướng mặt đèn (vector), cao, kiểu]
+    const yaw = (dx, dz) => Math.atan2(dx, dz);
+    const y0 = gJ(0) + 0.2;
+    const mainHead = (a, su) => {
+      const [px, pz] = P(a, su * (HW + 0.7));
+      const [hx, hz] = P(a, su * 3.6);
+      poles.push([px, y0, pz, 5.9]);
+      arms.push([px, y0 + 5.7, pz, Math.atan2(-(hz - pz), hx - px), Math.hypot(hx - px, hz - pz) + 0.7]);
+      heads.push([hx, y0 + 5.55, hz, yaw(su > 0 ? -F.fx : F.fx, su > 0 ? -F.fz : F.fz), 0]);
+    };
+    mainHead(11.0, 1);          // chiều mình (đi theo +f): đèn bên phải, phía bên kia ngã tư, quay về phía xe tới
+    mainHead(-11.0, -1);        // chiều ngược lại
+    for (const su of [-1, 1]) {
+      // xe trên đường ngang đi về phía -su (tới đường chính từ phía su): đèn ở phía bên kia (−su), quay mặt về +su
+      const a = su * (CW + 1.0), [px, pz] = P(a, -su * (HW + 0.8));
+      poles.push([px, y0, pz, 4.4]);
+      heads.push([px, y0 + 4.2, pz, yaw(su * F.rx, su * F.rz), 1]);
+    }
+    const m = this._m, q = this._qt, v = this._v, sc = this._s;
+    const add = (geo, mat, list, fn) => {
+      const im = new THREE.InstancedMesh(geo, mat, list.length);
+      list.forEach((e, i) => { fn(e); im.setMatrixAt(i, m); });
+      im.castShadow = true; im.frustumCulled = false;
+      group.add(im);
+      return im;
+    };
+    add(this.sigPoleGeo, this.sigMat, poles, ([x, y, z, h]) => m.compose(v.set(x, y, z), q.identity(), sc.set(1, h, 1)));
+    add(this.armGeo, this.sigMat, arms, ([x, y, z, a, L]) => m.compose(v.set(x, y, z), q.setFromAxisAngle(this._up, a), sc.set(L, 1, 1)));
+    add(this.headGeo, this.sigMat, heads, ([x, y, z, yw]) => m.compose(v.set(x, y, z), q.setFromAxisAngle(this._up, yw), sc.set(1, 1, 1)));
+    const lens = [], kind = [], col = [];
+    for (const [x, y, z, yw, k] of heads) {
+      const cs = Math.cos(yw), sn = Math.sin(yw);
+      for (let i = 0; i < 3; i++) {
+        const lx = (i - 1) * 0.42, lz = 0.16;
+        lens.push([x + cs * lx + sn * lz, y, z - sn * lx + cs * lz, yw]);
+        kind.push(k); col.push(i);
+      }
+    }
+    const lm = add(this.lensGeo, this.lensMat, lens, ([x, y, z, yw]) => m.compose(v.set(x, y, z), q.setFromAxisAngle(this._up, yw), sc.set(1, 1, 1)));
+    lm.castShadow = false;
+    lm.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(lens.length * 3), 3);
+    group.userData.lens = { mesh: lm, kind: Int8Array.from(kind), col: Int8Array.from(col) };
   }
 
   // hẻm bậc thang giữa hai nhà mặt tiền: từ mép vỉa hè đi lên (cao thêm theo địa hình phía sau, 1–6 m) rồi lối đi phẳng
