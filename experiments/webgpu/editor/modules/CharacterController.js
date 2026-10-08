@@ -34,7 +34,7 @@ export function createCharacterController({camera,controls,canvas,physics,ground
   function input(dt){
     if(!rig)return;controls.enabled=false;
     const f=((keys.has('KeyW')||keys.has('ArrowUp'))?1:0)-((keys.has('KeyS')||keys.has('ArrowDown'))?1:0);
-    const t=((keys.has('KeyQ')||keys.has('ArrowLeft'))?1:0)-((keys.has('KeyE')||keys.has('ArrowRight'))?1:0);
+    const t=((keys.has('KeyA')||keys.has('ArrowLeft'))?1:0)-((keys.has('KeyD')||keys.has('ArrowRight'))?1:0);
     const moving=f!==0||t!==0;
     const hasBody=physics.has&&physics.has(rig.object);
     if(hasBody&&!manual)physics.drive(rig.object,f,t,jump);
@@ -73,7 +73,7 @@ export function createCharacterController({camera,controls,canvas,physics,ground
     rig.snap=false;
   }
   function isTyping(e){const t=e.target;if(!t)return false;if(t.isContentEditable||t.tagName==='TEXTAREA')return true;if(t.tagName==='INPUT'){const ty=(t.type||'text').toLowerCase();return !['range','color','checkbox','radio','button','submit','file'].includes(ty)}return false}
-  function keydown(e){if(!rig||!['KeyW','KeyS','KeyQ','KeyE','Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)||isTyping(e))return;e.preventDefault();if(e.code==='Space'){if(!e.repeat)jump=true}else keys.add(e.code)}
+  function keydown(e){if(!rig||!['KeyW','KeyS','KeyA','KeyD','Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)||isTyping(e))return;e.preventDefault();if(e.code==='Space'){if(!e.repeat)jump=true}else keys.add(e.code)}
   window.addEventListener('keydown',keydown);window.addEventListener('keyup',e=>keys.delete(e.code));window.addEventListener('blur',clearInput);
   // look around while controlling: drag to orbit, wheel to zoom
   canvas.addEventListener('pointerdown',e=>{if(!rig||e.button!==0)return;dragging=true;lastX=e.clientX;lastY=e.clientY});
