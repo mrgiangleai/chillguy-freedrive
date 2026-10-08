@@ -37,6 +37,7 @@ export function createProjectStore({loadProject, saveProject, flushProject}) {
     st.audio ??= {enabled: false, volume: .6};
     st.driver ??= {characterId: null, vehicleId: null, clip: 0, preview: false, cam: false};
     st.ocean ??= {enabled: false, level: -2, color: '#2f6f8f'};
+    st.ocean.opacity ??= .9; st.ocean.bob ??= .15; st.ocean.bobSpeed ??= .6;
     st.waterfalls ??= {enabled: false, count: 4, seed: 7};
     st.post ??= {enabled: false, grade: 1, vignette: .6, grain: .3, wet: true};
     st.post.ao ??= {enabled: true};

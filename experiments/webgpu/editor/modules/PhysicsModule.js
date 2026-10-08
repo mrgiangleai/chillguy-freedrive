@@ -75,5 +75,23 @@ export async function createPhysicsModule(){
       if(o.position.y<gy){o.position.y=gy;const off=e.offset.clone().applyQuaternion(o.quaternion);e.body.setTranslation({x:o.position.x+off.x,y:o.position.y+off.y,z:o.position.z+off.z},true);const v=e.body.linvel();e.body.setLinvel({x:v.x,y:Math.max(0,v.y),z:v.z},true)}
     }
   }
-  return {world,attach(o,type){attach(o,type);bindObject(o)},remove,setEnabled(o,on,type){setEnabled(o,on,type);bindObject(o)},setType(o,type){setType(o,type);bindObject(o)},syncObjectToBody,beginControl,endControl,drive,step,autoType,setTerrainWindow,clearTerrainWindow,clampToTerrain,has:o=>entries.has(key(o))};
+  // Buoyancy: dynamic bodies that fall into the water float with their centre at
+  // the surface (spring + drag + slight wave bob), so people/objects bob on top.
+  function floatOnWater(level, t) {
+    for (const e of entries.values()) {
+      if (e.type !== 'dynamic' || !e.object || !e.body.isDynamic()) continue;
+      const o = e.object; o.updateMatrixWorld(true);
+      const off = e.offset.clone().applyQuaternion(o.quaternion);
+      const cy = o.position.y + off.y;
+      if (cy < level) {
+        const v = e.body.linvel();
+        const wob = Math.sin((t || 0) * 1.3 + o.position.x * 0.15 + o.position.z * 0.1) * 0.12;
+        const target = Math.max(-6, Math.min(6, (level - cy) * 1.5 + wob));
+        e.body.setLinvel({x: v.x * 0.965, y: v.y + (target - v.y) * 0.3, z: v.z * 0.965}, true);
+        const a = e.body.angvel();
+        e.body.setAngvel({x: a.x * 0.92, y: a.y * 0.92, z: a.z * 0.92}, true);
+      }
+    }
+  }
+  return {world,attach(o,type){attach(o,type);bindObject(o)},remove,setEnabled(o,on,type){setEnabled(o,on,type);bindObject(o)},setType(o,type){setType(o,type);bindObject(o)},syncObjectToBody,beginControl,endControl,drive,step,autoType,setTerrainWindow,clearTerrainWindow,clampToTerrain,floatOnWater,has:o=>entries.has(key(o))};
 }

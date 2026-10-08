@@ -26,12 +26,13 @@ export function createOceanRuntime({scene, size = 6000} = {}) {
   mesh.rotation.x = -Math.PI / 2; mesh.frustumCulled = false; mesh.visible = false;
   mesh.userData.editor = {name: 'Ocean', category: 'landscape', builtin: true, water: true};
   scene.add(mesh);
-  let level = -2, enabled = false, t = 0;
+  let level = -2, enabled = false, t = 0, opacity = .9, bob = .15, bobSpeed = .6, surfaceY = level;
   tex.offset.set(0, 0);
   function update(dt, cam) {
-    if (!enabled) return;
+    if (!enabled) { surfaceY = level; return; }
     t += dt;
-    mesh.position.set(Math.round(cam.x / size) * size, level, Math.round(cam.z / size) * size);
+    surfaceY = level + Math.sin(t * bobSpeed) * bob;
+    mesh.position.set(Math.round(cam.x / size) * size, surfaceY, Math.round(cam.z / size) * size);
     tex.offset.x = (cam.x / size) * 48 + t * 0.02;
     tex.offset.y = (cam.z / size) * 48 + t * 0.012;
   }
@@ -39,8 +40,12 @@ export function createOceanRuntime({scene, size = 6000} = {}) {
     mesh,
     update,
     setEnabled(v) { enabled = v; mesh.visible = v; },
-    setLevel(y) { level = y; mesh.position.y = y; },
+    setLevel(y) { level = y; mesh.position.y = y; surfaceY = y; },
     setColor(c) { mat.color.set(c); },
+    setOpacity(v) { opacity = v; mat.opacity = v; mat.transparent = v < 1; mat.needsUpdate = true; },
+    setBob(a, s) { bob = Math.max(0, a || 0); if (s != null) bobSpeed = Math.max(0, s); },
     get enabled() { return enabled; },
+    get level() { return level; },
+    get surfaceY() { return surfaceY; },
   };
 }
