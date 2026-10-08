@@ -7,7 +7,7 @@ export function createDriveModule(ctx) {
     let h = '<hr><b>' + icon('vehicle') + ' ' + t('driveTitle') + '</b>';
     if (!road) return h + '<small>' + t('driveNeedRoad') + '</small>';
     const bound = !!d && d.vehicleId === id;
-    h += '<div class="actions"><button data-drivebind="1" class="' + (bound ? 'on' : '') + '">' + icon('link') + ' ' + (bound ? t('driveUnbind') : t('driveBind')) + '</button>' + (bound ? '<button data-drivestart="1">' + icon('gamepad') + ' ' + t('driveControl') + '</button>' : '') + '</div>';
+    h += '<div class="actions fit"><button data-drivebind="1" class="' + (bound ? 'on' : '') + '">' + icon('link') + ' ' + (bound ? t('driveUnbind') : t('driveBind')) + '</button>' + (bound ? '<button data-drivestart="1">' + icon('gamepad') + ' ' + t('driveControl') + '</button>' : '') + '</div>';
     if (bound) h += '<small>' + def.name + ' · ' + t('driveTier') + ': ' + def.speedTiers[d.tier] + ' m/s · ' + t('driveKeys') + '</small>';
     return h;
   }

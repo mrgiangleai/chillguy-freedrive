@@ -96,7 +96,7 @@ body.theatre #driveHud{display:none!important}
 .tabs,.actions{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}
 .actions{align-items:center}
 .actions.fit{flex-wrap:nowrap}
-.actions.fit>button{flex:1 1 0;min-width:0;padding:0 4px;font-size:10.5px;overflow:hidden;text-overflow:ellipsis}
+.actions.fit>button{flex:1 1 0;min-width:0;padding:0 5px;font-size:10.5px;overflow:hidden;text-overflow:ellipsis}
 .actions.fit>button .ico{width:14px;height:14px}
 .tabs button,.actions button{height:var(--ui-btn);padding:0 8px;border:1px solid var(--ui-line);border-radius:var(--ui-radius-sm);background:#ffffff0d;color:var(--ui-fg);display:inline-flex;align-items:center;gap:4px;line-height:1;white-space:nowrap;transition:.12s}
 .tabs button:hover,.actions button:hover{background:#ffffff1c}
@@ -142,6 +142,15 @@ body.theatre #driveHud{display:none!important}
 .sec-h{display:flex;align-items:center;gap:6px;font-weight:700;font-size:12px;margin-bottom:4px}
 .chip{height:24px;padding:0 9px;border:1px solid var(--ui-line);border-radius:999px;background:#ffffff0d;color:var(--ui-fg);font-size:11px;display:inline-flex;align-items:center;gap:4px}
 .chip.on{border-color:var(--ui-accent);background:#666a;color:#fff}
+#editor .library::-webkit-scrollbar,#editor .inspector::-webkit-scrollbar,#uicfg::-webkit-scrollbar{width:8px;height:8px}
+#editor .library::-webkit-scrollbar-thumb,#editor .inspector::-webkit-scrollbar-thumb,#uicfg::-webkit-scrollbar-thumb{background:#ffffff26;border-radius:8px}
+#editor .library::-webkit-scrollbar-track,#editor .inspector::-webkit-scrollbar-track,#uicfg::-webkit-scrollbar-track{background:transparent}
+#toast{bottom:92px}
+#keys{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:20;width:min(560px,92vw);background:rgb(var(--ui-bg-rgb) / .95);border:1px solid var(--ui-line);border-radius:12px;padding:14px 18px;color:var(--ui-fg);font:var(--ui-font);box-shadow:0 16px 48px #000a;backdrop-filter:blur(10px)}
+#keys[hidden]{display:none!important}
+#keys pre{margin:8px 0 0;white-space:pre-wrap;line-height:1.55;font:12px system-ui;color:var(--ui-fg)}
+.inspectBody .section{margin:10px 0}
+.panelHead{padding-bottom:6px;margin-bottom:8px}
 `;
   document.head.appendChild(css);
 }
