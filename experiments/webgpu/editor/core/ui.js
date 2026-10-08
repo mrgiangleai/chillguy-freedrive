@@ -188,6 +188,8 @@ body.theatre #driveHud{display:none!important}
 #saveStatus.on{opacity:1;color:#7ee0a1;border-color:#7ee0a166}
 body.theatre #saveStatus{display:none!important}
 .panelHead{padding-bottom:6px;margin-bottom:8px}
+#editor,#customize,#uicfg,#keys,#projects,#catalog,#toast,#driveHud,#saveStatus,#hud{user-select:none;-webkit-user-select:none}
+#editor input,#editor textarea,#uicfg input,#catalog input,#projects input,#keys input{user-select:text;-webkit-user-select:text}
 `;
   document.head.appendChild(css);
 }
