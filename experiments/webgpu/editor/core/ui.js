@@ -95,6 +95,9 @@ body.theatre #driveHud{display:none!important}
 #driveHud .ico{width:16px;height:16px;color:var(--ui-accent)}
 .tabs,.actions{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}
 .actions{align-items:center}
+.actions.fit{flex-wrap:nowrap}
+.actions.fit>button{flex:1 1 0;min-width:0;padding:0 4px;font-size:10.5px;overflow:hidden;text-overflow:ellipsis}
+.actions.fit>button .ico{width:14px;height:14px}
 .tabs button,.actions button{height:var(--ui-btn);padding:0 8px;border:1px solid var(--ui-line);border-radius:var(--ui-radius-sm);background:#ffffff0d;color:var(--ui-fg);display:inline-flex;align-items:center;gap:4px;line-height:1;white-space:nowrap;transition:.12s}
 .tabs button:hover,.actions button:hover{background:#ffffff1c}
 .actions button.on{border-color:var(--ui-accent);background:#666a;color:#fff}
