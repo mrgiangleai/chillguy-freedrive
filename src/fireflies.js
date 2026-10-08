@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 
-// Đom đóm: thỉnh thoảng có một đám bay lượn sát mép đường lúc trời tối (không mưa / tuyết).
+// Đom đóm: nhiều đám bay lượn hai bên đường (tới ~16 m) lúc trời tối (không mưa / tuyết).
 // Vị trí gắn với từng "ô" dọc theo đường (mỗi SLOT mét) nên đứng yên với thế giới khi xe chạy qua;
 // có đom đóm hay không do nhiễu theo quãng đường (từng đoạn có, từng đoạn không). Nhấp nháy theo nhịp riêng từng con.
 const SLOT = 5;              // m
-const AHEAD = 140, BEHIND = 30;
-const MAX = 120;
+const AHEAD = 200, BEHIND = 40;
+const MAX = 400;
 const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 const vnoise = (x) => { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return hash(i) * (1 - u) + hash(i + 1) * u; };
 const sst = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -65,16 +65,16 @@ export class Fireflies {
     let n = 0;
     const k0 = Math.floor((s - BEHIND) / SLOT), k1 = Math.floor((s + AHEAD) / SLOT);
     for (let k = k0; k <= k1 && n < MAX; k++) {
-      // đoạn có đom đóm: nhiễu theo quãng đường (đám dài ~100–200 m, khoảng 1/3 chiều dài đường), trong đoạn đó mỗi ô 60% có
-      const zone = sst(0.62, 0.82, vnoise(k * SLOT / 140 + 3.7));
-      if (zone <= 0 || hash(k * 1.31) > zone * 0.6) continue;
-      const cnt = 1 + Math.floor(hash(k * 2.17) * 3);
+      // đoạn có đom đóm: nhiễu theo quãng đường (đám dài ~150–300 m, khoảng 2/3 chiều dài đường), trong đoạn đó mỗi ô 90% có
+      const zone = sst(0.38, 0.58, vnoise(k * SLOT / 140 + 3.7));
+      if (zone <= 0 || hash(k * 1.31) > zone * 0.9) continue;
+      const cnt = 2 + Math.floor(hash(k * 2.17) * 5);
       for (let j = 0; j < cnt && n < MAX; j++) {
-        const id = k * 4 + j;
+        const id = k * 8 + j;
         const h1 = hash(id * 3.1 + 0.5), h2 = hash(id * 5.7 + 1.3), h3 = hash(id * 7.3 + 2.9), h4 = hash(id * 9.1 + 4.4);
         const sk = k * SLOT + h1 * SLOT;
         road.at(sk, p);
-        const side = h2 < 0.5 ? -1 : 1, lat = side * (4.6 + 4.2 * h3);     // từ mép đường ra ~4 m
+        const side = h2 < 0.5 ? -1 : 1, lat = side * (4.6 + 16 * h3 * h3);  // từ mép đường ra tới ~16 m (dày ở gần)
         const rx = Math.cos(p.th), rz = -Math.sin(p.th);
         const x = p.x + rx * lat, z = p.z + rz * lat;
         let gy = this.ground.get(id);
@@ -86,7 +86,7 @@ export class Fireflies {
         // bay lượn chậm quanh chỗ của nó
         const w1 = 0.35 + h4 * 0.3, w2 = 0.5 + h1 * 0.4;
         this.pos[n * 3] = x + Math.sin(t * w1 + h2 * 20) * 0.9 + Math.sin(t * w2 * 1.7 + h3 * 9) * 0.3;
-        this.pos[n * 3 + 1] = gy + 1.0 + 1.6 * h4 + Math.sin(t * w2 + h1 * 13) * 0.35;   // trên ngọn cỏ
+        this.pos[n * 3 + 1] = gy + 0.7 + 2.6 * h4 + Math.sin(t * w2 + h1 * 13) * 0.35;   // trên ngọn cỏ, có con bay cao
         this.pos[n * 3 + 2] = z + Math.cos(t * w2 + h3 * 17) * 0.9 + Math.cos(t * w1 * 1.9 + h4 * 7) * 0.3;
         // nhấp nháy: sáng lên chừng nửa giây rồi tắt, mỗi con một nhịp
         const ph = Math.sin(t * (0.9 + 0.8 * h3) + h1 * 40);
@@ -94,8 +94,8 @@ export class Fireflies {
         n++;
       }
     }
-    if (this.ground.size > 400) {           // bỏ ô đã đi qua
-      for (const key of this.ground.keys()) if (key < k0 * 4) this.ground.delete(key);
+    if (this.ground.size > 1500) {          // bỏ ô đã đi qua
+      for (const key of this.ground.keys()) if (key < k0 * 8) this.ground.delete(key);
     }
     const g = this.points.geometry;
     g.setDrawRange(0, n);

@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 10/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -17,7 +17,7 @@
   Máy chủ thử chạy nền tự tắt sau 2 giờ => bật lại. Script chụp tạm để ở scratchpad, không đưa file preview vào `docs/`.
   Máy chậm => môi trường (env map) chưa kịp chụp lại khi đổi giờ: gọi `__app.env.update(0.016, drive.pos); env._captureEnv()`.
 - **Kiểm tra tự động** (node, không cần trình duyệt): `scripts/check-traffic.mjs`, `check-traffic-policy.mjs`, `check-steering.mjs`,
-  `check-stopscene.mjs`,
+  `check-stopscene.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
   `check-waterfalls.mjs`, `check-rear-glass.mjs [model.glb]`. Model tải lên nặng: nén bằng `npx @gltf-transform/cli@4 webp … --quality 82`
   rồi `meshopt` (giữ file gốc); sóng biển bake bằng `node scripts/bake-ocean.mjs`. **Fixture GUI** `scripts/*-preview.js` (giữ cảnh cố định để chụp):
   bundle bằng esbuild ra `docs/<tên>-check.js`, sao `docs/index.html` thành trang riêng đổi script sang bundle đó; chụp xong
@@ -90,6 +90,10 @@
   **Xe ngược chiều không vượt nhau**: gặp xe chậm thì bám sau, giảm tốc chờ (chỉ né sang làn kia khi xe người chơi chạy hẳn
   vào làn của nó); xe cùng chiều vẫn vượt xe người chơi theo luật 50 m. Đèn pha NPC = 24% xe người chơi (≈20.4 khi bật hết),
   đèn hậu ×0.6. Tiếng xe lướt qua to/nhỏ theo tốc độ tương đối, lệch trái/phải theo vị trí. Mô phỏng 20 phút ở 25/50/180 km/h: 0 chồng thân xe.
+- **Cầm vô lăng**: điểm bám `steer.grip` (Mustang: vành 0.153 m, cổ tay bán kính 0.178, sâu 0.065, hàng khớp theo tiếp tuyến);
+  cầm hờ `person.looseGrip(side, 0.15, surfAt, n)`: đốt ngón 2–3 nới 15% về góc nghỉ (45% thì ngón duỗi thẳng qua vành),
+  ngón cái IK nằm dọc mặt vành phía người lái, hướng lên đỉnh, đầu ngón cách gốc 82% chiều dài (bấu nhẹ).
+- **Nhân vật**: nút 🧑 đổi Người lái / Chisa (chỉ Mustang; Chisa retarget 52 xương từ rig Quaternius, ngồi thẳng hơn).
 - **Ngồi lái (Mustang)**: model ghế đặt quá cao so với trần (đệm 0.60, trần 1.27 m) => cụm ghế hạ 19 cm (đáy đệm khuất dưới sàn
   0.362) + trượt lên trước 16 cm (`cars.js`, `seat.drop/forward`); xương chậu đặt tại `seat.hip` (stopscene.place), lưng ngả 0.1 rad,
   chân IK duỗi tới sàn (cổ chân `seat.foot`, mũi giày chếch lên 24°), tay IK giữ vô lăng (khuỷu gập ~77°). Đo: lún đệm 1.6 cm,
@@ -123,6 +127,12 @@
   (16 mm + lùi 20 m). Rê/zoom dừng tự quay 2 s; zoom tay (wheel / pinch / phím ±) tiến sát tới 1 m. Khi đi về xe,
   camera bám người và tiến từ khoảng cách hiện tại tới 1 m đúng lúc tới cửa. Nhịp hút 8 s → 12 s → ngẫu nhiên 12–24 s;
   đi lanh quanh trong 10 m, chỉ trong làn mình + lề phải.
+- **Chụp ảnh**: nút 📸 / phím K — chụp canvas ngay sau `post.render` (không cần preserveDrawingBuffer), tải PNG
+  `chill-drive-<thời gian>.png`; điện thoại dùng bảng chia sẻ nếu có (lưu vào Ảnh).
+- **Đom đóm**: đoạn có đom đóm ~2/3 chiều dài đường (nhiễu `sst(0.38, 0.58)`), 90% ô 5 m có, 2–6 con/ô, ra tới ~16 m hai bên,
+  cao 0.7–3.3 m, tối đa 400, nhìn trước 200 m.
+- **Biển (sửa atlas)**: atlas bake ô 128 px (100 + viền lặp 14 px, 1280×1024), `flipY=false` (trước bị đảo hàng => giật);
+  lớp chạm điểm nối mờ còn 10% (sin²), lớp kia 100%.
 - **Điện thoại**: tự toàn màn hình khi nhấc tay ở lần chạm đầu (và chạm lại nếu bị thoát), nút ⛶ chỉ hiện trên điện thoại,
   khoá ngang (Android), gợi ý xoay ngang khi cầm dọc; iPhone: "Thêm vào MH chính" (manifest fullscreen/landscape).
 
@@ -136,110 +146,9 @@
 - Vài tảng đá terrain trông lơ lửng trên vách núi gần đường (s≈250) — chưa sửa.
 
 ## 6. Nhật ký cập nhật
-- Đã tóm tắt tới commit `80923c3` + bản sửa giật biển lần 2 (commit ngay sau đó: nội suy khung bù chuyển động, 2 lớp sóng lệch
-  nửa vòng mờ còn 30% ở chỗ nối, bọt theo thời gian liên tục, điểm tim đường nắn bước 12 m).
+- Đã tóm tắt tới commit `93a838b` (cầm vô lăng hờ; trước đó: ghế/ngồi lái, EB110 rồi gỡ, Mazda bản gốc, căn tay Mustang,
+  sửa atlas biển, Chisa, camera dừng xe bám người).
 
-- **#1** — Người lái ngồi xuyên ghế: trước đây xương chậu 0.34 m (đệm 0.60) — mông, đùi ngập ~30 cm, chân thòng xuyên sàn ra gầm
-  xe (thấy vệt quần jeans dưới cửa). Nâng thẳng thì đầu xuyên trần => hạ + trượt ghế, người 1.78 → 1.70 m, đặt theo xương chậu,
-  ngả lưng, IK chân, giày sẫm khi ngồi (giày trắng lộ qua vô lăng trong góc nhìn trong xe). Đo bằng `seat-check` (scratchpad):
-  đỉnh thân người / mặt đệm / tựa lưng / trần / sàn; ảnh `screenshots/seat-cutaway-before.jpg`, `seat-cutaway-after.jpg`,
-  `seat-side-after.jpg`, `seat-cockpit-after.jpg`. Check scripts đạt. Chưa chạy trọn cảnh dừng xe (bước ra / vào) với ghế mới.
-
-- **#2 — Bugatti EB110 (05/10/2026)**: đồng bộ Git tới `b267bf3`, dùng model mới chú tải lên. Tạo bản game riêng,
-  bỏ đạo cụ trưng bày; tách 25.920 tam giác bánh thành bốn cụm (giữ hình học), chuẩn hoá đầu −Z, chạm đất và dài 4.4 m;
-  thêm xe sơn xanh vào `CARS`, căn đèn theo mesh bóng đèn, chỉnh chỗ ngồi cho cabin thấp. Giữ file gốc và thông tin
-  Alex.Ka. / CC BY-NC 4.0 trong metadata + credits README/game. Vô lăng/cửa chưa tách riêng nên không thêm animation giả.
-  Sửa tiến trình tải: chỉ xe đang chọn cập nhật nút xe, tải NPC và yêu cầu chọn xe cũ không ghi đè nhãn.
-  - `check-eb110.mjs`: kích thước/hướng/gầm, bốn pivot + bán kính bánh, vị trí pha/hậu trong biên mesh, cấu hình NPC,
-    tiến trình tải nền và hai yêu cầu chọn xe chồng nhau đạt. `check-traffic.mjs`, `check-traffic-policy.mjs`,
-    `check-steering.mjs`, build và diff check đạt.
-  - Fixture GUI Low `scripts/eb110-preview.js`: model tải được, nút hiển thị Bugatti EB110 sau tải NPC; quan sát trước/sau,
-    cabin và pha ban đêm, không có lỗi console. Ảnh `screenshots/eb110-{front,rear,cockpit,night}-verified.jpg`.
-    Fixture giữ xe/camera để chụp, bản NPC thứ hai chỉ kiểm tra tải/render; chưa phải lượt chạy NPC ngẫu nhiên thực tế.
-
-- **#3 — Mazda RX Vision Sport, gỡ cấu hình xe xanh (05/10/2026)**: đồng bộ upload `7fba0b3`, giữ file gốc Mazda;
-  tạo bản game nhẹ bằng dequantize/weld/simplify/meshopt, giữ hình dáng và bốn cụm bánh sẵn có. Căn đầu −Z, gầm chạm đường,
-  đèn theo mesh bóng đèn; cabin bên phải, chân IK, trục vô lăng đo từ vành thật, tám mesh xoay + hai tay dùng engine lái chung.
-  Gỡ toàn bộ khai báo xe màu xanh cũ (vật liệu, kích thước, mắt, ghế, vô lăng, cửa, bánh, đèn); bỏ bộ chọn riêng trong fixture
-  tay lái và tham số kiểm tra kính; các fixture NPC/đèn dùng Mustang đen. Giữ các GLB gốc và ảnh lịch sử.
-  - `node scripts/check-mazda.mjs`: danh sách đúng năm xe hiện có, giải mã bản nén <300k tam giác, kích thước/hướng/gầm,
-    bốn bánh và pivot trước, pha/hậu trong biên mesh, tám mesh vô lăng và tia tiếp xúc chạm vành thật ở hai bên đạt.
-    Các check EB110/traffic/traffic-policy/steering/rear-glass Mustang, build/diff check và bundle fixture đã sửa đều đạt.
-  - GUI Low `scripts/mazda-preview.js`: trước/sau/cabin/ban đêm, đánh lái khoảng ±21.7°, cổ tay tới điểm bám khoảng <0.1 mm,
-    không có lỗi console. Ảnh `screenshots/mazda-{front,rear,cockpit,night}-verified.jpg`, `mazda-steering-{left,right}.jpg`.
-    Fixture giữ vị trí và cấp curvature để quan sát động tác, không phải video lái liên tục; chưa thử Good/Ultra hoặc cảnh
-    dừng xe/mưa kính sau trọn vẹn. Bộ đếm 3/10.
-  - Kiểm tra tab game chính phát hiện đổi xe nhanh ngay khi khởi động có thể hủy lượt tải đầu, khiến đặt taplo trên
-    `cars.current = null` và bỏ qua tải người lái. `chooseCar` dừng phần setup của lượt bị thay thế; tải người lái vẫn tiếp tục,
-    chỉ đặt ghế khi có xe. `check-car-switch.mjs` kiểm tra lượt hủy trước/sau khi có xe và lượt thành công.
-    Reload bản game chính, đổi xe liên tiếp rồi chọn Mazda ở Low: người lái có mặt và bám vô lăng, không phát sinh cảnh báo mới;
-    ảnh `screenshots/mazda-cockpit-live.jpg`. Đã trả chất lượng Good của chú sau khi kiểm tra.
-
-- **#4 — Căn điểm bám tay Mustang mặc định (05/10/2026)**: giữ model người và độ cong ngón của `Driving_Loop`.
-  Đo vành thật thay bán kính ước lượng 0.17 → 0.153 m; cấu hình `steer.grip` riêng Mustang: radial 0.025,
-  depth 0.065, align true. Cổ tay ở bán kính 0.178 thay 0.190 m; vành nằm giữa lòng bàn tay và ngón cong.
-  `Person.faceGrip` nhận tiếp tuyến tùy chọn, xoay hàng khớp index/pinky theo vành; các xe khác giữ offset/hướng cũ.
-  - `check-mustang-grip.mjs`: giải mã GLB Mustang/người thật, ray từ vùng lòng bàn tay chạm mesh vành ở năm góc
-    −0.55…+0.55 rad; pose thực ở sáu trạng thái (có trả giữa), vành nằm giữa lòng bàn tay/ngón cong, hàng khớp
-    theo tiếp tuyến, sai số cổ tay tối đa 0.016 mm. Tái hiện điểm bám cũ không chạm vành.
-  - GUI Low `grip-preview.js`: thẳng/trái/phải, tiếp xúc vành 2/2; giữ xe/camera và cấp lái ngang để quan sát,
-    không phải video chạy liên tục. Ảnh `screenshots/mustang-grip-{before,straight,left,right}.jpg`.
-    Check steering/Mazda/car-switch, build và diff check đạt. Bộ đếm 4/10.
-
-- **#5 — Khôi phục chi tiết Mazda, sơn theo JSON và gỡ ba xe (05/10/2026)**: bỏ bản giảm chi tiết/nén thêm,
-  dựng lại Mazda từ upload gốc. Giữ 1.315.319 tam giác và toàn bộ BIN/mesh/accessor/texture byte-identical; file 19.8 MB.
-  Chỉ chỉnh tên mesh vô lăng/vật liệu để dùng rig có sẵn. Trích riêng vật liệu sơn `body` từ JSON chú cung cấp,
-  lưu thông số xám #54545f trong `src/mazda-paint.json`; không nhập scene/scripts/camera của JSON vào game.
-  - Xóa Divo/Milk Truck/EB110 khỏi CARS và model assets, gỡ script chuẩn bị/preview/test EB110; chuyển các kiểm tra
-    tiến trình tải vốn nằm trong check EB110 sang `check-car-switch.mjs`. CARS/NPC chỉ dùng Mustang và Mazda.
-  - `check-mazda.mjs`: so byte BIN và cấu trúc hình học/texture với upload gốc, thông số sơn, kích thước, bánh, đèn,
-    vô lăng và pool NPC hai xe đạt. Check Mustang grip/car-switch/traffic/traffic-policy/steering và build/diff check đạt.
-  - GUI Low với bản đầy đủ chi tiết: trước/sau/cabin/ban đêm đạt, shader vật liệu thực đọc đúng
-    #54545f / metalness 1 / roughness 0.364192 / clearcoat 1 / clearcoatRoughness 0 / env 1; không có lỗi console.
-    Ảnh `screenshots/mazda-original-{front,rear,cockpit,night}.jpg`. Chưa kiểm chứng hiệu năng Good/Ultra của bản nặng.
-
-- **#6 — Làm mượt vòng lặp sóng biển (05/10/2026)**: giảm đóng góp lớp chạm điểm đầu/cuối từ 30% xuống 10%; lớp sóng
-  lệch nửa vòng vẫn ở 100% để che. Dùng fade sin² có độ dốc bằng 0 tại điểm nối và tiếp tục chuẩn hoá hai trọng số để không
-  hụt biên độ. `check-ocean-loop.mjs` kiểm tra tuần hoàn/đạo hàm/biên trọng số và đo trực tiếp atlas: thay đổi trước/sau nối
-  dưới 0.5% RMS. GUI Low khóa camera tại phase 0.999 / 0 / 0.001, không thấy cú nhảy; ảnh
-  `screenshots/ocean-loop-{before,seam,after}.png`. Chưa đo hiệu năng Good/Ultra.
-
-- **#7 — Sửa nguyên nhân giật atlas biển (05/10/2026)**: atlas ghi hàng từ trên xuống nhưng TextureLoader mặc định
-  flipY=true; shader vì thế đọc đảo hàng, gồm bốn ô trống tại frame 6–9. Đặt flipY=false, giữ hướng bù trôi đã đo.
-  Bake ô 128×128: dữ liệu 100×100 + viền lặp 14 px, căn ô theo mipmap để footprint tới LOD 2.5 không lẫn khung khác;
-  atlas 1280×1024 / 2.61 MB, tăng phiên bản texture lên 4. Giữ chu kỳ, hình học và fade 10%.
-  - Thay phép kiểm tra cũ bằng bilinear/trilinear, bù trôi và bốn mẫu lệch như shader; kiểm tra 76 khung có dữ liệu,
-    padding byte-identical, footprint mip 0–3 nằm cùng ô và hướng bù trôi giảm sai số. Đo bước 60 Hz qua hai điểm nối:
-    RMS LOD 0 = 0.00611 (thông thường 0.00611), LOD 1 = 0.00485 (0.00451), LOD 2.5 = 0.00267 (0.00267).
-  - Đính chính mục #6: phép đo trước bỏ qua flipY/bù trôi/mipmap; kết luận đã mượt chưa đủ căn cứ.
-  - GUI Low: fixture khoá s và camera theo thế giới, bọt dùng thời gian liên tục khi chạy và cố định khi so ảnh;
-    render hết hai vòng (cycles=2.00), đọc flipY=false / atlas=1280×1024, console không có lỗi/cảnh báo.
-    Ảnh `screenshots/ocean-atlas-fixed-{before,seam,after}.jpg` tại phase 0.999 / 0 / 0.001.
-    Tab game chính đã reload hash mới, trả Mazda / Biển / Trời trong / Good. Chưa đo FPS Good/Ultra.
-
-- **#8 — Nút đổi nhân vật + Chisa cho Mustang (05/10/2026)**: thêm nút 🧑 đổi Người lái / Chisa; khóa nút ở Mazda
-  và tự trả người lái gốc khi đổi khỏi Mustang. Model Chisa không kèm animation nên ánh xạ 52 xương thân/tay/chân/ngón
-  sang rig Quaternius, chuyển delta quay theo bind pose rồi tiếp tục dùng IK tay/chân có sẵn. Chisa ngồi thẳng hơn vì tay
-  ngắn hơn; xương chậu đúng tâm ghế Mustang, đầu nằm trong cabin, tay bám và xoay cùng vô lăng ở toàn dải lái.
-  - `check-chisa.mjs`: model/bộ xương thật, 52 cặp retarget, hai tay chạm vành ở 5 góc -0.55…+0.55 rad, sai số
-    cổ tay tối đa 0.004 mm; kiểm tra đầu/ghế và thay rig không đổi root mà camera/StopScene đang giữ. Các check Mustang,
-    steering, car-switch và build đạt.
-  - GUI Low `chisa-preview.js`: nút đổi hai chiều, góc trong/ngoài và đánh lái trái/phải; label xác nhận tiếp xúc vành
-    2/2, console không có lỗi. Đổi Chisa sang Mazda tự trả Người lái và vô hiệu nút đúng phạm vi. Ảnh
-    `screenshots/chisa-mustang-{exterior,left,right}.jpg`. Chưa áp dụng Chisa cho Mazda hoặc đo hiệu năng Good/Ultra.
-
-- **#9 — Camera dừng xe bám người + giảm hút thuốc (05/10/2026)**: đổi tâm camera toàn cảnh từ gốc xe sang vị trí thế giới
-  của nhân vật, nên người đi lanh quanh vẫn luôn là tâm quỹ đạo. Sau rê/zoom, tự quay đứng yên 2 giây rồi tiếp tục; zoom tay
-  có thêm khoảng tiến gần, đạt bán kính 1 m. Khi bấm đi tiếp, camera bám người và nội suy từ khoảng cách hiện tại về 1 m
-  đúng lúc người tới cửa xe. Nhịp nghỉ hút thuốc tăng từ 3/5/5–12 s lên 8/12/12–24 s.
-  - `check-stopscene.mjs`: camera dịch đúng theo người thay vì xe; giữ góc đủ 2 s; zoom tay và cuối đường về xe đều đạt 1 m.
-    `check-steering.mjs`, build và diff check đạt.
-  - GUI Low `stopscene-preview.js`: đo 10.00 m khi quay quanh người, 0.99–1.01 m khi cận, 9.51 m ở nửa đường từ
-    bán kính đầu 18 m và 1.00 m tại cửa. Ảnh `screenshots/stopscene-player-orbit.png`,
-    `screenshots/stopscene-return-close.png`. Fixture khóa tư thế/thời gian để đối chiếu khung hình, không phải video toàn cảnh.
-
-- **#10 — Cầm vô lăng hờ (08/10/2026)**: theo ảnh chú gửi — không nắm chặt; sau `faceGrip`, `person.looseGrip(side, 0.15, surfAt, n)`
-  nới đốt ngón 2–3 về góc nghỉ 15% (45% làm ngón duỗi thẳng qua vành), ngón cái IK nằm dọc mặt vành phía người lái (bán kính
-  `sw.r − 1 cm`, nhô 1.6 cm về người lái), hướng lên đỉnh vô lăng, đầu ngón cách gốc 82% chiều dài => bấu nhẹ. `check-mustang-grip`
-  thêm: đầu ngón cái nằm đúng mặt vành (sai số 0.0 mm), ngón vẫn móc sau vành. Chưa chụp được góc trong xe trên máy ảo (cảnh mở đầu
-  giữ camera); chú xem trên máy thật. ROAD.md đạt 10/10 — lần sửa tới cần tóm tắt.
+- **#1 — Nút chụp ảnh + đom đóm dày hơn (08/10/2026)**: nút 📸 (phím K) chụp khung hình game ra PNG; đom đóm xuất hiện ở nhiều
+  đoạn hơn, nhiều con hơn, toả rộng hơn (xem mục trạng thái). Thử Low: phím K tải về `chill-drive-….png` 480×270 (canvas Low),
+  ảnh thấy nhiều đom đóm hai bên đường. Chưa thử bảng chia sẻ trên iPhone/Android thật.

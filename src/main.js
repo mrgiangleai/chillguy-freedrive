@@ -382,6 +382,20 @@ el.quality.onclick = nextQuality;
 el.stop.onclick = toggleStop;
 el.character.onclick = nextCharacter;
 el.full.onclick = toggleFS;
+// chụp ảnh màn hình: đánh dấu, chụp canvas ngay sau khi vẽ xong khung hình (canvas WebGL không giữ ảnh sau khi trình duyệt hiển thị)
+let shotPending = false;
+$('b-shot').onclick = () => { shotPending = true; };
+function saveShot() {
+  shotPending = false;
+  canvas.toBlob(async (blob) => {
+    if (!blob) return;
+    const name = 'chill-drive-' + new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-') + '.png';
+    const file = new File([blob], name, { type: 'image/png' });
+    if (IS_PHONE && navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file] }); return; } catch { /* huỷ chia sẻ => tải về */ } }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }, 'image/png');
+}
 const focalIn = $('lens-focal'), fstopIn = $('lens-fstop');
 focalIn.min = FOCAL_MIN; focalIn.max = FOCAL_MAX;
 fstopIn.max = FSTOPS.length - 1;
@@ -543,6 +557,7 @@ window.addEventListener('keydown', (e) => {
     case 'KeyQ': nextQuality(); break;
     case 'KeyP': toggleStop(); break;
     case 'KeyU': toggleFS(); break;
+    case 'KeyK': shotPending = true; break;
   }
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
@@ -946,6 +961,7 @@ function frame(now) {
   wipers.apply(post.final.uniforms, glassAmt > 0.01 ? glassAmt : 0, camera, cars.tilt, cars.shield, now / 1000, cars.rearShield);
   post.renderGlassMask(camera, cars.tilt, cars.rearShield);
   post.render(now / 1000, cineAmt, drive.fx, dofParams(dt));
+  if (shotPending) saveShot();
   requestAnimationFrame(frame);
 }
 

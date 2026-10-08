@@ -43,6 +43,7 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 | `+` `-` | zoom (tiêu cự 16–35 mm) · `L` bảng ống kính (tiêu cự + khẩu độ) |
 | `Q` | đổi mức chất lượng Low / Good / Ultra |
 | `P` | dừng xe (cảnh người bước ra) / đi tiếp |
+| `K` | chụp ảnh màn hình (nút 📸) |
 | `H` | ẩn / hiện giao diện |
 | `U` | bật / tắt toàn màn hình (nút ⛶) |
 
