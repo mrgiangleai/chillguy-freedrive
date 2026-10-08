@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import WebGPU from 'three/addons/capabilities/WebGPU.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {TransformControls} from 'three/addons/controls/TransformControls.js';
 import {createLandscapeModule} from './editor/modules/LandscapeModule.js';
@@ -49,7 +50,7 @@ let environmentIntensity=1.2;const envScene=new THREE.Scene();envScene.backgroun
 const hemi=new THREE.HemisphereLight(0xd8ebff,0x536044,2);scene.add(hemi);const sun=new THREE.DirectionalLight(0xffefd0,3);sun.position.set(-25,35,18);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-80,right:80,top:80,bottom:-80,near:.1,far:180});scene.add(sun);
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(500,500),new THREE.MeshStandardMaterial({color:0x587047,roughness:1}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;ground.userData.editor={name:'Ground',category:'landscape',builtin:true};scene.add(ground);
 const road=new THREE.Mesh(new THREE.PlaneGeometry(10,500),new THREE.MeshStandardMaterial({color:0x303033,roughness:.9}));road.rotation.x=-Math.PI/2;road.position.y=.02;road.receiveShadow=true;road.userData.editor={name:'Road',category:'landscape',builtin:true};scene.add(road);
-const loader=new GLTFLoader(),objects=[ground,road],deleted=[],mixers=[],assetURLs=new Map();let selected=null,selectedLight=null,mode='character';
+const loader=new GLTFLoader();loader.setMeshoptDecoder(MeshoptDecoder);const objects=[ground,road],deleted=[],mixers=[],assetURLs=new Map();let selected=null,selectedLight=null,mode='character';
 const defaults=[
 {id:'venom',name:'Venom',cat:'character',tris:89528,verts:49171,bytes:108157600,url:'/models/venom.glb',h:4,pos:[-3,0,2]},
 {id:'lily',name:'Lily 4K',cat:'character',tris:110900,verts:76142,bytes:262427480,url:'/models/stress/lily4k.glb',h:3,pos:[3,0,2]},
