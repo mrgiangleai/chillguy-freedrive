@@ -13,7 +13,7 @@ export function createAnimationModule() {
     const m = mixerOf(o); if (!m) return;
     for (const a of m._actions) {
       if (a === act) { if (!a.isRunning()) a.play(); a.enabled = true; a.setEffectiveWeight(weight); }
-      else { a.setEffectiveWeight(0); a.enabled = false; }
+      else a.setEffectiveWeight(0);
     }
   }
   /** Drive the walk clip from movement: speed01 in 0..1, moving boolean. */
