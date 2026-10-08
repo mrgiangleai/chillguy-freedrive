@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -128,8 +128,11 @@
   (16 mm + lùi 20 m). Rê/zoom dừng tự quay 2 s; zoom tay (wheel / pinch / phím ±) tiến sát tới 1 m. Khi đi về xe,
   camera bám người và tiến từ khoảng cách hiện tại tới 1 m đúng lúc tới cửa. Nhịp hút 8 s → 12 s → ngẫu nhiên 12–24 s;
   đi lanh quanh trong 10 m, chỉ trong làn mình + lề phải.
-- **Map Phố** (`city`, đang làm theo 4 bước — xem Nhật ký #5): `road.setShape(true)` => đường thẳng theo đoạn 720 m, đầu đoạn
-  có thể bẻ ≤ ~0.3 rad trong 140 m; 3 ngã tư/đoạn (~240 m) trên phần thẳng. `ROAD.halfWidth` = 7.2 (4 làn: tâm làn ±1.75 / ±5.25,
+- **Map Phố** (`city`, đang làm theo 4 bước — xem Nhật ký #5): `road.setShape(true)` => đường thẳng theo đoạn 720 m, 70% đoạn
+  bẻ hướng 0.25–0.75 rad trong 190 m đầu đoạn (bán kính ≥ ~130 m); 3 ngã tư/đoạn (~240 m) trên phần thẳng. Dốc: `TP.hill` 9
+  (hLow phố = đồi ~260 m trong vùng mặt nạ ~900 m, dốc tới ~10%), đường cao theo hLow; nhà có chân móng (plinth, mã trong
+  aInfo.z) khi đất dốc; phía trong khúc cua bỏ nhà xa hơn 0.55·R. Dãy mặt tiền: ~13% hẻm bậc thang (`_alley`), ~8% bãi đất trống
+  (`_lot`). Camera không xuyên nhà: `rig.collide` → `city.collide` (tia xe→camera, OBB nhà, kéo vào tức thì, nhả từ từ). `ROAD.halfWidth` = 7.2 (4 làn: tâm làn ±1.75 / ±5.25,
   chia làn ±3.5), vỉa hè 4 m cao 0.2; đường ngang rộng 7 m + vỉa hè 2.5 m. Mặt đất phẳng y = 0, đồi xanh > 500 m.
   `terrain.js`/`scenery.js` đọc bề rộng đường lúc reset/setMap. Xe mình chạy làn ngoài phải (5.25), buông tay về làn gần nhất;
   vượt xe sang làn cùng chiều bên cạnh (`TrafficPolicy._other`). Camera bên hông 13 m, quay quanh 10 m. Không đom đóm.
@@ -173,3 +176,6 @@
   hiệu/cửa hàng/máy bán nước/cột điện, đèn đêm). Kế hoạch còn lại: B2 đèn giao thông + chú tự phanh (phanh tay, báo lỗi vượt đèn
   đỏ/không nhường); B3 NPC 4 làn, đông hơn, xe máy + xe buýt (model free nhẹ, gửi chú duyệt); B4 người đi bộ qua vạch.
   Đầu game tạm rút còn 0.5 s. `check-traffic-policy`/`check-traffic` đang lỗi sẵn từ trước (lỗi cả khi bỏ thay đổi này).
+
+- **#6 — Phố: hẻm bậc thang, bãi đất trống, cua sâu, dốc, camera không xuyên nhà (08/10/2026)**: xem mục Map Phố. Thử Low:
+  map đổi được, khối dựng đủ, camera bên hông/trên cao bị kéo lại gần xe khi vướng nhà.

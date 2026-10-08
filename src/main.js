@@ -90,6 +90,7 @@ const wipers = new Wipers();
 const fireflies = new Fireflies(scene);
 const town = new ValleyTown(scene);           // map núi: thị trấn + đèn đường dưới thung lũng
 const city = new City(scene, road, scenery.roadMat);   // map Phố: nhà, vỉa hè, ngã tư, vạch kẻ
+rig.collide = (pos, cam, dt) => city.collide(pos, cam, dt);
 const dash = new DashScreen();                // màn hình giải trí trên taplo (hắt sáng lên người lái)
 const _trafficPerson = new THREE.Vector3();
 const traffic = new Traffic(scene, cars);     // thỉnh thoảng có xe chạy ngược chiều

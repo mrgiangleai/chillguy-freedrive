@@ -12,11 +12,11 @@ export const TERRAIN_MAPS = {
   meadow: { low: 22, det: 3.2, fine: 0.5, mount: 380 },
   // biển: đường chạy trên đê giữa biển (lên xuống nhẹ), xa xa có đảo; mực nước đặt ở main (thấp hơn chỗ thấp nhất của đường 3 m)
   sea: { low: 7, det: 2.5, fine: 0.4, mount: 260, sea: true },
-  // phố: mặt đất phẳng tuyệt đối (y = 0, đường + vỉa hè + nhà đặt thẳng lên), đồi núi xanh ở xa (> 500 m)
-  city: { low: 0, det: 0, fine: 0, mount: 300 },
+  // phố: mặt đất trơn (không gợn), phần lớn bằng phẳng; vài vùng đồi dốc tới ~10% (hill); đồi núi xanh ở xa (> 500 m)
+  city: { low: 0, det: 0, fine: 0, mount: 300, hill: 9 },
 };
 export const TP = { id: 'reed', ...TERRAIN_MAPS.reed };
-export function setTerrainMap(id) { Object.assign(TP, { side: false, sea: false }, TERRAIN_MAPS[id], { id }); }
+export function setTerrainMap(id) { Object.assign(TP, { side: false, sea: false, hill: 0 }, TERRAIN_MAPS[id], { id }); }
 
 export function hash2(ix, iz) {
   let h = (Math.imul(ix, 374761393) + Math.imul(iz, 668265263)) | 0;
@@ -35,6 +35,11 @@ export function vnoise(x, z) {
 }
 
 export function hLow(x, z) {
+  if (TP.hill) {
+    // phố: đồi ~260 m, chỉ ở các vùng (mặt nạ ~900 m) => có đoạn dốc, còn lại bằng
+    const m = vnoise(x / 900 + 2.1, z / 900 + 8.4), k = m < 0.45 ? 0 : m > 0.62 ? 1 : (m - 0.45) / 0.17;
+    return TP.hill * k * k * (3 - 2 * k) * (vnoise(x / 260 + 6.6, z / 260 + 3.2) - 0.5) * 2;
+  }
   return TP.low * ((vnoise(x / 1000 + 11.3, z / 1000 + 7.1) - 0.5) * 1.34 + (vnoise(x / 500 + 3.7, z / 500 + 1.9) - 0.5) * 0.66);
 }
 

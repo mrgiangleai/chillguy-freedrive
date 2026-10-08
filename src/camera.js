@@ -229,6 +229,7 @@ export class CameraRig {
     }
 
     this.camera.position.copy(pos).add(cp);
+    if (this.collide && !rigid) this.collide(pos, this.camera.position, dt);   // map Phố: không xuyên nhà
     // không để camera chui xuống đất (đồi bên đường)
     if (this.groundAt) {
       const g = this.groundAt(this.camera.position.x, this.camera.position.z) + 0.6;

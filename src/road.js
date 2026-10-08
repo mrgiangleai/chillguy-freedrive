@@ -5,10 +5,10 @@ import { hLow } from './terrain-noise.js';
 export const ROAD = { halfWidth: 4.6, chunkLen: 120, step: 2 };   // halfWidth đổi theo map (Phố: 4 làn => 7.2)
 export const ROAD_HW = 4.6;
 
-// Map Phố: đường thẳng theo từng đoạn CITY.seg mét; đầu mỗi đoạn có thể bẻ hướng nhẹ (≤ ~0.3 rad trong CITY.bend mét,
-// bán kính ≥ ~300 m). Ngã tư nằm trên phần thẳng: 3 cái mỗi đoạn (cách nhau ~240 m), đường ngang vuông góc.
-export const CITY = { seg: 720, bend: 140, hw: 7.2, walk: 4.0, side: 3.5, sideWalk: 2.5, lanes: [1.75, 5.25] };
-const JPOS = [205, 445, 688];
+// Map Phố: đường thẳng theo từng đoạn CITY.seg mét; đầu mỗi đoạn có thể bẻ hướng (≤ ~0.75 rad trong CITY.bend mét,
+// bán kính ≥ ~130 m). Dốc: theo địa hình (TP.hill, chỉ vài vùng). Ngã tư nằm trên phần thẳng: 3 cái mỗi đoạn (cách nhau ~240 m), đường ngang vuông góc.
+export const CITY = { seg: 720, bend: 190, hw: 7.2, walk: 4.0, side: 3.5, sideWalk: 2.5, lanes: [1.75, 5.25] };
+const JPOS = [215, 455, 690];
 
 const H = (s) => 0.9 * Math.sin(0.0021 * s + 1.0) + 0.5 * Math.sin(0.0053 * s + 2.2) + 0.25 * Math.sin(0.0117 * s + 0.3);
 const H0 = H(0);
@@ -39,8 +39,9 @@ export class Road {
   _delta(k) {
     if (k <= 0) return 0;
     const h = hashR(k * 1.37 + 0.5);
-    if (h < 0.45) return 0;
-    return (hashR(k * 2.71 + 3.3) - 0.5) * 0.6 - 0.35 * this._sum(k - 1);
+    if (h < 0.3) return 0;
+    const d = (hashR(k * 2.71 + 3.3) - 0.5) * 1.5 - 0.35 * this._sum(k - 1);
+    return Math.sign(d) * Math.max(0.25, Math.abs(d));          // đã cua thì cua rõ (≥ ~14°)
   }
   _sum(k) {
     if (k < 0) return 0;
@@ -73,7 +74,7 @@ export class Road {
     return sst(DIRT.start, DIRT.start + DIRT.ramp, m) * (1 - sst(DIRT.start + DIRT.len - DIRT.ramp, DIRT.start + DIRT.len, m));
   }
 
-  _y(x, z, s) { return this.city ? 0 : hLow(x, z) + this.dirtAt(s) * bump(s); }
+  _y(x, z, s) { return this.city ? hLow(x, z) : hLow(x, z) + this.dirtAt(s) * bump(s); }
 
   heading(s) {
     if (!this.city) return H(s) - H0;
