@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -129,8 +129,8 @@
   đi lanh quanh trong 10 m, chỉ trong làn mình + lề phải.
 - **Chụp ảnh**: nút 📸 / phím K — chụp canvas ngay sau `post.render` (không cần preserveDrawingBuffer), tải PNG
   `chill-drive-<thời gian>.png`; điện thoại dùng bảng chia sẻ nếu có (lưu vào Ảnh).
-- **Đom đóm**: đoạn có đom đóm ~2/3 chiều dài đường (nhiễu `sst(0.38, 0.58)`), 90% ô 5 m có, 2–6 con/ô, ra tới ~16 m hai bên,
-  cao 0.7–3.3 m, tối đa 400, nhìn trước 200 m. Lõi sáng nhỏ (bán kính 0.11 điểm), quầng rộng nhoè mờ về 0 ở mép.
+- **Đom đóm**: đoạn có đom đóm ~2/3 chiều dài đường (nhiễu `sst(0.38, 0.58)`), 90% ô 5 m có, 1–3 con/ô, ra tới ~16 m hai bên,
+  cao 0.7–3.3 m, tối đa 200, nhìn trước 200 m. Điểm vẽ `0.25·uScale/z` (2.5–22 px), màu (9, 12, 2.6), lõi bán kính 0.11, quầng rộng nhoè mờ về 0 ở mép.
 - **Biển (sửa atlas)**: atlas bake ô 128 px (100 + viền lặp 14 px, 1280×1024), `flipY=false` (trước bị đảo hàng => giật);
   lớp chạm điểm nối mờ còn 10% (sin²), lớp kia 100%.
 - **Điện thoại**: tự toàn màn hình khi nhấc tay ở lần chạm đầu (và chạm lại nếu bị thoát), nút ⛶ chỉ hiện trên điện thoại,
@@ -158,3 +158,6 @@
 
 - **#3 — Đom đóm nhỏ lại, sáng nhoè hơn (08/10/2026)**: lõi sáng còn một nửa (0.22 → 0.11), quầng sáng rộng hơn và mờ dần
   về 0 ở mép điểm vẽ (`fireflies.js` FRAG).
+
+- **#4 — Đom đóm nhỏ hơn nữa, sáng hơn, ít hơn (08/10/2026)**: điểm vẽ ~0.55 lần (0.45 → 0.25, 2.5–22 px), màu sáng ×1.6,
+  1–3 con/ô 5 m (trước 2–6), tối đa 200.

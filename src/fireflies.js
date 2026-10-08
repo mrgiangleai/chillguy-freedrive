@@ -5,7 +5,7 @@ import * as THREE from 'three';
 // có đom đóm hay không do nhiễu theo quãng đường (từng đoạn có, từng đoạn không). Nhấp nháy theo nhịp riêng từng con.
 const SLOT = 5;              // m
 const AHEAD = 200, BEHIND = 40;
-const MAX = 400;
+const MAX = 200;
 const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 const vnoise = (x) => { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return hash(i) * (1 - u) + hash(i + 1) * u; };
 const sst = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -18,7 +18,7 @@ const VERT = `
     vec4 mv = viewMatrix * vec4(position, 1.0);
     float fd = uFogD * -mv.z;
     vGlow = aGlow * exp(-fd * fd);                // chìm dần trong sương xa
-    gl_PointSize = clamp(0.45 * uScale / -mv.z, 3.5, 40.0);
+    gl_PointSize = clamp(0.25 * uScale / -mv.z, 2.5, 22.0);
     gl_Position = projectionMatrix * mv;
   }`;
 const FRAG = `
@@ -42,7 +42,7 @@ export class Fireflies {
     g.setAttribute('aGlow', new THREE.BufferAttribute(this.glow, 1).setUsage(THREE.DynamicDrawUsage));
     g.setDrawRange(0, 0);
     this.mat = new THREE.ShaderMaterial({
-      uniforms: { uScale: { value: 500 }, uFogD: { value: 0 }, uColor: { value: new THREE.Color(5.5, 7.5, 1.6) }, uAmt: { value: 0 } },
+      uniforms: { uScale: { value: 500 }, uFogD: { value: 0 }, uColor: { value: new THREE.Color(9, 12, 2.6) }, uAmt: { value: 0 } },
       vertexShader: VERT, fragmentShader: FRAG,
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
     });
@@ -69,7 +69,7 @@ export class Fireflies {
       // đoạn có đom đóm: nhiễu theo quãng đường (đám dài ~150–300 m, khoảng 2/3 chiều dài đường), trong đoạn đó mỗi ô 90% có
       const zone = sst(0.38, 0.58, vnoise(k * SLOT / 140 + 3.7));
       if (zone <= 0 || hash(k * 1.31) > zone * 0.9) continue;
-      const cnt = 2 + Math.floor(hash(k * 2.17) * 5);
+      const cnt = 1 + Math.floor(hash(k * 2.17) * 3);    // 1–3 con/ô
       for (let j = 0; j < cnt && n < MAX; j++) {
         const id = k * 8 + j;
         const h1 = hash(id * 3.1 + 0.5), h2 = hash(id * 5.7 + 1.3), h3 = hash(id * 7.3 + 2.9), h4 = hash(id * 9.1 + 4.4);
