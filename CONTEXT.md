@@ -23,6 +23,8 @@ Editor + runtime WebGPU/TSL + Rapier (Vite), tách khỏi game chính. Đang là
 - **Bầu trời + mặt trời/trăng + sao + mây**: port `SKY_KEYS`/gradient từ `src/world.js` — dome gradient theo **vertex color**, sprite mặt trời/mặt trăng + **sao đêm** + **lớp mây trôi** (theo độ âm u), bám đúng `camera.position` (đã sửa lỗi cũ truyền nhầm camera object → dome NaN, trước đây chỉ thấy màu nền). File `editor/core/sky.js`.
 - **6 camera xe (M3)**: theo định nghĩa xe — Chase/Low/Side/Cockpit/Orbit/Drone, có chuyển FOV mượt; đổi camera khi lái bằng phím **C**; HUD hiện tên camera. `runtime/VehicleCameraRig.js`.
 - **PMREM refresh policy**: làm mới environment (PMREM) khi thời gian/thời tiết đổi, throttle 1.5s.
+- **Giao thông (M4)**: xe hai chiều chạy trên đường dùng **pool**; bám làn, **giảm tốc vào cua**, có **vượt** cơ bản; panel **Traffic** (bật/tắt, số xe, tốc độ min/max). `runtime/TrafficMath|TrafficPolicy|TrafficRuntime.js`, `editor/modules/TrafficModule.js`.
+- **Âm thanh (M4)**: WebAudio — tiếng máy + gió khi lái, tiếng "vụt" khi xe cạnh chạy qua; panel **Audio** (bật/tắt, âm lượng). `runtime/ChillAudio.js`, `editor/modules/AudioModule.js`.
 - **Drive slice (M1, mới)**: Landscape → **Tạo đường** (cong theo `src/road.js`, chỉnh dài/nửa rộng/đường đất, dựng lại/xoá); là object chọn/kéo/ẩn/khoá được, collider tĩnh. Chọn xe (Vehicle) → **Gắn vào đường** → **Lái xe**: W/S ga-phanh, A/D hoặc mũi tên lái (giới hạn trong mép đường), F đổi nấc tốc, Esc thoát; **camera đuổi** theo xe và trả lại góc chỉnh tay khi thoát. Lưu `state.road`/`state.drive`. File `runtime/RoadPath|RoadMeshBuilder|DriveController|VehicleCameraRig.js`, `editor/modules/RoadModule|DriveModule.js`.
 - **Streaming Terrain (M2)**: Landscape chọn map **reed/forest/mountain/meadow/sea** → lưới địa hình lớn **bám camera** (snap toạ độ, không pop), height + màu + núi xa; **carve hành lang khớp với độ cao đường**; **đồ hai bên đường** (cọc tiêu, lan can ở cua, đèn đường); **collider window** heightfield bám camera (chỉ khi bật Global Physics). File `runtime/TerrainNoise.js`, `TerrainStreamer.js`, `RoadScenery.js`; lưu `state.streamTerrain`.
 - **Road theo địa hình (M1c)**: độ cao đường lấy từ profile địa hình đang chọn (đổi map → đường nghiêng theo), xe/camera bám dốc.
@@ -45,7 +47,7 @@ Editor + runtime WebGPU/TSL + Rapier (Vite), tách khỏi game chính. Đang là
 - Đã Việt hoá cả nhãn kỹ thuật (FOV→Góc nhìn, Cam X/Y/Z→Vị trí, Target→Ngắm, Aperture→Khẩu độ, Focal Length→Tiêu cự, preset camera, Static/Dynamic, tên light, tên material). Chỉ còn giữ nguyên danh từ riêng/tên asset (Venom, Lily 4K, Mazda…) và nhãn `UI`/`Theatre`/`WEBGPU SANDBOX`.
 - Chưa xem trực quan (harness không chụp được); đã build `vite build` OK, `dist/` là gitignore nên cần `npm run build` trước khi `npm start`.
 - Đã push nhánh `experiment/webgpu-vertical-slice` lên origin (PR có thể tạo tại link GitHub).
-- **Roadmap status**: baseline xong; **M1 HOÀN THÀNH**; **M2 xong** (collider window `(b)` cần test runtime heightfield); **M3 xong** (weather/time/sky/precip/lightning + clouds + 6 vehicle cameras + PMREM policy) — còn M4+ (traffic/audio/driver/ocean/post/events).
+- **Roadmap status**: baseline xong; **M1 HOÀN THÀNH**; **M2 xong** (`(b)` cần test runtime heightfield); **M3 xong** (weather/time/sky/precip/clouds/6 cam); **M4 xong** (traffic + audio) — còn M5 driver/IK, M6 ocean/waterfall, M7 post/reflection/mirror, M8 events/world.
 
 ## Quy tắc làm việc
 - Xem `AGENTS.md`. Context mới chỉ đọc `CONTEXT.md` + `AGENTS.md`; không quét lại codebase, không đọc lịch sử dài, tránh poll/retry/verify lặp.

@@ -18,6 +18,8 @@ export function createProjectStore({loadProject, saveProject, flushProject}) {
     st.streamTerrain ??= null;
     st.road ??= null;
     st.drive ??= null;
+    st.traffic ??= {enabled: false, count: 4, minSpeed: 8, maxSpeed: 22};
+    st.audio ??= {enabled: false, volume: .6};
     if (st.version < PROJECT_VERSION) st.version = PROJECT_VERSION;
     return st;
   }
