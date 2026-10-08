@@ -23,7 +23,7 @@ export function createTerrainStreamer({scene, size = 2400, segments = 240, mapId
   const mat = new THREE.MeshStandardMaterial({vertexColors: true, roughness: 1, metalness: 0});
   const mesh = new THREE.Mesh(geo, mat);
   mesh.receiveShadow = true; mesh.frustumCulled = false;
-  mesh.userData.editor = {name: 'Streaming Terrain', category: 'landscape', builtin: true, terrain: true, stream: true};
+  mesh.userData.editor = {name: 'Land', category: 'landscape', builtin: true, terrain: true, stream: true};
   scene.add(mesh);
 
   const snap = size / segments, row = segments + 1;
