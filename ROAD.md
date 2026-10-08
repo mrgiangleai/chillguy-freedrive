@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -66,7 +66,7 @@
 
 ## 4. Trạng thái hiện tại (tóm tắt)
 - **Mặc định vào game**: map núi, camera Quay quanh, mưa, hoàng hôn (17.6 h), 16 mm f/1.4, chất lượng Good, xe Mustang '67 Đen,
-  tốc độ 25 km/h. Cinematic luôn bật (không có nút).
+  tốc độ 25 km/h. Cinematic luôn bật (không có nút). Bấm Start: 3 s ở 180 km/h, giảm về 25 km/h rồi tự chuyển camera **Bên hông**.
 - **Chất lượng**: Low / Good (mặc định) / Ultra (cây chi tiết 200 m, địa hình/cỏ xa ×2). Điện thoại: Good giới hạn pixel ratio 1.25.
 - **Tốc độ**: nút ⚡/phím F: 25 → 50 → 180 km/h. 180: blur rìa, không vệt dài; camera ngoài xe chuyển 16 mm.
 - **Ống kính**: camera ngoài xe → 24 mm f/5.6; trong xe 16 mm f/16 (lấy nét taplo). Zoom 16–35 mm.
@@ -152,3 +152,6 @@
 - **#1 — Nút chụp ảnh + đom đóm dày hơn (08/10/2026)**: nút 📸 (phím K) chụp khung hình game ra PNG; đom đóm xuất hiện ở nhiều
   đoạn hơn, nhiều con hơn, toả rộng hơn (xem mục trạng thái). Thử Low: phím K tải về `chill-drive-….png` 480×270 (canvas Low),
   ảnh thấy nhiều đom đóm hai bên đường. Chưa thử bảng chia sẻ trên iPhone/Android thật.
+
+- **#2 — Đầu game chuyển camera Bên hông (08/10/2026)**: sau khi giảm 180 → 25 km/h, camera tự chuyển sang "Bên hông"
+  thay vì "Sau xe" (`main.js`, chỗ `openingCameraPending`).

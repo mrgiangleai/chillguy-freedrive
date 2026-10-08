@@ -799,7 +799,7 @@ function frame(now) {
   if (openingCameraPending && drive.v <= CHILL_DEFAULT + 0.01) {
     openingCameraPending = false;
     drive.v = CHILL_DEFAULT;
-    state.cam = CAMERAS.findIndex((c) => c.id === 'chase');
+    state.cam = CAMERAS.findIndex((c) => c.id === 'side');
     rig.setMode(state.cam);
     onCamChange();
     refreshUI();
