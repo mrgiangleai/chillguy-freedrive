@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 10/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -237,3 +237,9 @@
   - GUI Low `stopscene-preview.js`: đo 10.00 m khi quay quanh người, 0.99–1.01 m khi cận, 9.51 m ở nửa đường từ
     bán kính đầu 18 m và 1.00 m tại cửa. Ảnh `screenshots/stopscene-player-orbit.png`,
     `screenshots/stopscene-return-close.png`. Fixture khóa tư thế/thời gian để đối chiếu khung hình, không phải video toàn cảnh.
+
+- **#10 — Cầm vô lăng hờ (08/10/2026)**: theo ảnh chú gửi — không nắm chặt; sau `faceGrip`, `person.looseGrip(side, 0.15, surfAt, n)`
+  nới đốt ngón 2–3 về góc nghỉ 15% (45% làm ngón duỗi thẳng qua vành), ngón cái IK nằm dọc mặt vành phía người lái (bán kính
+  `sw.r − 1 cm`, nhô 1.6 cm về người lái), hướng lên đỉnh vô lăng, đầu ngón cách gốc 82% chiều dài => bấu nhẹ. `check-mustang-grip`
+  thêm: đầu ngón cái nằm đúng mặt vành (sai số 0.0 mm), ngón vẫn móc sau vành. Chưa chụp được góc trong xe trên máy ảo (cảnh mở đầu
+  giữ camera); chú xem trên máy thật. ROAD.md đạt 10/10 — lần sửa tới cần tóm tắt.

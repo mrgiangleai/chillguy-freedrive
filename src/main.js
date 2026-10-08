@@ -730,6 +730,12 @@ function gripWheel(sw) {
     person.reach(side, _wt, pole);
     const tangent = sw.grip?.align ? _wp.copy(_wu).multiplyScalar(cx).addScaledVector(_wr, -cy).multiplyScalar(side === 'r' ? 1 : -1) : null;
     person.faceGrip(side, _wn, tangent);
+    // cầm hờ: ngón nới 15% (vẫn móc sau vành); ngón cái nằm dọc mặt vành phía người lái (hơi vào trong), hướng lên đỉnh vô lăng
+    const dir = side === 'r' ? 1 : -1, ri = sw.r - 0.01;
+    person.looseGrip(side, 0.15, (s, o) => {
+      const b = a + dir * s / ri;
+      return o.copy(_wc).addScaledVector(_wr, Math.cos(b) * ri).addScaledVector(_wu, Math.sin(b) * ri).addScaledVector(_wn, 0.016);
+    }, _wn);
   }
 }
 

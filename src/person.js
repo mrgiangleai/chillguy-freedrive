@@ -76,6 +76,14 @@ export class Person {
     // Lưu bind pose trong hệ root trước khi animation/IK đổi xương.
     this.bindRotations = new Map();
     model.traverse(o => { if (o.isBone) this.bindRotations.set(o.name, o.getWorldQuaternion(new THREE.Quaternion())); });
+    // ngón tay để cầm vô lăng hờ: [đốt 1..3] mỗi ngón + góc nghỉ (bind) để nới lỏng; ngón cái 3 đốt + đầu ngón
+    this.fingers = {}; this.thumbs = {};
+    for (const s of ['l', 'r']) {
+      this.fingers[s] = ['index', 'middle', 'ring', 'pinky'].flatMap((f) => [2, 3].map((k) => bone(`${f}_0${k}_${s}`))).filter(Boolean)
+        .map((b) => ({ b, rest: b.quaternion.clone() }));
+      const t = ['thumb_01', 'thumb_02', 'thumb_03', 'thumb_04_leaf'].map((n) => bone(n + '_' + s));
+      this.thumbs[s] = t.every(Boolean) ? { bones: t, rest: t[2].quaternion.clone() } : null;
+    }
     if (chisa) {
       // Model Chisa không có clip: dùng animation hiện có, chuyển delta quay giữa hai bind pose.
       this.reference = await new Person().load('assets/models/person.glb');
@@ -178,6 +186,24 @@ export class Person {
     }
   }
 
+  // cầm vô lăng hờ (như tay lái thật): nới các đốt ngón 2–3 về góc nghỉ một phần `relax` => ngón khoác nhẹ ra sau vành,
+  // không nắm chặt; ngón cái nằm dọc mặt vành phía người lái — `surfAt(s, out)` = điểm trên mặt vành đi lên dọc vành cung s (m);
+  // chọn s để đầu ngón cách gốc ngón cái ~82% chiều dài (ngón hơi cong, bấu nhẹ), khớp giữa cong về `pole`
+  looseGrip(side, relax, surfAt, pole) {
+    for (const { b, rest } of this.fingers?.[side] || []) b.quaternion.slerp(rest, relax);
+    const t = this.thumbs?.[side];
+    if (t && surfAt) {
+      t.bones[2].quaternion.slerp(t.rest, 0.5);                     // đốt ngoài duỗi bớt => đầu ngón tì phẳng lên vành
+      t.bones[0].updateMatrixWorld(true);
+      const [b1, b2, , tip] = t.bones.map((b) => b.getWorldPosition(new THREE.Vector3()));
+      const L = 0.82 * (b1.distanceTo(b2) + b2.distanceTo(tip));
+      let lo = 0, hi = 0.2;
+      for (let i = 0; i < 16; i++) { const m = (lo + hi) / 2; if (surfAt(m, _T).distanceTo(b1) < L) lo = m; else hi = m; }
+      ik([t.bones[0], t.bones[1], t.bones[3]], surfAt(lo, _T), pole);
+    }
+    this.arms?.[side]?.[2].updateMatrixWorld(true);
+  }
+
   // ngả lưng ra sau `angle` rad (xoay spine_01 quanh trục ngang của người). Gọi sau mixer.update, trước IK tay.
   recline(angle) {
     angle = this.seatRecline ?? angle;
@@ -237,7 +263,7 @@ function ik(chain, target, pole) {
 
 export const HEIGHT = 1.70;          // chiều cao người lái (m) — vừa cabin Mustang (trần thấp, ghế đã hạ)
 const _S = new THREE.Vector3(), _E = new THREE.Vector3(), _W = new THREE.Vector3(), _D = new THREE.Vector3(), _P = new THREE.Vector3();
-const _E2 = new THREE.Vector3(), _A = new THREE.Vector3(), _B = new THREE.Vector3();
+const _E2 = new THREE.Vector3(), _A = new THREE.Vector3(), _B = new THREE.Vector3(), _T = new THREE.Vector3();
 const _q = new THREE.Quaternion(), _qw = new THREE.Quaternion(), _qp = new THREE.Quaternion();
 // xoay xương để hướng `from` (thế giới) thành `to`
 function turn(bone, from, to) {

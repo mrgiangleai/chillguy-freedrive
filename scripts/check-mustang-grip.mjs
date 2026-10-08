@@ -51,7 +51,7 @@ const person=new Person(),load=GLTFLoader.prototype.loadAsync;
 try{GLTFLoader.prototype.loadAsync=async()=>personGltf;await person.load('test-person');}finally{GLTFLoader.prototype.loadAsync=load;}
 car.add(person.root);person.root.visible=true;
 const stop=new StopScene({},person);stop.place({width:size.x,length:size.z,eye:def.eye,seat:def.seat});stop.sit();
-let maximumError=0;
+let maximumError=0,thumbError=0,looseTip=0;
 for(const turn of [-.55,-.3,0,.3,.55,0]){
  pivot.quaternion.setFromAxisAngle(n,turn);person.update(.016);person.recline(def.seat.recline);car.updateMatrixWorld(true);
  for(const [side,base] of [['r',-.08],['l',Math.PI+.08]]){
@@ -71,7 +71,16 @@ for(const turn of [-.55,-.3,0,.3,.55,0]){
   const [index,pinky]=person.gripKnuckles[side];
   const span=index.getWorldPosition(new THREE.Vector3()).sub(pinky.getWorldPosition(new THREE.Vector3()));span.addScaledVector(n,-span.dot(n)).normalize();
   assert(span.dot(tangent)>.999,'Knuckle row must follow rim tangent');
+  // cầm hờ như main.gripWheel: ngón nới 15%, ngón cái tì mặt vành phía người lái
+  const ri=sw.r-.01,thumbAt=(q,o)=>{const bb=a+(side==='r'?1:-1)*q/ri;return o.copy(wheelCenter).add(new THREE.Vector3(Math.cos(bb)*ri,0,0)).addScaledVector(up,Math.sin(bb)*ri).addScaledVector(n,.016);};
+  person.looseGrip(side,.15,thumbAt,n);car.updateMatrixWorld(true);
+  const thumbTip=person.model.getObjectByName('thumb_04_leaf_'+side).getWorldPosition(new THREE.Vector3());
+  {const q=thumbTip.clone().sub(wheelCenter),al=q.dot(n),rr=q.addScaledVector(n,-al).length();thumbError=Math.max(thumbError,Math.hypot(rr-ri,al-.016));}
+  const tip2=person.model.getObjectByName('middle_03_'+side).getWorldPosition(new THREE.Vector3()).sub(wheelCenter);
+  looseTip=Math.max(looseTip,tip2.dot(radial));
  }
 }
 assert(maximumError<.001,`Wrist error ${maximumError}`);
+console.log(`loose grip: thumb tip error ${(thumbError*1000).toFixed(1)} mm, middle_03 radial max ${(looseTip*100).toFixed(1)} cm`);
+assert(thumbError<.006,'Thumb must rest on the rim');assert(looseTip<.16,'Loose fingers must still hook behind the rim');
 console.log(`PASS actual driver: rim sits between palm and curled fingers, knuckles follow tangent through both steering limits; wrist error ${(maximumError*1000).toFixed(3)} mm.`);
