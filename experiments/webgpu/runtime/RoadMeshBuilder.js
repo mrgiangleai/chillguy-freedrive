@@ -29,10 +29,10 @@ export function buildRoadGeometry(path, {to = 240, step = 2, halfWidth = 4.6, sh
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geo.setIndex(indices); geo.computeVertexNormals();
-  group.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({vertexColors: true, roughness: .95, metalness: 0})));
+  group.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({vertexColors: true, roughness: .95, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2})));
 
-  const matW = new THREE.MeshBasicMaterial({color: 0xe8e8e8});
-  const matY = new THREE.MeshBasicMaterial({color: 0xe0b93a});
+  const matW = new THREE.MeshBasicMaterial({color: 0xe8e8e8, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4});
+  const matY = new THREE.MeshBasicMaterial({color: 0xe0b93a, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4});
   function stripe(off, width, dash, mat) {
     const pos = [], idx = []; const hw = width / 2;
     if (dash) {

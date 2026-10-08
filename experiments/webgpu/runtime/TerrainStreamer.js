@@ -57,7 +57,7 @@ export function createTerrainStreamer({scene, size = 2400, segments = 240, mapId
             if (i < 0 || i > segments) continue;
             const idx = j * row + i, wx = pos.getX(idx) + ox, wz = pos.getZ(idx) + oz;
             const dd = Math.hypot(wx - p.x, wz - p.z);
-            if (dd < carveD[idx]) { carveD[idx] = dd; carveY[idx] = p.y; }
+            if (dd < carveD[idx]) { carveD[idx] = dd; carveY[idx] = p.y - 0.10; }
           }
         }
       }
