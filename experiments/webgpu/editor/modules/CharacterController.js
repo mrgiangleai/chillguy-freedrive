@@ -27,7 +27,7 @@ export function createCharacterController({camera,controls,canvas,physics}){
     try{physics.beginControl(object,height,localForward)}catch(err){console.warn('character physics failed',err)}
     clearInput();controls.enabled=false;canvas.tabIndex=0;canvas.focus();
   }
-  function input(dt){if(!rig)return;controls.enabled=false;const f=(keys.has('KeyW')?1:0)-(keys.has('KeyS')?1:0),t=(keys.has('KeyQ')?1:0)-(keys.has('KeyE')?1:0);if(physics.has&&physics.has(rig.object)){physics.drive(rig.object,f,t,jump)}else{const fwd=rig.localForward.clone().applyQuaternion(rig.object.quaternion).setY(0).normalize();rig.object.position.addScaledVector(fwd,f*4*dt);rig.object.rotation.y+=t*2.2*dt}jump=false}
+  function input(dt){if(!rig)return;controls.enabled=false;const f=((keys.has('KeyW')||keys.has('ArrowUp'))?1:0)-((keys.has('KeyS')||keys.has('ArrowDown'))?1:0),t=((keys.has('KeyQ')||keys.has('ArrowLeft'))?1:0)-((keys.has('KeyE')||keys.has('ArrowRight'))?1:0);if(physics.has&&physics.has(rig.object)){physics.drive(rig.object,f,t,jump)}else{const fwd=rig.localForward.clone().applyQuaternion(rig.object.quaternion).setY(0).normalize();rig.object.position.addScaledVector(fwd,f*4*dt);rig.object.rotation.y+=t*2.2*dt}jump=false}
   function updateCamera(dt){
     if(!rig)return;
     const {object,height,head,eyes,anchor,correction,localForward}=rig;
@@ -55,7 +55,8 @@ export function createCharacterController({camera,controls,canvas,physics}){
     }
     rig.snap=false;
   }
-  function keydown(e){if(!rig||!['KeyW','KeyS','KeyQ','KeyE','Space'].includes(e.code)||e.target?.matches('input,textarea,[contenteditable=true]'))return;e.preventDefault();if(e.code==='Space'){if(!e.repeat)jump=true}else keys.add(e.code)}
+  function isTyping(e){const t=e.target;if(!t)return false;if(t.isContentEditable||t.tagName==='TEXTAREA')return true;if(t.tagName==='INPUT'){const ty=(t.type||'text').toLowerCase();return !['range','color','checkbox','radio','button','submit','file'].includes(ty)}return false}
+  function keydown(e){if(!rig||!['KeyW','KeyS','KeyQ','KeyE','Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)||isTyping(e))return;e.preventDefault();if(e.code==='Space'){if(!e.repeat)jump=true}else keys.add(e.code)}
   window.addEventListener('keydown',keydown);window.addEventListener('keyup',e=>keys.delete(e.code));window.addEventListener('blur',clearInput);
   return {start,stop,input,updateCamera,get object(){return rig?.object||null},get view(){return rig?.view||'third'}};
 }
