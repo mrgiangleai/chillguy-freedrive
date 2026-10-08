@@ -16,7 +16,7 @@ const PALETTE = {
 const SNOW = '#eef3ff';
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-export function createTerrainStreamer({scene, size = 2400, segments = 240, mapId = 'reed'} = {}) {
+export function createTerrainStreamer({scene, size = 1400, segments = 140, mapId = 'reed'} = {}) {
   const geo = new THREE.PlaneGeometry(size, size, segments, segments);
   geo.rotateX(-Math.PI / 2);
   const count = geo.attributes.position.count;
@@ -27,7 +27,10 @@ export function createTerrainStreamer({scene, size = 2400, segments = 240, mapId
   mesh.userData.editor = {name: 'Land', category: 'landscape', builtin: true, terrain: true, stream: true};
   scene.add(mesh);
 
-  const snap = size / segments, row = segments + 1;
+  const cell = size / segments, row = segments + 1;
+  // Recentre the mesh every 4 cells: vertices stay on the same world grid (cell
+  // multiples) so there is no popping, but rebuilds are ~4x less frequent.
+  const snap = cell * 4;
   const carveEdge = 26;
   const carveY = new Float32Array(count), carveD = new Float32Array(count);
   let map = TERRAIN_MAPS[mapId] ? mapId : 'reed';
@@ -54,10 +57,10 @@ export function createTerrainStreamer({scene, size = 2400, segments = 240, mapId
     }
     if (road) {
       carveY.fill(NaN); carveD.fill(Infinity);
-      const inner = roadHalf + 2, radius = Math.ceil(carveEdge / snap);
-      for (let s = 0; s <= roadLen; s += snap) {
+      const inner = roadHalf + 2, radius = Math.ceil(carveEdge / cell);
+      for (let s = 0; s <= roadLen; s += cell) {
         const p = road.at(s);
-        const gx = Math.round((p.x - ox) / snap + segments / 2), gz = Math.round((p.z - oz) / snap + segments / 2);
+        const gx = Math.round((p.x - ox) / cell + segments / 2), gz = Math.round((p.z - oz) / cell + segments / 2);
         for (let j = gz - radius; j <= gz + radius; j++) {
           if (j < 0 || j > segments) continue;
           for (let i = gx - radius; i <= gx + radius; i++) {
@@ -71,13 +74,14 @@ export function createTerrainStreamer({scene, size = 2400, segments = 240, mapId
       for (let i = 0; i < count; i++) { if (carveD[i] < carveEdge) { const f = 1 - smooth(inner, carveEdge, carveD[i]); pos.setY(i, pos.getY(i) * (1 - f) + carveY[i] * f); } }
     }
     pos.needsUpdate = true;
-    const e = snap * 0.6;
+    geo.computeVertexNormals();
+    const nrm = geo.attributes.normal;
     for (let i = 0; i < count; i++) {
       const h = pos.getY(i), wx = pos.getX(i) + ox, wz = pos.getZ(i) + oz;
-      // colour by height bands + slope rock + snow + beach near water
+      // colour by height bands + slope rock (from vertex normals) + snow + beach
       let c = _col.copy(_low).lerp(_mid, smooth(-14, 20, h)).lerp(_high, smooth(28, 90, h));
-      const gx = (height(wx + e, wz) - h) / e, gz = (height(wx, wz + e) - h) / e;
-      const slope = Math.min(2.4, Math.hypot(gx, gz));
+      const ny = Math.max(.2, nrm.getY(i));
+      const slope = Math.min(3, Math.hypot(nrm.getX(i), nrm.getZ(i)) / ny);
       if (slope > 0.55) c.lerp(_rock, smooth(0.55, 1.5, slope) * 0.85);
       if (h > pal.snow - 15) c.lerp(_snow, smooth(pal.snow - 15, pal.snow + 35, h));
       if (pal.beach && waterLevel != null && h < waterLevel + 6) c.lerp(_beach, smooth(waterLevel + 6, waterLevel, h));
@@ -86,7 +90,7 @@ export function createTerrainStreamer({scene, size = 2400, segments = 240, mapId
       c = c.offsetHSL(0, 0, n);
       col.setXYZ(i, c.r, c.g, c.b);
     }
-    col.needsUpdate = true; geo.computeVertexNormals(); geo.computeBoundingSphere();
+    col.needsUpdate = true; geo.computeBoundingSphere();
   }
 
   function update(cam) {
