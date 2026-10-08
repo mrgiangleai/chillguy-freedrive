@@ -90,7 +90,7 @@ input[type=range]{accent-color:var(--ui-accent)}
 .inspector select,.library select{width:100%;height:26px;border:1px solid var(--ui-line);border-radius:6px;background:#ffffff0d;color:var(--ui-fg);font:11px system-ui;box-sizing:border-box}
 body.theatre #customize,body.theatre #editor{display:none!important}
 body.theatre #driveHud{display:none!important}
-#driveHud{position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:11;display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:rgb(var(--ui-bg-rgb) / var(--ui-bar-a));border:1px solid var(--ui-line);border-radius:999px;font:var(--ui-font);color:var(--ui-fg);backdrop-filter:blur(8px);white-space:nowrap}
+#driveHud{position:fixed;left:50%;top:54px;transform:translateX(-50%);z-index:11;display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:rgb(var(--ui-bg-rgb) / var(--ui-bar-a));border:1px solid var(--ui-line);border-radius:999px;font:var(--ui-font);color:var(--ui-fg);backdrop-filter:blur(8px);white-space:nowrap}
 #driveHud[hidden]{display:none!important}
 #driveHud .ico{width:16px;height:16px;color:var(--ui-accent)}
 .tabs,.actions{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}

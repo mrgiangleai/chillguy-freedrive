@@ -13,6 +13,7 @@ export function createProjectStore({loadProject, saveProject, flushProject}) {
     st.objects ??= {};
     st.ents ??= [];
     st.events ??= [];
+    st.events = st.events.filter((e) => e && e.objectId);
     st.effects ??= ['sun', 'environment', 'exposure', 'fog'].map((id) => ({id}));
     st.layers ??= [{id: 'default', name: 'Default', visible: true, locked: false}];
     st.streamTerrain ??= null;
