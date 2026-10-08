@@ -1,18 +1,19 @@
-// Streamed terrain: a large grid that snaps to the camera on a fixed world grid
-// (vertices always land on the same global points, so there is no popping).
-// Heights come from the deterministic map profile; if a road is provided the
-// corridor is carved to the road's own height so the two surfaces meet.
+// Streamed terrain ("Land"): a large grid that snaps to the camera on a fixed
+// world grid (vertices always land on the same global points, so no popping).
+// Heights come from the deterministic map profile; the road corridor is carved.
 import * as THREE from 'three/webgpu';
-import {TERRAIN_MAPS, setTerrainMap, hLow, hDetail, mountains} from './TerrainNoise.js';
+import {TERRAIN_MAPS, setTerrainMap, hLow, hDetail, vnoise, mountains} from './TerrainNoise.js';
 
+// Per-profile palettes: [low, mid, high] grass/rock, snow line, rock colour,
+// beach colour (near water), water level (world y) or null.
 const PALETTE = {
-  reed: ['#ad9b5c', '#c5b37b', '#8c8a50', 240],
-  forest: ['#7fa443', '#a9b85a', '#5c8036', 215],
-  mountain: ['#789a45', '#9eaa5a', '#557236', 300],
-  meadow: ['#6f9a4c', '#86ad5c', '#5c8541', 400],
-  sea: ['#cbb98c', '#bba97c', '#7f8f55', 600],
+  reed:     {low: '#c2b078', mid: '#9aa85e', high: '#6f7f45', snow: 999, rock: '#8f846a', beach: '#d8c79a', water: 2.4},
+  forest:   {low: '#5f7f3c', mid: '#3f6a34', high: '#2c4c2a', snow: 250, rock: '#7c7566', beach: '#a99a6b', water: null},
+  mountain: {low: '#5d6b3c', mid: '#7f7663', high: '#8b877b', snow: 210, rock: '#928c7e', beach: null, water: null},
+  meadow:   {low: '#86ab52', mid: '#6a9846', high: '#5a8340', snow: 480, rock: '#8c8264', beach: null, water: null},
+  sea:      {low: '#d3c295', mid: '#9aa35e', high: '#6f7f4a', snow: 520, rock: '#8a8578', beach: '#e0d0a2', water: 3.0},
 };
-
+const SNOW = '#eef3ff';
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 export function createTerrainStreamer({scene, size = 2400, segments = 240, mapId = 'reed'} = {}) {
@@ -31,17 +32,23 @@ export function createTerrainStreamer({scene, size = 2400, segments = 240, mapId
   const carveY = new Float32Array(count), carveD = new Float32Array(count);
   let map = TERRAIN_MAPS[mapId] ? mapId : 'reed';
   let cx = Infinity, cz = Infinity, road = null, roadLen = 0, roadHalf = 4.6;
-  const _a = new THREE.Color(), _b = new THREE.Color(), _c = new THREE.Color(), _snow = new THREE.Color('#eef3ff'), _col = new THREE.Color();
+  const _low = new THREE.Color(), _mid = new THREE.Color(), _high = new THREE.Color(), _rock = new THREE.Color(), _beach = new THREE.Color(), _snow = new THREE.Color(SNOW), _col = new THREE.Color();
   const mountStart = 380, mountFull = 720;
+  let pal = PALETTE.reed, waterLevel = null;
 
-  function loadPalette() { const p = PALETTE[map]; _a.set(p[0]); _b.set(p[1]); _c.set(p[2]); }
+  function height(x, z) { return hLow(x, z) + hDetail(x, z); }
+  function loadPalette() {
+    pal = PALETTE[map] || PALETTE.reed; waterLevel = pal.water;
+    _low.set(pal.low); _mid.set(pal.mid); _high.set(pal.high); _rock.set(pal.rock);
+    if (pal.beach) _beach.set(pal.beach);
+  }
 
   function rebuild(ox, oz) {
     setTerrainMap(map);
-    const pos = geo.attributes.position, col = geo.attributes.color, snowLine = PALETTE[map][3];
+    const pos = geo.attributes.position, col = geo.attributes.color;
     for (let i = 0; i < count; i++) {
       const wx = pos.getX(i) + ox, wz = pos.getZ(i) + oz, d = Math.abs(wx);
-      let h = hLow(wx, wz) + hDetail(wx, wz);
+      let h = height(wx, wz);
       if (d > mountStart) h += mountains(wx, wz) * Math.min(1, (d - mountStart) / (mountFull - mountStart));
       pos.setY(i, h);
     }
@@ -64,12 +71,20 @@ export function createTerrainStreamer({scene, size = 2400, segments = 240, mapId
       for (let i = 0; i < count; i++) { if (carveD[i] < carveEdge) { const f = 1 - smooth(inner, carveEdge, carveD[i]); pos.setY(i, pos.getY(i) * (1 - f) + carveY[i] * f); } }
     }
     pos.needsUpdate = true;
+    const e = snap * 0.6;
     for (let i = 0; i < count; i++) {
-      const h = pos.getY(i);
-      const t = Math.max(0, Math.min(1, (h + 20) / (snowLine + 20)));
-      _col.copy(_a).lerp(_b, Math.max(0, Math.min(1, (h + 8) / 34))).lerp(_c, t);
-      if (h > snowLine) _col.lerp(_snow, Math.min(1, (h - snowLine) / 45));
-      col.setXYZ(i, _col.r, _col.g, _col.b);
+      const h = pos.getY(i), wx = pos.getX(i) + ox, wz = pos.getZ(i) + oz;
+      // colour by height bands + slope rock + snow + beach near water
+      let c = _col.copy(_low).lerp(_mid, smooth(-14, 20, h)).lerp(_high, smooth(28, 90, h));
+      const gx = (height(wx + e, wz) - h) / e, gz = (height(wx, wz + e) - h) / e;
+      const slope = Math.min(2.4, Math.hypot(gx, gz));
+      if (slope > 0.55) c.lerp(_rock, smooth(0.55, 1.5, slope) * 0.85);
+      if (h > pal.snow - 15) c.lerp(_snow, smooth(pal.snow - 15, pal.snow + 35, h));
+      if (pal.beach && waterLevel != null && h < waterLevel + 6) c.lerp(_beach, smooth(waterLevel + 6, waterLevel, h));
+      if (waterLevel != null && h < waterLevel) c.lerp(_rock, smooth(waterLevel, waterLevel - 6, h) * 0.4).multiplyScalar(0.92);
+      const n = (vnoise(wx * 0.05 + 3.1, wz * 0.05 + 1.7) - 0.5) * 0.08;
+      c = c.offsetHSL(0, 0, n);
+      col.setXYZ(i, c.r, c.g, c.b);
     }
     col.needsUpdate = true; geo.computeVertexNormals(); geo.computeBoundingSphere();
   }
@@ -78,10 +93,10 @@ export function createTerrainStreamer({scene, size = 2400, segments = 240, mapId
     const nx = Math.round(cam.position.x / snap) * snap, nz = Math.round(cam.position.z / snap) * snap;
     if (nx !== cx || nz !== cz) { cx = nx; cz = nz; mesh.position.set(nx, 0, nz); rebuild(nx, nz); }
   }
-  function setMap(id) { if (!TERRAIN_MAPS[id]) return; map = id; loadPalette(); setTerrainMap(map); cx = cz = Infinity; }
+  function setMap(id) { if (!TERRAIN_MAPS[id]) return; map = id; loadPalette(); cx = cz = Infinity; }
   function setRoad(p, len, half) { road = p; roadLen = len || 0; roadHalf = half || 4.6; cx = cz = Infinity; if (p) p.at(roadLen); }
   function dispose() { scene.remove(mesh); geo.dispose(); mat.dispose(); }
-  function heightAt(x, z) { return hLow(x, z) + hDetail(x, z); }
+  function heightAt(x, z) { return height(x, z); }
 
   loadPalette();
   setTerrainMap(map);
