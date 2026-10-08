@@ -25,6 +25,8 @@ const MIME = {
 };
 
 const safeKey = (k) => encodeURIComponent(k).replace(/[^A-Za-z0-9._%-]/g, '_');
+// Human-readable, filesystem-safe token from a project name (keeps unicode letters).
+const fileKey = (s) => (String(s).trim().replace(/[^\p{L}\p{N}._-]+/gu, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'project');
 function send(res, code, body, type, extra) {
   res.writeHead(code, Object.assign({'Content-Type': type || 'text/plain', 'Cache-Control': 'no-store'}, extra || {}));
   res.end(body);
@@ -70,12 +72,10 @@ const server = http.createServer(async (req, res) => {
           if (!existsSync(join(src, 'project.json'))) return send(res, 404, 'no source');
           const pid = 'p-' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
           const pd = projDir(pid); mkdirSync(pd, {recursive: true});
-          for (const it of ['project.json', 'rev.txt', 'thumb.png', 'blobs', 'meshes']) {
-            const s = join(src, it);
-            if (existsSync(s)) cpSync(s, join(pd, it), {recursive: true});
-          }
+          for (const it of ['project.json', 'rev.txt', 'blobs', 'meshes']) { const s = join(src, it); if (existsSync(s)) cpSync(s, join(pd, it), {recursive: true}); }
+          try { for (const f of readdirSync(src)) if (f.endsWith('.png')) writeFileSync(join(pd, f), readFileSync(join(src, f))); } catch (e) { /* ignore */ }
           const sm = metaOf(src, body.id);
-          writeFileSync(join(pd, 'meta.json'), JSON.stringify({id: pid, name, updatedAt: Date.now(), thumb: sm.thumb || null}));
+          writeFileSync(join(pd, 'meta.json'), JSON.stringify({id: pid, name, updatedAt: Date.now(), thumb: sm.thumb || null, thumbFile: sm.thumbFile || null}));
           return send(res, 200, JSON.stringify({id: pid, name}), 'application/json');
         }
         const pid = 'p-' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
@@ -105,11 +105,32 @@ const server = http.createServer(async (req, res) => {
       }
       return send(res, 405, 'method');
     }
-    if (p === '/api/thumb') { // project thumbnail (raw image bytes)
-      const td = projDir(id); const f = join(td, 'thumb.png');
-      if (req.method === 'GET') return existsSync(f) ? send(res, 200, readFileSync(f), 'image/png') : send(res, 404, '');
-      if (req.method === 'PUT' || req.method === 'POST') { const bytes = await readBody(req); if (bytes.length > 2 * 1024 * 1024) return send(res, 413, 'too large'); writeFileSync(f, bytes); try { const mf = join(td, 'meta.json'); const m = existsSync(mf) ? JSON.parse(readFileSync(mf, 'utf8')) : {}; m.thumb = readFileSync(f).toString('base64'); m.updatedAt = Date.now(); writeFileSync(mf, JSON.stringify(m)); } catch (e) { /* ignore */ } return send(res, 200, 'ok'); }
-      if (req.method === 'DELETE') { if (existsSync(f)) unlinkSync(f); return send(res, 200, 'ok'); }
+    if (p === '/api/thumb') { // project thumbnail (raw image bytes), file named after the project
+      const td = projDir(id);
+      const mf = join(td, 'meta.json');
+      const readMeta = () => { try { return existsSync(mf) ? JSON.parse(readFileSync(mf, 'utf8')) : {}; } catch (e) { return {}; } };
+      if (req.method === 'GET') {
+        const m = readMeta();
+        for (const name of [m.thumbFile, 'thumb.png']) { if (!name) continue; const f = join(td, name); if (existsSync(f)) return send(res, 200, readFileSync(f), 'image/png'); }
+        return send(res, 404, '');
+      }
+      if (req.method === 'PUT' || req.method === 'POST') {
+        const bytes = await readBody(req);
+        if (bytes.length > 3 * 1024 * 1024) return send(res, 413, 'too large');
+        const m = readMeta();
+        const fname = fileKey(String(m.name || id || 'project')) + '-' + safeKey(String(id)) + '.png';
+        writeFileSync(join(td, fname), bytes);
+        try { for (const f of readdirSync(td)) if (f.endsWith('.png') && f !== fname) unlinkSync(join(td, f)); } catch (e) { /* ignore */ }
+        m.thumb = bytes.toString('base64'); m.thumbFile = fname; m.updatedAt = Date.now();
+        writeFileSync(mf, JSON.stringify(m));
+        return send(res, 200, 'ok');
+      }
+      if (req.method === 'DELETE') {
+        const m = readMeta();
+        for (const name of [m.thumbFile, 'thumb.png']) { if (!name) continue; const f = join(td, name); if (existsSync(f)) unlinkSync(f); }
+        try { delete m.thumb; delete m.thumbFile; writeFileSync(mf, JSON.stringify(m)); } catch (e) { /* ignore */ }
+        return send(res, 200, 'ok');
+      }
       return send(res, 405, 'method');
     }
     if (p === '/api/project') {
