@@ -18,7 +18,7 @@ export async function createPhysicsModule(){
     const size=characterHeight?box.getSize(new Vector3()):box.size,center=characterHeight?box.getCenter(new Vector3()):box.center;
     const floor=o.userData?.editor?.builtin&&!o.userData?.editor?.terrain&&!o.userData?.editor?.water&&(o.userData.editor.name==='Ground'||o.userData.editor.name==='Road');
     const rb=type==='dynamic'?RAPIER.RigidBodyDesc.dynamic():RAPIER.RigidBodyDesc.fixed();
-    if(floor){rb.setTranslation(center.x,o.position.y-.1,center.z);rb.setRotation({x:0,y:0,z:0,w:1})}
+    if(floor){rb.setTranslation(center.x,center.y,center.z);rb.setRotation({x:0,y:0,z:0,w:1})}
     else{rb.setTranslation(center.x,center.y,center.z);rb.setRotation({x:o.quaternion.x,y:o.quaternion.y,z:o.quaternion.z,w:o.quaternion.w})}
     const body=world.createRigidBody(rb);
     const radius=characterHeight?Math.max(.12,characterHeight*.15):0;
@@ -26,7 +26,7 @@ export async function createPhysicsModule(){
     col.setFriction(characterHeight?0:.7).setRestitution(characterHeight?0:.05);
     if(characterHeight){body.setEnabledRotations(false,true,false,true);body.enableCcd(true)}
     const collider=world.createCollider(col,body);
-    const offset=new Vector3(center.x-o.position.x,floor?-.1:center.y-o.position.y,center.z-o.position.z).applyQuaternion(o.quaternion.clone().invert());
+    const offset=new Vector3(center.x-o.position.x,center.y-o.position.y,center.z-o.position.z).applyQuaternion(o.quaternion.clone().invert());
     entries.set(key(o),{body,collider,type,object:o,offset,height:characterHeight,command:null,forward:new Vector3(0,0,-1)});o.userData.editor.physics={enabled:true,type};
   }
   function setEnabled(o,on,type=autoType(o)){remove(o);if(autoType(o)==='static')type='static';if(on)attach(o,type);else if(o?.userData?.editor)o.userData.editor.physics={enabled:false,type}}
