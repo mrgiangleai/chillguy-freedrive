@@ -48,6 +48,8 @@ export function buildRoadScenery(path, {to = 260, halfWidth = 4.6, shoulder = 1.
     const railPosts = new THREE.InstancedMesh(railPostGeo, railMat, railPts.length);
     railPts.forEach((p, i) => { _m.makeTranslation(p[0], p[1] + 0.35, p[2]); railPosts.setMatrixAt(i, _m); });
     g.add(railPosts);
+  }
+  if (beams.length) {
     const beamGeo = new THREE.BoxGeometry(1, 0.18, 0.06);
     const railBeams = new THREE.InstancedMesh(beamGeo, railMat, beams.length);
     beams.forEach((b, i) => {

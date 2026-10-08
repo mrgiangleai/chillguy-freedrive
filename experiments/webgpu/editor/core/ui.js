@@ -114,6 +114,9 @@ body.theatre #driveHud{display:none!important}
 .row{display:grid;grid-template-columns:104px 1fr;gap:8px;align-items:center;margin:6px 0}
 .row input{width:100%}
 .row input[type=range]{accent-color:var(--ui-accent)}
+.numrow{display:flex;gap:6px;align-items:center;width:100%;min-width:0}
+.numrow input[type=range]{flex:1;min-width:0}
+.numrow input[type=number]{width:66px;height:24px;padding:0 4px;border:1px solid var(--ui-line);border-radius:5px;background:#ffffff0d;color:var(--ui-fg);font:11px system-ui;box-sizing:border-box}
 .sel{color:#9ef;font-weight:700;margin-bottom:2px}
 .drop{border:1px dashed #9cf;padding:8px;border-radius:var(--ui-radius-sm);text-align:center;margin:8px 0;display:flex;align-items:center;justify-content:center;gap:6px;color:#cfe6f5}
 .drop .ico{width:16px;height:16px}

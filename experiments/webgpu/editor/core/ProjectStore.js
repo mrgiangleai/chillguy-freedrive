@@ -18,6 +18,15 @@ export function createProjectStore({loadProject, saveProject, flushProject}) {
     st.layers ??= [{id: 'default', name: 'Default', visible: true, locked: false}];
     st.streamTerrain ??= null;
     st.road ??= null;
+    if (st.road) {
+      if (st.road.width == null) st.road.width = st.road.halfWidth != null ? st.road.halfWidth * 2 : 50;
+      delete st.road.halfWidth;
+      st.road.x ??= 0; st.road.z ??= 0; st.road.rot ??= 0;
+      st.road.length = Math.min(5000, Math.max(50, Number(st.road.length) || 200));
+      st.road.width = Math.min(200, Math.max(50, Number(st.road.width) || 50));
+      st.road.loop ??= false;
+      st.road.bends ??= [];
+    }
     st.drive ??= null;
     st.autoSelect ??= false;
     st.placed ??= [];
