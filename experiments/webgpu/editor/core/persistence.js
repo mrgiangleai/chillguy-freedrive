@@ -12,10 +12,19 @@ let mode = 'local'; // 'server' | 'local'
 let probe = null;
 let rev = 0;          // server revision this tab has loaded/saved
 let remoteStale = false;
+let projectId = localStorage.getItem('wgpuSandbox.project') || null;
+
+const q = () => projectId ? ('?project=' + encodeURIComponent(projectId)) : '';
+export function currentProject() { return projectId; }
+export function setProject(id) { projectId = id || null; if (projectId) localStorage.setItem('wgpuSandbox.project', projectId); else localStorage.removeItem('wgpuSandbox.project'); probe = null; rev = 0; }
+export function clearProject() { projectId = null; localStorage.removeItem('wgpuSandbox.project'); probe = null; rev = 0; }
+export async function listProjects() { try { const r = await fetch('/api/projects', {cache: 'no-store'}); if (r.ok) return await r.json(); } catch (err) { /* ignore */ } return []; }
+export async function createProject(name) { try { const r = await fetch('/api/projects', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name})}); if (r.ok) return await r.json(); } catch (err) { /* ignore */ } return null; }
 
 async function probeServer() {
+  if (!projectId) { mode = 'local'; return mode; }
   try {
-    const r = await fetch('/api/project', {cache: 'no-store'});
+    const r = await fetch('/api/project' + q(), {cache: 'no-store'});
     const ct = r.headers.get('content-type') || '';
     if (r.status === 204 || (r.status === 200 && ct.includes('json'))) mode = 'server';
   } catch (err) {
@@ -29,9 +38,10 @@ export function storageMode() { return mode; }
 /** Load the project (server first, then local cache). */
 export async function loadProject() {
   await (probe || (probe = probeServer()));
+  if (!projectId) { try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch (err) { return {}; } }
   if (mode === 'server') {
     try {
-      const r = await fetch('/api/project', {cache: 'no-store'});
+      const r = await fetch('/api/project' + q(), {cache: 'no-store'});
       const ct = r.headers.get('content-type') || '';
       if (r.status === 200 && ct.includes('json')) {
         rev = Number(r.headers.get('x-rev') || 0);
@@ -53,7 +63,7 @@ export function saveProject(state) {
     try {
       const headers = {'Content-Type': 'application/json'};
       if (rev !== null && rev !== undefined) headers['X-Base-Rev'] = String(rev);
-      fetch('/api/project', {method: 'PUT', headers, body: json}).then((r) => {
+      fetch('/api/project' + q(), {method: 'PUT', headers, body: json}).then((r) => {
         const nr = Number(r.headers.get('x-rev'));
         if (!Number.isNaN(nr)) rev = nr;
         if (r.status === 409) remoteStale = true; // someone else wrote first: keep theirs
@@ -67,7 +77,7 @@ export function flushProject(state) {
   const json = JSON.stringify(state);
   try { localStorage.setItem(LS_KEY, json); } catch (err) { /* ignore */ }
   if (mode === 'server' && typeof navigator !== 'undefined' && navigator.sendBeacon) {
-    try { navigator.sendBeacon('/api/project?base=' + encodeURIComponent(rev == null ? '' : String(rev)), json); } catch (err) { /* ignore */ }
+    try { navigator.sendBeacon('/api/project' + q() + (q() ? '&' : '?') + 'base=' + encodeURIComponent(rev == null ? '' : String(rev)), json); } catch (err) { /* ignore */ }
   }
 }
 
@@ -79,7 +89,7 @@ export function isRemoteStale() { return remoteStale; }
 export async function fetchRemoteRev() {
   if (mode !== 'server') return null;
   try {
-    const r = await fetch('/api/project', {method: 'GET', cache: 'no-store'});
+    const r = await fetch('/api/project' + q(), {method: 'GET', cache: 'no-store'});
     if (r.status === 200 || r.status === 204) return Number(r.headers.get('x-rev') || 0);
   } catch (err) { /* ignore */ }
   return null;
@@ -117,14 +127,14 @@ function run(store, kind, fn) {
 // ---- blobs (imported GLB bytes) ----
 export async function putBlob(key, data) {
   if (mode === 'server') {
-    try { await fetch('/api/blob/' + encodeURIComponent(key), {method: 'PUT', body: data}); return; } catch (err) { /* fall back */ }
+    try { await fetch('/api/blob/' + encodeURIComponent(key) + q(), {method: 'PUT', body: data}); return; } catch (err) { /* fall back */ }
   }
   return run(STORE_BLOBS, 'readwrite', (s) => s.put(data, key));
 }
 export async function getBlob(key) {
   if (mode === 'server') {
     try {
-      const r = await fetch('/api/blob/' + encodeURIComponent(key), {cache: 'no-store'});
+      const r = await fetch('/api/blob/' + encodeURIComponent(key) + q(), {cache: 'no-store'});
       if (r.status === 200) return await r.blob();
       if (r.status === 404) return null;
     } catch (err) { /* fall back */ }
@@ -133,7 +143,7 @@ export async function getBlob(key) {
 }
 export async function delBlob(key) {
   if (mode === 'server') {
-    try { await fetch('/api/blob/' + encodeURIComponent(key), {method: 'DELETE'}); } catch (err) { /* ignore */ }
+    try { await fetch('/api/blob/' + encodeURIComponent(key) + q(), {method: 'DELETE'}); } catch (err) { /* ignore */ }
   }
   return run(STORE_BLOBS, 'readwrite', (s) => s.delete(key));
 }
@@ -143,7 +153,7 @@ export async function putMesh(key, data) {
   if (mode === 'server') {
     try {
       const body = JSON.stringify({positions: Array.from(data.positions || []), colors: data.colors ? Array.from(data.colors) : null});
-      await fetch('/api/mesh/' + encodeURIComponent(key), {method: 'PUT', headers: {'Content-Type': 'application/json'}, body});
+      await fetch('/api/mesh/' + encodeURIComponent(key) + q(), {method: 'PUT', headers: {'Content-Type': 'application/json'}, body});
       return;
     } catch (err) { /* fall back */ }
   }
@@ -152,7 +162,7 @@ export async function putMesh(key, data) {
 export async function getMesh(key) {
   if (mode === 'server') {
     try {
-      const r = await fetch('/api/mesh/' + encodeURIComponent(key), {cache: 'no-store'});
+      const r = await fetch('/api/mesh/' + encodeURIComponent(key) + q(), {cache: 'no-store'});
       if (r.status === 200) return await r.json();
       if (r.status === 404) return null;
     } catch (err) { /* fall back */ }
@@ -161,7 +171,7 @@ export async function getMesh(key) {
 }
 export async function delMesh(key) {
   if (mode === 'server') {
-    try { await fetch('/api/mesh/' + encodeURIComponent(key), {method: 'DELETE'}); } catch (err) { /* ignore */ }
+    try { await fetch('/api/mesh/' + encodeURIComponent(key) + q(), {method: 'DELETE'}); } catch (err) { /* ignore */ }
   }
   return run(STORE_MESHES, 'readwrite', (s) => s.delete(key));
 }
