@@ -1,13 +1,15 @@
 // Path-following drive controller: keeps a vehicle on the road at a chosen speed tier.
+// Tier list is per-vehicle (see data/chillDriveVehicleDefinitions.js).
 export const SPEED_TIERS = [6, 12, 20, 30, 42]; // metres / second
 
-export function createDriveController() {
-  let s = 0, lat = 0, speed = 0, tier = 1;
+export function createDriveController(tiers = SPEED_TIERS) {
+  let s = 0, lat = 0, speed = 0, tier = 1, _tiers = tiers.slice();
 
-  function reset(s0 = 0, lat0 = 0, t0 = 1) { s = s0; lat = lat0; tier = t0; speed = 0; }
+  function setTiers(arr) { if (Array.isArray(arr) && arr.length) { _tiers = arr.slice(); tier = Math.min(tier, _tiers.length - 1); } }
+  function reset(s0 = 0, lat0 = 0, t0 = 1) { s = s0; lat = lat0; tier = Math.max(0, Math.min(_tiers.length - 1, t0)); speed = 0; }
 
   function update(dt, path, input) {
-    const target = SPEED_TIERS[tier];
+    const target = _tiers[tier];
     const rate = target >= speed ? 5 : 9;
     speed += Math.sign(target - speed) * Math.min(Math.abs(target - speed), rate * dt);
 
@@ -24,9 +26,9 @@ export function createDriveController() {
   }
 
   return {
-    reset, update,
-    get speed() { return speed }, get s() { return s }, get tier() { return tier },
-    tierUp() { tier = Math.min(SPEED_TIERS.length - 1, tier + 1); return tier },
+    reset, update, setTiers,
+    get speed() { return speed }, get s() { return s }, get tier() { return tier }, get tiers() { return _tiers },
+    tierUp() { tier = Math.min(_tiers.length - 1, tier + 1); return tier },
     tierDown() { tier = Math.max(0, tier - 1); return tier },
   };
 }
