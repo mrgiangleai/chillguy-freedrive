@@ -57,7 +57,7 @@ export function createTerrainStreamer({scene, size = 1400, segments = 140, mapId
     }
     if (road) {
       carveY.fill(NaN); carveD.fill(Infinity);
-      const inner = roadHalf + 2, radius = Math.ceil(carveEdge / cell);
+      const inner = roadHalf + 3, edge = Math.max(carveEdge, roadHalf + 16), radius = Math.ceil(edge / cell);
       for (let s = 0; s <= roadLen; s += cell) {
         const p = road.at(s);
         const gx = Math.round((p.x - ox) / cell + segments / 2), gz = Math.round((p.z - oz) / cell + segments / 2);
@@ -71,7 +71,7 @@ export function createTerrainStreamer({scene, size = 1400, segments = 140, mapId
           }
         }
       }
-      for (let i = 0; i < count; i++) { if (carveD[i] < carveEdge) { const f = 1 - smooth(inner, carveEdge, carveD[i]); pos.setY(i, pos.getY(i) * (1 - f) + carveY[i] * f); } }
+      for (let i = 0; i < count; i++) { if (carveD[i] < edge) { const f = 1 - smooth(inner, edge, carveD[i]); pos.setY(i, pos.getY(i) * (1 - f) + carveY[i] * f); } }
     }
     pos.needsUpdate = true;
     geo.computeVertexNormals();
