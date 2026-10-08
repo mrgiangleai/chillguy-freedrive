@@ -16,6 +16,8 @@ export function createLandscapeModule(ctx){
     }
     h+='<hr><b>'+icon('water')+' '+t('water')+'</b><div class="actions"><button data-watercreate="1">'+icon('plus')+' '+t('waterCircle')+'</button></div>';
     if(state.selected?.userData.editor?.water)h+=num(t('waterSize')+' '+state.waterSize.toFixed(0)+'m',state.waterSize,2,300,1,'waterSize')+num(t('opacity')+' '+state.waterOpacity.toFixed(2),state.waterOpacity,.05,.95,.01,'waterOpacity');
+    h+='<hr><b>'+icon('world')+' '+t('streamTitle')+'</b><div class="actions">'+['reed','forest','mountain','meadow','sea'].map(id=>'<button data-streammap="'+id+'" class="'+(state.streamMap===id?'on':'')+'">'+t('map'+id[0].toUpperCase()+id.slice(1))+'</button>').join('')+'</div>';
+    h+=state.streamMap?'<div class="actions"><button data-streamoff="1">'+icon('eyeOff')+' '+t('streamOff')+'</button></div>':'<small>'+t('streamHint')+'</small>';
     h+=materialLibraryHTML();
     return h;
   }
@@ -27,6 +29,8 @@ export function createLandscapeModule(ctx){
     root.querySelectorAll('[data-watercreate]').forEach(b=>b.onclick=a.createWater);
     root.querySelectorAll('[data-material]').forEach(b=>b.onclick=()=>a.material(b.dataset.material));
     root.querySelectorAll('[data-applymaterial]').forEach(b=>b.onclick=a.applyMaterial);
+    root.querySelectorAll('[data-streammap]').forEach(b=>b.onclick=()=>a.streamMap(b.dataset.streammap));
+    root.querySelectorAll('[data-streamoff]').forEach(b=>b.onclick=a.streamOff);
   }
   return {render,bind};
 }

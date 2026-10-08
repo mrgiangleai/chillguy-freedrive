@@ -21,6 +21,7 @@ Editor + runtime WebGPU/TSL + Rapier (Vite), tách khỏi game chính. Đang là
 - **Thời tiết**: preset Clear/Cloudy/Windy/Rain/Storm/Snow/Foggy (số liệu port từ `src/world.js`) + slider Mưa/Tuyết(0–5)/Gió/Sương/**Độ sáng sương**; mưa (LineSegments) & **tuyết 4 cỡ hạt (0.45–2.0, lớn dần theo slider)** bám camera; **chuyển preset mượt 3 s**, **sấm chớp** khi bão, **tuyết phủ trắng** Ground/Terrain (`cover`); sương mù pha màu thời tiết + `fogBright` (hết đen trong bão, có thanh kéo). Lưu trong `state.scene.weather`. File `editor/core/weather.js`.
 - **Slider hiện số realtime**: hàm `liveLabel` trong `main.js` tự cập nhật nhãn mọi thanh kéo (`[data-key]`, effects, `#uicfg`) khi kéo.
 - **Bầu trời + mặt trời/trăng + sao** (mới): port `SKY_KEYS`/gradient từ `src/world.js` — dome gradient theo **vertex color** (tránh lỗi flipY), sprite mặt trời (quầng additive) + mặt trăng (có vết) + **sao ban đêm**, bị địa hình che khuất; tự đổi theo Time + thời tiết. File `editor/core/sky.js`.
+- **Streaming Terrain (M2, mới)**: trong Landscape chọn map **reed/forest/mountain/meadow/sea** → lưới địa hình lớn (2400, 240×240) **bám camera** (snap theo lưới toạ độ thế giới, không pop), height + màu theo profile + núi xa, **carve hành lang đường** phẳng ở x≈0; có nút Xoá. Port từ `src/terrain-noise.js`. File `runtime/TerrainNoise.js`, `runtime/TerrainStreamer.js`; lưu `state.streamTerrain`.
 - **Event** (mới): gắn vào object đang chọn — `rotate` (tốc độ), `float` (biên độ), `pulse` (nhấp nháy emissive), `trigger` (lại gần thì kêu + loé). Lưu trong `state.events`; chạy trong vòng lặp.
 - **Import GLB nén meshopt**: đã bật `MeshoptDecoder` cho GLTFLoader.
 - **Thời tiết auto** (mới): nút Auto trong panel Weather; chu kỳ đổi preset lấy từ cài đặt UI (`#uicfg` → "Tự đổi thời tiết mỗi (giây)", mặc định **30s**), lưu `wgpuSandbox.autoWeather`/`autoWeatherSec`.
@@ -38,7 +39,7 @@ Editor + runtime WebGPU/TSL + Rapier (Vite), tách khỏi game chính. Đang là
 - Đã Việt hoá cả nhãn kỹ thuật (FOV→Góc nhìn, Cam X/Y/Z→Vị trí, Target→Ngắm, Aperture→Khẩu độ, Focal Length→Tiêu cự, preset camera, Static/Dynamic, tên light, tên material). Chỉ còn giữ nguyên danh từ riêng/tên asset (Venom, Lily 4K, Mazda…) và nhãn `UI`/`Theatre`/`WEBGPU SANDBOX`.
 - Chưa xem trực quan (harness không chụp được); đã build `vite build` OK, `dist/` là gitignore nên cần `npm run build` trước khi `npm start`.
 - Đã push nhánh `experiment/webgpu-vertical-slice` lên origin (PR có thể tạo tại link GitHub).
-- Cần chủ dự án xác nhận trực quan: hạt mưa/tuyết, chớp bão, gradient bầu trời, mặt trời/trăng/sao, event.
+- **Roadmap status**: baseline xong; **M2 đang làm** (đã có map profiles + streaming terrain + road carve; còn: road scenery/posts, collider window, ocean/waterfall thuộc M6); **M1 (drive slice) chưa làm** — Road hiện chỉ là mặt phẳng thẳng, chưa có drive/vehicle definition; **M3** đã làm phần lớn (weather/time/sky/precip) nhưng thiếu clouds + vehicle cameras.
 
 ## Quy tắc làm việc
 - Xem `AGENTS.md`. Context mới chỉ đọc `CONTEXT.md` + `AGENTS.md`; không quét lại codebase, không đọc lịch sử dài, tránh poll/retry/verify lặp.
