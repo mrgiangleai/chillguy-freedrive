@@ -26,6 +26,7 @@ export function createLandscapeModule(ctx) {
     // --- Water circle (kept under Terrain) ---
     h += '<hr><b>' + icon('water') + ' ' + t('water') + '</b><div class="actions fit"><button data-watercreate="1">' + icon('plus') + ' ' + t('waterCircle') + '</button></div>';
     if (state.selected?.userData.editor?.water) h += num(t('waterSize') + ' ' + state.waterSize.toFixed(0) + 'm', state.waterSize, 2, 300, 1, 'waterSize') + num(t('opacity') + ' ' + state.waterOpacity.toFixed(2), state.waterOpacity, .05, .95, .01, 'waterOpacity');
+    h += '<hr><b>' + icon('world') + ' ' + t('propTitle') + '</b><div class="actions fit"><button data-prop="tree">' + icon('plus') + ' ' + t('propTree') + '</button><button data-prop="bush">' + icon('plus') + ' ' + t('propBush') + '</button><button data-prop="rock">' + icon('plus') + ' ' + t('propRock') + '</button></div>';
     return h;
   }
   function material() { return ctx.materialLibraryHTML(); }
@@ -37,6 +38,7 @@ export function createLandscapeModule(ctx) {
     root.querySelectorAll('[data-brushtool]').forEach(b => b.onclick = () => a.brushTool(b.dataset.brushtool));
     root.querySelectorAll('[data-sculpt]').forEach(b => b.onclick = () => a.sculpt(b.dataset.sculpt));
     root.querySelectorAll('[data-watercreate]').forEach(b => b.onclick = a.createWater);
+    root.querySelectorAll('[data-prop]').forEach(b => b.onclick = () => a.prop(b.dataset.prop));
     root.querySelectorAll('[data-material]').forEach(b => b.onclick = () => a.material(b.dataset.material));
     root.querySelectorAll('[data-applymaterial]').forEach(b => b.onclick = a.applyMaterial);
   }

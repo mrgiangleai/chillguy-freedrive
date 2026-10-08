@@ -20,6 +20,8 @@ export function createProjectStore({loadProject, saveProject, flushProject}) {
     st.road ??= null;
     st.drive ??= null;
     st.autoSelect ??= false;
+    st.placed ??= [];
+    if (!st.libraryModeV1) { st.placed = []; st.libraryModeV1 = true; }
     st.land ??= 'land';
     st.traffic ??= {enabled: false, count: 4, minSpeed: 8, maxSpeed: 22};
     st.audio ??= {enabled: false, volume: .6};
