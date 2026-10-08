@@ -59,6 +59,21 @@ export function createSky({scene}) {
   moonSprite.material.map.colorSpace = THREE.SRGBColorSpace;
   moonSprite.scale.setScalar(190); moonSprite.renderOrder = -9; moonSprite.frustumCulled = false; moonSprite.visible = false; scene.add(moonSprite);
 
+  // --- stars (visible at night only) ---
+  const STAR_N = 800;
+  const starPos = new Float32Array(STAR_N * 3);
+  for (let i = 0; i < STAR_N; i++) {
+    const th = 2 * Math.PI * Math.random(), ph = Math.acos(1 - Math.random()); // upper hemisphere
+    const r = R * 0.93;
+    starPos[i * 3] = r * Math.sin(ph) * Math.cos(th);
+    starPos[i * 3 + 1] = r * Math.cos(ph);
+    starPos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
+  }
+  const starGeo = new THREE.BufferGeometry(); starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+  const starMat = new THREE.PointsMaterial({color: 0xdfe8ff, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false, fog: false, toneMapped: false});
+  const stars = new THREE.Points(starGeo, starMat);
+  stars.renderOrder = -8; stars.frustumCulled = false; stars.visible = false; scene.add(stars);
+
   const S = {zen: new THREE.Color(), mid: new THREE.Color(), hor: new THREE.Color(), band: new THREE.Color(), sun: new THREE.Color()};
   const _oc = new THREE.Color(), _tmp = new THREE.Color(), _v = new THREE.Vector3();
   let lastSig = '';
@@ -105,11 +120,14 @@ export function createSky({scene}) {
     _v.copy(sunDir).multiplyScalar(-1); if (_v.y < 0.18) { _v.y = 0.18; _v.normalize(); }
     moonDir.copy(_v);
     moonSprite.material.opacity = 0.95 * moonUp;
+    const starUp = sstep(2, -6, elev) * clamp(1 - w.overcast * 0.9, 0, 1) * (1 - w.dark * 0.6);
+    starMat.opacity = starUp; stars.visible = starUp > 0.02;
     follow(cam);
   }
 
   function follow(cam) {
     dome.position.copy(cam);
+    stars.position.copy(cam);
     sunSprite.visible = sunSprite.material.opacity > 0.01;
     moonSprite.visible = moonSprite.material.opacity > 0.01;
     sunSprite.position.copy(cam).addScaledVector(sunDir, R * 0.92);
