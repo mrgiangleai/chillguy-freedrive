@@ -314,6 +314,7 @@ export class Scenery {
       const [b] = L;
       list.push({ L, d: Math.hypot(b[0] - cam.x, b[1] - cam.y, b[2] - cam.z) });
     }
+    if (this.extraLamps) for (const L of this.extraLamps()) { const [b] = L; list.push({ L, d: Math.hypot(b[0] - cam.x, b[1] - cam.y, b[2] - cam.z) }); }   // đèn góc ngã tư (map Phố)
     list.sort((a, b) => a.d - b.d);
     const dNext = list.length > LAMP_LIGHTS ? list[LAMP_LIGHTS].d : Infinity;
     this.lampLights.forEach((l, i) => {

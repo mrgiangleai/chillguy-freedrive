@@ -111,6 +111,32 @@ function pavingTexture() {
   return t;
 }
 
+// biển báo (atlas 4 ô 128 px): 0 vạch qua đường (xanh dương, tam giác trắng + người đi bộ), 1 dừng lại "止まれ" (tam giác đỏ ngược),
+// 2 tốc độ tối đa 40, 3 cấm đỗ xe
+function roadSignTexture() {
+  return canvasTex(512, 128, (g) => {
+    // 0
+    g.fillStyle = '#1b4fb4'; g.fillRect(4, 4, 120, 120); g.strokeStyle = '#fff'; g.lineWidth = 4; g.strokeRect(9, 9, 110, 110);
+    g.fillStyle = '#fff'; g.beginPath(); g.moveTo(64, 18); g.lineTo(112, 108); g.lineTo(16, 108); g.closePath(); g.fill();
+    g.fillStyle = '#1b2a44'; g.beginPath(); g.arc(64, 48, 7, 0, 7); g.fill();
+    g.lineWidth = 6; g.strokeStyle = '#1b2a44'; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(64, 57); g.lineTo(60, 78); g.lineTo(50, 98); g.moveTo(60, 78); g.lineTo(72, 97); g.moveTo(62, 64); g.lineTo(76, 72); g.moveTo(62, 64); g.lineTo(50, 74); g.stroke();
+    g.fillStyle = '#1b2a44'; for (let k = 0; k < 5; k++) g.fillRect(28 + k * 15, 101, 9, 4);
+    // 1
+    g.fillStyle = '#fff'; g.beginPath(); g.moveTo(132, 10); g.lineTo(252, 10); g.lineTo(192, 120); g.closePath(); g.fill();
+    g.fillStyle = '#c8161d'; g.beginPath(); g.moveTo(140, 15); g.lineTo(244, 15); g.lineTo(192, 110); g.closePath(); g.fill();
+    g.fillStyle = '#fff'; g.font = `bold 26px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('止まれ', 192, 42);
+    // 2
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(320, 64, 60, 0, 7); g.fill();
+    g.strokeStyle = '#c8161d'; g.lineWidth = 12; g.beginPath(); g.arc(320, 64, 52, 0, 7); g.stroke();
+    g.fillStyle = '#1b3f9a'; g.font = 'bold 54px Arial, sans-serif'; g.fillText('40', 320, 68);
+    // 3
+    g.fillStyle = '#1b4fb4'; g.beginPath(); g.arc(448, 64, 58, 0, 7); g.fill();
+    g.strokeStyle = '#c8161d'; g.lineWidth = 11; g.beginPath(); g.arc(448, 64, 53, 0, 7); g.stroke();
+    g.beginPath(); g.moveTo(412, 28); g.lineTo(484, 100); g.stroke();
+  });
+}
+
 // bãi đất trống: sỏi + đất loang
 function gravelTexture() {
   const t = canvasTex(256, 256, (g) => {
@@ -255,7 +281,8 @@ vec3 cEmis = vec3(0.0); float cGlass = 0.0;
 }`;
 
 export class City {
-  constructor(scene, road, roadMat) {
+  constructor(scene, road, roadMat, scenery) {
+    this.scenery = scenery;
     this.scene = scene;
     this.road = road;
     this.roadMat = roadMat;
@@ -316,6 +343,41 @@ export class City {
     this.lensGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.04, 14).rotateX(Math.PI / 2);
     this.sigPoleGeo = new THREE.CylinderGeometry(0.1, 0.12, 1, 8).translate(0, 0.5, 0);
     this.armGeo = new THREE.BoxGeometry(1, 0.1, 0.1).translate(0.5, 0, 0);
+    // biển báo: tấm mặt trước (atlas) + mặt sau xám + cột
+    this.signTex = roadSignTexture();
+    this.roadSignMat = new THREE.MeshStandardMaterial({ map: this.signTex, roughness: 0.5, alphaTest: 0.5, transparent: false });
+    this.roadSignMat.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aCell;')
+        .replace('#include <uv_vertex>', '#include <uv_vertex>\nvMapUv.x = (vMapUv.x + aCell) / 4.0;');
+    };
+    this.roadSignMat.customProgramCacheKey = () => 'city-roadsign';
+    this.signBackMat = new THREE.MeshStandardMaterial({ map: this.signTex, color: 0x2e3033, roughness: 0.7, alphaTest: 0.5 });
+    this.signBackMat.onBeforeCompile = this.roadSignMat.onBeforeCompile;
+    this.signBackMat.customProgramCacheKey = () => 'city-roadsign-back';
+    withMist(this.roadSignMat); withMist(this.signBackMat);
+    this.signPlate = new THREE.PlaneGeometry(0.75, 0.75);
+    this.signPost = new THREE.CylinderGeometry(0.035, 0.035, 1, 6).translate(0, 0.5, 0);
+    // quầng sáng đèn giao thông (như đèn hậu xe mình): điểm vẽ to dần theo khoảng cách để nhìn rõ từ xa, chỉ thấy từ phía trước mặt đèn
+    this.uSig = { uScale: { value: 500 }, uFogD: { value: 0 }, uDay: { value: 1 } };
+    this.sigGlowMat = new THREE.ShaderMaterial({
+      uniforms: this.uSig, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+      vertexShader: `attribute vec3 aCol; attribute vec3 aDir; uniform float uScale, uFogD; varying vec3 vCol;
+        void main() {
+          vec4 wp = modelMatrix * vec4(position, 1.0); vec4 mv = viewMatrix * wp;
+          float face = smoothstep(-0.1, 0.45, dot(normalize(cameraPosition - wp.xyz), aDir));
+          float fd = uFogD * -mv.z;
+          vCol = aCol * face * exp(-fd * fd * 0.5);
+          gl_PointSize = clamp(1.9 * uScale / -mv.z, 11.0, 90.0);
+          gl_Position = projectionMatrix * mv;
+        }`,
+      fragmentShader: `uniform float uDay; varying vec3 vCol;
+        void main() {
+          float d = length(gl_PointCoord - 0.5) * 2.0;
+          float a = smoothstep(0.32, 0.0, d) + exp(-d * d * 4.0) * 0.55;
+          if (a * max(vCol.r, max(vCol.g, vCol.b)) < 0.004) discard;
+          gl_FragColor = vec4(vCol * a * mix(1.6, 0.9, uDay), 1.0);
+        }`,
+    });
   }
 
   // pha đèn đường chính / đường ngang tại ngã tư n: 0 xanh, 1 vàng, 2 đỏ
@@ -381,8 +443,9 @@ export class City {
   }
 
   // s: quãng đường xe; lamps: 0..1 (đèn bật)
-  update(s, lamps, dt = 0, budget = 1) {
+  update(s, lamps, dt = 0, budget = 1, scalePx = 500, fogD = 0) {
     if (!this.group.visible) return;
+    this.uSig.uScale.value = scalePx; this.uSig.uFogD.value = fogD; this.uSig.uDay.value = 1 - lamps;
     this.clock += dt * this.clockRate;
     const c = this._c;
     for (const [n, g] of this.blocks) {
@@ -395,6 +458,14 @@ export class City {
         L.mesh.setColorAt(i, c.setRGB(v[0] * (on ? k : 1), v[1] * (on ? k : 1), v[2] * (on ? k : 1)));
       }
       L.mesh.instanceColor.needsUpdate = true;
+      if (L.glow) {
+        const a = L.glow.geometry.attributes.aCol;
+        for (let i = 0; i < L.kind.length; i++) {
+          const on = (L.kind[i] ? ph.cross : ph.main) === L.col[i], v = LENS_ON[L.col[i]];
+          a.setXYZ(i, on ? v[0] * 3 : 0, on ? v[1] * 3 : 0, on ? v[2] * 3 : 0);
+        }
+        a.needsUpdate = true;
+      }
     }
     this.lastS = s;
     this.uLit.value = lamps;
@@ -411,6 +482,9 @@ export class City {
   }
 
   prime(s) { if (this.group.visible) this.update(s, this.uLit.value, 0, 99); }
+
+  // đèn đường góc ngã tư (cho scenery gán SpotLight dùng chung)
+  lamps() { const out = []; if (this.group.visible) for (const g of this.blocks.values()) for (const L of g.userData.lampsJ || []) out.push(L); return out; }
 
   _dispose(g) {
     this.group.remove(g);
@@ -802,7 +876,58 @@ export class City {
     const lm = add(this.lensGeo, this.lensMat, lens, ([x, y, z, yw]) => m.compose(v.set(x, y, z), q.setFromAxisAngle(this._up, yw), sc.set(1, 1, 1)));
     lm.castShadow = false;
     lm.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(lens.length * 3), 3);
-    group.userData.lens = { mesh: lm, kind: Int8Array.from(kind), col: Int8Array.from(col) };
+    // quầng sáng các thấu kính
+    const gg = new THREE.BufferGeometry();
+    gg.setAttribute('position', new THREE.Float32BufferAttribute(lens.flatMap(([x, y, z, yw]) => [x + Math.sin(yw) * 0.05, y, z + Math.cos(yw) * 0.05]), 3));
+    gg.setAttribute('aDir', new THREE.Float32BufferAttribute(lens.flatMap(([, , , yw]) => [Math.sin(yw), 0, Math.cos(yw)]), 3));
+    gg.setAttribute('aCol', new THREE.Float32BufferAttribute(new Float32Array(lens.length * 3), 3));
+    gg.userData.own = true;
+    const glow = new THREE.Points(gg, this.sigGlowMat);
+    glow.frustumCulled = false; glow.renderOrder = 6;
+    group.add(glow);
+    group.userData.lens = { mesh: lm, kind: Int8Array.from(kind), col: Int8Array.from(col), glow };
+
+    // đèn đường 4 góc ngã tư (tay đòn chĩa vào tâm ngã tư)
+    const S = this.scenery, lamps = [], bulbs = [];
+    for (const sa of [-1, 1]) for (const su of [-1, 1]) {
+      const [px, pz] = P(sa * (CW + 3.4), su * (HW + 0.9)), dx = F.x - px, dz = F.z - pz, L = Math.hypot(dx, dz), ux = dx / L, uz = dz / L;
+      const yw = Math.atan2(uz, -ux);
+      lamps.push([px, y0, pz, yw]);
+      const b = [px + ux * 1.75, y0 + 10.88, pz + uz * 1.75];
+      bulbs.push([b, [px + ux * 7.9, y0, pz + uz * 7.9]]);
+    }
+    if (S) {
+      add(S.lampGeo, S.poleMat, lamps, ([x, y, z, yw]) => m.compose(v.set(x, y, z), q.setFromAxisAngle(this._up, yw), sc.set(1, 1, 1)));
+      add(S.bulbGeo, S.bulbMat, bulbs, ([b]) => m.compose(v.set(b[0], b[1], b[2]), q.identity(), sc.set(1, 1, 1))).castShadow = false;
+      const bg = new THREE.BufferGeometry();
+      bg.setAttribute('position', new THREE.Float32BufferAttribute(bulbs.flatMap(([b]) => b), 3));
+      bg.userData.own = true;
+      const pts = new THREE.Points(bg, S.glowMat); pts.frustumCulled = false; pts.renderOrder = 3;
+      group.add(pts);
+    }
+    group.userData.lampsJ = bulbs;
+
+    // biển báo: vạch qua đường (2 phía tới), "止まれ" trên đường ngang, tốc độ 40 + cấm đỗ giữa khối
+    const signs = [];
+    const sign = (a, u, fx, fz, cell, h = 2.5) => { const [x, z] = P(a, u); signs.push([x, gJ(u) + 0.2, z, Math.atan2(fx, fz), cell, h]); };
+    sign(-11.2, HW + 0.55, -F.fx, -F.fz, 0);                    // chiều mình tới ngã tư: biển vạch qua đường bên phải
+    sign(11.2, -(HW + 0.55), F.fx, F.fz, 0);                    // chiều ngược lại
+    sign(CW + 0.7, HW + 4.6, F.rx, F.rz, 1, 2.2);              // đường ngang phía phải: dừng lại
+    sign(-(CW + 0.7), -(HW + 4.6), -F.rx, -F.rz, 1, 2.2);
+    sign(60, HW + 0.55, -F.fx, -F.fz, 2);                       // giữa khối: tốc độ tối đa 40
+    sign(95, -(HW + 0.55), F.fx, F.fz, 3);                      // cấm đỗ
+    const mkPlates = (mat, back) => {
+      const g = new THREE.BufferGeometry();
+      for (const k of ['position', 'normal', 'uv']) g.setAttribute(k, this.signPlate.attributes[k].clone());
+      g.setIndex(this.signPlate.index.clone());
+      g.setAttribute('aCell', new THREE.InstancedBufferAttribute(Float32Array.from(signs.map((e) => e[4])), 1));
+      g.userData.own = true;
+      add(g, mat, signs, ([x, y, z, yw, , h]) => m.compose(v.set(x - Math.sin(yw) * (back ? 0.012 : 0), y + h, z - Math.cos(yw) * (back ? 0.012 : 0)),
+        q.setFromAxisAngle(this._up, yw + (back ? Math.PI : 0)), sc.set(1, 1, 1)));
+    };
+    mkPlates(this.roadSignMat, false);
+    mkPlates(this.signBackMat, true);
+    add(this.signPost, this.sigMat, signs, ([x, y, z, yw, , h]) => m.compose(v.set(x - Math.sin(yw) * 0.03, y, z - Math.cos(yw) * 0.03), q.identity(), sc.set(1, h + 0.1, 1)));
   }
 
   // hẻm bậc thang giữa hai nhà mặt tiền: từ mép vỉa hè đi lên (cao thêm theo địa hình phía sau, 1–6 m) rồi lối đi phẳng
