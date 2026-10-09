@@ -58,6 +58,7 @@ export const WEATHERS = [
   { id: 'storm', name: 'Bão', icon: '⛈️' },
   { id: 'snow', name: 'Tuyết', icon: '❄️' },
   { id: 'fog', name: 'Sương mù', icon: '🌫️' },
+  { id: 'auto', name: 'Tự động', icon: '🔄' },          // tự đổi thời tiết mỗi 2.5–5 phút (main.js: autoWeather)
 ];
 
 export const TIMES = [

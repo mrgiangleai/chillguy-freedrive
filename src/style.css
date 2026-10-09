@@ -146,9 +146,16 @@ body.cine #mistpanel, body.cine #lenspanel { bottom: calc(max(14px, calc(var(--b
 #rotate button { margin-top: 6px; padding: 9px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--ui); color: var(--txt); font: inherit; opacity: .8; }
 
 /* ---- map Phố: nút phanh + thông báo ---- */
-#brake { position: absolute; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: 112px; height: 52px;
+/* hộp Space (phanh): giữa đáy, cùng hàng / cùng cỡ cao với hộp Setting */
+#brake { position: absolute; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: 112px;
   touch-action: none; user-select: none; -webkit-user-select: none; }
-body.cine #brake { bottom: max(14px, calc(var(--bar) / 2 - 26px)); }
+body.cine #brake { bottom: max(14px, calc(var(--bar) / 2 - 29px)); }
+body.cine #corner { bottom: max(14px, calc(var(--bar) / 2 - 29px)); }
+@media (max-height: 500px), (max-width: 640px) {
+  #brake { width: 96px; bottom: max(10px, env(safe-area-inset-bottom)); }
+  #corner { bottom: max(10px, env(safe-area-inset-bottom)); }
+  body.cine #brake, body.cine #corner { bottom: max(8px, calc(var(--bar) / 2 - 18px)); }
+}
 #brake.on { background: rgba(255, 255, 255, .3); border-color: rgba(255, 255, 255, .7); }
 #brake[hidden] { display: none; }
 #toast { position: fixed; z-index: 7; left: 50%; top: max(56px, env(safe-area-inset-top)); transform: translate(-50%, -12px); max-width: calc(100vw - 32px);

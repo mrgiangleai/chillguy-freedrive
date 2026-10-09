@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -152,6 +152,9 @@
   Xe mình đứng yên > 7 s (không phải chờ đèn đỏ trong 25 m) => xe kẹt sau cùng làn (≤ 30 m, `stuckBehind`) bấm còi
   (`audio.horn`, 2 tiếng bíp 415/498 Hz, mỗi 2–3.5 s) + nháy đèn pha (`aHonk` theo từng xe) + toast. Vào map Phố / bắt đầu lại sau
   khi bị bắt: camera Sau xe; bị bắt xong xe về làn ngoài phải 5.25, dọn xe/người chồng chỗ, 3 s không tính va chạm.
+  Xe cảnh sát / cấp cứu có đèn như xe mình (`cityTraffic._emSetup/_emUpdate`, tạo 1 lần khi vào phố): quầng đèn pha (cảnh sát
+  thêm 2 SpotLight thật), quầng đèn hiệu trên nóc nhấp nháy đổi màu (cảnh sát đỏ/xanh, cấp cứu đỏ/trắng) + 1 PointLight hắt màu.
+  Thời tiết `auto` mới (WEATHERS, `autoWeather`: đổi ngẫu nhiên 2.5–5 phút); vào phố: thời tiết + giờ Tự động tới khi chú tự đổi.
   Thử Low: ~50 xe + ~38 người quanh xe, xe máy/người qua ngã tư theo đèn, cảnh tai nạn chạy trọn ~30 s. Chưa xem trên máy thật;
   chưa có ảnh rõ cảnh sát/cấp cứu; người lái bị bắt là hình dựng (không phải model nhân vật).
 - **Giao diện (HUD)**: bên trái là cột lối tắt hộp chữ thưa (`#quick .qbox`, cùng cỡ 80×58 — điện thoại 62×36, chữ mảnh weight 200, hoa chữ đầu + thường, giãn .16em, phím
@@ -203,3 +206,6 @@
 - **#6 — Nút Space, còi xe kẹt sau, camera Sau xe ở phố, menu 3 s, reset sau khi bị bắt (09/10/2026)**: xem mục Map Phố / Giao diện.
   Thử Low: map Phố vào là Sau xe, hộp Space ẩn/hiện theo HUD; cảnh bị bắt xong xe ở làn 5.25, camera Sau xe. Chưa thử trọn 7 s
   đứng yên trên máy ảo (quá chậm) — mới kiểm `stuckBehind` + `horn` chạy không lỗi.
+
+- **#7 — Đèn xe cảnh sát/cấp cứu, thời tiết/giờ tự động ở phố, căn hộp Space (09/10/2026)**: hộp Space cùng cỡ cao + cùng hàng với
+  Setting (cả cine/điện thoại); bấm nút xong bỏ focus để phím Space không bấm lại nút. Thử Low: quầng đèn pha, đèn hiệu nháy, spot 36.

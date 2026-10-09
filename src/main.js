@@ -100,6 +100,7 @@ const traffic = new Traffic(scene, cars);     // thỉnh thoảng có xe chạy 
 traffic.stopFor = (s, dir, v) => city.stopAhead(s, dir, v);   // xe NPC dừng đèn đỏ (map Phố)
 const cityTraffic = new CityTraffic(scene, road, city);      // map Phố: xe dựng bằng code, 4 làn + đường ngang
 const cityPeople = new CityPeople(scene, road, city);        // map Phố: người đi bộ
+cityTraffic.setup(scene, cars.softTex, camera);
 let driverHidden = false, crashCam = null, crashGrace = 0;
 const incident = new CityIncident(cityTraffic, cityPeople, {   // map Phố: đâm xe / người => cảnh sát + cấp cứu
   toast: (t, bad) => toast(t, bad),
@@ -399,6 +400,9 @@ const applyMap = () => {
   if (isCity && state.started) toast('Map Phố: tự phanh khi gặp đèn đỏ — giữ phím Space hoặc nút Space');
   cityFront = null;
   if (isCity && state.started) { state.cam = CAMERAS.findIndex((c) => c.id === 'chase'); rig.setMode(state.cam); onCamChange(); }   // phố: mặc định camera Sau xe
+  // phố: thời tiết + thời gian 'Tự động' cho tới khi chú tự đổi
+  if (isCity && !cityUserWeather) setWeatherIdx(WEATHERS.findIndex((w) => w.id === 'auto'));
+  if (isCity && !cityUserTime) { state.time = TIMES.findIndex((t) => t.id === 'auto'); env.setTime(null); }
   rig.sideDist = isCity ? 13 : null;            // phố: camera bên hông đứng trên đường, không chui vào nhà
   rig.orbitR = isCity ? 10 : null;
   // làn nhà của xe mình: phố chạy làn ngoài bên phải; map khác sát vạch giữa
@@ -417,9 +421,26 @@ function onCamChange() {
 let tuneKind = null;
 let renderTune = () => {};
 const nextCam = () => { state.cam = (state.cam + 1) % CAMERAS.length; rig.setMode(state.cam); onCamChange(); refreshUI(); if (tuneKind === 'camera') renderTune(); };
-const nextWeather = () => { state.weather = (state.weather + 1) % WEATHERS.length; env.setWeather(WEATHERS[state.weather].id); refreshUI(); if (tuneKind === 'weather') renderTune(); };
+// thời tiết 'auto': tự chọn ngẫu nhiên (trong / mây / mưa / sương / bão) mỗi 2.5–5 phút
+let autoWeatherT = 0, cityUserWeather = false, cityUserTime = false;
+const AUTO_WEATHERS = [['clear', 0.34], ['cloudy', 0.34], ['rain', 0.16], ['fog', 0.1], ['storm', 0.06]];
+function setWeatherIdx(i, byUser = false) {
+  state.weather = i;
+  if (byUser && MAPS[state.map].id === 'city') cityUserWeather = true;
+  if (WEATHERS[i].id === 'auto') autoWeatherT = 0; else env.setWeather(WEATHERS[i].id);
+}
+function autoWeather(dt) {
+  if (WEATHERS[state.weather].id !== 'auto' || (autoWeatherT -= dt) > 0) return;
+  autoWeatherT = 150 + Math.random() * 150;
+  let k = Math.random(), id = 'cloudy';
+  for (const [w, p] of AUTO_WEATHERS) { if ((k -= p) < 0) { id = w; break; } }
+  if (id === env.weather) id = id === 'clear' ? 'cloudy' : 'clear';
+  env.setWeather(id);
+}
+const nextWeather = () => { setWeatherIdx((state.weather + 1) % WEATHERS.length, true); refreshUI(); if (tuneKind === 'weather') renderTune(); };
 const nextTime = () => {
   state.time = (state.time + 1) % TIMES.length;
+  if (MAPS[state.map].id === 'city') cityUserTime = true;
   env.setTime(TIMES[state.time].hour);
   if (TIMES[state.time].id === 'night') setMist(0.6, 0.6);     // ban đêm: sương phủ + dày 60%
   refreshUI();
@@ -601,7 +622,7 @@ renderTune = () => {
     addNumber({ label: 'Tiêu cự (mm)', min: FOCAL_MIN, max: FOCAL_MAX, step: 1, get: () => values.focal, set: (v) => { values.focal = rig.focal = v; syncLens(); refreshUI(); } });
     addChoice({ label: 'Khẩu độ', options: FSTOPS.map((v) => 'f/' + v), get: () => Math.max(0, FSTOPS.indexOf(values.aperture)), set: (v) => { values.aperture = rig.aperture = FSTOPS[v]; state.fstop = v; syncLens(); refreshUI(); } });
   } else if (tuneKind === 'weather') {
-    const id = WEATHERS[state.weather].id, profile = env.weatherProfiles[id];
+    const id = WEATHERS[state.weather].id === 'auto' ? env.weather : WEATHERS[state.weather].id, profile = env.weatherProfiles[id];
     addHeading('Preset ' + WEATHERS[state.weather].name);
     WEATHER_FIELDS.map(([key,label,min,max,step]) => ({ label,min,max,step,get:()=>profile[key],set:(v)=>{ profile[key]=v; env.w[key]=v; } })).forEach(addNumber);
     addColor({ label: 'Màu khí quyển', get: () => profile.tint, set: (v) => { profile.tint = v; env.tint.set(v); env.envKey = ''; } });
@@ -621,14 +642,14 @@ const openTune = (kind) => {
 tuneMode.onchange = () => {
   const i = Number(tuneMode.value);
   if (tuneKind === 'camera') { state.cam = i; rig.setMode(i); onCamChange(); }
-  else if (tuneKind === 'weather') { state.weather = i; env.setWeather(WEATHERS[i].id); }
-  else { state.time = i; env.setTime(TIMES[i].hour); }
+  else if (tuneKind === 'weather') setWeatherIdx(i, true);
+  else { state.time = i; env.setTime(TIMES[i].hour); if (MAPS[state.map].id === 'city') cityUserTime = true; }
   refreshUI(); renderTune();
 };
 $('tune-close').onclick = closeTune;
 $('tune-reset').onclick = () => {
   if (tuneKind === 'camera') { rig.resetTune(CAMERAS[state.cam].id); onCamChange(); }
-  else if (tuneKind === 'weather') { env.resetWeather(WEATHERS[state.weather].id); env.resetTune(); env.snapWeather(WEATHERS[state.weather].id); }
+  else if (tuneKind === 'weather') { const w = WEATHERS[state.weather].id === 'auto' ? env.weather : WEATHERS[state.weather].id; env.resetWeather(w); env.resetTune(); env.snapWeather(w); }
   else if (tuneKind === 'time') { env.resetTune(); env.setTime(TIMES[state.time].hour); }
   else if (tuneKind === 'carLight') Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS);
   else if (tuneKind === 'traffic') { Object.assign(trafficTune, TRAFFIC_DEFAULTS); applyTrafficTune(); }
@@ -750,6 +771,8 @@ const wake = () => {
   idleTimer = setTimeout(() => document.body.classList.add('idle'), 3000);
 };
 ['pointermove', 'pointerdown', 'touchstart'].forEach((ev) => window.addEventListener(ev, wake, { passive: true }));
+// bấm nút xong thì bỏ focus (không thì phím Space bấm lại nút đó thay vì phanh)
+window.addEventListener('pointerup', () => { if (document.activeElement?.tagName === 'BUTTON') document.activeElement.blur(); });
 document.body.classList.add('idle');
 
 // ---------- vòng lặp ----------
@@ -988,6 +1011,7 @@ function frame(now) {
 
   // môi trường
   env.precip.setCar(cars.tilt, cars.dim);
+  autoWeather(dt);
   env.update(dt, drive.pos);
   const st = env.state;
   scenery.update(drive.s);
@@ -1143,7 +1167,7 @@ async function init() {
   applyQuality();
   env.setTime(TIMES[state.time].hour);
   env.hour = TIMES[state.time].hour;
-  env.snapWeather(WEATHERS[state.weather].id);
+  env.snapWeather(WEATHERS[state.weather].id === 'auto' ? 'cloudy' : WEATHERS[state.weather].id);
   env.onThunder = (delay, power) => audio.thunder(delay, power);
   road.ensure(drive.s + 8000);
   road.at(drive.s, roadPt);

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CITY } from './road.js';
 import { withMist } from './mist.js';
+import { createHeadlights, placeHeadlights, updateHeadlights } from './headlights.js';
 
 // Giao thông map Phố: xe dựng bằng code (xe con, xe kei, taxi, xe van, xe buýt, xe máy có người lái), mỗi loại 1 InstancedMesh
 // (thân sơn nhận màu riêng từng xe qua instanceColor × aTint; kính bóng; đèn tự phát sáng). Không dùng model nặng.
@@ -235,7 +236,7 @@ export class CityTraffic {
     this.speedK = 1;           // hệ số tốc độ xe khác
   }
 
-  set visible(v) { this.group.visible = v; if (!v) { this.cars.length = 0; this.filled = false; this.crossTimers.clear(); } }
+  set visible(v) { this.group.visible = v; if (v) this._emSetup(); if (!v) { this.cars.length = 0; this.filled = false; this.crossTimers.clear(); } }
   get visible() { return this.group.visible; }
 
   // xe kịch bản (cảnh sát / cấp cứu): chạy tới quãng `to` rồi dừng, bỏ qua đèn; script = null => chạy tiếp như xe thường
@@ -422,6 +423,7 @@ export class CityTraffic {
       m.compose(vv, q, this._one);
       im.setMatrixAt(i, m);
       im.setColorAt(i, this._c.set(c.color));
+      if (c.type === 'police' || c.type === 'ambulance') { (c._pos ||= new THREE.Vector3()).copy(vv); c._yaw = yaw; }
       im.honk.setX(i, c.honk ? 1 : 0);
     }
     for (const k in this.meshes) {
@@ -431,6 +433,60 @@ export class CityTraffic {
       if (im.instanceColor) im.instanceColor.needsUpdate = true;
       im.honk.needsUpdate = true;
     }
+    this._emUpdate(lamps);
+  }
+
+  // đèn xe ưu tiên giống xe mình: đèn pha (quầng + xe cảnh sát có cặp SpotLight thật) + quầng đèn hiệu trên nóc nhấp nháy đổi màu
+  // (cảnh sát đỏ/xanh, cấp cứu đỏ/trắng) + 1 PointLight màu đèn hiệu hắt ra xung quanh. Tạo 1 lần khi vào map Phố (số đèn cố định).
+  setup(scene, softTex, camera) { this.scene = scene; this.softTex = softTex; this.camera = camera; }
+  _emSetup() {
+    if (this.em || !this.scene) return;
+    const mk = (kind, spots, dim, bar) => {
+      const root = new THREE.Group();
+      const head = createHeadlights(root, this.softTex, { spots, glows: true });
+      placeHeadlights(head, dim);
+      const bars = [-1, 1].map((s) => {
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.softTex, color: 0xff2010, transparent: true, opacity: 0,
+          depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+        sp.position.set(s * bar[0], bar[1], bar[2]); sp.scale.set(1.5, 1.1, 1); sp.renderOrder = 6;
+        root.add(sp);
+        return sp;
+      });
+      root.visible = false;
+      this.scene.add(root);
+      return { kind, root, head, bars };
+    };
+    this.em = {
+      police: mk('police', true, { width: 1.78, length: 4.6, height: 1.45 }, [0.36, 1.6, -0.1]),
+      ambulance: mk('ambulance', false, { width: 1.9, length: 5.4, height: 2.25 }, [0.42, 2.45, -2.1]),
+    };
+    this.emPoint = new THREE.PointLight(0xff2010, 0, 30, 1.6);
+    this.scene.add(this.emPoint);
+  }
+  _emUpdate(lamps) {
+    if (!this.em) return;
+    const on = Math.floor(this.uTime.value * 2.2) % 2;
+    let pointSet = false;
+    for (const kind of ['police', 'ambulance']) {
+      const R = this.em[kind], c = this.cars.find((x) => x.type === kind && x._pos);
+      R.root.visible = !!c;
+      if (!c) { updateHeadlights(R.head, R.root, null, 0); continue; }
+      R.root.position.copy(c._pos); R.root.rotation.set(0, c._yaw, 0);
+      updateHeadlights(R.head, R.root, this.camera, Math.max(0.6, lamps));
+      const colA = kind === 'police' ? 0xff1a0c : 0xff1a0c, colB = kind === 'police' ? 0x1f4dff : 0xffffff;
+      R.bars.forEach((sp, i) => {
+        const lit = (i === on);
+        sp.material.color.setHex(i === 0 ? colA : colB);
+        sp.material.opacity = lit ? 1 : 0.06;
+      });
+      if (!pointSet) {                                     // ánh đèn hiệu hắt ra (ưu tiên xe cảnh sát)
+        pointSet = true;
+        this.emPoint.position.set(c._pos.x, c._pos.y + 2.2, c._pos.z);
+        this.emPoint.color.setHex(on === 0 ? colA : colB);
+        this.emPoint.intensity = 9;
+      }
+    }
+    if (!pointSet) this.emPoint.intensity = 0;
   }
 
   // khung ngã tư n (nhớ lại vài cái gần nhất)
