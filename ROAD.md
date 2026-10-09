@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -237,7 +237,8 @@
   va chạm −25, camera −10, đổi làn / vào nhánh không xi nhan −5; toast ghi "lỗi thứ n, −x điểm"). "Điểm n" nhỏ dưới giờ (đỏ 1.5 s khi
   vừa bị trừ). Bảng 📋 (`#score`, nút `b-score` trong Setting ở map Drive, phím J, Esc / bấm nền để đóng): điểm + xếp loại (≥ 90 Xuất
   sắc / ≥ 75 Tốt / ≥ 50 Đạt / Chưa đạt), thời gian, quãng đường, tốc độ TB / cao nhất (không tính lúc dừng xe / tai nạn), số lỗi từng
-  loại; "Buổi mới" đặt lại. Vào Drive => buổi mới; rời Drive sau > 300 m => tự hiện bảng.
+  loại; "Buổi mới" đặt lại. Vào Drive => buổi mới; rời Drive sau > 300 m => tự hiện bảng. Bảng 🚦 có nút "Chấm điểm buổi lái"
+  (`trafficTune.score`, mặc định Bật): tắt => ẩn điểm + nút 📋, lỗi chỉ nhắc (không trừ điểm); bật lại => tính lại từ đầu.
   **Va chạm vật lý** (`crashfx.js` + `impact()` trong main): xe mình chúi đầu + nảy ngang, rung camera mạnh tắt dần ~0.6 s,
   tiếng "rầm" + kim loại (`audio.crash`), đâm > ~20 km/h tương đối thì khói bốc từ capo 4–10 s (48 sprite dùng lại); xe bị đâm
   trôi theo lực (`slide` ≤ 9 m/s, giảm 7 m/s²). Map khác: đụng xe NPC cũng khựng + rung + khói (không cảnh sát), hồi 2.5 s.
@@ -307,4 +308,5 @@
   trạm thu phí), màn hình chờ chạy Low, bản đồ tròn (Drive), nút lái trái / phải trên điện thoại, cầu vượt cao qua quốc lộ 4 làn,
   cầu dây văng qua sông, bảng chỉ đường lớn kiểu Việt Nam, đèn cầu ban đêm + cây bờ sông + thuyền.
 - **#1 — Đại lộ: dời cầu cao (700 m) + cầu sông (2.2 km) về gần đầu đường, vào Đại lộ bắt đầu ở 150 m (09/10/2026)**.
+- **#3 — Bảng 🚦: nút bật / tắt chấm điểm, bật lại thì tính lại từ đầu (09/10/2026)**.
 - **#2 — Cải thiện dần (09/10/2026)**: bản đồ phóng to ẩn HUD bị đè; đệm chống va + dải bê tông ở mũi nhánh Đại lộ; xe tải / container; xi nhan (xe mình + NPC, lỗi đổi làn / vào nhánh không xi nhan); biển giới hạn tốc độ trên HUD + camera bắn tốc độ Đại lộ; bảng chấm điểm buổi lái (J); sửa cảnh tai nạn Đại lộ (kẹt) + trên nhánh rẽ / cầu cạn.

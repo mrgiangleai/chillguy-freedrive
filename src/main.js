@@ -311,7 +311,7 @@ const QUICK_OPENING = true;          // TẠM: đầu game rút còn 0.5 s (đ�
 const TUNE_KEY = 'chilldrive.tuning.v1';
 let savedTuning = null;
 // bảng 🚦 Giao thông (map Phố): chú tự chỉnh để thử
-const TRAFFIC_DEFAULTS = Object.freeze({ avoid: 1, redStop: 0, auto: 1, density: 1, speed: 1, walkers: 38, signal: 1, models: 0 });
+const TRAFFIC_DEFAULTS = Object.freeze({ avoid: 1, redStop: 0, score: 1, auto: 1, density: 1, speed: 1, walkers: 38, signal: 1, models: 0 });
 // bảng Lighting: hệ số các loại đèn (ngoài đèn pha xe chú / đèn đường đã có thông số riêng)
 const LIGHT_DEFAULTS = Object.freeze({ signal: 1, signalSize: 1, windows: 1, signs: 1, npc: 1, emergency: 1 });
 const lightTune = { ...LIGHT_DEFAULTS };
@@ -554,7 +554,7 @@ const applyMap = () => {
   if (isTraffic) { traffic.clearAll(); trafficLevel = TRAFFIC_START; trafficStartT = 5; }   // vào phố / đại lộ: giao thông thấp 5 s đầu
   $('brake').hidden = !isTraffic;
   $('b-traffic').hidden = !isTraffic;
-  $('b-score').hidden = !isTraffic;
+  $('b-score').hidden = !isTraffic || !trafficTune.score;
   if (!isTraffic) $('score').hidden = true;
   if (!isTraffic && tuneKind === 'traffic') closeTune();
   applyTrafficTune(); applyLightTune();
@@ -600,7 +600,7 @@ function showModeName(mode) {
 function setGameMode(mode) {
   if (state.mode === mode) return;
   if (state.mode === 'chill') lastChillMap = state.map; else lastDriveMap = state.map;
-  const leftDrive = state.mode === 'drive' && session.dist > 300;
+  const leftDrive = state.mode === 'drive' && session.dist > 300 && trafficTune.score;
   state.mode = mode;
   state.map = mode === 'drive' ? lastDriveMap : lastChillMap;
   applyMap(); refreshUI(); showModeName(mode);
@@ -747,7 +747,9 @@ let session = newSession(), scoreHit = 0;
 const sessionScore = () => Math.max(0, 100 - Object.entries(session.n).reduce((a, [k, n]) => a + n * FOULS[k][1], 0));
 const scoreGrade = (p) => (p >= 90 ? 'Xuất sắc' : p >= 75 ? 'Tốt' : p >= 50 ? 'Đạt' : 'Chưa đạt');
 function foul(type, text) {
-  violations++; session.n[type] = (session.n[type] || 0) + 1; scoreHit = 1.5;
+  violations++;
+  if (!trafficTune.score) { if (text) toast(`${text} (lỗi thứ ${violations})`, true); return; }   // tắt chấm điểm: chỉ nhắc lỗi
+  session.n[type] = (session.n[type] || 0) + 1; scoreHit = 1.5;
   if (text) toast(`${text} (lỗi thứ ${violations}, −${FOULS[type][1]} điểm)`, true);
   if (!$('score').hidden) renderScore();
 }
@@ -765,13 +767,13 @@ function toggleScore(show = $('score').hidden) {
   if (show) renderScore();
   $('score').hidden = !show;
 }
-function resetSession() { session = newSession(); violations = 0; renderScore(); say('Bắt đầu buổi lái mới'); }
+function resetSession() { session = newSession(); violations = 0; renderScore(); say('Chấm điểm · bắt đầu buổi lái mới'); }
 $('b-score').onclick = () => toggleScore();
 $('sc-close').onclick = () => toggleScore(false);
 $('sc-new').onclick = () => resetSession();
 $('score').addEventListener('pointerdown', (e) => { if (e.target.id === 'score') toggleScore(false); });
 function updateSession(dt) {
-  const on = cityTraffic.visible && state.started;
+  const on = cityTraffic.visible && state.started && !!trafficTune.score;
   $('scoremini').hidden = !on;
   if (!on) return;
   if (!stop.active && !incident.active) { session.t += dt; session.dist += Math.abs(drive.v) * dt; session.vmax = Math.max(session.vmax, drive.v); }
@@ -910,10 +912,14 @@ renderTune = () => {
   tuneFields.replaceChildren(); tuneMode.replaceChildren();
   if (tuneKind === 'traffic') {
     tuneMode.hidden = true;
-    $('tune-title').textContent = 'Giao thông (map Phố)';
+    $('tune-title').textContent = 'Giao thông (Phố / Đại lộ)';
     addHeading('Xe của chú');
     addToggle({ label: 'Tự giữ khoảng cách (tránh đâm xe trước)', get: () => trafficTune.avoid, set: (v) => { trafficTune.avoid = v; toast(v ? 'Đã bật tự giữ khoảng cách' : 'Đã tắt tự giữ khoảng cách — chú tự phanh, đâm là có cảnh sát tới', !v); } });
     addToggle({ label: 'Tự động dừng xe khi đèn đỏ', get: () => trafficTune.redStop, set: (v) => { trafficTune.redStop = v; toast(v ? 'Đã bật tự dừng đèn đỏ' : 'Đã tắt tự dừng đèn đỏ — chú tự phanh (Space)'); } });
+    addToggle({ label: 'Chấm điểm buổi lái (bật lại = tính lại từ đầu)', get: () => trafficTune.score, set: (v) => {
+      trafficTune.score = v; $('b-score').hidden = !v;
+      if (v) resetSession(); else { $('score').hidden = true; say('Đã tắt chấm điểm'); }
+    } });
     addToggle({ label: 'Thêm xe của chú (Mustang, Mazda) vào giao thông', get: () => trafficTune.models, set: (v) => { trafficTune.models = v; applyTrafficTune(); } });
     addHeading('Xe và người');
     addToggle({ label: 'Giao thông ngẫu nhiên (xe + người)' + (trafficTune.auto && trafficLevel ? ' — đang: ' + trafficLevel.name : ''), get: () => trafficTune.auto, set: (v) => {
@@ -1018,7 +1024,7 @@ $('tune-reset').onclick = () => {
   else if (tuneKind === 'weather') { const w = WEATHERS[state.weather].id === 'auto' ? env.weather : WEATHERS[state.weather].id; env.resetWeather(w); env.resetTune(); env.snapWeather(w); }
   else if (tuneKind === 'time') { env.resetTune(); env.setTime(TIMES[state.time].hour); }
   else if (tuneKind === 'carLight') Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS);
-  else if (tuneKind === 'traffic') { Object.assign(trafficTune, TRAFFIC_DEFAULTS); if (trafficStartT <= 0 && !trafficLevel) pickTrafficLevel(false); else applyTrafficTune(); }
+  else if (tuneKind === 'traffic') { Object.assign(trafficTune, TRAFFIC_DEFAULTS); $('b-score').hidden = !cityTraffic.visible; if (trafficStartT <= 0 && !trafficLevel) pickTrafficLevel(false); else applyTrafficTune(); }
   else if (tuneKind === 'park') Object.assign(stop.tune, PARK_DEFAULTS);
   else if (tuneKind === 'lighting') { Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS); Object.assign(scenery.lampTune, STREETLIGHT_DEFAULTS); Object.assign(lightTune, LIGHT_DEFAULTS); applyLightTune(); }
   else Object.assign(scenery.lampTune, STREETLIGHT_DEFAULTS);
@@ -1062,7 +1068,7 @@ window.addEventListener('keydown', (e) => {
     case 'KeyU': toggleFS(); break;
     case 'KeyK': toggleSettings(); break;
     case 'KeyO': shotPending = true; break;
-    case 'KeyJ': if (cityTraffic.visible) toggleScore(); break;
+    case 'KeyJ': if (cityTraffic.visible && trafficTune.score) toggleScore(); break;
     case 'Escape': if (!$('score').hidden) toggleScore(false); break;
     case 'Comma': setBlinker(-1); break;         // xi nhan trái (<) / phải (>)
     case 'Period': setBlinker(1); break;
