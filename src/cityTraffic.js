@@ -289,11 +289,13 @@ export class CityTraffic {
   set visible(v) { this.group.visible = v; if (v) this._emSetup(); if (!v) { this.releaseModels(); this.cars.length = 0; this.filled = false; this.crossTimers.clear(); } }
   get visible() { return this.group.visible; }
 
-  // xe kịch bản (cảnh sát / cấp cứu): chạy tới quãng `to` rồi dừng, bỏ qua đèn; script = null => chạy tiếp như xe thường
-  spawnScripted(type, s, d, dir, to, v = 15) {
+  // xe kịch bản (cảnh sát / cấp cứu): chạy tới quãng `to` rồi dừng, bỏ qua đèn; script = null => chạy tiếp như xe thường.
+  // ramp = số nút giao: chạy theo nhánh rẽ (tai nạn trên nhánh ở Đại lộ), ngoài nhánh thì theo làn `d`
+  spawnScripted(type, s, d, dir, to, v = 15, ramp = null) {
     const c = this._new(type, { s, d, home: d, dir, color: '#ffffff' });
     c.color = '#ffffff'; c.vMax = 12; c.v = v;
     c.script = { to, v, arrived: false };
+    if (ramp != null) { c.ramp = ramp; c.rk = ramp; const u = rampU((s - icS(ramp)) * dir); if (u !== null) c.d = dir * u; }
     this.cars.push(c);
     return c;
   }
@@ -440,6 +442,8 @@ export class CityTraffic {
         c.v += Math.max(-8 * dt, Math.min(3 * dt, w - c.v));
         if (dist <= 0.2) { c.v = 0; c.script.arrived = true; }
         c.s += c.dir * Math.max(0, c.v) * dt;
+        const ru = c.ramp != null ? rampU((c.s - icS(c.ramp)) * c.dir) : null;
+        if (ru !== null) { const nd = c.dir * ru; c.lat = (nd - c.d) / Math.max(dt, 1e-3); c.d = nd; continue; }
         const err = c.home - c.d; c.lat = Math.sign(err) * Math.min(1.3, Math.abs(err) * 2); c.d += c.lat * dt;
         continue;
       }

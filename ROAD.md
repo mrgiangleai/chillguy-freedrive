@@ -246,6 +246,12 @@
   sau xe, xuống cửa trái, đi thẳng ở ngoài mép trái 2 xe tới đứng trước mặt chú (cách 1.1 m), toast lời cảnh sát, 2.5 s sau
   `endStop` (`stop.release`: người về ghế, bị ẩn; camera trả về quay quanh xe, lướt từ chỗ đang đứng) => hình người lái dựng
   + cảnh sát đi cạnh nhau theo `cityPeople.goPath` về cửa xe cảnh sát. Hook main: `carPos/exitCar/personPos/endStop`.
+  **Tai nạn ở Đại lộ**: `cityPeople` bật cả ở Đại lộ nhưng `ambient = false` (không người đi bộ, chỉ người kịch bản; trước đây bị
+  tắt hẳn nên cảnh tai nạn kẹt ở bước cảnh sát đi tới). Xe cấp cứu tới cùng chiều từ phía sau, đỗ sau xe cảnh sát (`behind`), nhân viên
+  y tế đi phía phải làn (không trèo dải phân cách); người không đi vào dải phân cách (|u| ≥ 1). Trên nhánh rẽ (`hooks.ramp` = 
+  `drive.ramp`): xe cảnh sát / cấp cứu `spawnScripted(..., ramp)` chạy theo `rampU`, người đi theo độ cong nhánh (`_laneU`);
+  độ cao người ngoài mép cao tốc trong vùng nút giao = `road.baseY` (`avLowY`, dùng cho `stop.groundAt` + `cityPeople.yAt`).
+  Đã thử Low (tăng tốc thời gian): trọn cảnh trên nhánh ra (t = −300) và trên cầu cạn cao (s = 640).
   Camera cảnh dừng xe ở phố cũng `city.collide` (không xuyên nhà). Người đi bộ trong 45 m (tối đa 9) đi tới đứng quanh hiện
   trường trên vỉa hè phía mình, nhìn về chỗ tai nạn, ~30% giơ điện thoại (`cityPeople.gather/disperse`).
   **Người đi bộ thêm**: ~16% bấm điện thoại (tay phải đưa ra trước 0.75 rad trong shader, điện thoại nằm dưới bàn tay; thỉnh
@@ -301,4 +307,4 @@
   trạm thu phí), màn hình chờ chạy Low, bản đồ tròn (Drive), nút lái trái / phải trên điện thoại, cầu vượt cao qua quốc lộ 4 làn,
   cầu dây văng qua sông, bảng chỉ đường lớn kiểu Việt Nam, đèn cầu ban đêm + cây bờ sông + thuyền.
 - **#1 — Đại lộ: dời cầu cao (700 m) + cầu sông (2.2 km) về gần đầu đường, vào Đại lộ bắt đầu ở 150 m (09/10/2026)**.
-- **#2 — Cải thiện dần (09/10/2026)**: bản đồ phóng to ẩn HUD bị đè; đệm chống va + dải bê tông ở mũi nhánh Đại lộ; xe tải / container; xi nhan (xe mình + NPC, lỗi đổi làn / vào nhánh không xi nhan); biển giới hạn tốc độ trên HUD + camera bắn tốc độ Đại lộ; bảng chấm điểm buổi lái (J).
+- **#2 — Cải thiện dần (09/10/2026)**: bản đồ phóng to ẩn HUD bị đè; đệm chống va + dải bê tông ở mũi nhánh Đại lộ; xe tải / container; xi nhan (xe mình + NPC, lỗi đổi làn / vào nhánh không xi nhan); biển giới hạn tốc độ trên HUD + camera bắn tốc độ Đại lộ; bảng chấm điểm buổi lái (J); sửa cảnh tai nạn Đại lộ (kẹt) + trên nhánh rẽ / cầu cạn.

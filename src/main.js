@@ -92,9 +92,13 @@ const refl = new WetReflection(renderer);
 const person = new Person();
 const stop = new StopScene(cars, person);
 // mặt đất dưới người khi xuống xe: mặt đường (+5 cm), vỉa hè map Phố (+20 cm), còn lại địa hình
+// Đại lộ: ngoài mép cao tốc trong vùng nút giao (nhánh rẽ, đường ngang) mặt đất ở cao độ nền (`road.baseY`), không theo cầu vượt
+const avLowY = (s, u) => (MAPS[state.map].id === 'avenue' && Math.abs(u) > AVENUE.hw + 0.3 && Math.abs(s - icS(icIndex(s))) < IC.rampLen + 20 ? road.baseY(s) : null);
 stop.groundAt = (x, z) => {
   const rp = roadPosition({ x, z }, road, drive.s), p = road.at(rp.s, {}), a = Math.abs(rp.d);
   if (a <= ROAD.halfWidth) return p.y + 0.05;
+  const low = avLowY(rp.s, rp.d);
+  if (low !== null) return low + 0.05;
   if (MAPS[state.map].id === 'city' && a <= CITY.hw + CITY.walk + 0.4) {
     const j = road.nearJunction(rp.s);
     return p.y + (Math.abs(rp.s - j) < CITY.side ? 0.05 : 0.2);
@@ -118,6 +122,7 @@ const traffic = new Traffic(scene, cars);     // thỉnh thoảng có xe chạy 
 traffic.stopFor = (s, dir, v) => city.stopAhead(s, dir, v);   // xe NPC dừng đèn đỏ (map Phố)
 const cityTraffic = new CityTraffic(scene, road, city);      // map Phố: xe dựng bằng code, 4 làn + đường ngang
 const cityPeople = new CityPeople(scene, road, city);        // map Phố: người đi bộ
+cityPeople.yAt = (s, u, y) => avLowY(s, u) ?? y;            // đại lộ: người trên nhánh rẽ / đường ngang ở cao độ nền
 const avenue = new Avenue(scene, road, scenery.cityTex);     // map Đại lộ: vạch kẻ 6 làn + dải phân cách + nút giao (xe: cityTraffic chế độ avenue)
 terrain.extraCarve = (x, z, h, h0, ns, nd) => avenue.carve(x, z, h, h0, ns, nd);
 avenue.groundAt = (x, z) => terrain.heightAt(x, z);
@@ -179,6 +184,7 @@ const incident = new CityIncident(cityTraffic, cityPeople, {   // map Phố: đ�
   fade: (on, text) => { const f = $('fade'); if (text) f.textContent = text; f.classList.toggle('show', on); },
   driverHidden: (b) => { driverHidden = b; },
   carPos: () => [drive.s, drive.d],
+  ramp: () => (onAvenue() ? drive.ramp : null),
   // chú bước ra khỏi xe (cảnh dừng xe, đứng yên chờ, không hút thuốc)
   exitCar: () => { drive.v = 0; const ok = stop.leaveCar(cars.dim); if (ok) refreshUI(); return ok; },
   personPos: () => {
@@ -544,7 +550,7 @@ const applyMap = () => {
   if (incident.active) incident.finish();
   if (isTraffic) cityTraffic.setMode(id);
   cityTraffic.visible = isTraffic;
-  cityPeople.visible = isCity;
+  cityPeople.visible = isTraffic; cityPeople.ambient = isCity;   // đại lộ: chỉ người của cảnh tai nạn
   if (isTraffic) { traffic.clearAll(); trafficLevel = TRAFFIC_START; trafficStartT = 5; }   // vào phố / đại lộ: giao thông thấp 5 s đầu
   $('brake').hidden = !isTraffic;
   $('b-traffic').hidden = !isTraffic;

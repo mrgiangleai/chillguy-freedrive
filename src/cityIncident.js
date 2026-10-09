@@ -6,11 +6,15 @@
 // rồi cả hai đi về cửa xe cảnh sát, lên xe; xe cảnh sát chạy đi.
 // Nhân viên cấp cứu (2 người) tới chỗ nạn nhân, đưa người lên xe (người ngã biến mất), quay về, xe cấp cứu chạy đi.
 // Kết thúc: màn hình tối dần "bị đưa về đồn", dọn hiện trường, chạy tiếp.
+import { icS, rampU, AVENUE } from './road.js';
+
+const AV_MIN_U = AVENUE.median + 0.5;     // mép trong làn trong cùng Đại lộ (cách dải phân cách)
+
 export class CityIncident {
   constructor(traffic, people, hooks) {
     this.traffic = traffic;
     this.people = people;
-    this.hooks = hooks;           // { toast, fade(on, text), driverHidden(bool), carPos(), exitCar(), personPos(), endStop(), siren, end() }
+    this.hooks = hooks;           // { toast, fade(on, text), driverHidden(bool), carPos(), exitCar(), personPos(), endStop(), siren, end(), ramp() }
     this.active = false;
   }
 
@@ -20,8 +24,9 @@ export class CityIncident {
     this.t = 0;
     this.s = s; this.d = d; this.dim = dim;
     this.victim = victim;
+    this.ramp = this.hooks.ramp?.() ?? null;                 // Đại lộ: tai nạn trên nhánh rẽ (số nút giao) => xe ưu tiên tới theo nhánh
     this.step = 'impact';
-    this.police = this.amb = this.officer = this.driver = null;
+    this.police = this.amb = this.officer = this.driver = null; this.behind = false;
     this.medics = [];
     this.exited = this.exitTried = false;
     if (victim.car) { victim.car.crashed = true; victim.car.v = 0; }
@@ -39,6 +44,9 @@ export class CityIncident {
     if (c.xr) return [this.traffic.xrS(c), c.xr.u];
     return [c.s, c.d];
   }
+
+  // tâm làn của xe cảnh sát / cấp cứu tại s: theo nhánh rẽ nếu tai nạn trên nhánh
+  _laneU(s, lane) { return (this.ramp != null ? rampU(s - icS(this.ramp)) : null) ?? Math.abs(lane); }
 
   // còi hụ: bật khi xe ưu tiên đang chạy (tới hoặc rời đi), tắt khi đỗ; to dần khi lại gần hiện trường
   _sirens() {
@@ -71,13 +79,18 @@ export class CityIncident {
     if (this.step === 'impact' && this.t > 1.2) {
       this.step = 'coming';
       [this.s, this.d] = this.hooks.carPos();
-      this.police = T.spawnScripted('police', this.s - 130, lane, 1, this.s - L / 2 - 2.3 - 2.3, 15);
+      const polTo = this.s - L / 2 - 2.3 - 2.3;
+      this.police = T.spawnScripted('police', this.s - 130, lane, 1, polTo, 15, this.ramp);
       const [vs, vu] = this._victimPos();
-      // xe cấp cứu tới từ phía trước theo làn trong ngược chiều, dừng trước nạn nhân 6 m
-      this.amb = T.spawnScripted('ambulance', vs + 140, -LS[0], -1, vs + 6, 15);
+      // xe cấp cứu tới từ phía trước theo làn trong ngược chiều, dừng trước nạn nhân 6 m.
+      // Đại lộ (dải phân cách giữa) / nhánh rẽ một chiều: tới từ phía sau cùng chiều (theo nhánh nếu có), đỗ sau xe cảnh sát
+      this.behind = this.ramp != null || T.avenue;
+      if (this.behind) this.amb = T.spawnScripted('ambulance', this.s - 175, lane, 1, polTo - 7.5, 15, this.ramp);
+      else this.amb = T.spawnScripted('ambulance', vs + 140, -LS[0], -1, vs + 6, 15);
       this.hooks.toast('🚓🚑 Cảnh sát và xe cấp cứu đang tới…', true);
     }
-    const doorU = this.d - 1.25;
+    const cu = (u) => (T.avenue ? Math.max(u, AV_MIN_U) : u);         // Đại lộ: không đi vào dải phân cách giữa
+    const doorU = cu(this.d - 1.25);
     const pol = this.police;
     // cảnh sát xuống xe (cửa bên trái), đi tới trước mặt chú (chú đứng cạnh đuôi xe, quay mặt ra sau)
     if (this.step === 'coming' && pol.script.arrived && (!this.exited || this.hooks.personPos())) {
@@ -86,7 +99,7 @@ export class CityIncident {
       if (this.exited) {
         const me = this.hooks.personPos();
         // đứng cách chú 1.1 m về phía sau, nhưng không lấn vào thân xe chú (u ngoài mép trái xe)
-        P.goTo(this.officer, me.s - 1.1, Math.min(me.d, this.d - this.dim.width / 2 - 0.45));
+        P.goTo(this.officer, me.s - 1.1, cu(Math.min(me.d, this.d - this.dim.width / 2 - 0.45)));
       } else P.goTo(this.officer, this.s + 0.3, doorU - 0.4);
     }
     if (this.step === 'officer' && P.arrived(this.officer)) { this.step = 'talk'; this.tTalk = this.t; this.hooks.toast('👮 Cảnh sát: "Mời anh xuất trình giấy tờ…"', true); }
@@ -99,11 +112,11 @@ export class CityIncident {
       // về cửa trái xe cảnh sát: chú đi trước, cảnh sát đi sau — đều ở ngoài mép trái 2 xe
       const back = pol.s + 0.2, sideU = Math.min(pol.d, this.d) - 1.2;
       if (this.exited) {
-        P.goPath(this.driver, [[ds - 0.8, Math.min(du, sideU)], [back, pol.d - 1.1]]);
-        P.goPath(this.officer, [[this.officer.s, Math.min(this.officer.u, sideU) - 0.7], [back - 0.9, pol.d - 1.5]]);   // bước sang bên, đi cạnh chú
+        P.goPath(this.driver, [[ds - 0.8, cu(Math.min(du, sideU))], [back, cu(pol.d - 1.1)]]);
+        P.goPath(this.officer, [[this.officer.s, cu(Math.min(this.officer.u, sideU) - 0.7)], [back - 0.9, cu(pol.d - 1.5)]]);   // bước sang bên, đi cạnh chú
       } else {
-        P.goTo(this.driver, back, pol.d - 1.1);
-        P.goTo(this.officer, back - 0.9, pol.d - 1.3);
+        P.goTo(this.driver, back, cu(pol.d - 1.1));
+        P.goTo(this.officer, back - 0.9, cu(pol.d - 1.3));
       }
       this.hooks.toast('👮 Cảnh sát đưa chú lên xe…', true);
     }
@@ -118,7 +131,14 @@ export class CityIncident {
       const [vs, vu] = this._victimPos();
       for (const k of [-1, 1]) {
         const m = P.spawn('medic', this.amb.s + this.amb.dir * 2.6 * -1, this.amb.d + k * 0.5);
-        P.goTo(m, vs + k * 0.7, vu + 0.8);
+        if (this.behind) {
+          // đi phía bên phải làn / phía ngoài nhánh, vòng qua xe cảnh sát + xe chú (theo độ cong nhánh nếu có)
+          const ru = (s, off) => this._laneU(s, lane) + off;
+          const pts = [];
+          for (let a = this.amb.s + 3; a < vs - 3; a += 6) pts.push([a, ru(a, 2.6 + k * 0.4)]);
+          pts.push([vs - 2, ru(vs - 2, 2.2 + k * 0.4)], [vs + k * 0.7, vu + 1.6]);
+          P.goPath(m, pts);
+        } else P.goTo(m, vs + k * 0.7, vu + 0.8);
         this.medics.push(m);
       }
     }
@@ -126,7 +146,14 @@ export class CityIncident {
       this.tMed ??= this.t;
       if (this.t - this.tMed > 4) {
         if (this.victim.ped) { P.remove(this.victim.ped); this.victim.ped = null; this.victimGone = true; }
-        for (const m of this.medics) P.goTo(m, this.amb.s - this.amb.dir * 2.6, this.amb.d);
+        for (const m of this.medics) {
+          if (this.behind) {
+            const ru = (s) => this._laneU(s, lane) + 2.8, pts = [];
+            for (let a = m.s - 3; a > this.amb.s + 3; a -= 6) pts.push([a, ru(a)]);
+            pts.push([this.amb.s - 2.6, this.amb.d]);
+            P.goPath(m, pts);
+          } else P.goTo(m, this.amb.s - this.amb.dir * 2.6, this.amb.d);
+        }
         this.ambDone = true;
       }
     }
