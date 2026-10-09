@@ -501,7 +501,13 @@ const applyMap = () => {
   rig.sideSign = 0;
   warmShaders();
 };
-const nextMap = () => { state.map = (state.map + 1) % MAPS.length; applyMap(); refreshUI(); say('Map · ' + MAPS[state.map].name); };
+// chế độ chọn ở màn hình vào game: Chill = các map ngắm cảnh (không có Phố), Drive = chỉ map Phố
+const CITY_MAP = MAPS.findIndex((m) => m.id === 'city');
+const nextMap = () => {
+  if (state.mode === 'drive') { say('Drive · chỉ có map Phố'); return; }
+  do state.map = (state.map + 1) % MAPS.length; while (state.mode === 'chill' && state.map === CITY_MAP);
+  applyMap(); refreshUI(); say('Map · ' + MAPS[state.map].name);
+};
 function onCamChange() {
   state.fstop = Math.max(0, FSTOPS.indexOf(rig.aperture));
   syncLens();
@@ -1353,7 +1359,8 @@ async function init() {
   requestAnimationFrame(frame);
   // cho bấm chơi ngay; xe tải song song (thường chỉ 1–3 MB)
   const start = $('start');
-  $('hint').textContent = 'Chạm hoặc nhấn phím bất kỳ để bắt đầu';
+  $('hint').textContent = 'Chọn chế độ';
+  $('modes').hidden = false;
   cars.onProgress = (f) => setBtn(el.car, '🚗', 'Đang tải… ' + Math.round(f * 100) + '%');
   // cây / bụi / đá chi tiết: tải song song; xong thì dựng lại địa hình để cụm đá dùng model đá thật
   nature.load('assets/models/nature.glb').then(() => {
@@ -1369,18 +1376,25 @@ async function init() {
     compileFor(post.sceneRT, camera, person.root).catch(() => {});
     refreshUI();
   }).catch((e) => console.warn('Không tải được người lái', e));
-  const go = (e) => {
+  const go = (mode) => {
+    if (state.started) return;
+    state.mode = mode;
+    if (mode === 'drive' ? state.map !== CITY_MAP : state.map === CITY_MAP) { state.map = mode === 'drive' ? CITY_MAP : MAPS.findIndex((m) => m.id === 'meadow'); applyMap(); }
     start.classList.add('gone');
     state.started = true;
     wakeFrom = performance.now() + 1200; document.body.classList.add('playing');
     applyCine();
-    openingElapsed = 0;
+    if (mode === 'drive') { drive.v = CHILL_DEFAULT; setGear(0); openingCameraPending = true; }   // vào phố: không chạy đoạn 180 km/h
+    else openingElapsed = 0;
     audio.start().catch((e) => console.warn('Audio:', e));
-    window.removeEventListener('keydown', go);
-    start.removeEventListener('pointerdown', go);
+    window.removeEventListener('keydown', onKey);
+    refreshUI();
   };
-  start.addEventListener('pointerdown', go);
-  window.addEventListener('keydown', go);
+  // phím: Enter / 1 = Chill, 2 = Drive
+  const onKey = (e) => { if (e.code === 'Enter' || e.code === 'Digit1') go('chill'); else if (e.code === 'Digit2') go('drive'); };
+  $('m-chill').onclick = () => go('chill');
+  $('m-drive').onclick = () => go('drive');
+  window.addEventListener('keydown', onKey);
 }
 init();
 
