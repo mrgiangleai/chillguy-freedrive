@@ -164,13 +164,22 @@ export class ChillAudio {
     lfo.connect(this.gustG).connect(this.windG.gain);
     lfo.start();
 
-    // tiếng động cơ êm
-    this.engLp = ctx.createBiquadFilter(); this.engLp.type = 'lowpass'; this.engLp.frequency.value = 260;
+    // tiếng động cơ: vòng tua theo hộp số ảo (xem setAmbient) — gầm nền (răng cưa + tam giác ×2 + vuông ×0.5) qua lọc thấp
+    // mở dần theo vòng tua / độ đạp ga, cộng tiếng ống xả rào (nhiễu băng hẹp quanh tần số nổ ×2) khi tăng tốc / chạy nhanh
+    this.engLp = ctx.createBiquadFilter(); this.engLp.type = 'lowpass'; this.engLp.frequency.value = 260; this.engLp.Q.value = 1.2;
     this.engG = ctx.createGain(); this.engG.gain.value = 0;
-    this.eng = [ctx.createOscillator(), ctx.createOscillator()];
-    this.eng[0].type = 'sawtooth'; this.eng[1].type = 'triangle';
-    this.eng.forEach((o) => { o.frequency.value = 40; o.connect(this.engLp); o.start(); });
+    this.eng = [ctx.createOscillator(), ctx.createOscillator(), ctx.createOscillator()];
+    this.eng[0].type = 'sawtooth'; this.eng[1].type = 'triangle'; this.eng[2].type = 'square';
+    const subG = ctx.createGain(); subG.gain.value = 0.35;
+    this.eng[0].connect(this.engLp); this.eng[1].connect(this.engLp); this.eng[2].connect(subG).connect(this.engLp);
+    this.eng.forEach((o) => { o.frequency.value = 40; o.start(); });
     this.engLp.connect(this.engG).connect(this.ambGain);
+    const ex = this._src(this.noise);
+    this.exBp = ctx.createBiquadFilter(); this.exBp.type = 'bandpass'; this.exBp.Q.value = 2.2; this.exBp.frequency.value = 150;
+    this.exG = ctx.createGain(); this.exG.gain.value = 0;
+    ex.connect(this.exBp).connect(this.exG).connect(this.ambGain);
+    ex.start();
+    this.rpm = 900; this.load = 0; this._lastV = 0; this._lastT = 0;
 
     // mưa đập vào kính (chỉ nghe khi ngồi trong xe): giọt lộp độp = xung nhiễu ngắn + tiếng "tách" cộng hưởng nhỏ,
     // rải ngẫu nhiên trong vòng lặp 4 s, cộng một lớp rào rào trầm của mưa trên mui
@@ -209,11 +218,27 @@ export class ChillAudio {
     this.windG.gain.setTargetAtTime(0.012 + speed * 0.0016 + snow * 0.05 + wind * wind * 0.1 + fx * 0.085, t, k);
     this.gustG.gain.setTargetAtTime(wind * wind * 0.07, t, k);
     this.tireG.gain.setTargetAtTime(Math.min(speed * 0.0011, 0.05) * (1 + rain), t, k);
-    const f = 30 + speed * 2.2;
-    this.eng[0].frequency.setTargetAtTime(f, t, 0.15);
-    this.eng[1].frequency.setTargetAtTime(f * 2, t, 0.15);
-    this.engLp.frequency.setTargetAtTime(180 + speed * 7, t, 0.2);
-    this.engG.gain.setTargetAtTime(0.02 + Math.min(speed, 40) * 0.0004, t, 0.2);
+    // hộp số ảo 6 cấp: vòng tua tăng trong mỗi số, tụt xuống khi lên số; đạp ga (tăng tốc) => to + gắt hơn
+    const dtA = Math.min(0.2, Math.max(1e-3, t - this._lastT)); this._lastT = t;
+    const acc = (speed - this._lastV) / dtA; this._lastV = speed;
+    this.load += (Math.max(0, Math.min(1, acc / 4)) - this.load) * Math.min(1, dtA * 3);
+    // tỉ số vòng tua / tốc độ (rpm mỗi m/s) của 6 số; đi êm thì lên số sớm (≤ ~2200 rpm), đạp ga thì giữ số tới ~5800 rpm
+    const R = [400, 240, 165, 125, 100, 82], up = 2200 + this.load * 3600;
+    this.gear ??= 0;
+    if (speed * R[this.gear] > up && this.gear < 5) this.gear++;
+    else if (this.gear > 0 && speed * R[this.gear - 1] < up * 0.8) this.gear--;
+    const rpmT = Math.max(850, speed * R[this.gear]);
+    this.rpm += (rpmT - this.rpm) * Math.min(1, dtA * 6);
+    const n = Math.min(1, (this.rpm - 850) / 5450);                      // 0..1
+    const f = this.rpm / 15;                                             // tần số nổ V8: 4 lần nổ / vòng
+    this.eng[0].frequency.setTargetAtTime(f, t, 0.06);
+    this.eng[1].frequency.setTargetAtTime(f * 2, t, 0.06);
+    this.eng[2].frequency.setTargetAtTime(f * 0.5, t, 0.06);
+    const sp = Math.min(1, speed / 50);
+    this.engLp.frequency.setTargetAtTime(220 + n * 900 + this.load * 900 + sp * 600, t, 0.08);
+    this.engG.gain.setTargetAtTime(0.02 + n * 0.03 + this.load * 0.035 + sp * 0.05, t, 0.1);
+    this.exBp.frequency.setTargetAtTime(f * 2, t, 0.06);
+    this.exG.gain.setTargetAtTime((0.01 + sp * 0.07) * (0.4 + 0.6 * n) + this.load * 0.05, t, 0.1);
   }
 
   // tiếng xe lướt qua: thời lượng (s) theo tốc độ tương đối rel (m/s) — nhanh thì "vèo" ngắn, chậm thì "ù" dài
