@@ -35,9 +35,23 @@ export class CityIncident {
     return [c.s, c.d];
   }
 
+  // còi hụ: bật khi xe ưu tiên đang chạy (tới hoặc rời đi), tắt khi đỗ; to dần khi lại gần hiện trường
+  _sirens() {
+    for (const [kind, c] of [['police', this.police], ['ambulance', this.amb]]) {
+      let lv = 0, pan = 0;
+      if (c && this.traffic.cars.includes(c) && c.v > 0.5) {
+        const dist = Math.abs(c.s - this.s);
+        lv = Math.max(0, 1 - dist / 260) ** 1.5 * 0.85 + 0.15 * (dist < 400 ? 1 : 0);
+        pan = (c.d - this.d) / 8;
+      }
+      this.hooks.siren?.(kind, lv, pan);
+    }
+  }
+
   update(dt) {
     if (!this.active) return;
     this.t += dt;
+    this._sirens();
     const T = this.traffic, P = this.people, L = this.dim.length;
     const lane = this.d >= 0 ? (Math.abs(this.d) < 3.5 ? 1.75 : 5.25) : (Math.abs(this.d) < 3.5 ? -1.75 : -5.25);
     // xe cảnh sát + cấp cứu
@@ -109,6 +123,7 @@ export class CityIncident {
     for (const c of [this.police, this.amb]) if (c) { c.script = null; if (c.crashed) c.crashed = false; T.remove(c); }
     for (const p of [this.officer, this.driver, ...(this.medics || [])]) if (p) P.remove(p);
     this.active = false; this.fading = null; this.ambDone = false; this.tMed = null; this.medics = [];
+    this.hooks.siren?.('police', 0); this.hooks.siren?.('ambulance', 0);
     this.hooks.driverHidden(false);
     this.hooks.fade(false);
     this.hooks.end();

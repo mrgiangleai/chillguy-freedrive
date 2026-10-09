@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -59,18 +59,19 @@
 | `city.js` | Map Phố (kiểu phố Nhật): dựng theo **khối phố** n (giữa ngã tư `road.junction(n)` và n+1): đường ngang + vỉa hè + vạch (vằn qua đường, vạch dừng, tim vàng đôi, chia làn đứt/liền 30 m trước ngã tư, mũi tên), vỉa hè lát gạch + gạch dẫn đường vàng, nhà instancing (hộp + mái dốc) mặt tiền vẽ bằng shader (tầng trệt cửa hàng + biển chữ atlas, 4 kiểu cửa sổ, đèn đêm), biển dọc, máy bán nước, cột điện + dây võng. Nhà tới `DEPTH` 180 m, khối dựng ±1.2 km |
 | `cityTraffic.js` | Map Phố: xe dựng bằng code (sedan, kei, taxi, van, buýt 10.5 m, xe máy + người lái), mỗi loại 1 InstancedMesh (aTint: sơn nhận instanceColor; aGloss: kính; aGlow: đèn × uLamp). 2 làn mỗi chiều, bám xe trước, dừng đèn đỏ (`city.stopAhead`), đổi làn cùng chiều để vượt; xe đường ngang ở ngã tư trong [s−60, s+330] theo pha đèn đường ngang. `ctrl.maxV` = bám xe trước cho xe mình. Xe NPC nặng (Mustang/Mazda) cất đi trong map Phố (`traffic.clearAll`) |
 | `cityPeople.js` | Map Phố: người đi bộ dựng bằng code (1 InstancedMesh, chân tay đung đưa trong vertex shader theo `aWalk` = pha, đang đi). Toạ độ (s, u) theo đường chính. Đi vỉa hè (chờ đèn đường chính xanh mới qua đường ngang), chờ ở góc rồi băng qua vạch đường chính khi đèn đường ngang xanh còn ≥ 9 s. `spawn/goTo/remove` cho người kịch bản; `hitTest`, `crossingNear` |
-| `cityIncident.js` | Map Phố: đâm xe / người => xe dừng khựng, nạn nhân ngã / xe đứng yên, camera Quay quanh; cảnh sát (xe đen trắng, đèn đỏ nhấp nháy) tới từ phía sau, cảnh sát đi tới cửa lái, người lái (ẩn model, hiện người dựng) theo về xe cảnh sát; xe cấp cứu tới từ phía trước làn ngược chiều, 2 nhân viên đưa nạn nhân đi; màn hình tối "bị đưa về đồn" rồi chạy tiếp (~30 s) |
+| `cityIncident.js` | Map Phố: đâm xe / người => xe dừng khựng, nạn nhân ngã / xe đứng yên, camera Quay quanh; cảnh sát (xe đen trắng, đèn đỏ nhấp nháy) tới từ phía sau, cảnh sát đi tới cửa lái, người lái (ẩn model, hiện người dựng) theo về xe cảnh sát; xe cấp cứu tới từ phía trước làn ngược chiều, 2 nhân viên đưa nạn nhân đi; màn hình tối "bị đưa về đồn" rồi chạy tiếp (~30 s). Còi hụ (`audio.setSiren`: cảnh sát rú 650↔1350 Hz chu kỳ 4 s, cấp cứu "pi–po" 960/770 Hz) khi xe ưu tiên đang chạy, tắt khi đỗ, to dần khi lại gần |
 | `cows.js` | Map đồi cỏ: đàn 5 bò sữa + hàng rào gỗ |
 | `fireflies.js` | Đom đóm ban đêm |
 | `traffic.js` | Spawn/pool/vẽ NPC: ngược chiều (10–25 s/chiếc, tối đa 2) + cùng chiều (25–60 s, tối đa 1, vào từ phía sau 80–110 m); pool 3 xe; NPC chỉ có quầng pha, chùm sáng thật = 1 cặp SpotLight dùng chung (`beam`, gắn NPC gần nhất ≤300 m, `_beam`); đèn `lamps × NPC_LAMP(0.24)`, đèn hậu ×0.6; thân xe xoay `yaw = atan(latV/v)` (≤0.35, nội suy 8/s), bánh trước `w.front` đánh lái `yaw × 1.8`; âm thanh lướt qua 1 lần/lượt; xuất `ctrl {lane, maxV}` cho xe người chơi |
 | `traffic-policy.js` | Luật bám/vượt (`_decide`, `_follow`, `_canOvertake` tầm nhìn 50 m + thời gian xe đối diện tới, `_overtakeDanger`, `_sideClear`). Làn: chiều người chơi 1.5, ngược chiều −1.8. Cờ `noOvertake` (xe ngược chiều) |
 | `traffic-ai.js` | `TRAFFIC` (mật độ), `stepTraffic`: né người/xe trong 30 m từ mép thân (+1.2 s × tốc độ xe lao tới), vận tốc ngang `latV` có gia tốc (3 m/s², né gấp 16) và trần 0.2 × v (né gấp 0.35 × v), giữ hướng né, phanh/dừng nếu bị chặn, chống xuyên vật cản; `trafficCurveSpeed` (vào cua 60%); `roadPosition` (chiếu người đi bộ về toạ độ đường) |
-| `audio.js` | Nhạc lo-fi tự sinh, gió/mưa/lốp/động cơ/sấm; bus `outGain` (trong xe ×0.4 + lowpass), mưa: ngoài `rainG` 0.08, kính `glassG` 0.08, mui `roofG` 0.02 (× lượng mưa); `passBy(rel, pan, lat)` + `passDur(rel)` tiếng xe lướt qua theo tốc độ tương đối; `setWater(level, pan)` tiếng suối (buffer bọt khí tạo lần đầu), `splash(power)` xe lội nước |
+| `audio.js` | Nhạc lo-fi tự sinh, gió/mưa/lốp/động cơ/sấm; bus `outGain` (trong xe ×0.4 + lowpass), mưa: ngoài `rainG` 0.08, kính `glassG` 0.08, mui `roofG` 0.02 (× lượng mưa); `passBy(rel, pan, lat)` + `passDur(rel)` tiếng xe lướt qua theo tốc độ tương đối; `setSiren(kind, level, pan)` còi hụ; `setWater(level, pan)` tiếng suối (buffer bọt khí tạo lần đầu), `splash(power)` xe lội nước |
 | `particles.js`, `mist.js`, `reflection.js`, `textures.js`, `colorspace.js` | Mưa/tuyết, sương tầng thấp (`withMist`), phản chiếu vũng nước, texture tự sinh, đổi màu hiển thị → tuyến tính |
 
 ## 4. Trạng thái hiện tại (tóm tắt)
 - **Mặc định vào game**: map núi, camera Quay quanh, mưa, hoàng hôn (17.6 h), 16 mm f/1.4, chất lượng Good, xe Mustang '67 Đen,
-  tốc độ 25 km/h. Cinematic luôn bật (không có nút). Bấm Start: 3 s ở 180 km/h, giảm về 25 km/h rồi tự chuyển camera **Bên hông**.
+  tốc độ 25 km/h. Cinematic luôn bật (không có nút). Bấm Start: 3 s ở 180 km/h, giảm về 25 km/h rồi tự chuyển camera **Bên hông**
+  (**tạm thời** `QUICK_OPENING = true` trong main.js: chỉ 0.5 s rồi về 25 km/h ngay — chú yêu cầu, bật lại khi chú bảo).
 - **Chất lượng**: Low / Good (mặc định) / Ultra (cây chi tiết 200 m, địa hình/cỏ xa ×2). Điện thoại: Good giới hạn pixel ratio 1.25.
 - **Tốc độ**: nút ⚡/phím F: 25 → 50 → 180 km/h. 180: blur rìa, không vệt dài; camera ngoài xe chuyển 16 mm.
 - **Ống kính**: camera ngoài xe → 24 mm f/5.6; trong xe 16 mm f/16 (lấy nét taplo). Zoom 16–35 mm.
@@ -131,7 +132,9 @@
   (16 mm + lùi 20 m). Rê/zoom dừng tự quay 2 s; zoom tay (wheel / pinch / phím ±) tiến sát tới 1 m. Khi đi về xe,
   camera bám người và tiến từ khoảng cách hiện tại tới 1 m đúng lúc tới cửa. Nhịp hút 8 s → 12 s → ngẫu nhiên 12–24 s;
   đi lanh quanh trong 10 m, chỉ trong làn mình + lề phải.
-- **Map Phố** (`city`, đang làm theo 4 bước — xem Nhật ký #5): `road.setShape(true)` => đường thẳng theo đoạn 720 m, 70% đoạn
+- **Map Phố** (`city`, 🏙️, đủ 4 bước: đường + nhà, đèn giao thông + phanh tay, giao thông dựng bằng code, người đi bộ + tai nạn).
+  Lý do tự dựng xe/người: máy ảo chỉ tải được GitHub (Sketchfab/Poly Pizza/Quaternius bị chặn), xe miễn phí trên GitHub là kiểu
+  đồ chơi (KayKit/Kenney) — chú chọn tự dựng. `road.setShape(true)` => đường thẳng theo đoạn 720 m, 70% đoạn
   bẻ hướng 0.25–0.75 rad trong 190 m đầu đoạn (bán kính ≥ ~130 m); 3 ngã tư/đoạn (~240 m) trên phần thẳng. Dốc: `TP.hill` 9
   (hLow phố = đồi ~260 m trong vùng mặt nạ ~900 m, dốc tới ~10%), đường cao theo hLow; nhà có chân móng (plinth, mã trong
   aInfo.z) khi đất dốc; phía trong khúc cua bỏ nhà xa hơn 0.55·R. Dãy mặt tiền: ~13% hẻm bậc thang (`_alley`), ~8% bãi đất trống
@@ -140,13 +143,14 @@
   thấu kính đổi mỗi khung (instanceColor). NPC dừng trước vạch (`traffic.stopFor`, phanh ≤ 3.2 m/s²). Xe mình KHÔNG tự dừng:
   giữ Space/B hoặc nút PHANH (−7.5 m/s²); đầu xe qua vạch dừng lúc đèn đỏ => toast "Vượt đèn đỏ! (lỗi thứ n)"; đi qua vạch
   khi có người đang băng qua trước mặt (|u − d| < 3.5) => "Không nhường người đi bộ!"; đâm => `cityIncident.js`. Camera không xuyên nhà: `rig.collide` → `city.collide` (tia xe→camera, OBB nhà, kéo vào tức thì, nhả từ từ). `ROAD.halfWidth` = 7.2 (4 làn: tâm làn ±1.75 / ±5.25,
-  chia làn ±3.5), vỉa hè 4 m cao 0.2; đường ngang rộng 7 m + vỉa hè 2.5 m. Mặt đất phẳng y = 0, đồi xanh > 500 m.
+  chia làn ±3.5), vỉa hè 4 m cao 0.2; đường ngang rộng 7 m + vỉa hè 2.5 m. Mặt đất theo hLow phố (phần lớn bằng), đồi xanh > 500 m.
   `terrain.js`/`scenery.js` đọc bề rộng đường lúc reset/setMap. Xe mình chạy làn ngoài phải (5.25), buông tay về làn gần nhất;
   vượt xe sang làn cùng chiều bên cạnh (`TrafficPolicy._other`). Camera bên hông 13 m, quay quanh 10 m. Không đom đóm.
-  **Tạm thời** `QUICK_OPENING = true` (main.js): đầu game chỉ 0.5 s rồi về 25 km/h (chú yêu cầu, bật lại khi cần).
+  Thử Low: ~50 xe + ~38 người quanh xe, xe máy/người qua ngã tư theo đèn, cảnh tai nạn chạy trọn ~30 s. Chưa xem trên máy thật;
+  chưa có ảnh rõ cảnh sát/cấp cứu; người lái bị bắt là hình dựng (không phải model nhân vật).
 - **Chụp ảnh**: nút 📸 / phím K — chụp canvas ngay sau `post.render` (không cần preserveDrawingBuffer), tải PNG
   `chill-drive-<thời gian>.png`; điện thoại dùng bảng chia sẻ nếu có (lưu vào Ảnh).
-- **Đom đóm**: đoạn có đom đóm ~2/3 chiều dài đường (nhiễu `sst(0.38, 0.58)`), 90% ô 5 m có, 1–3 con/ô, ra tới ~16 m hai bên,
+- **Đom đóm** (không có ở map Phố): đoạn có đom đóm ~2/3 chiều dài đường (nhiễu `sst(0.38, 0.58)`), 90% ô 5 m có, 1–3 con/ô, ra tới ~16 m hai bên,
   cao 0.7–3.3 m, tối đa 200, nhìn trước 200 m. Điểm vẽ `0.25·uScale/z` (2.5–22 px), màu (9, 12, 2.6), lõi bán kính 0.11, quầng rộng nhoè mờ về 0 ở mép.
 - **Biển (sửa atlas)**: atlas bake ô 128 px (100 + viền lặp 14 px, 1280×1024), `flipY=false` (trước bị đảo hàng => giật);
   lớp chạm điểm nối mờ còn 10% (sin²), lớp kia 100%.
@@ -161,39 +165,10 @@
 - Chưa xem trên máy thật: chuyển động sóng biển (đã sửa giật 2 lần), cảnh dừng xe mới (quay quanh + zoom 5 s), xe ngựa ban đêm,
   map Biển ban đêm / mưa / trong xe; vân sóng lặp còn thấy khi nhìn từ trên cao.
 - Vài tảng đá terrain trông lơ lửng trên vách núi gần đường (s≈250) — chưa sửa.
+- `scripts/check-traffic-policy.mjs` và `check-traffic.mjs` đang lỗi sẵn (lỗi cả trước khi thêm map Phố) — chưa xem nguyên nhân.
+- Map Phố: camera Từ trên cao hay bị nhà chắn nên kéo sát xe; Mustang/Mazda NPC không chạy trong phố (thay bằng xe dựng code).
 
 ## 6. Nhật ký cập nhật
-- Đã tóm tắt tới commit `93a838b` (cầm vô lăng hờ; trước đó: ghế/ngồi lái, EB110 rồi gỡ, Mazda bản gốc, căn tay Mustang,
-  sửa atlas biển, Chisa, camera dừng xe bám người).
-
-- **#1 — Nút chụp ảnh + đom đóm dày hơn (08/10/2026)**: nút 📸 (phím K) chụp khung hình game ra PNG; đom đóm xuất hiện ở nhiều
-  đoạn hơn, nhiều con hơn, toả rộng hơn (xem mục trạng thái). Thử Low: phím K tải về `chill-drive-….png` 480×270 (canvas Low),
-  ảnh thấy nhiều đom đóm hai bên đường. Chưa thử bảng chia sẻ trên iPhone/Android thật.
-
-- **#2 — Đầu game chuyển camera Bên hông (08/10/2026)**: sau khi giảm 180 → 25 km/h, camera tự chuyển sang "Bên hông"
-  thay vì "Sau xe" (`main.js`, chỗ `openingCameraPending`).
-
-- **#3 — Đom đóm nhỏ lại, sáng nhoè hơn (08/10/2026)**: lõi sáng còn một nửa (0.22 → 0.11), quầng sáng rộng hơn và mờ dần
-  về 0 ở mép điểm vẽ (`fireflies.js` FRAG).
-
-- **#4 — Đom đóm nhỏ hơn nữa, sáng hơn, ít hơn (08/10/2026)**: điểm vẽ ~0.55 lần (0.45 → 0.25, 2.5–22 px), màu sáng ×1.6,
-  1–3 con/ô 5 m (trước 2–6), tối đa 200.
-
-- **#5 — Map Phố bước 1 (08/10/2026)**: thêm map 🏙️ Phố (đường thẳng 4 làn, vỉa hè, ngã tư + vạch kẻ, nhà phố Nhật có biển
-  hiệu/cửa hàng/máy bán nước/cột điện, đèn đêm). Kế hoạch còn lại: B2 đèn giao thông + chú tự phanh (phanh tay, báo lỗi vượt đèn
-  đỏ/không nhường); B3 NPC 4 làn, đông hơn, xe máy + xe buýt (model free nhẹ, gửi chú duyệt); B4 người đi bộ qua vạch.
-  Đầu game tạm rút còn 0.5 s. `check-traffic-policy`/`check-traffic` đang lỗi sẵn từ trước (lỗi cả khi bỏ thay đổi này).
-
-- **#6 — Phố: hẻm bậc thang, bãi đất trống, cua sâu, dốc, camera không xuyên nhà (08/10/2026)**: xem mục Map Phố. Thử Low:
-  map đổi được, khối dựng đủ, camera bên hông/trên cao bị kéo lại gần xe khi vướng nhà.
-
-- **#7 — Phố bước 2: đèn giao thông + phanh tay + báo lỗi (08/10/2026)**: xem mục Map Phố. Thử Low: stopAhead đúng hai chiều,
-  vượt vạch lúc đỏ hiện toast lỗi, nút PHANH hiện ở map Phố. Chưa chụp được cận cảnh cột đèn. Xe ngang qua ngã tư để sang B3
-  (cần model xe nhẹ).
-
-- **#8 — Phố bước 3: giao thông dựng bằng code (09/10/2026)**: chú chọn tự dựng (máy chỉ tải được GitHub; xe miễn phí trên
-  GitHub là kiểu đồ chơi). Xem dòng `cityTraffic.js`. Thử Low: ~50 xe trên 4 làn + xe máy chạy ngang ngã tư, đèn đường ngang xanh.
-
-- **#9 — Phố bước 4: người đi bộ + cảnh tai nạn (09/10/2026)**: xem dòng `cityPeople.js`, `cityIncident.js`. Thử Low: ~38 người
-  đi vỉa hè, người băng qua vạch khi đèn đi bộ xanh; cảnh tai nạn chạy hết các bước (cảnh sát tới, bắt người lái, cấp cứu, tối màn
-  hình, chạy tiếp). Bộ đếm sắp đủ 10: lần sau gộp nhật ký.
+- Đã tóm tắt tới commit `8ce878f` + còi hụ (nút chụp ảnh, đom đóm nhỏ/sáng/thưa, đầu game Bên hông + rút 0.5 s, map Phố 4 bước:
+  đường/nhà/hẻm/bãi trống/dốc/cua, camera không xuyên nhà, đèn giao thông + phanh + báo lỗi, xe dựng code, người đi bộ, tai nạn +
+  cảnh sát/cấp cứu + còi hụ).

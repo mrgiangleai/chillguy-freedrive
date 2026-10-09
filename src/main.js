@@ -105,6 +105,7 @@ const incident = new CityIncident(cityTraffic, cityPeople, {   // map Phố: đ�
   toast: (t, bad) => toast(t, bad),
   fade: (on, text) => { const f = $('fade'); if (text) f.textContent = text; f.classList.toggle('show', on); },
   driverHidden: (b) => { driverHidden = b; },
+  siren: (kind, level, pan) => audio.setSiren(kind, level, pan),
   end: () => {
     drive.v = 0;
     if (crashCam !== null) { state.cam = crashCam; rig.setMode(state.cam); onCamChange(); refreshUI(); crashCam = null; }
