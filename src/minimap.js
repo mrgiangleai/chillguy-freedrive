@@ -58,8 +58,8 @@ export class Minimap {
     this._size();
   }
 
-  open() { this.big = true; this.center = null; this.el.classList.add('big'); this._size(); this._draw(); }
-  close() { this.big = false; this.center = null; this.ptrs.clear(); this.el.classList.remove('big'); this._size(); this._draw(); }
+  open() { this.big = true; this.center = null; this.el.classList.add('big'); document.body.classList.add('mapopen'); this._size(); this._draw(); }
+  close() { this.big = false; this.center = null; this.ptrs.clear(); this.el.classList.remove('big'); document.body.classList.remove('mapopen'); this._size(); this._draw(); }
   _zoomBy(f) { this.bigZoom = Math.min(4, Math.max(0.02, this.bigZoom * f)); }
   _size() {
     const r = this.el.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);

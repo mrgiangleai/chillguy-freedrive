@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -61,7 +61,7 @@
 | `cityPeople.js` | Map Phố: người đi bộ dựng bằng code (1 InstancedMesh, chân tay đung đưa trong vertex shader theo `aWalk` = pha, đang đi). Toạ độ (s, u) theo đường chính. Đi vỉa hè (chờ đèn đường chính xanh mới qua đường ngang), chờ ở góc rồi băng qua vạch đường chính khi đèn đường ngang xanh còn ≥ 9 s. `spawn/goTo/remove` cho người kịch bản; `hitTest`, `crossingNear` |
 | `cityIncident.js` | Map Phố: đâm xe / người => xe dừng khựng, nạn nhân ngã / xe đứng yên, camera Quay quanh; cảnh sát (xe đen trắng, đèn đỏ nhấp nháy) tới từ phía sau, cảnh sát đi tới cửa lái, người lái (ẩn model, hiện người dựng) theo về xe cảnh sát; xe cấp cứu tới từ phía trước làn ngược chiều, 2 nhân viên đưa nạn nhân đi; màn hình tối "bị đưa về đồn" rồi chạy tiếp (~30 s). Còi hụ (`audio.setSiren`: cảnh sát rú 650↔1350 Hz chu kỳ 4 s, cấp cứu "pi–po" 960/770 Hz) khi xe ưu tiên đang chạy, tắt khi đỗ, to dần khi lại gần |
 | `avenue.js` | Map Đại lộ (nút giao `ic(k)/_buildIC/carve`, trạm thu phí `_buildToll/updateToll`, atlas biển `signTexture`): dựng theo đoạn 200 m quanh xe (±1.4 km / 300 m sau): vạch kẻ (vàng liền sát dải phân cách, trắng đứt 6/9 m giữa làn, trắng liền mép ngoài), dải phân cách bê tông "jersey" kéo theo mặt cắt. Đường: `road.setShape('avenue')` (cong rất thoải), `AVENUE` trong road.js. Xe: `cityTraffic.setMode('avenue')` |
-| `minimap.js` | Bản đồ tròn (chỉ chế độ Drive): canvas 2D vẽ từ dữ liệu thật — `road.pts`, khối nhà + đường ngang Phố, nút giao / nhánh / đường gom / nhà / trạm thu phí Đại lộ, xe khác (chấm), xe mình (mũi tên xanh). Thu nhỏ 150 px (điện thoại 104) góc phải giữa, bám xe, hướng xe lên trên, vẽ ~8 lần/s; bấm vào: phóng to giữa màn hình (78vmin), Bắc lên trên, kéo = pan, lăn chuột / chụm 2 ngón = zoom (0.02–4 px/m), ◎ về xe, × / Esc / bấm ngoài để thu nhỏ; thước tỉ lệ |
+| `minimap.js` | Bản đồ tròn (chỉ chế độ Drive): canvas 2D vẽ từ dữ liệu thật — `road.pts`, khối nhà + đường ngang Phố, nút giao / nhánh / đường gom / nhà / trạm thu phí Đại lộ, xe khác (chấm), xe mình (mũi tên xanh). Thu nhỏ 150 px (điện thoại 104) góc phải giữa, bám xe, hướng xe lên trên, vẽ ~8 lần/s; bấm vào: phóng to giữa màn hình (78vmin, `body.mapopen` ẩn các hộp HUD bị đè), Bắc lên trên, kéo = pan, lăn chuột / chụm 2 ngón = zoom (0.02–4 px/m), ◎ về xe, × / Esc / bấm ngoài để thu nhỏ; thước tỉ lệ |
 | `cows.js` | Map đồi cỏ: đàn 5 bò sữa + hàng rào gỗ |
 | `fireflies.js` | Đom đóm ban đêm |
 | `traffic.js` | Spawn/pool/vẽ NPC: ngược chiều (10–25 s/chiếc, tối đa 2) + cùng chiều (25–60 s, tối đa 1, vào từ phía sau 80–110 m); pool 3 xe; NPC chỉ có quầng pha, chùm sáng thật = 1 cặp SpotLight dùng chung (`beam`, gắn NPC gần nhất ≤300 m, `_beam`); đèn `lamps × NPC_LAMP(0.24)`, đèn hậu ×0.6; thân xe xoay `yaw = atan(latV/v)` (≤0.35, nội suy 8/s), bánh trước `w.front` đánh lái `yaw × 1.8`; âm thanh lướt qua 1 lần/lượt; xuất `ctrl {lane, maxV}` cho xe người chơi |
@@ -195,7 +195,8 @@
   phản quang theo `setLamps`): giàn dàn thép (2 cột + 2 thanh + giằng chéo `trussMat`) "LỐI RA … 1 km" (t = ∓1000), "500 m" (∓500),
   sơ đồ tách làn (∓430: biển vàng CT.xx + điểm đến đi thẳng, có thể kèm máy bay; mũi tên thẳng + nhánh phải đầu thoi đỏ; biển trắng
   QL.xx + 2 địa danh lối ra); khung trên đầu nhánh (∓365, cột phải, tay vươn): "LỐI RA / EXIT ↗" trên nhánh + "GIẢM TỐC ĐỘ / SLOW
-  DOWN" vàng trên làn ngoài; biển hình mũi tên 2 cột ở mũi tách nhánh (∓285, alphaTest). Mũi tên sơn trên làn ở t = ∓760 / 680 / 600 (làn ngoài
+  DOWN" vàng trên làn ngoài; biển hình mũi tên 2 cột ở mũi tách nhánh (∓285, alphaTest). Mũi tách / nhập nhánh (chỗ mép nhánh cách
+  mép cao tốc ≥ 1.2 m, |t| ≈ 334): đệm chống va 6 khối sọc vàng / đen + 2 dải bê tông thấp 60 m (mép cao tốc, mép nhánh), khối đầu sơn vàng. Mũi tên sơn trên làn ở t = ∓760 / 680 / 600 (làn ngoài
   thẳng + rẽ phải), vạch chéo vùng tách / nhập nhánh. **Đường gom + nhà**: mỗi nút giao 1–2 đường nhỏ 1 làn rẽ từ đường ngang ở
   |u| = 78, chạy song song cao tốc 280–500 m (theo địa hình), nhà 1–2 tầng hai bên (tường sơn, mái dốc đỏ / xanh / xám, cửa +
   cửa sổ phía đường), nền nhà / đường được đào phẳng (`I.lines`), loại cỏ (32 đoạn). **Trạm thu phí** (`TOLL`: s = 5500 + 6000k,
@@ -283,3 +284,4 @@
   trạm thu phí), màn hình chờ chạy Low, bản đồ tròn (Drive), nút lái trái / phải trên điện thoại, cầu vượt cao qua quốc lộ 4 làn,
   cầu dây văng qua sông, bảng chỉ đường lớn kiểu Việt Nam, đèn cầu ban đêm + cây bờ sông + thuyền.
 - **#1 — Đại lộ: dời cầu cao (700 m) + cầu sông (2.2 km) về gần đầu đường, vào Đại lộ bắt đầu ở 150 m (09/10/2026)**.
+- **#2 — Cải thiện dần (09/10/2026)**: bản đồ phóng to ẩn HUD bị đè; đệm chống va + dải bê tông ở mũi nhánh Đại lộ.

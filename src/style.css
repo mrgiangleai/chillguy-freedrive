@@ -253,3 +253,5 @@ body:not(.playing) #stats { opacity: 0; }
 #minimap .mm-center { bottom: 16%; right: 12%; color: #1a73e8; }
 #minimap.off, body:not(.playing) #minimap { display: none; }
 @media (max-height: 500px), (max-width: 640px) { #minimap:not(.big) { width: 104px; height: 104px; } }
+/* đang xem bản đồ lớn: ẩn các hộp HUD bị bản đồ đè (lối tắt trái, góc phải, Space, nút lái) */
+body.mapopen #quick, body.mapopen #corner, body.mapopen #brake, body.mapopen .steer { opacity: 0 !important; pointer-events: none !important; transition: opacity .25s ease; }

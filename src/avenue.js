@@ -650,6 +650,33 @@ export class Avenue {
       }
     }
     const hq = (P, n, col) => push(Hs, P, n, col);
+    // ---- mũi tách / nhập nhánh: đệm chống va sọc vàng đen ở mũi + 2 dải bê tông thấp (mép cao tốc, mép nhánh) đầu sơn sọc ----
+    const boxH = (t0, t1, u0, u1, h0, h1, col) => {
+      const q = road.at(I.s + (t0 + t1) / 2, {}), rx = Math.cos(q.th), rz = -Math.sin(q.th), fx = -Math.sin(q.th), fz = -Math.cos(q.th);
+      const V = (t, u, h) => P3(t, u, h);
+      for (const [a, b, c, d, n] of [[[t0, u0, h1], [t1, u0, h1], [t1, u1, h1], [t0, u1, h1], UP], [[t0, u0, h0], [t0, u0, h1], [t1, u0, h1], [t1, u0, h0], [-rx, 0, -rz]],
+        [[t0, u1, h0], [t0, u1, h1], [t1, u1, h1], [t1, u1, h0], [rx, 0, rz]], [[t0, u0, h0], [t0, u1, h0], [t0, u1, h1], [t0, u0, h1], [-fx, 0, -fz]],
+        [[t1, u0, h0], [t1, u1, h0], [t1, u1, h1], [t1, u0, h1], [fx, 0, fz]]]) hq([V(...a), V(...b), V(...c), V(...d)], n, col);
+    };
+    const YB = [[0.95, 0.75, 0.08], [0.08, 0.08, 0.09]], CON = [0.7, 0.69, 0.66];
+    for (const dir of [1, -1]) for (const g of [-1, 1]) {          // g = −1: mũi tách (nhánh ra), +1: mũi nhập (nhánh vào)
+      let a = 400;                                                     // |t| ở mũi: chỗ mép nhánh cách mép cao tốc ≥ 1.2 m
+      while (a > 250 && rampU(g * a) - RAMP_HW < AVENUE.hw + 1.2) a -= 2;
+      const tn = g * a * dir, sgn = -g * dir;                         // sgn: hướng từ mũi đi vào vùng giữa 2 đường
+      const uIn = (t) => dir * (rampU(g * Math.abs(t)) - RAMP_HW - 0.3), uOut = dir * (AVENUE.hw + 0.3);
+      const um = (uIn(tn) + uOut) / 2, w = Math.abs(uIn(tn) - uOut) * 0.7;
+      for (let k = 0; k < 6; k++) {                                    // đệm va: 6 khối sọc vàng / đen xen kẽ
+        const u0 = um - w / 2 + w * k / 6, u1 = um - w / 2 + w * (k + 1) / 6;
+        boxH(Math.min(tn, tn + sgn * 3.2), Math.max(tn, tn + sgn * 3.2), Math.min(u0, u1), Math.max(u0, u1), 0, 0.95, YB[k % 2]);
+      }
+      for (const uu of [uOut, null]) {                                  // dải bê tông thấp 60 m sau mũi, đầu dải sơn sọc
+        for (let j = 0; j < 15; j++) {
+          const ta = tn + sgn * (3.5 + j * 4), tb = ta + sgn * 4, u = uu ?? uIn(ta);
+          const lo = Math.min(u, u + dir * 0.5), hi = Math.max(u, u + dir * 0.5);
+          boxH(Math.min(ta, tb), Math.max(ta, tb), uu === null ? Math.min(u, u - dir * 0.5) : lo, uu === null ? Math.max(u, u - dir * 0.5) : hi, 0, 0.8, j === 0 ? YB[0] : CON);
+        }
+      }
+    }
     for (const H of I.houses) {
       const q = road.at(I.s + H.t, {}), rx = Math.cos(q.th), rz = -Math.sin(q.th), fx = -Math.sin(q.th), fz = -Math.cos(q.th);
       const cx = q.x + rx * H.u, cz = q.z + rz * H.u, y0 = H.y - 0.15;
