@@ -187,13 +187,15 @@ export class CityTraffic {
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uLamp = this.uLamp; sh.uniforms.uTime = this.uTime;
       sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nattribute float aTint, aGlow, aGloss, aFlash;\nuniform float uTime;\nvarying float vGlow, vGloss;')
+        .replace('#include <common>', '#include <common>\nattribute float aTint, aGlow, aGloss, aFlash, aHonk;\nuniform float uTime;\nvarying float vGlow, vGloss;')
         .replace('#include <color_vertex>', `vColor = vec3(1.0);
           vColor *= color;
           #ifdef USE_INSTANCING_COLOR
             vColor = mix(vColor, vColor * instanceColor.xyz, aTint);
           #endif
           vGlow = aGlow; vGloss = aGloss;
+          // xe sau bấm còi: nháy đèn pha (đèn trắng phía trước)
+          if (aHonk > 0.5 && aGlow > 0.5 && color.r > 0.9 && color.b > 0.7) vGlow += 4.0 * step(0.5, fract(uTime * 4.0));
           // đèn ưu tiên: nửa trái / phải nhấp nháy xen kẽ
           if (aFlash > 0.5) vGlow = 3.0 * step(0.5, fract(uTime * 2.2 + (aFlash > 1.5 ? 0.5 : 0.0)));`);
       sh.fragmentShader = sh.fragmentShader
@@ -217,6 +219,8 @@ export class CityTraffic {
       g.setAttribute('aFlash', new THREE.Float32BufferAttribute(o.flash, 1));
       const im = new THREE.InstancedMesh(g, mat, def.max);
       im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(def.max * 3), 3);
+      im.honk = new THREE.InstancedBufferAttribute(new Float32Array(def.max), 1).setUsage(THREE.DynamicDrawUsage);
+      g.setAttribute('aHonk', im.honk);
       im.count = 0; im.castShadow = true; im.frustumCulled = false;
       this.group.add(im);
       this.meshes[k] = im;
@@ -242,7 +246,11 @@ export class CityTraffic {
     this.cars.push(c);
     return c;
   }
-  remove(c) { const i = this.cars.indexOf(c); if (i >= 0) this.cars.splice(i, 1); }
+  // xe đang kẹt ngay sau xe mình (cùng làn, ≤ 30 m, gần như đứng yên)
+  stuckBehind(s, d) {
+    return this.cars.filter((c) => !c.cross && !c.script && !c.crashed && c.dir > 0 && Math.abs(c.d - d) < 1.8 && c.s < s && s - c.s < 30 && c.v < 0.6);
+  }
+    remove(c) { const i = this.cars.indexOf(c); if (i >= 0) this.cars.splice(i, 1); }
   // xe (đường chính hoặc đường ngang) chồng lên hình chữ nhật [s ± len/2] × [d ± wid/2] (toạ độ đường chính)
   hitTest(s, d, len, wid) {
     for (const c of this.cars) {
@@ -414,12 +422,14 @@ export class CityTraffic {
       m.compose(vv, q, this._one);
       im.setMatrixAt(i, m);
       im.setColorAt(i, this._c.set(c.color));
+      im.honk.setX(i, c.honk ? 1 : 0);
     }
     for (const k in this.meshes) {
       const im = this.meshes[k];
       im.count = Math.min(counts[k], TYPES[k].max);
       im.instanceMatrix.needsUpdate = true;
       if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      im.honk.needsUpdate = true;
     }
   }
 

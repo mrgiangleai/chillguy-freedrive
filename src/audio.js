@@ -272,6 +272,22 @@ export class ChillAudio {
     o.start(t); o.stop(t + dur + 0.05);
   }
 
+  // còi xe "bíp bíp": 2 tiếng ngắn, 2 tông lệch nhau (còi điện đôi)
+  horn(pan = 0, vol = 1) {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t0 = ctx.currentTime;
+    const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan));
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2400;
+    lp.connect(p).connect(this.outGain);
+    for (const [st, len] of [[0, 0.16], [0.24, 0.22]]) {
+      const g = ctx.createGain(), t = t0 + st;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09 * vol, t + 0.015);
+      g.gain.setValueAtTime(0.09 * vol, t + len - 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      g.connect(lp);
+      for (const f of [415, 498]) { const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = f; o.connect(g); o.start(t); o.stop(t + len + 0.02); }
+    }
+  }
+
   // còi hụ xe ưu tiên (map Phố): 'police' rú lên xuống 650 ↔ 1350 Hz chu kỳ 4 s; 'ambulance' "pi–po" 960 / 770 Hz mỗi 0.65 s.
   // Gọi mỗi khung: level 0..1 (theo khoảng cách), pan -1..1. level 0 => tắt dần (giữ nguồn để bật lại nhanh)
   setSiren(kind, level, pan = 0) {

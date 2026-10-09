@@ -100,7 +100,7 @@ const traffic = new Traffic(scene, cars);     // thỉnh thoảng có xe chạy 
 traffic.stopFor = (s, dir, v) => city.stopAhead(s, dir, v);   // xe NPC dừng đèn đỏ (map Phố)
 const cityTraffic = new CityTraffic(scene, road, city);      // map Phố: xe dựng bằng code, 4 làn + đường ngang
 const cityPeople = new CityPeople(scene, road, city);        // map Phố: người đi bộ
-let driverHidden = false, crashCam = null;
+let driverHidden = false, crashCam = null, crashGrace = 0;
 const incident = new CityIncident(cityTraffic, cityPeople, {   // map Phố: đâm xe / người => cảnh sát + cấp cứu
   toast: (t, bad) => toast(t, bad),
   fade: (on, text) => { const f = $('fade'); if (text) f.textContent = text; f.classList.toggle('show', on); },
@@ -108,7 +108,12 @@ const incident = new CityIncident(cityTraffic, cityPeople, {   // map Phố: đ�
   siren: (kind, level, pan) => audio.setSiren(kind, level, pan),
   end: () => {
     drive.v = 0;
-    if (crashCam !== null) { state.cam = crashCam; rig.setMode(state.cam); onCamChange(); refreshUI(); crashCam = null; }
+    // bắt đầu lại: xe về đúng làn ngoài bên phải, dọn xe / người đang chồng chỗ đó, 3 s không tính va chạm (khỏi bị bắt lặp lại)
+    drive.home = CITY.lanes[1]; drive.d = drive.home; drive.latVel = 0; drive.manual = false;
+    cityTraffic.cars = cityTraffic.cars.filter((c) => c.cross || c.script || Math.abs(c.d - drive.d) > 2.6 || c.s < drive.s - 14 || c.s > drive.s + 22);
+    for (const p of cityPeople.peds.slice()) if (Math.abs(p.u - drive.d) < 2.5 && Math.abs(p.s - drive.s) < 6) cityPeople.remove(p);
+    crashGrace = 3;
+    state.cam = CAMERAS.findIndex((c) => c.id === 'chase'); rig.setMode(state.cam); onCamChange(); refreshUI(); crashCam = null;   // bắt đầu lại: luôn camera Sau xe
     toast('Lái cẩn thận nhé! Nhớ dừng đèn đỏ và nhường người đi bộ.');
   },
 });
@@ -391,8 +396,9 @@ const applyMap = () => {
   $('b-traffic').hidden = !isCity;
   if (!isCity && tuneKind === 'traffic') closeTune();
   applyTrafficTune();
-  if (isCity && state.started) toast('Map Phố: tự phanh khi gặp đèn đỏ — giữ phím Space hoặc nút PHANH');
+  if (isCity && state.started) toast('Map Phố: tự phanh khi gặp đèn đỏ — giữ phím Space hoặc nút Space');
   cityFront = null;
+  if (isCity && state.started) { state.cam = CAMERAS.findIndex((c) => c.id === 'chase'); rig.setMode(state.cam); onCamChange(); }   // phố: mặc định camera Sau xe
   rig.sideDist = isCity ? 13 : null;            // phố: camera bên hông đứng trên đường, không chui vào nhà
   rig.orbitR = isCity ? 10 : null;
   // làn nhà của xe mình: phố chạy làn ngoài bên phải; map khác sát vạch giữa
@@ -452,7 +458,7 @@ el.full.onclick = toggleFS;
 // chụp ảnh màn hình: đánh dấu, chụp canvas ngay sau khi vẽ xong khung hình (canvas WebGL không giữ ảnh sau khi trình duyệt hiển thị)
 let shotPending = false;
 // map Phố: phanh (giữ nút / phím Space, B) + thông báo lỗi
-let brakeHeld = false, cityFront = null, violations = 0, toastTimer = 0, yieldWarned = null;
+let brakeHeld = false, cityFront = null, violations = 0, toastTimer = 0, yieldWarned = null, stillT = 0, honkT = 0, honkWarned = false;
 {
   const b = $('brake');
   const on = (e) => { brakeHeld = true; b.classList.add('on'); e.preventDefault(); };
@@ -741,7 +747,7 @@ const wake = () => {
   if (performance.now() < wakeFrom) return;
   document.body.classList.remove('idle');
   clearTimeout(idleTimer);
-  idleTimer = setTimeout(() => document.body.classList.add('idle'), 5000);
+  idleTimer = setTimeout(() => document.body.classList.add('idle'), 3000);
 };
 ['pointermove', 'pointerdown', 'touchstart'].forEach((ev) => window.addEventListener(ev, wake, { passive: true }));
 document.body.classList.add('idle');
@@ -911,7 +917,7 @@ function frame(now) {
   if (openingCameraPending && drive.v <= CHILL_DEFAULT + 0.01) {
     openingCameraPending = false;
     drive.v = CHILL_DEFAULT;
-    state.cam = CAMERAS.findIndex((c) => c.id === 'side');
+    state.cam = CAMERAS.findIndex((c) => c.id === (MAPS[state.map].id === 'city' ? 'chase' : 'side'));
     rig.setMode(state.cam);
     onCamChange();
     refreshUI();
@@ -1015,9 +1021,22 @@ function frame(now) {
     if (cityTraffic.visible) {
       cityTraffic.update(dt, drive.s, drive.d, drive.v, st.lamps, cars.dim.length);
       cityPeople.update(dt, drive.s);
+      // xe mình đứng yên > 7 s (không phải đang chờ đèn đỏ ngay trước mặt) => xe kẹt phía sau bấm còi + nháy đèn
+      const redAhead = city.stopAhead(drive.s + cars.dim.length / 2, 1, 0) < 25;
+      stillT = drive.v < 0.3 && !incident.active && !redAhead ? stillT + dt : 0;
+      const stuck = stillT > 7 ? cityTraffic.stuckBehind(drive.s, drive.d) : [];
+      for (const c of cityTraffic.cars) c.honk = false;
+      for (const c of stuck) c.honk = true;
+      if (stuck.length && (honkT -= dt) <= 0) {
+        honkT = 2 + Math.random() * 1.5;
+        audio.horn(0, Math.min(1, 1.2 - (drive.s - stuck[0].s) / 40));
+        if (!honkWarned) { honkWarned = true; toast('📢 Xe phía sau đang bấm còi — chú đi tiếp đi!', true); }
+      }
+      if (!stuck.length) { honkT = 0; honkWarned = false; }
       incident.update(dt);
       // va chạm => cảnh sát + cấp cứu
-      if (!incident.active && !stop.active) {
+      crashGrace = Math.max(0, crashGrace - dt);
+      if (!incident.active && !stop.active && crashGrace <= 0) {
         const L = cars.dim.length, W = cars.dim.width;
         const car = cityTraffic.hitTest(drive.s, drive.d, L, W), ped = car ? null : cityPeople.hitTest(drive.s, drive.d, L, W);
         if ((car && (drive.v > 1.2 || car.v > 1.2)) || (ped && drive.v > 0.8)) {

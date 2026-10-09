@@ -12,8 +12,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Chill Drive</title>
-  <link rel="stylesheet" href="style.css?v=568198ce">
-  <link rel="modulepreload" href="app.js?v=98471f55">
+  <link rel="stylesheet" href="style.css?v=3f80a355">
+  <link rel="modulepreload" href="app.js?v=dd17b8ce">
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -36,6 +36,7 @@
       <div class="qrow"><button class="qbox" id="q-weather">Weather</button><kbd>R</kbd></div>
       <div class="qrow"><button class="qbox" id="q-time">Time</button><kbd>T</kbd></div>
     </nav>
+    <button id="brake" class="qbox" hidden title="Giữ để phanh (phím Space)">Space</button>
     <div id="corner">
       <button id="b-shot" class="lineicon" title="Chụp ảnh màn hình (phím O)" aria-label="Chụp ảnh màn hình">
         <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h2l1.6-2.2h5.8L16.5 6h2A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="4"/><circle cx="17.6" cy="9.2" r=".6" fill="currentColor" stroke="none"/></svg>
@@ -100,9 +101,8 @@
     <p class="keys">A/D hoặc ←/→ lái · W/S hoặc ↑/↓ tốc độ · giữ chuột/vuốt: nhìn 360° · lăn chuột/chụm 2 ngón hoặc + −: zoom (16–35mm) · L ống kính · Q chất lượng · C camera · N map · F tốc độ 25/50/180 · P dừng xe / đi tiếp · G sương mù · H ẩn giao diện · U toàn màn hình</p>
   </div>
 
-  <button id="brake" hidden>PHANH</button>
   <div id="toast" aria-live="polite"></div>
   <div id="fade"></div>
-  <script type="module" src="app.js?v=98471f55"></script>
+  <script type="module" src="app.js?v=dd17b8ce"></script>
 </body>
 </html>
