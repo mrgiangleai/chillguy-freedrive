@@ -687,6 +687,46 @@ let brakeHeld = false, cityFront = null, violations = 0, toastTimer = 0, yieldWa
   b.addEventListener('pointerdown', on);
   for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, off);
 }
+// xi nhan xe mình: phím , (trái) / . (phải) bật / tắt; điện thoại: giữ nút lái tự bật. Đèn vàng 4 góc xe + mũi tên dưới đồng hồ
+// + tiếng tách tách. Đổi làn / vào nhánh ra ở map Drive mà không bật đúng bên => lỗi. Đổi làn xong tự tắt (quên: tự tắt sau 15 s).
+let blinker = 0, blinkAge = 0, blinkPhase = 0, blinkLane = null, blinkSprites = null, blinkMap = -1;
+function setBlinker(dir) { blinker = blinker === dir ? 0 : dir; blinkAge = 0; say(blinker ? (blinker < 0 ? 'Xi nhan trái' : 'Xi nhan phải') : 'Tắt xi nhan'); }
+function updateBlinker(dt) {
+  if (steerHeld && blinker !== steerHeld) { blinker = steerHeld; blinkAge = 0; }   // điện thoại: giữ nút lái = bật xi nhan bên đó
+  blinkAge += dt;
+  if (blinker && blinkAge > 15) blinker = 0;                                        // quên tắt: tự tắt sau 15 s
+  const ph = blinker ? Math.floor(blinkAge * 3.2) % 2 : 0;
+  if (blinker && ph !== blinkPhase) audio.tick(ph === 1);
+  blinkPhase = ph;
+  const on = blinker && ph === 1;
+  $('blink').querySelector('.l').classList.toggle('on', on && blinker < 0);
+  $('blink').querySelector('.r').classList.toggle('on', on && blinker > 0);
+  // đèn vàng 4 góc xe mình
+  if (!blinkSprites && cars.softTex) {
+    blinkSprites = [];
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cars.softTex, color: 0xff8a10, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+      sp.scale.set(0.55, 0.55, 1); sp.userData = { sx, sz }; sp.renderOrder = 6; cars.tilt.add(sp); blinkSprites.push(sp);
+    }
+  }
+  if (blinkSprites && cars.dim) for (const sp of blinkSprites) {
+    const { sx, sz } = sp.userData;
+    sp.position.set(sx * (cars.dim.width / 2 - 0.05), 0.75, sz * (cars.dim.length / 2 - 0.05));
+    sp.material.opacity = on && sx === blinker ? 1 : 0;
+  }
+  // đổi làn ở map Drive: kiểm tra xi nhan
+  if (blinkMap !== state.map) { blinkMap = state.map; blinkLane = null; blinker = 0; }   // đổi map / dịch chỗ: không tính là đổi làn
+  if (!cityTraffic.visible || !state.started || stop.active || incident.active || drive.ramp != null) { blinkLane = null; return; }
+  const L = cityTraffic.lanes, lane = Math.sign(drive.d || 1) * L.reduce((b, l) => (Math.abs(Math.abs(drive.d) - l) < Math.abs(Math.abs(drive.d) - b) ? l : b), L[0]);
+  if (blinkLane !== null && lane !== blinkLane && Math.sign(lane) === Math.sign(blinkLane)) {
+    const side = Math.sign(lane - blinkLane);                                        // + = sang phải
+    if (blinker !== side) { violations++; toast(`↔ Đổi làn không bật xi nhan! (lỗi thứ ${violations})`, true); }
+  }
+  if (blinker && blinkLane !== null && lane !== blinkLane) blinkDone = 1.5;   // đổi xong => tự tắt sau 1.5 s
+  if (blinkDone > 0 && (blinkDone -= dt) <= 0 && !steerHeld) blinker = 0;
+  blinkLane = lane;
+}
+let blinkDone = 0;
 // điện thoại: nút lái trái / phải hai bên hộp Space (giữ để lái như phím ← / →)
 let steerHeld = 0;
 if (IS_PHONE) document.body.classList.add('phone');
@@ -950,6 +990,8 @@ window.addEventListener('keydown', (e) => {
     case 'KeyU': toggleFS(); break;
     case 'KeyK': toggleSettings(); break;
     case 'KeyO': shotPending = true; break;
+    case 'Comma': setBlinker(-1); break;         // xi nhan trái (<) / phải (>)
+    case 'Period': setBlinker(1); break;
   }
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
@@ -1228,7 +1270,12 @@ function frame(now) {
   if (onAvenue()) {
     if (drive.ramp == null && !stop.active && !incident.active) {
       const t = drive.s - icS(icIndex(drive.s));
-      if (t > -490 && t < -390 && drive.d > AVENUE.edge - 0.2) { drive.ramp = icIndex(drive.s); toast('↘ Nhánh ra — xuống đường ngang dưới cầu vượt'); }
+      if (t > -490 && t < -390 && drive.d > AVENUE.edge - 0.2) {
+        drive.ramp = icIndex(drive.s);
+        if (blinker !== 1) { violations++; toast(`↘ Vào nhánh ra không bật xi nhan phải! (lỗi thứ ${violations})`, true); }
+        else toast('↘ Nhánh ra — xuống đường ngang dưới cầu vượt');
+        blinkDone = 2;
+      }
     }
     if (drive.ramp != null) {
       const t = drive.s - icS(drive.ramp), u = rampU(t);
@@ -1397,6 +1444,7 @@ function frame(now) {
   }
   avenue.update(drive.s, 1, dt); avenue.setLamps(st.lamps);
   minimap.update(dt);
+  updateBlinker(dt);
   city.update(drive.s, st.lamps, dt, 1, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   // map Phố: vượt vạch dừng khi đèn đỏ => báo lỗi
   if (city.visible && state.started && !stop.active && cars.dim) {
@@ -1570,4 +1618,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { get crashFx() { return crashFx; }, minimap, avenue, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { get crashFx() { return crashFx; }, get blinker() { return blinker; }, get violations() { return violations; }, minimap, avenue, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

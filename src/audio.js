@@ -308,6 +308,15 @@ export class ChillAudio {
     }
   }
 
+  // tiếng "tách" của rơ-le xi nhan (trong cabin)
+  tick(hi = true) {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'square'; o.frequency.value = hi ? 1900 : 1500;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.035, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+    o.connect(g).connect(this.master); o.start(t); o.stop(t + 0.04);
+  }
+
   // "bíp" ngắn của trạm thu phí tự động (2 tiếng 1.2 kHz)
   beep() {
     if (!this.ctx) return;

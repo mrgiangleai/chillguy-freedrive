@@ -30,7 +30,7 @@ function hexa(out, b, t, col, flags) {
     for (const p of [a, bq, c, a, c, d]) {
       out.pos.push(...p); out.nor.push(n.x, n.y, n.z); out.col.push(...col);
       out.tint.push(flags.tint ? 1 : 0); out.glow.push(flags.glow ? 1 : 0); out.gloss.push(flags.gloss ? 1 : 0);
-      out.flash.push(flags.flash ? (p[0] > 0 ? 2 : 1) : 0);
+      out.flash.push(flags.ind ? (flags.ind > 0 ? 4 : 3) : flags.flash ? (p[0] > 0 ? 2 : 1) : 0);   // 3 / 4: xi nhan trái / phải
     }
   }
 }
@@ -56,10 +56,13 @@ function boxAt(o, cx, cy, cz, sx, sy, sz, col, flags = {}) {
   box(o, cy, cz, sx, sy, sz, col, flags);
   for (let i = n0; i < o.pos.length; i += 3) o.pos[i] += cx;
 }
+const AMBER = [1.0, 0.5, 0.05];
 function lamps(o, hw, y, zf, zr, w = 0.3) {
   for (const s of [-1, 1]) {
     boxAt(o, s * (hw - w / 2 - 0.05), y, zf - 0.02, w, 0.13, 0.05, HEAD, L);
     boxAt(o, s * (hw - w / 2 - 0.05), y, zr + 0.02, w, 0.12, 0.05, TAIL, L);
+    boxAt(o, s * (hw - 0.03), y - 0.02, zf + 0.04, 0.07, 0.1, 0.12, AMBER, { ind: s });   // xi nhan 4 góc (mặt trước / sau + hông)
+    boxAt(o, s * (hw - 0.03), y + 0.12, zr - 0.04, 0.07, 0.1, 0.12, AMBER, { ind: s });
   }
 }
 
@@ -227,7 +230,7 @@ export class CityTraffic {
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uLamp = this.uLamp; sh.uniforms.uTime = this.uTime; sh.uniforms.uNpc = this.uNpc;
       sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nattribute float aTint, aGlow, aGloss, aFlash, aHonk;\nuniform float uTime;\nvarying float vGlow, vGloss;')
+        .replace('#include <common>', '#include <common>\nattribute float aTint, aGlow, aGloss, aFlash, aHonk, aBlink;\nuniform float uTime;\nvarying float vGlow, vGloss;')
         .replace('#include <color_vertex>', `vColor = vec3(1.0);
           vColor *= color;
           #ifdef USE_INSTANCING_COLOR
@@ -237,7 +240,9 @@ export class CityTraffic {
           // xe sau bấm còi: nháy đèn pha (đèn trắng phía trước)
           if (aHonk > 0.5 && aGlow > 0.5 && color.r > 0.9 && color.b > 0.7) vGlow += 4.0 * step(0.5, fract(uTime * 4.0));
           // đèn ưu tiên: nửa trái / phải nhấp nháy xen kẽ
-          if (aFlash > 0.5) vGlow = 3.0 * step(0.5, fract(uTime * 2.2 + (aFlash > 1.5 ? 0.5 : 0.0)));`);
+          if (aFlash > 0.5 && aFlash < 2.5) vGlow = 3.0 * step(0.5, fract(uTime * 2.2 + (aFlash > 1.5 ? 0.5 : 0.0)));
+          // xi nhan: aBlink = −1 / 1 (bên đang bật) => nhấp nháy 1.6 Hz; tắt thì tối
+          if (aFlash > 2.5) vGlow = abs(aBlink - (aFlash > 3.5 ? 1.0 : -1.0)) < 0.5 ? 3.0 * step(0.5, fract(uTime * 1.6)) : 0.0;`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', '#include <common>\nuniform float uLamp, uNpc;\nvarying float vGlow, vGloss;')
         .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.08, vGloss);')
@@ -261,6 +266,8 @@ export class CityTraffic {
       im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(def.max * 3), 3);
       im.honk = new THREE.InstancedBufferAttribute(new Float32Array(def.max), 1).setUsage(THREE.DynamicDrawUsage);
       g.setAttribute('aHonk', im.honk);
+      im.blink = new THREE.InstancedBufferAttribute(new Float32Array(def.max), 1).setUsage(THREE.DynamicDrawUsage);
+      g.setAttribute('aBlink', im.blink);
       im.count = 0; im.castShadow = true; im.frustumCulled = false;
       this.group.add(im);
       this.meshes[k] = im;
@@ -570,6 +577,11 @@ export class CityTraffic {
       im.setColorAt(i, this._c.set(c.color));
       if (c.type === 'police' || c.type === 'ambulance') { (c._pos ||= new THREE.Vector3()).copy(vv); c._yaw = yaw; }
       im.honk.setX(i, c.honk ? 1 : 0);
+      // xi nhan: đang đổi làn => bên làn mới (theo hướng xe); sắp vào nhánh ra => phải
+      let bl = 0;
+      if (c.changing && !c.cross && !c.xr) bl = Math.sign(c.home - c.d) * c.dir;
+      if (c.ramp != null) { const t = (c.s - icS(c.ramp)) * c.dir; if (t < -330) bl = 1; else if (t > 330) bl = -1; }
+      im.blink.setX(i, bl);
     }
     for (const k in this.meshes) {
       const im = this.meshes[k];
@@ -577,6 +589,7 @@ export class CityTraffic {
       im.instanceMatrix.needsUpdate = true;
       if (im.instanceColor) im.instanceColor.needsUpdate = true;
       im.honk.needsUpdate = true;
+      im.blink.needsUpdate = true;
     }
     this._emUpdate(lamps);
   }

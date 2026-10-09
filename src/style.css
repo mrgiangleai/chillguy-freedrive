@@ -255,3 +255,7 @@ body:not(.playing) #stats { opacity: 0; }
 @media (max-height: 500px), (max-width: 640px) { #minimap:not(.big) { width: 104px; height: 104px; } }
 /* đang xem bản đồ lớn: ẩn các hộp HUD bị bản đồ đè (lối tắt trái, góc phải, Space, nút lái) */
 body.mapopen #quick, body.mapopen #corner, body.mapopen #brake, body.mapopen .steer { opacity: 0 !important; pointer-events: none !important; transition: opacity .25s ease; }
+/* xi nhan (dưới đồng hồ tốc độ): mũi tên xanh nhấp nháy */
+#blink { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; font-size: 16px; color: #3ddc6a; height: 18px; }
+#blink b { opacity: 0; font-weight: 400; }
+#blink b.on { opacity: 1; text-shadow: 0 0 8px rgba(61, 220, 106, .8); }

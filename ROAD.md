@@ -222,6 +222,11 @@
   tròn `broadleafGeometry`, ghế), bậc thang lên sân sảnh (sàn tầng trệt = sân), ban công 3D từng tầng (sàn + lan can); mẫu A 10–13
   tầng bậc hẹp 4 cây, mẫu B 6–8 tầng bậc rộng + ghế; nhà bên trong khối chừa chỗ. Bảng 🚦 có "Thêm xe của chú": xe model
   Mustang/Mazda từ kho `traffic.pool` chạy như xe phố (`cityTraffic.pool/useModels/releaseModels`).
+  **Xi nhan** (`setBlinker/updateBlinker` trong main): phím `,` trái / `.` phải bật–tắt (điện thoại: giữ ◀ / ▶ tự bật), 4 quầng vàng
+  góc xe mình + mũi tên `#blink` dưới đồng hồ + tiếng tách (`audio.tick`); đổi làn xong tự tắt sau 1.5 s, quên thì tắt sau 15 s.
+  Ở Phố / Đại lộ: đổi làn (cùng chiều) không bật đúng bên => "↔ Đổi làn không bật xi nhan!" (cộng `violations`); vào nhánh ra
+  không bật xi nhan phải => lỗi; đổi map / bị bắt xong không tính. NPC: hộp đèn vàng 4 góc (`lamps()` cờ `ind`, `aFlash` 3/4),
+  nháy theo `aBlink` (±1) khi đang đổi làn (`c.changing`) hoặc rẽ nhánh. `__app.blinker / violations` để kiểm thử.
   **Va chạm vật lý** (`crashfx.js` + `impact()` trong main): xe mình chúi đầu + nảy ngang, rung camera mạnh tắt dần ~0.6 s,
   tiếng "rầm" + kim loại (`audio.crash`), đâm > ~20 km/h tương đối thì khói bốc từ capo 4–10 s (48 sprite dùng lại); xe bị đâm
   trôi theo lực (`slide` ≤ 9 m/s, giảm 7 m/s²). Map khác: đụng xe NPC cũng khựng + rung + khói (không cảnh sát), hồi 2.5 s.
@@ -285,4 +290,4 @@
   trạm thu phí), màn hình chờ chạy Low, bản đồ tròn (Drive), nút lái trái / phải trên điện thoại, cầu vượt cao qua quốc lộ 4 làn,
   cầu dây văng qua sông, bảng chỉ đường lớn kiểu Việt Nam, đèn cầu ban đêm + cây bờ sông + thuyền.
 - **#1 — Đại lộ: dời cầu cao (700 m) + cầu sông (2.2 km) về gần đầu đường, vào Đại lộ bắt đầu ở 150 m (09/10/2026)**.
-- **#2 — Cải thiện dần (09/10/2026)**: bản đồ phóng to ẩn HUD bị đè; đệm chống va + dải bê tông ở mũi nhánh Đại lộ; xe tải / container.
+- **#2 — Cải thiện dần (09/10/2026)**: bản đồ phóng to ẩn HUD bị đè; đệm chống va + dải bê tông ở mũi nhánh Đại lộ; xe tải / container; xi nhan (xe mình + NPC, lỗi đổi làn / vào nhánh không xi nhan).
