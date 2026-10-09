@@ -352,6 +352,7 @@ export class City {
     this.lensMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
     withMist(this.sigMat); withMist(this.lensMat);
     this.headGeo = new THREE.BoxGeometry(1.3, 0.44, 0.3);
+    this.pedHeadGeo = new THREE.BoxGeometry(0.34, 0.62, 0.2);
     this.lensGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.04, 14).rotateX(Math.PI / 2);
     this.sigPoleGeo = new THREE.CylinderGeometry(0.1, 0.12, 1, 8).translate(0, 0.5, 0);
     this.armGeo = new THREE.BoxGeometry(1, 0.1, 0.1).translate(0.5, 0, 0);
@@ -373,13 +374,13 @@ export class City {
     this.uSig = { uScale: { value: 500 }, uFogD: { value: 0 }, uDay: { value: 1 }, uGain: { value: 1 }, uSize: { value: 1 } };
     this.sigGlowMat = new THREE.ShaderMaterial({
       uniforms: this.uSig, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
-      vertexShader: `attribute vec3 aCol; attribute vec3 aDir; uniform float uScale, uFogD, uGain, uSize; varying vec3 vCol;
+      vertexShader: `attribute vec3 aCol; attribute vec3 aDir; attribute float aSz; uniform float uScale, uFogD, uGain, uSize; varying vec3 vCol;
         void main() {
           vec4 wp = modelMatrix * vec4(position, 1.0); vec4 mv = viewMatrix * wp;
           float face = smoothstep(-0.1, 0.45, dot(normalize(cameraPosition - wp.xyz), aDir));
           float fd = uFogD * -mv.z;
           vCol = aCol * face * exp(-fd * fd * 0.5) * uGain;
-          gl_PointSize = clamp(2.8 * uScale / -mv.z, 16.0, 130.0) * uSize;
+          gl_PointSize = clamp(2.8 * uScale / -mv.z, 16.0, 130.0) * uSize * aSz;
           gl_Position = projectionMatrix * mv;
         }`,
       fragmentShader: `uniform float uDay; varying vec3 vCol;
@@ -405,6 +406,15 @@ export class City {
     return { main, cross, t };
   }
   mainLight(n) { return this._phase(n).main; }
+  // thấu kính kiểu k (0 xe đường chính, 1 xe đường ngang, 2 đi bộ qua đường chính, 3 đi bộ qua đường ngang) màu col có sáng không.
+  // Đi bộ chỉ xanh / đỏ: qua đường chính xanh khi đường ngang xanh (và ngược lại); xanh nhấp nháy 4 s cuối.
+  _lensOn(ph, k, col) {
+    if (k < 2) return (k ? ph.cross : ph.main) === col;
+    const g = (k === 2 ? ph.cross : ph.main) === 0;
+    const S = SIGNAL, left = k === 2 ? S.mainG + S.y + S.allRed + S.crossG - ph.t : S.mainG - ph.t;
+    if (g && left < 4 && Math.floor(ph.t * 2.5) % 2) return false;
+    return (g ? 0 : 2) === col;
+  }
 
   // khoảng cách tới vạch dừng phía trước (theo chiều dir) nếu đèn bắt dừng; Infinity nếu được đi.
   // Đèn vàng: chỉ dừng khi còn kịp phanh êm (≥ v²/8 m)
@@ -468,7 +478,7 @@ export class City {
       if (!L) continue;
       const ph = this._phase(n), k = 1.5 + 1.3 * lamps;   // thấu kính: vừa đủ sáng, không cháy trắng (giữ rõ màu)
       for (let i = 0; i < L.kind.length; i++) {
-        const on = (L.kind[i] ? ph.cross : ph.main) === L.col[i];
+        const on = this._lensOn(ph, L.kind[i], L.col[i]);
         const v = on ? LENS_ON[L.col[i]] : LENS_OFF[L.col[i]];
         L.mesh.setColorAt(i, c.setRGB(v[0] * (on ? k : 1), v[1] * (on ? k : 1), v[2] * (on ? k : 1)));
       }
@@ -476,7 +486,7 @@ export class City {
       if (L.glow) {
         const a = L.glow.geometry.attributes.aCol;
         for (let i = 0; i < L.kind.length; i++) {
-          const on = (L.kind[i] ? ph.cross : ph.main) === L.col[i], v = LENS_ON[L.col[i]];
+          const on = this._lensOn(ph, L.kind[i], L.col[i]), v = LENS_ON[L.col[i]];
           a.setXYZ(i, on ? v[0] * 1.5 : 0, on ? v[1] * 1.5 : 0, on ? v[2] * 1.5 : 0);
         }
         a.needsUpdate = true;
@@ -912,8 +922,10 @@ export class City {
   _signals(group, F, gJ) {
     const HW = CITY.hw, CW = CITY.side;
     const P = (a, u) => [F.x + F.fx * a + F.rx * u, F.z + F.fz * a + F.rz * u];
-    const heads = [], poles = [], arms = [];
-    // [a cột, u cột, u đầu đèn, a đầu đèn, hướng mặt đèn (vector), cao, kiểu]
+    const heads = [], poles = [], arms = [], peds = [];
+    // kiểu Việt Nam: cột đèn ở góc vỉa hè bên phải PHÍA XE TỚI, ngay vạch dừng (trước ngã tư); đầu đèn trên tay vươn ra lòng đường.
+    // Đèn đi bộ (nhỏ, 2 ô đỏ / xanh dọc) gắn cùng cột, thấp hơn, quay mặt sang phía bên kia vạch qua đường cho người chờ nhìn.
+    // heads: [x, y, z, hướng mặt, kiểu 0 = xe đường chính, 1 = xe đường ngang]; peds: [x, y, z, hướng mặt, kiểu 2 = qua đường chính, 3 = qua đường ngang]
     const yaw = (dx, dz) => Math.atan2(dx, dz);
     const y0 = gJ(0) + 0.2;
     const mainHead = (a, su) => {
@@ -922,14 +934,19 @@ export class City {
       poles.push([px, y0, pz, 5.9]);
       arms.push([px, y0 + 5.7, pz, Math.atan2(-(hz - pz), hx - px), Math.hypot(hx - px, hz - pz) + 0.7]);
       heads.push([hx, y0 + 5.55, hz, yaw(su > 0 ? -F.fx : F.fx, su > 0 ? -F.fz : F.fz), 0]);
+      heads.push([px - (su > 0 ? F.fx : -F.fx) * 0.18, y0 + 3.0, pz - (su > 0 ? F.fz : -F.fz) * 0.18, yaw(su > 0 ? -F.fx : F.fx, su > 0 ? -F.fz : F.fz), 0]);   // đầu đèn phụ trên cột (tầm mắt)
+      const [qx, qz] = P(a, su * (HW + 0.7 - 0.2));
+      peds.push([qx, y0 + 2.45, qz, yaw(-su * F.rx, -su * F.rz), 2]);
     };
-    mainHead(11.0, 1);          // chiều mình (đi theo +f): đèn bên phải, phía bên kia ngã tư, quay về phía xe tới
-    mainHead(-11.0, -1);        // chiều ngược lại
+    mainHead(-(SIGNAL.stopA - 0.35), 1);    // chiều mình (đi theo +f): góc phải trước ngã tư, quay về phía xe tới
+    mainHead(SIGNAL.stopA - 0.35, -1);      // chiều ngược lại
     for (const su of [-1, 1]) {
-      // xe trên đường ngang đi về phía -su (tới đường chính từ phía su): đèn ở phía bên kia (−su), quay mặt về +su
-      const a = su * (CW + 1.0), [px, pz] = P(a, -su * (HW + 0.8));
+      // xe trên đường ngang đi về phía -su (tới đường chính từ phía su): bên phải của họ là +f·su => góc (su·a, su·u), phía xe tới
+      const a = su * (CW + 1.0), [px, pz] = P(a, su * (HW + 0.8));
       poles.push([px, y0, pz, 4.4]);
       heads.push([px, y0 + 4.2, pz, yaw(su * F.rx, su * F.rz), 1]);
+      const [qx, qz] = P(a - su * 0.2, su * (HW + 0.8));
+      peds.push([qx, y0 + 2.45, qz, yaw(-su * F.fx, -su * F.fz), 3]);
     }
     const m = this._m, q = this._qt, v = this._v, sc = this._s;
     const add = (geo, mat, list, fn) => {
@@ -942,16 +959,24 @@ export class City {
     add(this.sigPoleGeo, this.sigMat, poles, ([x, y, z, h]) => m.compose(v.set(x, y, z), q.identity(), sc.set(1, h, 1)));
     add(this.armGeo, this.sigMat, arms, ([x, y, z, a, L]) => m.compose(v.set(x, y, z), q.setFromAxisAngle(this._up, a), sc.set(L, 1, 1)));
     add(this.headGeo, this.sigMat, heads, ([x, y, z, yw]) => m.compose(v.set(x, y, z), q.setFromAxisAngle(this._up, yw), sc.set(1, 1, 1)));
+    add(this.pedHeadGeo, this.sigMat, peds, ([x, y, z, yw]) => m.compose(v.set(x, y, z), q.setFromAxisAngle(this._up, yw), sc.set(1, 1, 1)));
     const lens = [], kind = [], col = [];
     for (const [x, y, z, yw, k] of heads) {
       const cs = Math.cos(yw), sn = Math.sin(yw);
       for (let i = 0; i < 3; i++) {
         const lx = (i - 1) * 0.42, lz = 0.16;
-        lens.push([x + cs * lx + sn * lz, y, z - sn * lx + cs * lz, yw]);
+        lens.push([x + cs * lx + sn * lz, y, z - sn * lx + cs * lz, yw, 1]);
         kind.push(k); col.push(i);
       }
     }
-    const lm = add(this.lensGeo, this.lensMat, lens, ([x, y, z, yw]) => m.compose(v.set(x, y, z), q.setFromAxisAngle(this._up, yw), sc.set(1, 1, 1)));
+    for (const [x, y, z, yw, k] of peds) {                          // đèn đi bộ: đỏ trên, xanh dưới, thấu kính nhỏ
+      const cs = Math.cos(yw), sn = Math.sin(yw), lz = 0.11;
+      for (const [i, dy] of [[2, 0.15], [0, -0.15]]) {
+        lens.push([x + sn * lz, y + dy, z + cs * lz, yw, 0.62]);
+        kind.push(k); col.push(i);
+      }
+    }
+    const lm = add(this.lensGeo, this.lensMat, lens, ([x, y, z, yw, k]) => m.compose(v.set(x, y, z), q.setFromAxisAngle(this._up, yw), sc.set(k, k, 1)));
     lm.castShadow = false;
     lm.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(lens.length * 3), 3);
     // quầng sáng các thấu kính
@@ -959,6 +984,7 @@ export class City {
     gg.setAttribute('position', new THREE.Float32BufferAttribute(lens.flatMap(([x, y, z, yw]) => [x + Math.sin(yw) * 0.05, y, z + Math.cos(yw) * 0.05]), 3));
     gg.setAttribute('aDir', new THREE.Float32BufferAttribute(lens.flatMap(([, , , yw]) => [Math.sin(yw), 0, Math.cos(yw)]), 3));
     gg.setAttribute('aCol', new THREE.Float32BufferAttribute(new Float32Array(lens.length * 3), 3));
+    gg.setAttribute('aSz', new THREE.Float32BufferAttribute(lens.map((e) => e[4] === 1 ? 1 : 0.55), 1));
     gg.userData.own = true;
     const glow = new THREE.Points(gg, this.sigGlowMat);
     glow.frustumCulled = false; glow.renderOrder = 6;
@@ -988,8 +1014,8 @@ export class City {
     // biển báo: vạch qua đường (2 phía tới), "止まれ" trên đường ngang, tốc độ 40 + cấm đỗ giữa khối
     const signs = [];
     const sign = (a, u, fx, fz, cell, h = 2.5) => { const [x, z] = P(a, u); signs.push([x, gJ(u) + 0.2, z, Math.atan2(fx, fz), cell, h]); };
-    sign(-11.2, HW + 0.55, -F.fx, -F.fz, 0);                    // chiều mình tới ngã tư: biển vạch qua đường bên phải
-    sign(11.2, -(HW + 0.55), F.fx, F.fz, 0);                    // chiều ngược lại
+    sign(-14.2, HW + 0.55, -F.fx, -F.fz, 0);                    // chiều mình tới ngã tư: biển vạch qua đường bên phải
+    sign(14.2, -(HW + 0.55), F.fx, F.fz, 0);                    // chiều ngược lại
     sign(CW + 0.7, HW + 4.6, F.rx, F.rz, 1, 2.2);              // đường ngang phía phải: dừng lại
     sign(-(CW + 0.7), -(HW + 4.6), -F.rx, -F.rz, 1, 2.2);
     sign(60, HW + 0.55, -F.fx, -F.fz, 2);                       // giữa khối: tốc độ tối đa 40

@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -140,8 +140,11 @@
   (hLow phố = đồi ~260 m trong vùng mặt nạ ~900 m, dốc tới ~10%), đường cao theo hLow; nhà có chân móng (plinth, mã trong
   aInfo.z) khi đất dốc; phía trong khúc cua bỏ nhà xa hơn 0.55·R. Dãy mặt tiền: ~13% hẻm bậc thang (`_alley`), ~8% bãi đất trống
   (`_lot`). **Đèn giao thông** (`SIGNAL`, chu kỳ 46 s lệch pha theo ngã tư; `_phase(n)`, `mainLight(n)`, `stopAhead(s, dir, v)`):
-  2 cột tay vươn cho đường chính (phía bên kia ngã tư) + 2 cột thấp cho đường ngang, mặt đèn xanh–vàng–đỏ trái→phải; màu
-  thấu kính đổi mỗi khung (instanceColor). NPC dừng trước vạch (`traffic.stopFor`, phanh ≤ 3.2 m/s²). Xe mình KHÔNG tự dừng:
+  kiểu Việt Nam: cột ở góc vỉa hè bên phải PHÍA XE TỚI, ngay vạch dừng (đường chính a = ∓(stopA − 0.35): tay vươn + đầu đèn
+  phụ trên cột cao 3 m; đường ngang: cột thấp ở góc (su·(CW+1), su·(HW+0.8))), mặt đèn xanh–vàng–đỏ trái→phải. Đèn đi bộ nhỏ
+  (`pedHeadGeo` 0.34×0.62, đỏ trên / xanh dưới, thấu kính ×0.62, quầng `aSz` 0.55) gắn cùng cột cao 2.45 m, quay sang phía
+  bên kia vạch qua đường; xanh khi hướng kia đỏ, nhấp nháy 4 s cuối (`_lensOn`, kiểu 2/3). Biển vạch qua đường lùi về a = ∓14.2.
+  Màu thấu kính đổi mỗi khung (instanceColor). NPC dừng trước vạch (`traffic.stopFor`, phanh ≤ 3.2 m/s²). Xe mình KHÔNG tự dừng:
   giữ Space/B hoặc hộp "Space" giữa đáy (−7.5 m/s²); đầu xe qua vạch dừng lúc đèn đỏ => toast "Vượt đèn đỏ! (lỗi thứ n)"; đi qua vạch
   khi có người đang băng qua trước mặt (|u − d| < 3.5) => "Không nhường người đi bộ!"; đâm => `cityIncident.js`. Camera không xuyên nhà: `rig.collide` → `city.collide` (tia xe→camera, OBB nhà, kéo vào tức thì, nhả từ từ). `ROAD.halfWidth` = 7.2 (4 làn: tâm làn ±1.75 / ±5.25,
   chia làn ±3.5), vỉa hè 4 m cao 0.2; đường ngang rộng 7 m + vỉa hè 2.5 m. Mặt đất theo hLow phố (phần lớn bằng), đồi xanh > 500 m.
@@ -228,3 +231,4 @@
 - **#4 — Bảng 🚦: nút Bật/Tắt + tự dừng đèn đỏ (09/10/2026)**.
 - **#5 — Cài đặt chế độ P (thời gian dừng, zoom, quay quanh xe/người) (09/10/2026)**.
 - **#6 — Người đi bộ: tụ lại xem tai nạn, nói chuyện có tiếng, điện thoại / tai nghe (09/10/2026)**. Âm thanh chưa nghe được trên máy ảo.
+- **#7 — Đèn giao thông đặt kiểu Việt Nam (phía xe tới) + đèn đi bộ nhỏ cạnh (09/10/2026)**.
