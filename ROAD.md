@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -57,6 +57,7 @@
 | `carriage.js` | `loadCarriage(loader)` → hàm tạo xe ngựa `{group, dim 5.6×2.8, wheels: [], mixer, carriage: true}`; `CARRIAGE` (15–30 s, tối đa 2, 25–40 km/h). traffic.js sinh/điều khiển như NPC (`_spawnCarriage`, `carriageTimer`, không đèn, không tiếng lướt, không nhận chùm pha dùng chung) |
 | `ocean.js` | Map Biển: `Ocean.setMap(on, level)`, `update(time, cam, road, s)`. Lưới vuông 1.5 m ±120 m (sóng nhô lên ≤ ~100 m) + vành 8 m tới ±400 m + khung phẳng tới 6 km, **nắn theo bước 1.5 m** (đỉnh cố định trong thế giới). `waveAt`: atlas `assets/tex/ocean-waves.png?v=WAVE_VER` (76 khung, 10×8; bake bằng `scripts/bake-ocean.mjs`, trộn chéo 24 khung cuối vào đầu), ô ×2 = 54.2 m, cao ×1.3, chu kỳ ≈ 9 s; 4 mẫu lệch nửa ô; nội suy khung **dời theo hướng trôi** `DRIFT` (−0.5, +2.25 px/khung); **2 lớp lệch nửa vòng**, lớp tới chỗ nối fade sin² còn 10%, lớp kia giữ 100%, chuẩn hoá giữ biên độ; bọt ven bờ theo `uT` liên tục; `textureLod` theo khoảng cách (`uLod`); độ sâu ven đê từ 27 điểm tim đường (nắn bước 12 m) |
 | `city.js` | Map Phố (kiểu phố Nhật): dựng theo **khối phố** n (giữa ngã tư `road.junction(n)` và n+1): đường ngang + vỉa hè + vạch (vằn qua đường, vạch dừng, tim vàng đôi, chia làn đứt/liền 30 m trước ngã tư, mũi tên), vỉa hè lát gạch + gạch dẫn đường vàng, nhà instancing (hộp + mái dốc) mặt tiền vẽ bằng shader (tầng trệt cửa hàng + biển chữ atlas, 4 kiểu cửa sổ, đèn đêm), biển dọc, máy bán nước, cột điện + dây võng. Nhà tới `DEPTH` 180 m, khối dựng ±1.2 km |
+| `cityTraffic.js` | Map Phố: xe dựng bằng code (sedan, kei, taxi, van, buýt 10.5 m, xe máy + người lái), mỗi loại 1 InstancedMesh (aTint: sơn nhận instanceColor; aGloss: kính; aGlow: đèn × uLamp). 2 làn mỗi chiều, bám xe trước, dừng đèn đỏ (`city.stopAhead`), đổi làn cùng chiều để vượt; xe đường ngang ở ngã tư trong [s−60, s+330] theo pha đèn đường ngang. `ctrl.maxV` = bám xe trước cho xe mình. Xe NPC nặng (Mustang/Mazda) cất đi trong map Phố (`traffic.clearAll`) |
 | `cows.js` | Map đồi cỏ: đàn 5 bò sữa + hàng rào gỗ |
 | `fireflies.js` | Đom đóm ban đêm |
 | `traffic.js` | Spawn/pool/vẽ NPC: ngược chiều (10–25 s/chiếc, tối đa 2) + cùng chiều (25–60 s, tối đa 1, vào từ phía sau 80–110 m); pool 3 xe; NPC chỉ có quầng pha, chùm sáng thật = 1 cặp SpotLight dùng chung (`beam`, gắn NPC gần nhất ≤300 m, `_beam`); đèn `lamps × NPC_LAMP(0.24)`, đèn hậu ×0.6; thân xe xoay `yaw = atan(latV/v)` (≤0.35, nội suy 8/s), bánh trước `w.front` đánh lái `yaw × 1.8`; âm thanh lướt qua 1 lần/lượt; xuất `ctrl {lane, maxV}` cho xe người chơi |
@@ -186,3 +187,6 @@
 - **#7 — Phố bước 2: đèn giao thông + phanh tay + báo lỗi (08/10/2026)**: xem mục Map Phố. Thử Low: stopAhead đúng hai chiều,
   vượt vạch lúc đỏ hiện toast lỗi, nút PHANH hiện ở map Phố. Chưa chụp được cận cảnh cột đèn. Xe ngang qua ngã tư để sang B3
   (cần model xe nhẹ).
+
+- **#8 — Phố bước 3: giao thông dựng bằng code (09/10/2026)**: chú chọn tự dựng (máy chỉ tải được GitHub; xe miễn phí trên
+  GitHub là kiểu đồ chơi). Xem dòng `cityTraffic.js`. Thử Low: ~50 xe trên 4 làn + xe máy chạy ngang ngã tư, đèn đường ngang xanh.

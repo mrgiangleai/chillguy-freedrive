@@ -186,6 +186,14 @@ export class Traffic {
     this._beam(s, lamps);
   }
 
+  // map Phố: cất hết xe NPC nặng (phố dùng giao thông riêng cityTraffic)
+  clearAll() {
+    for (const v of this.active) { v.busy = false; v.root.visible = false; }
+    this.active.length = 0;
+    this._beam(0, 0);
+    this.ctrl.lane = null; this.ctrl.maxV = Infinity;
+  }
+
   // chùm sáng thật: gắn cặp SpotLight vào NPC gần xe người chơi nhất (trong 300 m)
   _beam(s, lamps) {
     let best = null, bd = 300;

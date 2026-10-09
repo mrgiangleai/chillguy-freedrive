@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ROAD, ROAD_HW, CITY, Road } from './road.js';
 import { City, SIGNAL } from './city.js';
+import { CityTraffic } from './cityTraffic.js';
 import { Scenery, STREETLIGHT_DEFAULTS } from './scenery.js';
 import { Terrain } from './terrain.js';
 import { setTerrainMap, TP } from './terrain-noise.js';
@@ -95,6 +96,7 @@ const dash = new DashScreen();                // màn hình giải trí trên ta
 const _trafficPerson = new THREE.Vector3();
 const traffic = new Traffic(scene, cars);     // thỉnh thoảng có xe chạy ngược chiều
 traffic.stopFor = (s, dir, v) => city.stopAhead(s, dir, v);   // xe NPC dừng đèn đỏ (map Phố)
+const cityTraffic = new CityTraffic(scene, road, city);      // map Phố: xe dựng bằng code, 4 làn + đường ngang
 const ocean = new Ocean(scene);               // map Biển: mặt biển sóng (bake từ ocean_scene_animated.glb)
 const waterfalls = new Waterfalls(scene, road, terrain);
 const cows = new Cows(scene);                 // map đồi cỏ: đàn bò sữa sau hàng rào gỗ
@@ -342,6 +344,8 @@ const applyMap = () => {
   city.prime(drive.s);
   fireflies.ground.clear();     // độ cao mặt đất nhớ theo hình đường cũ
   traffic.policy.city = isCity;
+  cityTraffic.visible = isCity;
+  if (isCity) traffic.clearAll();
   $('brake').hidden = !isCity;
   if (isCity && state.started) toast('Map Phố: tự phanh khi gặp đèn đỏ — giữ phím Space hoặc nút PHANH');
   cityFront = null;
@@ -938,7 +942,10 @@ function frame(now) {
       obstacles.push({ id: 'person', ...roadPosition(_trafficPerson, road, drive.s), width: 0.8, length: 0.8, speed: 0, direction: 0 });
     }
     traffic.playerHome = drive.home; traffic.playerGoal = stop.active ? 0 : drive.goal;
-    traffic.update(dt, drive.s, drive.d, road, st.lamps, cars.current.def.id, obstacles, audio);
+    if (cityTraffic.visible) {
+      cityTraffic.update(dt, drive.s, drive.d, drive.v, st.lamps, cars.dim.length);
+      traffic.ctrl.lane = null; traffic.ctrl.maxV = stop.active ? Infinity : cityTraffic.ctrl.maxV;
+    } else traffic.update(dt, drive.s, drive.d, road, st.lamps, cars.current.def.id, obstacles, audio);
   }
   city.update(drive.s, st.lamps, dt);
   // map Phố: vượt vạch dừng khi đèn đỏ => báo lỗi
@@ -1068,4 +1075,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { city, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { city, cityTraffic, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

@@ -419,6 +419,13 @@ export class City {
     });
   }
 
+  // cao độ mặt đất trên trục đường ngang của ngã tư có khung F, cách tim đường chính u
+  groundJ(F, u) {
+    const x = F.x + F.rx * u, z = F.z + F.rz * u, a = Math.abs(u);
+    const t = Math.min(1, Math.max(0, (a - CITY.hw - 1.2) / 14.8));
+    return F.y + (hLow(x, z) - F.y) * t * t * (3 - 2 * t) - 0.02;
+  }
+
   // khung toạ độ tại quãng s: tâm đường + vector phải r + vector tiến f
   _frame(s) {
     const p = this.road.at(s, {});
