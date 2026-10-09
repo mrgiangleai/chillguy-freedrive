@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -236,7 +236,8 @@
   (`setGameMode`; Chill quay về map ngắm cảnh lần trước).
   Vào game luôn ẩn (`body.idle` từ đầu; bỏ qua cú bấm Start 1.2 s); chỉ rê chuột / chạm / kéo xoay mới hiện (mờ dần 0.7 s),
   phím tắt không làm hiện; tự ẩn sau 2 s. Đồng hồ tốc độ `#stats` nằm ngoài HUD (luôn hiện, góc trên phải trong khung hình,
-  dưới viền đen cine), Times New Roman: số 46 px, "km/h" nhỏ nghiêng, giờ nhỏ bên dưới. Nút phanh = hộp "Space" giữa đáy (trong HUD, ẩn theo; giữ để phanh). ⓘ ở góc trên trái. Nhạc mặc định tên "Music + fx".
+  dưới viền đen cine), Times New Roman: số 46 px, "km/h" nhỏ nghiêng, giờ nhỏ bên dưới. Nút phanh = hộp "Space" giữa đáy (trong HUD, ẩn theo; giữ để phanh). Điện thoại (`body.phone`, `IS_PHONE`): thêm 2 hộp ◀ / ▶
+  hai bên Space (giữ để lái như phím ← / →, `steerHeld`; hiện ở mọi map, ẩn theo HUD). ⓘ ở góc trên trái. Nhạc mặc định tên "Music + fx".
 - **Chụp ảnh**: biểu tượng máy ảnh / phím O — chụp canvas ngay sau `post.render` (không cần preserveDrawingBuffer), tải PNG
   `chill-drive-<thời gian>.png`; điện thoại dùng bảng chia sẻ nếu có (lưu vào Ảnh).
 - **Đom đóm** (không có ở map Phố): đoạn có đom đóm ~2/3 chiều dài đường (nhiễu `sst(0.38, 0.58)`), 90% ô 5 m có, 1–3 con/ô, ra tới ~16 m hai bên,
@@ -271,3 +272,4 @@
 - **#4 — Map Đại lộ bước 4: trạm thu phí tự động, mọi xe chậm lại (09/10/2026)**.
 - **#5 — Màn hình chờ chạy chất lượng Low (09/10/2026)**.
 - **#6 — Bản đồ tròn (Drive): đường + xe thật, bấm để phóng to, kéo / zoom (09/10/2026)**.
+- **#7 — Điện thoại: nút lái trái / phải hai bên Space (09/10/2026)**.

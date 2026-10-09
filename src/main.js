@@ -685,6 +685,14 @@ let brakeHeld = false, cityFront = null, violations = 0, toastTimer = 0, yieldWa
   b.addEventListener('pointerdown', on);
   for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, off);
 }
+// điện thoại: nút lái trái / phải hai bên hộp Space (giữ để lái như phím ← / →)
+let steerHeld = 0;
+if (IS_PHONE) document.body.classList.add('phone');
+for (const [id, dir] of [['steer-l', -1], ['steer-r', 1]]) {
+  const b = $(id);
+  b.addEventListener('pointerdown', (e) => { steerHeld = dir; b.classList.add('on'); e.preventDefault(); b.setPointerCapture?.(e.pointerId); });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, () => { if (steerHeld === dir) steerHeld = 0; b.classList.remove('on'); });
+}
 function toast(text, bad = false, ms = 0) {
   const t = $('toast');
   t.textContent = text;
@@ -1171,8 +1179,8 @@ function frame(now) {
   const opening = !state.started || openingElapsed !== null;
 
   // điều khiển
-  const left = keys.has('ArrowLeft') || keys.has('KeyA');
-  const right = keys.has('ArrowRight') || keys.has('KeyD');
+  const left = keys.has('ArrowLeft') || keys.has('KeyA') || steerHeld < 0;
+  const right = keys.has('ArrowRight') || keys.has('KeyD') || steerHeld > 0;
   const steer = incident.active ? 0 : (right ? 1 : 0) - (left ? 1 : 0);
   if (keys.has('ArrowUp') || keys.has('KeyW')) drive.target += 2.5 * dt;
   if (keys.has('ArrowDown') || keys.has('KeyS')) drive.target -= 2.5 * dt;

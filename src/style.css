@@ -167,7 +167,14 @@ body.cine #corner { bottom: max(14px, calc(var(--bar) / 2 - 29px)); }
   #corner { bottom: max(10px, env(safe-area-inset-bottom)); }
   body.cine #brake, body.cine #corner { bottom: max(8px, calc(var(--bar) / 2 - 18px)); }
 }
-#brake.on { background: rgba(255, 255, 255, .3); border-color: rgba(255, 255, 255, .7); }
+#brake.on, .steer.on { background: rgba(255, 255, 255, .3); border-color: rgba(255, 255, 255, .7); }
+/* điện thoại: nút lái trái / phải hai bên hộp Space (giữ để lái) */
+.steer { display: none; position: absolute; left: 50%; bottom: max(10px, env(safe-area-inset-bottom)); width: 76px; font-size: 18px;
+  touch-action: none; user-select: none; -webkit-user-select: none; }
+body.phone .steer { display: block; }
+#steer-l { transform: translateX(calc(-50% - 104px)); }
+#steer-r { transform: translateX(calc(-50% + 104px)); }
+body.cine .steer { bottom: max(8px, calc(var(--bar) / 2 - 18px)); }
 #brake[hidden] { display: none; }
 #toast { position: fixed; z-index: 7; left: 50%; top: max(56px, env(safe-area-inset-top)); transform: translate(-50%, -12px); max-width: calc(100vw - 32px);
   padding: 10px 18px; border-radius: 12px; background: rgba(12, 16, 28, .8); color: #fff; font-size: 15px; text-align: center;
