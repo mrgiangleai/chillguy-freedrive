@@ -198,6 +198,7 @@ export class ReedField {
     this.group = new THREE.Group();
     scene.add(this.group);
     this.density = 1;
+    this.corrPad = meadow ? 0.7 : grass ? 0.3 : 1.0;
     this.roadPts = Array.from({ length: ROAD_PTS }, () => new THREE.Vector3());
     this.shared = {
       uCam: { value: new THREE.Vector3() },
@@ -313,6 +314,7 @@ export class ReedField {
     sh.uWind.value = st.wind;
     sh.uWindDir.value.copy(st.windDir);
     sh.uTLow.value = TP.low; sh.uTDet.value = TP.det; sh.uTFine.value = TP.fine;
+    sh.uCorr.value = ROAD.halfWidth + this.corrPad; sh.uCarve0.value = ROAD.halfWidth + 1.2; sh.uCarve1.value = ROAD.halfWidth + 16;   // bề rộng đường theo map
     const p = {};
     for (let k = 0; k < ROAD_PTS; k++) {
       road.at(s + (k - 12) * ROAD_PT_GAP * (this.view || 1), p);   // phạm vi rộng: giãn các điểm (đường cong rất thoải)

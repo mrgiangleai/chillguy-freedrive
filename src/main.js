@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { ROAD, ROAD_HW, CITY, Road } from './road.js';
+import { ROAD, ROAD_HW, CITY, AVENUE, Road } from './road.js';
+import { Avenue } from './avenue.js';
 import { City, SIGNAL } from './city.js';
 import { CityTraffic } from './cityTraffic.js';
 import { CityPeople } from './cityPeople.js';
@@ -46,6 +47,10 @@ const KMH = 1 / 3.6;
 const LANE_D = 1.5;                // xe chạy lệch tim đường 1.5 m (sát vạch vàng giữa, giữa làn là 2.3 m)
 const GEARS = [25 * KMH, 50 * KMH, 180 * KMH];
 const CHILL_DEFAULT = GEARS[0], CHILL_MIN = 10 * KMH, CHILL_MAX = 60 * KMH, FAST_SPEED = GEARS[2];
+// map Đại lộ: cấp tốc độ cao tốc 80 → 100 → 180 km/h, chỉnh tay (W/S) tới 120 km/h
+const AV_GEARS = [80 * KMH, 100 * KMH, 180 * KMH], AV_MAX = 120 * KMH;
+const onAvenue = () => MAPS[state.map]?.id === 'avenue';
+const gears = () => (onAvenue() ? AV_GEARS : GEARS);
 
 // ---------- renderer / scene ----------
 const canvas = $('c');
@@ -112,6 +117,7 @@ const traffic = new Traffic(scene, cars);     // thỉnh thoảng có xe chạy 
 traffic.stopFor = (s, dir, v) => city.stopAhead(s, dir, v);   // xe NPC dừng đèn đỏ (map Phố)
 const cityTraffic = new CityTraffic(scene, road, city);      // map Phố: xe dựng bằng code, 4 làn + đường ngang
 const cityPeople = new CityPeople(scene, road, city);        // map Phố: người đi bộ
+const avenue = new Avenue(scene, road);                      // map Đại lộ: vạch kẻ 6 làn + dải phân cách (xe: cityTraffic chế độ avenue)
 cityTraffic.setup(scene, cars.softTex, camera);
 const crashFx = new CrashFx(scene, cars.softTex);   // va chạm: rung mạnh + khói đầu xe
 const _hood = new THREE.Vector3();
@@ -170,7 +176,7 @@ const incident = new CityIncident(cityTraffic, cityPeople, {   // map Phố: đ�
   end: () => {
     drive.v = 0;
     // bắt đầu lại: xe về đúng làn ngoài bên phải, dọn xe / người đang chồng chỗ đó, 3 s không tính va chạm (khỏi bị bắt lặp lại)
-    drive.home = CITY.lanes[1]; drive.d = drive.home; drive.latVel = 0; drive.manual = false;
+    drive.home = cityTraffic.lanes[1]; drive.d = drive.home; drive.latVel = 0; drive.manual = false;
     cityTraffic.cars = cityTraffic.cars.filter((c) => c.cross || c.script || Math.abs(c.d - drive.d) > 2.6 || c.s < drive.s - 14 || c.s > drive.s + 22);
     for (const p of cityPeople.peds.slice()) if (Math.abs(p.u - drive.d) < 2.5 && Math.abs(p.s - drive.s) < 6) cityPeople.remove(p);
     crashGrace = 3;
@@ -348,7 +354,7 @@ function refreshUI() {
   setBtn(el.weather, WEATHERS[state.weather].icon, WEATHERS[state.weather].name);
   setBtn(el.time, TIMES[state.time].icon, TIMES[state.time].name);
   setBtn(el.music, MUSIC_MODES[state.music].icon, MUSIC_MODES[state.music].name);
-  setBtn(el.fast, '⚡', Math.round(GEARS[drive.gear] * 3.6) + ' km/h');
+  setBtn(el.fast, '⚡', Math.round(gears()[drive.gear] * 3.6) + ' km/h');
   el.fast.classList.toggle('on', drive.gear > 0);
   setBtn(el.mist, '🌫️', 'Sương ' + Math.round(state.mistDens * 100) + '%');
   el.mist.classList.toggle('on', !$('mistpanel').hidden);
@@ -368,7 +374,7 @@ function refreshUI() {
   setBtn(el.full, isFS() ? '🗗' : '⛶', isFS() ? 'Thoát toàn màn hình' : 'Toàn màn hình');
   // lối tắt bên trái
   const q = (id, text, title, on = false) => { const b = $(id); b.textContent = text; b.title = title; b.classList.toggle('on', on); return b; };
-  q('q-speed', drive.gear > 0 ? Math.round(GEARS[drive.gear] * 3.6) + ' km/h' : 'Speed', 'Tốc độ: ' + Math.round(GEARS[drive.gear] * 3.6) + ' km/h (phím F)', drive.gear > 0);
+  q('q-speed', drive.gear > 0 ? Math.round(gears()[drive.gear] * 3.6) + ' km/h' : 'Speed', 'Tốc độ: ' + Math.round(gears()[drive.gear] * 3.6) + ' km/h (phím F)', drive.gear > 0);
   q('q-pause', stop.state === 'parked' ? 'Resume' : 'Pause', stop.state === 'parked' ? 'Đi tiếp (phím P)' : 'Dừng xe (phím P)', stop.active);
   q('q-car', 'Car', 'Xe: ' + (cars.list[state.car]?.name ?? '…') + ' (phím C)');
   q('q-cam', 'Camera', 'Camera: ' + CAMERAS[state.cam].name + ' (phím Q)');
@@ -377,7 +383,7 @@ function refreshUI() {
   q('q-weather', 'Weather', 'Thời tiết: ' + WEATHERS[state.weather].name + ' (phím R)');
   q('q-time', 'Time', 'Thời gian: ' + TIMES[state.time].name + ' (phím T)');
   q('q-setting', 'Setting', 'Cài đặt (phím K)', !$('bar').hidden);
-  if (curMapId === 'city' && state.started) saveScope('city');   // cài đặt trong phố chỉ lưu cho phố
+  if (SCOPED[curMapId] && state.started) saveScope(curMapId);   // cài đặt trong phố / đại lộ chỉ lưu cho map đó
 }
 function loadQuality() {
   try { const i = QUALITY.findIndex((q) => q.id === localStorage.getItem('chilldrive.quality')); if (i >= 0) return i; } catch { /* không có localStorage */ }
@@ -459,10 +465,12 @@ function compileFor(target, cam, obj = scene) {
   obj.traverse((o) => { if (o.material && !o.layers.test(cam.layers)) { off.push(o, o.material); o.material = null; } });
   const prev = renderer.getRenderTarget();
   renderer.setRenderTarget(target);
-  const p = renderer.compileAsync(obj, cam, scene);
+  // compile (đồng bộ) thay compileAsync: compileAsync của three hỏi lại vật liệu theo chu kỳ và lỗi nếu vật liệu bị huỷ giữa chừng
+  // (đổi map liên tục ở màn hình chờ)
+  try { renderer.compile(obj, cam, scene); } catch (e) { console.warn('compile', e); }
   renderer.setRenderTarget(prev);
   for (let i = 0; i < off.length; i += 2) off[i].material = off[i + 1];
-  return p;
+  return new Promise((r) => setTimeout(r, 0));
 }
 // xe mới tải: dịch shader (cả biến thể vẽ vào render target: hậu kỳ / phản chiếu vũng nước) trước khi gắn vào cảnh
 env.onCarEnv = (tex) => cars.setEnvMap(tex);
@@ -480,9 +488,9 @@ function warmShaders(delay = 500) {
 const applyMap = () => {
   const id = MAPS[state.map].id;
   setTerrainMap(id);            // đổi tham số địa hình (đồi thấp / đồi núi)
-  const isCity = id === 'city';
-  ROAD.halfWidth = isCity ? CITY.hw : ROAD_HW;   // phố: 4 làn
-  road.setShape(isCity);        // phố: đường thẳng theo đoạn + ngã tư
+  const isCity = id === 'city', isAvenue = id === 'avenue', isTraffic = isCity || isAvenue;   // nhóm Drive: Phố + Đại lộ
+  ROAD.halfWidth = isCity ? CITY.hw : isAvenue ? AVENUE.hw : ROAD_HW;   // phố: 4 làn; đại lộ: 6 làn + lề
+  road.setShape(id);            // phố: đường thẳng theo đoạn + ngã tư; đại lộ: cong rất thoải
   road.dirt = id === 'forest';  // đồi thông: có đoạn đường đất xuyên rừng
   road.recomputeHeights();      // độ cao đường theo địa hình mới
   // map Biển: mực nước thấp hơn chỗ thấp nhất của đường 3 m (xét 120 km đường phía trước)
@@ -494,37 +502,44 @@ const applyMap = () => {
   terrain.prime(camera.position.lengthSq() ? camera.position : drive.pos);
   reeds.visible = id === 'reed';
   grass.visible = id === 'forest';
-  meadow.visible = id === 'meadow';
+  meadow.visible = id === 'meadow' || isAvenue;   // đại lộ: hai bên là cỏ như map Đồi cỏ
   cows.visible = id === 'meadow';
   town.reset();
   town.visible = id === 'mountain';
   city.visible = isCity;
   city.prime(drive.s);
+  avenue.visible = isAvenue;
+  avenue.prime(drive.s);
   fireflies.ground.clear();     // độ cao mặt đất nhớ theo hình đường cũ
   traffic.policy.city = isCity;
   if (incident.active) incident.finish();
-  cityTraffic.visible = isCity;
+  if (isTraffic) cityTraffic.setMode(id);
+  cityTraffic.visible = isTraffic;
   cityPeople.visible = isCity;
-  if (isCity) { traffic.clearAll(); trafficLevel = TRAFFIC_START; trafficStartT = 5; }   // vào phố: giao thông thấp 5 s đầu
-  $('brake').hidden = !isCity;
-  $('b-traffic').hidden = !isCity;
-  if (!isCity && tuneKind === 'traffic') closeTune();
+  if (isTraffic) { traffic.clearAll(); trafficLevel = TRAFFIC_START; trafficStartT = 5; }   // vào phố / đại lộ: giao thông thấp 5 s đầu
+  $('brake').hidden = !isTraffic;
+  $('b-traffic').hidden = !isTraffic;
+  if (!isTraffic && tuneKind === 'traffic') closeTune();
   applyTrafficTune(); applyLightTune();
   if (isCity && state.started) toast('Map Phố: tự phanh khi gặp đèn đỏ — giữ phím Space hoặc nút Space');
+  if (isAvenue && state.started) toast('Map Đại lộ: cao tốc 6 làn — giữ ← / → để đổi làn');
   cityFront = null;
   // cài đặt (thời tiết / giờ / camera) của map Phố tách riêng: vào phố => lấy bộ của phố (mặc định Tự động / Tự động / Sau xe,
   // lưu trên trình duyệt), ra khỏi phố => trả lại bộ của các map khác
+  // đại lộ cũng có bộ riêng (lần đầu lấy theo bộ hiện tại của Phố)
   const prevMap = curMapId; curMapId = id;
   if (prevMap !== id) {
-    if (prevMap === 'city') saveScope('city');
-    else if (prevMap !== null && isCity) saveScope('world');
-    if (isCity) restoreScope(scopes.city || cityDefaults());
-    else if (prevMap === 'city' && scopes.world) restoreScope(scopes.world);
+    if (SCOPED[prevMap]) saveScope(prevMap);
+    else if (prevMap !== null && SCOPED[id]) saveScope('world');
+    if (SCOPED[id]) restoreScope(scopes[id] || (isAvenue && scopes.city) || cityDefaults());
+    else if (SCOPED[prevMap] && scopes.world) restoreScope(scopes.world);
   }
-  rig.sideDist = isCity ? 13 : null;            // phố: camera bên hông đứng trên đường, không chui vào nhà
+  rig.sideDist = isCity ? 13 : isAvenue ? 17 : null;   // phố / đại lộ: camera bên hông đứng trên đường (không chui vào nhà / ra ngoài hộ lan)
   rig.orbitR = isCity ? 10 : null;
-  // làn nhà của xe mình: phố chạy làn ngoài bên phải; map khác sát vạch giữa
-  drive.home = isCity ? CITY.lanes[1] : LANE_D;
+  // làn nhà của xe mình: phố chạy làn ngoài bên phải; đại lộ làn giữa; map khác sát vạch giữa
+  drive.home = isCity ? CITY.lanes[1] : isAvenue ? AVENUE.lanes[1] : LANE_D;
+  if (isAvenue) drive.d = drive.home;
+  if (state.started && !drive.fast) drive.target = gears()[Math.min(drive.gear || 0, 1)];   // tốc độ theo cấp của map (đại lộ nhanh hơn)
   waterfalls.setMap(id);
   rig.sidePref = id === 'mountain' ? 1 : 0;      // camera bên hông đứng phía thung lũng
   nature.setRadius(QUALITY[state.quality].trees);   // tính lại cây chi tiết cho map mới
@@ -532,7 +547,9 @@ const applyMap = () => {
   warmShaders();
 };
 // chế độ chọn ở màn hình vào game: Chill = các map ngắm cảnh (không có Phố), Drive = chỉ map Phố
-const CITY_MAP = MAPS.findIndex((m) => m.id === 'city');
+const CITY_MAP = MAPS.findIndex((m) => m.id === 'city'), AVENUE_MAP = MAPS.findIndex((m) => m.id === 'avenue');
+const isDriveMap = (i) => i === CITY_MAP || i === AVENUE_MAP;     // nhóm Drive (giao thông): Phố + Đại lộ
+let lastDriveMap = CITY_MAP;
 let lastChillMap = MAPS.findIndex((m) => m.id === 'meadow');
 // tên chế độ hiện giữa màn hình 1 giây rồi mờ dần
 let modeNameT = 0;
@@ -545,14 +562,14 @@ function showModeName(mode) {
 // đổi chế độ trong game (nút 🔀 trong Setting): Drive => map Phố; Chill => map ngắm cảnh lần trước
 function setGameMode(mode) {
   if (state.mode === mode) return;
-  if (state.mode === 'chill') lastChillMap = state.map;
+  if (state.mode === 'chill') lastChillMap = state.map; else lastDriveMap = state.map;
   state.mode = mode;
-  state.map = mode === 'drive' ? CITY_MAP : lastChillMap;
+  state.map = mode === 'drive' ? lastDriveMap : lastChillMap;
   applyMap(); refreshUI(); showModeName(mode);
 }
 const nextMap = () => {
-  if (state.mode === 'drive') { say('Drive · chỉ có map Phố'); return; }
-  do state.map = (state.map + 1) % MAPS.length; while (state.mode === 'chill' && state.map === CITY_MAP);
+  // Chill: các map ngắm cảnh; Drive: Phố ↔ Đại lộ
+  do state.map = (state.map + 1) % MAPS.length; while (state.mode && isDriveMap(state.map) !== (state.mode === 'drive'));
   applyMap(); refreshUI(); say('Map · ' + MAPS[state.map].name);
 };
 function onCamChange() {
@@ -564,13 +581,14 @@ let renderTune = () => {};
 const nextCam = () => { state.cam = (state.cam + 1) % CAMERAS.length; rig.setMode(state.cam); onCamChange(); refreshUI(); if (tuneKind === 'camera') renderTune(); say('Camera · ' + CAMERAS[state.cam].name); };
 // thời tiết 'auto': tự chọn ngẫu nhiên (trong / mây / mưa / sương / bão) mỗi 2.5–5 phút
 let autoWeatherT = 0, curMapId = null;
-const scopes = { world: null, city: null };
-try { scopes.city = JSON.parse(localStorage.getItem('chilldrive.city')); } catch { /* bỏ qua */ }
+const SCOPED = { city: 'chilldrive.city', avenue: 'chilldrive.avenue' };   // map có bộ cài đặt riêng (lưu trên trình duyệt)
+const scopes = { world: null, city: null, avenue: null };
+for (const [k, key] of Object.entries(SCOPED)) try { scopes[k] = JSON.parse(localStorage.getItem(key)); } catch { /* bỏ qua */ }
 const cityDefaults = () => ({ weather: WEATHERS.findIndex((w) => w.id === 'auto'), time: TIMES.findIndex((t) => t.id === 'auto'), cam: CAMERAS.findIndex((c) => c.id === 'chase') });
 function saveScope(name) {
   if (!state.started) return;                    // màn hình chờ tự đổi cảnh: không ghi đè cài đặt của chú
   scopes[name] = { weather: state.weather, time: state.time, cam: state.cam };
-  if (name === 'city') try { localStorage.setItem('chilldrive.city', JSON.stringify(scopes.city)); } catch { /* chế độ riêng tư */ }
+  if (SCOPED[name]) try { localStorage.setItem(SCOPED[name], JSON.stringify(scopes[name])); } catch { /* chế độ riêng tư */ }
 }
 function restoreScope(sc) {
   if (!WEATHERS[sc.weather] || !TIMES[sc.time] || !CAMERAS[sc.cam]) sc = cityDefaults();
@@ -611,10 +629,10 @@ function setMist(cover, dens) {
 const applyCine = () => document.body.classList.toggle('cine', state.cine && state.started);
 function setGear(g) {
   const was = drive.fast;
-  drive.gear = g; drive.fast = g === 2; drive.target = GEARS[Math.min(g, 1)];
+  drive.gear = g; drive.fast = g === 2; drive.target = gears()[Math.min(g, 1)];
   if (drive.fast !== was) syncLens();
 }
-const toggleFast = () => { if (stop.active) return; setGear((drive.gear + 1) % GEARS.length); refreshUI(); say('Tốc độ · ' + Math.round(GEARS[drive.gear] * 3.6) + ' km/h'); };
+const toggleFast = () => { if (stop.active) return; setGear((drive.gear + 1) % GEARS.length); refreshUI(); say('Tốc độ · ' + Math.round(gears()[drive.gear] * 3.6) + ' km/h'); };
 const nextMusic = () => { state.music = (state.music + 1) % MUSIC_MODES.length; audio.setMode(state.music); refreshUI(); say('Âm thanh · ' + MUSIC_MODES[state.music].name); };
 
 el.fast.onclick = toggleFast;
@@ -1133,7 +1151,7 @@ function frame(now) {
   if (keys.has('ArrowDown') || keys.has('KeyS')) drive.target -= 2.5 * dt;
   if (keys.has('Equal') || keys.has('NumpadAdd')) zoomBy(Math.exp(-1.2 * dt));
   if (keys.has('Minus') || keys.has('NumpadSubtract')) zoomBy(Math.exp(1.2 * dt));
-  drive.target = clamp(drive.target, CHILL_MIN, CHILL_MAX);
+  drive.target = clamp(drive.target, CHILL_MIN, onAvenue() ? AV_MAX : CHILL_MAX);
   drive.goal = drive.fast ? FAST_SPEED : drive.target;
   const goal = opening ? FAST_SPEED : Math.min(drive.goal, traffic.ctrl.maxV);
   if (opening) drive.v = FAST_SPEED;
@@ -1144,7 +1162,7 @@ function frame(now) {
   if (openingCameraPending && drive.v <= CHILL_DEFAULT + 0.01) {
     openingCameraPending = false;
     drive.v = CHILL_DEFAULT;
-    state.cam = CAMERAS.findIndex((c) => c.id === (MAPS[state.map].id === 'city' ? 'chase' : 'side'));
+    state.cam = CAMERAS.findIndex((c) => c.id === (isDriveMap(state.map) ? 'chase' : 'side'));
     rig.setMode(state.cam);
     onCamChange();
     refreshUI();
@@ -1158,7 +1176,7 @@ function frame(now) {
   else if (drive.manual) {
     drive.manual = false;
     // buông tay: về làn gần nhất (phố 4 làn: ±1.75 / ±5.25)
-    const lanes = MAPS[state.map].id === 'city' ? CITY.lanes : [LANE_D];
+    const lanes = cityTraffic.visible ? cityTraffic.lanes : [LANE_D];
     drive.home = Math.sign(drive.d || 1) * lanes.reduce((b, l) => (Math.abs(Math.abs(drive.d) - l) < Math.abs(Math.abs(drive.d) - b) ? l : b), lanes[0]);
   }
   const lane = traffic.ctrl.lane ?? drive.home;
@@ -1167,6 +1185,7 @@ function frame(now) {
   drive.d += drive.latVel * dt;
   const lim = ROAD.halfWidth - 0.9;
   if (Math.abs(drive.d) > lim) { drive.d = Math.sign(drive.d) * lim; drive.latVel = 0; }
+  if (onAvenue() && drive.d < AVENUE.median + 1.25) { drive.d = AVENUE.median + 1.25; drive.latVel = Math.max(0, drive.latVel); }   // đại lộ: không qua dải phân cách
 
   // tư thế xe (độ cao + độ dốc theo mặt đường)
   road.ensure(drive.s + 8000);
@@ -1227,7 +1246,7 @@ function frame(now) {
   if (reeds.visible) reeds.update(now / 1000, camera.position, road, drive.s, st);
   grass.group.visible = MAPS[state.map].id === 'forest' && st.cover < 0.5;   // tuyết phủ thì ẩn cỏ
   if (grass.visible) grass.update(now / 1000, camera.position, road, drive.s, st);
-  meadow.group.visible = MAPS[state.map].id === 'meadow' && st.cover < 0.5;
+  meadow.group.visible = (MAPS[state.map].id === 'meadow' || MAPS[state.map].id === 'avenue') && st.cover < 0.5;
   if (meadow.visible) meadow.update(now / 1000, camera.position, road, drive.s, st);
   cows.update(dt, drive.s, road, terrain);
   terrain.setCar(drive.s);
@@ -1310,6 +1329,7 @@ function frame(now) {
       }
     }
   }
+  avenue.update(drive.s);
   city.update(drive.s, st.lamps, dt, 1, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   // map Phố: vượt vạch dừng khi đèn đỏ => báo lỗi
   if (city.visible && state.started && !stop.active && cars.dim) {
@@ -1479,4 +1499,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { get crashFx() { return crashFx; }, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { get crashFx() { return crashFx; }, avenue, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

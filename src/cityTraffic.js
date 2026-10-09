@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CITY } from './road.js';
+import { CITY, AVENUE } from './road.js';
 import { withMist } from './mist.js';
 import { createHeadlights, placeHeadlights, updateHeadlights } from './headlights.js';
 
@@ -166,6 +166,13 @@ const TYPES = {
 };
 // tỉ lệ sinh + màu sơn (sRGB)
 const MIX = [['sedan', 0.3], ['kei', 0.24], ['taxi', 0.1], ['van', 0.12], ['bus', 0.06], ['scooter', 0.18]];
+// cấu hình theo map: Phố (2 làn mỗi chiều, có ngã tư) / Đại lộ (3 làn mỗi chiều, không xe máy, chạy nhanh, làn trong nhanh nhất)
+const MODES = {
+  city: { lanes: CITY.lanes, vK: 1, laneK: [1, 1], ahead: AHEAD, behind: BEHIND, gap: MAIN_GAP, cross: true,
+    mix: MIX },
+  avenue: { lanes: AVENUE.lanes, vK: 2.0, laneK: [1.12, 1, 0.84], ahead: 900, behind: 300, gap: [50, 120], cross: false,
+    mix: [['sedan', 0.42], ['kei', 0.14], ['taxi', 0.1], ['van', 0.2], ['bus', 0.14]] },
+};
 const COLORS = {
   police: ['#ffffff'], ambulance: ['#ffffff'],
   sedan: ['#e8e8e6', '#1c1d20', '#8d9196', '#2a3550', '#6b0f14', '#c9c3b6'],
@@ -235,7 +242,11 @@ export class CityTraffic {
     this.filled = false;
     this.density = 1;          // hệ số mật độ xe (bảng 🚦)
     this.speedK = 1;           // hệ số tốc độ xe khác
+    this.cfg = MODES.city;
   }
+  // đổi cấu hình theo map ('city' | 'avenue'); gọi trước khi bật visible
+  setMode(id) { this.cfg = MODES[id] || MODES.city; this.cars.length = 0; this.filled = false; this.crossTimers.clear(); }
+  get lanes() { return this.cfg.lanes; }
 
   set visible(v) { this.group.visible = v; if (v) this._emSetup(); if (!v) { this.releaseModels(); this.cars.length = 0; this.filled = false; this.crossTimers.clear(); } }
   get visible() { return this.group.visible; }
@@ -271,14 +282,16 @@ export class CityTraffic {
 
   _pick() {
     let k = Math.random(), t = 'sedan';
-    for (const [n, w] of MIX) { if ((k -= w) < 0) { t = n; break; } }
+    for (const [n, w] of this.cfg.mix) { if ((k -= w) < 0) { t = n; break; } }
     if (this.cars.filter((c) => c.type === t).length >= TYPES[t].max) t = 'sedan';
     if (this.cars.filter((c) => c.type === t).length >= TYPES[t].max) return null;
     return t;
   }
   _new(type, extra) {
     const def = TYPES[type], cols = COLORS[type];
-    const v = (def.v[0] + Math.random() * (def.v[1] - def.v[0])) * KMH * (type === 'police' || type === 'ambulance' ? 1 : this.speedK);
+    const em = type === 'police' || type === 'ambulance';
+    const li = extra.home !== undefined ? this.cfg.lanes.indexOf(Math.abs(extra.home)) : -1;
+    const v = (def.v[0] + Math.random() * (def.v[1] - def.v[0])) * KMH * (em ? 1 : this.speedK * this.cfg.vK * (li >= 0 ? this.cfg.laneK[li] : 1));
     return Object.assign({ type, len: def.len, wid: def.wid, vMax: v, v, color: cols[Math.floor(Math.random() * cols.length)], lat: 0 }, extra);
   }
   // làn đường chính còn chỗ tại s (không xe nào trong ±gap)
@@ -296,7 +309,7 @@ export class CityTraffic {
       const used = new Set(this.cars.filter((c) => c.model).map((c) => c.model));
       for (const v of this.pool()) if (v.cityBusy && !used.has(v)) { v.cityBusy = false; v.busy = false; v.root.visible = false; }
     }
-    const road = this.road, lanes = CITY.lanes;
+    const road = this.road, cfg = this.cfg, lanes = cfg.lanes, AHEAD = cfg.ahead, BEHIND = cfg.behind, MAIN_GAP = cfg.gap;
     // ---- sinh xe đường chính ----
     if (!this.filled) {
       this.filled = true;
@@ -317,7 +330,7 @@ export class CityTraffic {
         const free = this.useModels && this.pool && Math.random() < 0.35 ? this.pool().find((x) => !x.busy && !x.carriage) : null;
         if (free) {                                          // thỉnh thoảng là xe model của chú
           free.busy = free.cityBusy = true;
-          const vm = (36 + Math.random() * 14) * KMH * this.speedK;
+          const vm = (36 + Math.random() * 14) * KMH * this.speedK * cfg.vK;
           this.cars.push({ type: 'model', model: free, s: at, d: dd, home: dd, dir, len: free.dim.length, wid: free.dim.width, vMax: dir > 0 && at > s ? Math.min(vm, Math.max(4, v - 2)) : vm, v: vm, lat: 0, color: '#ffffff' });
         } else {
           const t = this._pick();
@@ -326,7 +339,7 @@ export class CityTraffic {
       }
     }
     // ---- xe đường ngang ở các ngã tư gần ----
-    const n0 = road.junctionIndex(s - 60), n1 = road.junctionIndex(s + 330);
+    const n0 = cfg.cross ? road.junctionIndex(s - 60) : 0, n1 = cfg.cross ? road.junctionIndex(s + 330) : 0;
     for (let n = n0; n < n1; n++) {
       for (const du of [1, -1]) {                                // du: hướng chạy theo trục u (+r / -r)
         const key = n * 2 + (du > 0 ? 1 : 0);
@@ -379,9 +392,14 @@ export class CityTraffic {
         else want = Math.min(want, Math.max(0, (f.gap - 6) * 0.5));
         // vượt: sang làn cùng chiều bên cạnh khi xe trước chậm và làn kia trống
         if (!c.changing && f.gap < 35 && f.e.v < c.vMax - 2.5 && (f.e.dir === c.dir || f.e.player)) {
-          const other = c.dir * (Math.abs(c.home) < 3.5 ? lanes[1] : lanes[0]);
-          const clear = !main.concat([player]).some((e) => e !== c && Math.abs(e.d - other) < 2.2 && (e.s - c.s) * c.dir > -18 - (e.len + c.len) / 2 && (e.s - c.s) * c.dir < 25);
-          if (clear) { c.home = other; c.changing = true; }
+          // làn cùng chiều bên cạnh: ưu tiên làn trong (vượt bên trái), không có thì làn ngoài
+          const li = lanes.indexOf(Math.abs(c.home));
+          for (const oi of [li - 1, li + 1]) {
+            if (oi < 0 || oi >= lanes.length) continue;
+            const other = c.dir * lanes[oi];
+            const clear = !main.concat([player]).some((e) => e !== c && Math.abs(e.d - other) < 2.2 && (e.s - c.s) * c.dir > -18 - (e.len + c.len) / 2 && (e.s - c.s) * c.dir < 25);
+            if (clear) { c.home = other; c.changing = true; break; }
+          }
         }
       }
       const st = this.city.stopAhead(c.s + c.dir * c.len / 2, c.dir, c.v);
@@ -416,7 +434,7 @@ export class CityTraffic {
       X.u += X.du * c.v * dt;
     }
     // bỏ xe ra khỏi vùng
-    this.cars = this.cars.filter((c) => (c.crashed || c.script) ? true : c.cross ? Math.abs(c.cross.u) <= CROSS_R + 2 && c.cross.n >= n0 - 1 : c.s > s - BEHIND - 20 && c.s < s + AHEAD + 40);
+    this.cars = this.cars.filter((c) => (c.crashed || c.script) ? true : c.cross ? cfg.cross && Math.abs(c.cross.u) <= CROSS_R + 2 && c.cross.n >= n0 - 1 : c.s > s - BEHIND - 20 && c.s < s + AHEAD + 40);
 
     // ---- xe mình bám xe trước cùng làn ----
     const fp = ahead(player, d);

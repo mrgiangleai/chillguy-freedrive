@@ -9,6 +9,11 @@ export const ROAD_HW = 4.6;
 // bán kính ≥ ~130 m). Dốc: theo địa hình (TP.hill, chỉ vài vùng). Ngã tư nằm trên phần thẳng: 3 cái mỗi đoạn (cách nhau ~240 m), đường ngang vuông góc.
 export const CITY = { seg: 720, bend: 190, hw: 7.2, walk: 4.0, side: 3.5, sideWalk: 2.5, lanes: [1.75, 5.25] };
 const JPOS = [215, 455, 690];
+// Map Đại lộ: cao tốc 6 làn — dải phân cách giữa ±median, làn 3.5 m (tâm ±2.25 / ±5.75 / ±9.25), vạch chia làn ±4.0 / ±7.5,
+// mép làn ngoài ±11, lề khẩn cấp tới mép nhựa ±13. Đường cong rất thoải (bán kính ≥ ~2 km).
+export const AVENUE = { hw: 13, median: 0.5, lanes: [2.25, 5.75, 9.25], seps: [4.0, 7.5], edge: 11 };
+const HA = (s) => 0.32 * Math.sin(0.0006 * s + 0.4) + 0.18 * Math.sin(0.00137 * s + 1.7);
+const HA0 = HA(0);
 
 const H = (s) => 0.9 * Math.sin(0.0021 * s + 1.0) + 0.5 * Math.sin(0.0053 * s + 2.2) + 0.25 * Math.sin(0.0117 * s + 0.3);
 const H0 = H(0);
@@ -25,13 +30,15 @@ export class Road {
     this.pts = [{ x: 0, z: 0, y: hLow(0, 0) }];
     this.dirt = false;            // bật ở map đồi thông
     this.city = false;            // map Phố: đường thẳng + ngã tư
+    this.avenue = false;          // map Đại lộ: cao tốc cong rất thoải
     this._cum = [0];              // map Phố: tổng góc bẻ tới hết đoạn k
   }
 
-  // đổi hình đường (Phố / các map khác) => tính lại toàn bộ điểm đường
-  setShape(city) {
-    if (city === this.city) return;
-    this.city = city;
+  // đổi hình đường: kind 'city' (Phố) | 'avenue' (Đại lộ) | khác (đường lượn các map ngắm cảnh) => tính lại toàn bộ điểm đường
+  setShape(kind) {
+    const city = kind === 'city', avenue = kind === 'avenue';
+    if (city === this.city && avenue === this.avenue) return;
+    this.city = city; this.avenue = avenue;
     this.pts = [{ x: 0, z: 0, y: 0 }];
   }
 
@@ -74,9 +81,10 @@ export class Road {
     return sst(DIRT.start, DIRT.start + DIRT.ramp, m) * (1 - sst(DIRT.start + DIRT.len - DIRT.ramp, DIRT.start + DIRT.len, m));
   }
 
-  _y(x, z, s) { return this.city ? hLow(x, z) : hLow(x, z) + this.dirtAt(s) * bump(s); }
+  _y(x, z, s) { return this.city || this.avenue ? hLow(x, z) : hLow(x, z) + this.dirtAt(s) * bump(s); }
 
   heading(s) {
+    if (this.avenue) return HA(s) - HA0;
     if (!this.city) return H(s) - H0;
     const k = Math.floor(s / CITY.seg);
     return this._sum(k - 1) + this._delta(k) * sst(0, CITY.bend, s - k * CITY.seg);

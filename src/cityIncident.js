@@ -57,7 +57,9 @@ export class CityIncident {
     this.t += dt;
     this._sirens();
     const T = this.traffic, P = this.people, L = this.dim.length;
-    const lane = this.d >= 0 ? (Math.abs(this.d) < 3.5 ? 1.75 : 5.25) : (Math.abs(this.d) < 3.5 ? -1.75 : -5.25);
+    // làn gần chỗ xe mình nhất (Phố 2 làn / Đại lộ 3 làn mỗi chiều)
+    const LS = T.lanes, li = LS.reduce((b, l, i) => (Math.abs(Math.abs(this.d) - l) < Math.abs(Math.abs(this.d) - LS[b]) ? i : b), 0);
+    const lane = Math.sign(this.d || 1) * LS[li];
     // chú bước ra khỏi xe (xe đã dừng hẳn)
     if (this.step === 'impact' && !this.exitTried && this.t > 0.9) {
       [this.s, this.d] = this.hooks.carPos();
@@ -71,7 +73,7 @@ export class CityIncident {
       this.police = T.spawnScripted('police', this.s - 130, lane, 1, this.s - L / 2 - 2.3 - 2.3, 15);
       const [vs, vu] = this._victimPos();
       // xe cấp cứu tới từ phía trước theo làn trong ngược chiều, dừng trước nạn nhân 6 m
-      this.amb = T.spawnScripted('ambulance', vs + 140, -1.75, -1, vs + 6, 15);
+      this.amb = T.spawnScripted('ambulance', vs + 140, -LS[0], -1, vs + 6, 15);
       this.hooks.toast('🚓🚑 Cảnh sát và xe cấp cứu đang tới…', true);
     }
     const doorU = this.d - 1.25;
@@ -107,7 +109,7 @@ export class CityIncident {
     if (this.step === 'arrest' && P.arrived(this.driver) && P.arrived(this.officer)) {
       this.step = 'leaving';
       P.remove(this.driver); P.remove(this.officer);
-      pol.script = null; pol.home = lane > 3.5 ? 1.75 : lane > 0 ? 5.25 : lane; pol.changing = true;
+      pol.script = null; pol.home = lane > 0 ? LS[li > 0 ? li - 1 : 1] : lane; pol.changing = true;   // rời đi: sang làn bên cạnh
       this.tLeave = this.t;
     }
     // cấp cứu

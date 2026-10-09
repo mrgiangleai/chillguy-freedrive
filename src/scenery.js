@@ -261,7 +261,7 @@ export class Scenery {
   setMap(map) {
     this.map = map;
     HW = ROAD.halfWidth;
-    this.roadMat.map = map === 'city' ? this.cityTex : this.roadTex;
+    this.roadMat.map = map === 'city' || map === 'avenue' ? this.cityTex : this.roadTex;   // phố / đại lộ: nhựa trơn, vạch vẽ riêng
     for (const c of this.chunks.values()) this._dispose(c);
     this.chunks.clear();
     this.queue.length = 0;
@@ -396,7 +396,7 @@ export class Scenery {
 
     // cọc tiêu hai bên đường
     const posts = [];
-    for (let s = s0; s < s0 + L && this.map !== 'city'; s += 12) {
+    for (let s = s0; s < s0 + L && this.map !== 'city' && this.map !== 'avenue'; s += 12) {
       if (road.dirtAt(s) > 0.05) continue;          // đường đất: không có cọc tiêu
       road.at(s, p);
       for (const side of (this.map === 'mountain' ? [-1] : [-1, 1])) {
@@ -408,16 +408,17 @@ export class Scenery {
     posts.forEach(([x, y, z], i) => { m4.makeTranslation(x, y, z); pm.setMatrixAt(i, m4); });
     group.add(pm);
 
-    // hộ lan bên vực (map đường núi): dải thép + cột mỗi 4 m
-    if (this.map === 'mountain') {
+    // hộ lan bên vực (map đường núi) / hai bên cao tốc (map Đại lộ): dải thép + cột mỗi 4 m
+    for (const side of this.map === 'mountain' ? [1] : this.map === 'avenue' ? [1, -1] : []) {
       const RN = L / STEP, rp = new Float32Array((RN + 1) * 6), ri = [];
       const rposts = [];
+      const off = (HW + (this.map === 'avenue' ? 0.35 : 0.55)) * side;
       for (let i = 0; i <= RN; i++) {
         const s = s0 + i * STEP;
         road.at(s, p);
-        const x = p.x + Math.cos(p.th) * (HW + 0.55), z = p.z - Math.sin(p.th) * (HW + 0.55);
+        const x = p.x + Math.cos(p.th) * off, z = p.z - Math.sin(p.th) * off;
         rp.set([x, p.y + 0.5, z, x, p.y + 0.82, z], i * 6);
-        if (i < RN) { const a = i * 2; ri.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+        if (i < RN) { const a = i * 2; if (side > 0) ri.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); else ri.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
         if (i % 2 === 0) rposts.push([x, p.y, z]);
       }
       const rg = new THREE.BufferGeometry();
@@ -436,14 +437,14 @@ export class Scenery {
     // đèn đường (xen kẽ hai bên)
     const lamps = [], bulbs = [], targets = [];
     const city = this.map === 'city';
-    const lampN = city ? 4 : this.map === 'reed' ? 2 : 1, lampGap = L / lampN;
+    const lampN = city ? 4 : this.map === 'reed' || this.map === 'avenue' ? 2 : 1, lampGap = L / lampN;
     for (let i = 0; i < lampN; i++) {
       const s = s0 + i * lampGap + (city ? 21 : 6);          // phố: lệch khỏi cột điện (mỗi 30 m, ở +8)
       if (road.dirtAt(s) > 0.05) continue;          // đường đất: không có đèn đường
       if (city) { const j = road.nearJunction(s); if (j !== null && Math.abs(s - j) < 16) continue; }   // phố: không đặt giữa ngã tư / vạch qua đường
       road.at(s, p);
       const side = this.map === 'mountain' ? -1 : (Math.round(s / lampGap) % 2) ? 1 : -1;
-      const off = HW + (city ? 0.9 : 1.4);
+      const off = HW + (city ? 0.9 : this.map === 'avenue' ? 1.0 : 1.4);
       const x = p.x + Math.cos(p.th) * off * side;
       const z = p.z - Math.sin(p.th) * off * side;
       // tay đòn hướng về tim đường: side=+1 (bên phải) => local -x => yaw = th ; bên trái => xoay thêm PI

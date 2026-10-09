@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -60,6 +60,7 @@
 | `cityTraffic.js` | Map Phố: xe dựng bằng code (sedan, kei, taxi, van, buýt 10.5 m, xe máy + người lái), mỗi loại 1 InstancedMesh (aTint: sơn nhận instanceColor; aGloss: kính; aGlow: đèn × uLamp). 2 làn mỗi chiều, bám xe trước, dừng đèn đỏ (`city.stopAhead`), đổi làn cùng chiều để vượt; xe đường ngang ở ngã tư trong [s−60, s+330] theo pha đèn đường ngang. `ctrl.maxV` = bám xe trước cho xe mình. Xe NPC nặng (Mustang/Mazda) cất đi trong map Phố (`traffic.clearAll`) |
 | `cityPeople.js` | Map Phố: người đi bộ dựng bằng code (1 InstancedMesh, chân tay đung đưa trong vertex shader theo `aWalk` = pha, đang đi). Toạ độ (s, u) theo đường chính. Đi vỉa hè (chờ đèn đường chính xanh mới qua đường ngang), chờ ở góc rồi băng qua vạch đường chính khi đèn đường ngang xanh còn ≥ 9 s. `spawn/goTo/remove` cho người kịch bản; `hitTest`, `crossingNear` |
 | `cityIncident.js` | Map Phố: đâm xe / người => xe dừng khựng, nạn nhân ngã / xe đứng yên, camera Quay quanh; cảnh sát (xe đen trắng, đèn đỏ nhấp nháy) tới từ phía sau, cảnh sát đi tới cửa lái, người lái (ẩn model, hiện người dựng) theo về xe cảnh sát; xe cấp cứu tới từ phía trước làn ngược chiều, 2 nhân viên đưa nạn nhân đi; màn hình tối "bị đưa về đồn" rồi chạy tiếp (~30 s). Còi hụ (`audio.setSiren`: cảnh sát rú 650↔1350 Hz chu kỳ 4 s, cấp cứu "pi–po" 960/770 Hz) khi xe ưu tiên đang chạy, tắt khi đỗ, to dần khi lại gần |
+| `avenue.js` | Map Đại lộ: dựng theo đoạn 200 m quanh xe (±1.4 km / 300 m sau): vạch kẻ (vàng liền sát dải phân cách, trắng đứt 6/9 m giữa làn, trắng liền mép ngoài), dải phân cách bê tông "jersey" kéo theo mặt cắt. Đường: `road.setShape('avenue')` (cong rất thoải), `AVENUE` trong road.js. Xe: `cityTraffic.setMode('avenue')` |
 | `cows.js` | Map đồi cỏ: đàn 5 bò sữa + hàng rào gỗ |
 | `fireflies.js` | Đom đóm ban đêm |
 | `traffic.js` | Spawn/pool/vẽ NPC: ngược chiều (10–25 s/chiếc, tối đa 2) + cùng chiều (25–60 s, tối đa 1, vào từ phía sau 80–110 m); pool 3 xe; NPC chỉ có quầng pha, chùm sáng thật = 1 cặp SpotLight dùng chung (`beam`, gắn NPC gần nhất ≤300 m, `_beam`); đèn `lamps × NPC_LAMP(0.24)`, đèn hậu ×0.6; thân xe xoay `yaw = atan(latV/v)` (≤0.35, nội suy 8/s), bánh trước `w.front` đánh lái `yaw × 1.8`; âm thanh lướt qua 1 lần/lượt; xuất `ctrl {lane, maxV}` cho xe người chơi |
@@ -170,6 +171,13 @@
   (vạch qua đường xanh, "止まれ" trên đường ngang, tốc độ 40, cấm đỗ). Cài đặt thời tiết / giờ / camera của phố tách riêng
   (`scopes`, lưu `chilldrive.city`; mặc định Tự động / Tự động / Sau xe); ra khỏi phố trả lại bộ của map khác.
   Mỗi lần chuyển đổi (camera, xe, map, thời tiết, giờ, nhân vật, tốc độ, nhạc, chất lượng, dừng) có toast ngắn 1.6 s (`say`).
+  **Map Đại lộ** (`avenue`, 🛣️, nhóm Drive cùng Phố; M trong Drive: Phố ↔ Đại lộ): cao tốc 6 làn (`AVENUE`: tâm làn ±2.25 / ±5.75 /
+  ±9.25, dải phân cách ±0.5, mép làn ±11, lề khẩn cấp tới ±13), đường cong rất thoải (bán kính ≥ ~2 km), địa hình `avenue` (đồi cỏ
+  thấp, cỏ cao `meadow` hai bên), hộ lan thép 2 bên, đèn đường 2 bên xen kẽ. Xe: `cityTraffic` chế độ avenue (3 làn mỗi chiều, tốc
+  độ ×2, làn trong nhanh ×1.12 / làn ngoài ×0.84, không xe máy, không ngã tư; vượt sang làn bên cạnh ưu tiên làn trong). Xe mình
+  làn giữa 5.75, không qua dải phân cách; cấp tốc độ `AV_GEARS` 80 / 100 / 180 km/h, chỉnh tay tới 120. Bộ cài đặt riêng
+  `chilldrive.avenue` (lần đầu lấy bộ của Phố, `SCOPED`); dùng chung bảng 🚦 + giao thông ngẫu nhiên. Cảnh tai nạn dùng
+  `cityTraffic.lanes`. Đang làm tiếp: nút giao + cầu vượt, biển báo, trạm thu phí.
   Khu chung cư (~9% lô mặt tiền, `apartment` trong `_build`): tòa nhà lùi 11 m, công viên nhỏ (cỏ `lawnMat`, hàng rào cây, cây tán
   tròn `broadleafGeometry`, ghế), bậc thang lên sân sảnh (sàn tầng trệt = sân), ban công 3D từng tầng (sàn + lan can); mẫu A 10–13
   tầng bậc hẹp 4 cây, mẫu B 6–8 tầng bậc rộng + ghế; nhà bên trong khối chừa chỗ. Bảng 🚦 có "Thêm xe của chú": xe model
@@ -235,3 +243,5 @@
   vòng ngoài xe tới trước mặt), đèn giao thông rõ màu + đặt kiểu Việt Nam + đèn đi bộ, bảng 🚦 nút Bật/Tắt + tự dừng đèn đỏ +
   giao thông ngẫu nhiên 3 mức, cài đặt chế độ P, người đi bộ (xem tai nạn, nói chuyện có tiếng, điện thoại / tai nghe),
   màn hình chọn Chill / Drive (cảnh nền tự đổi, nút đổi chế độ, tên chế độ giữa màn hình).
+
+- **#1 — Map Đại lộ bước 1: cao tốc 6 làn, dải phân cách, cỏ, giao thông 6 làn, nhóm Drive (09/10/2026)**. `compileFor` dùng `renderer.compile` (đồng bộ) thay `compileAsync` (lỗi `isReady` khi đổi map liên tục).

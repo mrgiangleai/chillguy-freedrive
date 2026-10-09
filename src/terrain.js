@@ -25,6 +25,7 @@ const PAL = {
   reed: { a: col('#ad9b5c'), b: col('#c5b37b'), c: col('#8c8a50'), snowLine: 240, trees: false },
   mountain: { a: col('#789a45'), b: col('#9eaa5a'), c: col('#557236'), snowLine: 300, trees: true },
   meadow: { a: col('#6f9a4c'), b: col('#86ad5c'), c: col('#5c8541'), snowLine: 400, trees: false, bare: true },
+  avenue: { a: col('#6f9a4c'), b: col('#86ad5c'), c: col('#5c8541'), snowLine: 400, trees: false, bare: true },
   sea: { a: col('#cbb98c'), b: col('#bba97c'), c: col('#7f8f55'), snowLine: 600, trees: false, bare: true },   // cát, đá kè, cỏ trên đảo
   // phố: nền bê tông xám giữa các nhà; đồi núi ở xa ngả xanh theo độ cao (CITY_HILL)
   city: { a: col('#77787a'), b: col('#828280'), c: col('#6c6e6c'), snowLine: 900, trees: false, bare: true },
