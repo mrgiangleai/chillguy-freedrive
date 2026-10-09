@@ -7,6 +7,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: non
 #start { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 14px; background: rgba(8, 11, 22, .45); backdrop-filter: blur(3.5px); -webkit-backdrop-filter: blur(3.5px);
   transition: opacity .8s ease; }
+#veil { position: fixed; inset: 0; z-index: 9; background: #05070d; opacity: 0; pointer-events: none; transition: opacity .5s ease; }
+#veil.on { opacity: 1; }
 #start.gone { opacity: 0; pointer-events: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
 #start .title { font-size: clamp(28px, 6vw, 54px); font-weight: 200; letter-spacing: .38em; text-transform: uppercase; padding-left: .38em; }
 #start .hint { opacity: .65; letter-spacing: .08em; animation: pulse 2.4s ease-in-out infinite; }

@@ -306,6 +306,8 @@ const pointer = { active: false, id: -1, x: 0, y: 0 };
 // cảnh chờ Start: đồi cỏ, camera quay quanh, nhiều mây, ban đêm
 const state = { car: 0, character: 0, map: MAPS.findIndex((m) => m.id === 'meadow'), cam: CAMERAS.findIndex((c) => c.id === 'orbit'), weather: WEATHERS.findIndex((w) => w.id === 'cloudy'), time: TIMES.findIndex((t) => t.id === 'night'), music: 0, cine: true, started: false, mistCover: 0.9, mistDens: 0.4, fstop: FSTOP_DEFAULT, quality: loadQuality() };
 let openingElapsed = null; // tính thời gian chạy sau khi bấm Start
+// màn hình chờ: đổi cảnh mỗi 9 s (qua màn đen 0.5 s), đổi camera mỗi 4.5 s, vẽ ở 0.5 điểm ảnh (nền đã làm mờ)
+const PREVIEW = { scene: 9000, cam: 4500, fade: 500, ratio: 0.5 };
 let openingCameraPending = false;
 const QUICK_OPENING = true;          // TẠM: đầu game rút còn 0.5 s (đặt false để có lại đoạn 3 s ở 180 km/h rồi giảm tốc)
 const TUNE_KEY = 'chilldrive.tuning.v1';
@@ -427,6 +429,7 @@ function applyQuality(save = true) {
   const q = QUALITY[state.quality];
   pixelRatio = q.id === 'low' ? q.ratio : Math.min(q.ratio, Math.max(1, window.devicePixelRatio || 1));
   if (IS_PHONE && q.id === 'good') pixelRatio = Math.min(pixelRatio, 1.25);   // màn hình điện thoại nhỏ: đủ nét, nhẹ GPU hơn
+  if (!state.started) pixelRatio = Math.min(pixelRatio, PREVIEW.ratio);       // màn hình chờ: nền bị làm mờ => vẽ thưa điểm ảnh
   renderer.setPixelRatio(pixelRatio);
   post.setSamples(q.msaa);
   resize();
@@ -1312,8 +1315,9 @@ function frame(now) {
   if (keys.has('Minus') || keys.has('NumpadSubtract')) zoomBy(Math.exp(1.2 * dt));
   drive.target = clamp(drive.target, CHILL_MIN, onAvenue() ? AV_MAX : CHILL_MAX);
   drive.goal = drive.fast ? FAST_SPEED : drive.target;
-  const goal = opening ? FAST_SPEED : Math.min(drive.goal, traffic.ctrl.maxV);
-  if (opening) drive.v = FAST_SPEED;
+  const goal = opening && state.started ? FAST_SPEED : Math.min(drive.goal, traffic.ctrl.maxV);
+  if (!state.started) drive.v = gears()[0];                  // màn hình chờ: tốc độ thường của map (không 180 km/h)
+  else if (opening) drive.v = FAST_SPEED;
   else if (stop.active) drive.v = stop.speed(drive.v, dt);    // cảnh dừng xe: giảm tốc đều tới khi dừng hẳn
   else if (incident.active) drive.v = Math.max(0, drive.v - 25 * dt);          // vừa va chạm: dừng khựng
   else if (keys.has('Space') || keys.has('KeyB') || brakeHeld) drive.v = Math.max(0, drive.v - 7.5 * dt);   // phanh tay (giữ)
@@ -1633,26 +1637,37 @@ async function init() {
   const start = $('start');
   $('hint').textContent = 'Chọn chế độ';
   $('modes').hidden = false;
-  // màn hình chờ: cảnh nền tự đổi ngẫu nhiên mỗi 3 s (map, đoạn đường, giờ), camera ngẫu nhiên Quay quanh / Trong xe mỗi 5 s.
-  // Không ghi vào cài đặt của chú (saveScope bỏ qua khi chưa vào game); vào game thì trả lại như cũ.
+  // màn hình chờ: cảnh nền đổi mỗi PREVIEW.scene ms qua màn đen mờ (`#veil`: tối dần → đổi cảnh + khung hình nặng đầu tiên
+  // (biên dịch shader map mới, dựng địa hình) nằm sau màn đen → sáng dần). Lần lượt: nhảy đoạn đường cùng map / đổi map.
+  // Camera Quay quanh / Trong xe đổi giữa mỗi cảnh. Không ghi vào cài đặt của chú; vào game thì trả lại như cũ.
   const snap = { map: state.map, weather: state.weather, time: state.time, cam: state.cam, quality: state.quality };
   // màn hình chờ luôn chạy chất lượng Low (đỡ giật); vào game trả lại mức chú đã chọn (không ghi đè lựa chọn đã lưu)
   const LOW_Q = QUALITY.findIndex((q) => q.id === 'low');
-  if (state.quality !== LOW_Q) { state.quality = LOW_Q; applyQuality(false); }
+  state.quality = LOW_Q; applyQuality(false);
   const PREVIEW_CAMS = ['orbit', 'cockpit'].map((id) => CAMERAS.findIndex((c) => c.id === id));
   const pick = (n, not) => { let i; do i = Math.floor(Math.random() * n); while (n > 1 && i === not); return i; };
-  const sceneT = setInterval(() => {
+  const veil = $('veil');
+  let previewN = 0;
+  const nextScene = () => {
     if (state.started) return;
-    drive.s += 300 + Math.random() * 2500;
-    state.map = pick(MAPS.length, state.map); skipWarm = true; applyMap(); skipWarm = false;
-    const ts = TIMES.filter((t) => t.hour !== null);
-    env.setTime(ts[Math.floor(Math.random() * ts.length)].hour);
-  }, 3000);
+    veil.classList.add('on');
+    setTimeout(() => {
+      if (state.started) return;
+      drive.s += 300 + Math.random() * 2500;
+      if (previewN++ % 2) state.map = pick(MAPS.length, state.map);
+      skipWarm = true; applyMap(); skipWarm = false;
+      const ts = TIMES.filter((t) => t.hour !== null);
+      env.setTime(ts[Math.floor(Math.random() * ts.length)].hour);
+      // chờ 2 khung hình (khung đầu là khung nặng) rồi mới sáng lại; cảnh hiện đủ PREVIEW.scene rồi mới hẹn lần đổi sau
+      requestAnimationFrame(() => requestAnimationFrame(() => { veil.classList.remove('on'); sceneT = setTimeout(nextScene, PREVIEW.scene); }));
+    }, PREVIEW.fade);
+  };
+  let sceneT = setTimeout(nextScene, PREVIEW.scene);
   const camT = setInterval(() => {
     if (state.started) return;
-    const inCar = cars.current && cars.dim?.eye && Math.random() < 0.5;   // trong xe: chỉ khi xe đã tải xong
+    const inCar = cars.current && cars.dim?.eye && state.cam !== PREVIEW_CAMS[1];   // trong xe: chỉ khi xe đã tải xong; xen kẽ
     state.cam = PREVIEW_CAMS[inCar ? 1 : 0]; rig.setMode(state.cam); onCamChange();
-  }, 5000);
+  }, PREVIEW.cam);
   cars.onProgress = (f) => setBtn(el.car, '🚗', 'Đang tải… ' + Math.round(f * 100) + '%');
   // cây / bụi / đá chi tiết: tải song song; xong thì dựng lại địa hình để cụm đá dùng model đá thật
   nature.load('assets/models/nature.glb').then(() => {
@@ -1670,16 +1685,17 @@ async function init() {
   }).catch((e) => console.warn('Không tải được người lái', e));
   const go = (mode) => {
     if (state.started) return;
-    clearInterval(sceneT); clearInterval(camT);
+    clearTimeout(sceneT); clearInterval(camT);
     state.mode = mode;
     // trả lại cảnh như trước màn hình chờ, rồi vào map của chế độ (Drive: Phố với bộ cài đặt riêng của phố)
     state.map = mode === 'drive' ? CITY_MAP : snap.map; curMapId = null;
     scopes.world = { weather: snap.weather, time: snap.time, cam: snap.cam };
     restoreScope(snap);
-    if (state.quality !== snap.quality) { state.quality = snap.quality; applyQuality(false); }
+    $('veil').classList.remove('on');
+    state.started = true;
+    state.quality = snap.quality; applyQuality(false);              // trả mức chất lượng + độ phân giải đầy đủ
     applyMap();
     start.classList.add('gone');
-    state.started = true;
     showModeName(mode);
     wakeFrom = performance.now() + 1200; document.body.classList.add('playing');
     applyCine();

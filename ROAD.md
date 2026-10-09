@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -271,9 +271,11 @@
   🚦 giao thông (map Phố), ⛶ (điện thoại). Nút cũ fast/stop/car/character/map còn trong DOM nhưng ẩn (JS cũ vẫn cập nhật).
   **Màn hình vào game**: tiêu đề + 2 hộp chọn chế độ `#m-chill` "Chill" (map ngắm cảnh, `nextMap` bỏ qua Phố; đang ở Phố thì
   về Đồi cỏ; có đoạn mở đầu) / `#m-drive` "Drive" (vào thẳng map Phố, không đoạn 180 km/h, phím M chỉ báo "chỉ có map Phố");
-  phím Enter/1 = Chill, 2 = Drive (`state.mode`). Không còn "chạm bất kỳ để bắt đầu". Nền mờ blur 3.5 px. Màn hình chờ: cảnh nền
-  tự đổi ngẫu nhiên mỗi 3 s (map + nhảy đoạn đường + giờ; không biên dịch trước `skipWarm`), camera ngẫu nhiên Quay quanh /
-  Trong xe mỗi 5 s; màn hình chờ luôn chạy chất lượng Low (`applyQuality(false)` không ghi đè lựa chọn đã lưu), vào game trả lại
+  phím Enter/1 = Chill, 2 = Drive (`state.mode`). Không còn "chạm bất kỳ để bắt đầu". Nền mờ blur 3.5 px. Màn hình chờ (`PREVIEW` trong main:
+  scene 9 s, cam 4.5 s, fade 0.5 s, ratio 0.5): cảnh đổi qua màn đen `#veil` (tối dần 0.5 s → nhảy đoạn đường, lần chẵn đổi cả map +
+  giờ → chờ 2 khung hình (khung nặng: biên dịch shader map mới, dựng địa hình) → sáng lại; hẹn lần sau bằng setTimeout nối tiếp nên
+  mỗi cảnh hiện đủ 9 s); camera xen kẽ Quay quanh / Trong xe mỗi 4.5 s; xe chạy tốc độ thường của map (`gears()[0]`, không 180 km/h)
+  tới khi bấm Chill / Drive; vẽ ở pixelRatio 0.5 (nền đã blur); màn hình chờ luôn chạy chất lượng Low (`applyQuality(false)` không ghi đè lựa chọn đã lưu), vào game trả lại
   mức chú chọn; `saveScope` bỏ qua khi chưa vào game; vào game trả lại map / thời tiết / giờ / camera đã chụp (`snap`).
   Mỗi lần vào chế độ: tên "Chill" / "Drive" hiện giữa màn hình 1 s rồi mờ dần (`#modename`). Setting có nút 🔀 đổi chế độ
   (`setGameMode`; Chill quay về map ngắm cảnh lần trước).
@@ -307,5 +309,8 @@
   trạm thu phí), màn hình chờ chạy Low, bản đồ tròn (Drive), nút lái trái / phải trên điện thoại, cầu vượt cao qua quốc lộ 4 làn,
   cầu dây văng qua sông, bảng chỉ đường lớn kiểu Việt Nam, đèn cầu ban đêm + cây bờ sông + thuyền.
 - **#1 — Đại lộ: dời cầu cao (700 m) + cầu sông (2.2 km) về gần đầu đường, vào Đại lộ bắt đầu ở 150 m (09/10/2026)**.
+- **#4 — Màn hình chờ nhẹ hơn (09/10/2026)**: đo trên máy ảo — đổi cảnh mỗi 3 s + 180 km/h làm khung đầu sau mỗi lần đổi map
+  rất nặng (biên dịch 15–25 shader / map mới, dựng địa hình); nay 9 s / cảnh qua màn đen, 25 km/h, 0.5 điểm ảnh: p50 khung 1417 → 967 ms,
+  p90 6750 → 2817 ms (máy ảo vẽ bằng CPU, chỉ so tương đối).
 - **#3 — Bảng 🚦: nút bật / tắt chấm điểm, bật lại thì tính lại từ đầu (09/10/2026)**.
 - **#2 — Cải thiện dần (09/10/2026)**: bản đồ phóng to ẩn HUD bị đè; đệm chống va + dải bê tông ở mũi nhánh Đại lộ; xe tải / container; xi nhan (xe mình + NPC, lỗi đổi làn / vào nhánh không xi nhan); biển giới hạn tốc độ trên HUD + camera bắn tốc độ Đại lộ; bảng chấm điểm buổi lái (J); sửa cảnh tai nạn Đại lộ (kẹt) + trên nhánh rẽ / cầu cạn; `check-traffic*.mjs` PASS lại (test còn so đèn pha 85, nay so `HEADLIGHT_DEFAULTS.intensity` × 0.24).
