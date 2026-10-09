@@ -22,6 +22,8 @@ const BACK_PER_LN = 25;            // m lùi thêm cho mỗi đơn vị ln(hệ 
 const NEAR_MAX = 9;                // bán kính mặc định 10 m - 9 m = có thể tiến sát người còn 1 m
 const NEAR_PER_LN = 18;
 const ORBIT_HOLD = 2;              // sau khi người dùng chỉnh camera, dừng tự quay đủ 2 giây
+// cài đặt cảnh dừng xe (bảng 🅿️): thời gian giảm tốc tới dừng, khoảng lùi máy khi tự zoom ra, thời gian zoom ra, quay quanh xe / người
+export const PARK_DEFAULTS = Object.freeze({ stopTime: 3.2, zoom: BACK_MAX, zoomTime: ZOOM_OUT_T, orbitCar: 0 });
 const SMOKE_REST_FIRST = 8, SMOKE_REST_SECOND = 12, SMOKE_REST_MIN = 12, SMOKE_REST_SPAN = 12;
 
 // Cảnh dừng xe: cận cảnh bánh xe chậm dần -> cửa mở, người bước ra, đi vòng lên trước đầu xe, quay mặt sang phải,
@@ -55,6 +57,8 @@ export class StopScene {
     this.orbitA = null;
     this.orbitHold = 0;
     this.enterRadius = 10;
+    this.tune = { ...PARK_DEFAULTS };
+    this._ctr = new THREE.Vector3();
     this.cyc = { t: 0, n: 0, rest: SMOKE_REST_FIRST };     // nhịp hút thuốc
     this.mouthCorr = new THREE.Vector3();
     this.wd = { mode: 'idle', t: 0, dur: 4, face: null, target: new THREE.Vector3() };   // đi lanh quanh
@@ -151,7 +155,7 @@ export class StopScene {
       z.near -= nearUse * NEAR_PER_LN; ln -= nearUse;
       const toMin = Math.log(z.focal / FOCAL_MIN), use = Math.min(ln, toMin);
       z.focal /= Math.exp(use); ln -= use;
-      if (ln > 0) z.back = Math.min(BACK_MAX, z.back + ln * BACK_PER_LN);
+      if (ln > 0) z.back = Math.min(Math.max(BACK_MAX, this.tune.zoom), z.back + ln * BACK_PER_LN);
     } else if (ln < 0) {
       const use = Math.min(-ln, z.back / BACK_PER_LN);
       z.back -= use * BACK_PER_LN; ln += use;
@@ -170,7 +174,8 @@ export class StopScene {
   // tốc độ xe trong lúc dừng: giảm đều, dừng hẳn sau ~3 giây
   speed(v, dt) {
     if (this.state !== 'stopping') return 0;
-    return Math.max(0, v - Math.max(1.5, this.v0 / 3.2) * dt);
+    const T = Math.max(0.5, this.tune.stopTime);
+    return Math.max(0, v - Math.max(4.8 / T, this.v0 / T) * dt);
   }
 
   // dt: giây; carRoot: Object3D của xe (để đổi toạ độ xe -> thế giới); speed: tốc độ xe hiện tại
@@ -260,11 +265,12 @@ export class StopScene {
     if (wantWide && a.on) {
       // một thang zoom liên tục: ln(26/16) giảm tiêu cự, rồi BACK_MAX / BACK_PER_LN lùi máy
       a.t += dt;
-      const lnF = Math.log(WIDE_FOCAL / FOCAL_MIN), L = ease(a.t / ZOOM_OUT_T) * (lnF + BACK_MAX / BACK_PER_LN);
+      const ZT = Math.max(0.1, this.tune.zoomTime);
+      const lnF = Math.log(WIDE_FOCAL / FOCAL_MIN), L = ease(a.t / ZT) * (lnF + this.tune.zoom / BACK_PER_LN);
       z.focal = WIDE_FOCAL / Math.exp(Math.min(L, lnF));
       z.back = Math.max(0, L - lnF) * BACK_PER_LN;
       z.near = 0;
-      if (a.t >= ZOOM_OUT_T) a.on = false;
+      if (a.t >= ZT) a.on = false;
     }
     const kz = 1 - Math.exp(-dt * 6);
     z.focalS += (z.focal - z.focalS) * kz; z.backS += (z.back - z.backS) * kz; z.nearS += (z.near - z.nearS) * kz;
@@ -276,7 +282,11 @@ export class StopScene {
     this.person.head.getWorldPosition(cam.focus);
     cam.focal = 32; cam.range = 0.8;
     if (w > 1e-3) {
-      const center = this.person.root.getWorldPosition(this._t1).addScaledVector(UP, 0.95);
+      // tâm quay: người (mặc định) hoặc xe (cài đặt); lúc quay lại xe luôn về người. Tâm trượt mượt khi đổi.
+      const onCar = this.tune.orbitCar && this.state !== 'enter';
+      const want = onCar ? carRoot.getWorldPosition(this._t1).addScaledVector(UP, 0.8) : this.person.root.getWorldPosition(this._t1).addScaledVector(UP, 0.95);
+      if (this.orbitA === null) this._ctr.copy(want); else this._ctr.lerp(want, 1 - Math.exp(-dt * 3));
+      const center = this._ctr;
       if (this.orbitA === null) this.orbitA = Math.atan2(P.x - center.x, P.z - center.z);
       if (this.orbitHold > 0) this.orbitHold = Math.max(0, this.orbitHold - dt);
       else this.orbitA += dt * 0.1 * w;

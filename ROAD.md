@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -183,6 +183,8 @@
   trong ngoặc bên phải): Speed (F; hiện "50 km/h"/"180 km/h" khi đang ở cấp đó) · Pause (P; "Resume" khi đang đỗ) · Car (C/V) ·
   Camera (Q) · Driver (X) · Map (M) · Weather (R) · Time (T). Góc phải dưới: biểu tượng máy ảnh nét sáng (chụp ảnh, phím O) +
   hộp Setting (K) mở thanh nút cũ `#bar` thành cột dọc: camera/thời tiết/thời gian (mở bảng chỉnh), nhạc (N), chất lượng,
+  🅿️ Dừng xe (`stop.tune`, lưu mục `park`: thời gian giảm tốc tới dừng 0.5–10 s, độ zoom ra = m lùi xa khi tự zoom 0–40,
+  thời gian zoom ra, camera quay quanh Nhân vật / Xe — nút bấm; lúc quay lại xe tâm luôn về người, tâm trượt mượt),
   💡 Lighting (đèn pha xe chú, đèn đường, hệ số `lightTune`: quầng + cỡ đèn giao thông, cửa sổ, biển hiệu, đèn xe khác, đèn ưu tiên),
   🚦 giao thông (map Phố), ⛶ (điện thoại). Nút cũ fast/stop/car/character/map còn trong DOM nhưng ẩn (JS cũ vẫn cập nhật).
   Vào game luôn ẩn (`body.idle` từ đầu; bỏ qua cú bấm Start 1.2 s); chỉ rê chuột / chạm / kéo xoay mới hiện (mờ dần 0.7 s),
@@ -218,3 +220,4 @@
 - **#2 — Tai nạn: chú bước ra, cảnh sát tới trước mặt, không xuyên xe (09/10/2026)**: xem mục Map Phố.
 - **#3 — Đèn giao thông rõ màu, bớt chói, quầng rộng hơn (09/10/2026)**.
 - **#4 — Bảng 🚦: nút Bật/Tắt + tự dừng đèn đỏ (09/10/2026)**.
+- **#5 — Cài đặt chế độ P (thời gian dừng, zoom, quay quanh xe/người) (09/10/2026)**.

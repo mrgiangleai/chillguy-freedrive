@@ -17,7 +17,7 @@ import { Post } from './post.js';
 import { installMist, MIST } from './mist.js';
 import { WetReflection } from './reflection.js';
 import { Person } from './person.js';
-import { StopScene } from './stopscene.js';
+import { StopScene, PARK_DEFAULTS } from './stopscene.js';
 import { Nature } from './nature.js';
 import { RearMirror } from './mirror.js';
 import { WingMirrors } from './wingmirrors.js';
@@ -287,6 +287,7 @@ try {
   if (savedTuning?.environment) Object.assign(env.tune, savedTuning.environment);
   if (savedTuning?.traffic) Object.assign(trafficTune, savedTuning.traffic);
   if (savedTuning?.lighting) Object.assign(lightTune, savedTuning.lighting);
+  if (savedTuning?.park) Object.assign(stop.tune, savedTuning.park);
   if (savedTuning?.carLights) Object.assign(cars.headlights.tune, savedTuning.carLights);
   if (savedTuning?.streetLights) Object.assign(scenery.lampTune, savedTuning.streetLights);
 } catch { /* thông số cũ/hỏng: dùng mặc định trong code */ }
@@ -318,6 +319,7 @@ function refreshUI() {
   el.time.classList.toggle('on', tuneKind === 'time');
   $('b-traffic').classList.toggle('on', tuneKind === 'traffic');
   $('b-lighting').classList.toggle('on', tuneKind === 'lighting');
+  $('b-park').classList.toggle('on', tuneKind === 'park');
   el.full.hidden = !(CAN_FS && IS_PHONE);          // nút toàn màn hình chỉ có trên điện thoại (máy tính: phím U)
   setBtn(el.full, isFS() ? '🗗' : '⛶', isFS() ? 'Thoát toàn màn hình' : 'Toàn màn hình');
   // lối tắt bên trái
@@ -628,7 +630,7 @@ const ENV_FIELDS = [
 ];
 const tunePanel = $('tunepanel'), tuneMode = $('tune-mode'), tuneFields = $('tune-fields');
 const saveTuning = () => {
-  try { localStorage.setItem(TUNE_KEY, JSON.stringify({ camera: rig.tune, weather: env.weatherProfiles, environment: env.tune, carLights: cars.headlights.tune, streetLights: scenery.lampTune, traffic: trafficTune, lighting: lightTune })); } catch { /* chế độ riêng tư */ }
+  try { localStorage.setItem(TUNE_KEY, JSON.stringify({ camera: rig.tune, weather: env.weatherProfiles, environment: env.tune, carLights: cars.headlights.tune, streetLights: scenery.lampTune, traffic: trafficTune, lighting: lightTune, park: stop.tune })); } catch { /* chế độ riêng tư */ }
 };
 const addHeading = (text) => { const h = document.createElement('h4'); h.textContent = text; tuneFields.append(h); };
 const addNumber = ({ label, min, max, step, get, set }) => {
@@ -651,10 +653,10 @@ const addChoice = ({ label, options, get, set }) => {
   select.onchange = () => { set(Number(select.value)); saveTuning(); }; row.append(name, select); tuneFields.append(row);
 };
 // nút bật / tắt (bấm là đổi ngay, không cần thả danh sách)
-const addToggle = ({ label, get, set }) => {
+const addToggle = ({ label, get, set, names = ['Tắt', 'Bật'] }) => {
   const row = document.createElement('label'), name = document.createElement('span'), btn = document.createElement('button');
   name.textContent = label; btn.type = 'button'; btn.className = 'tog';
-  const show = () => { const on = !!get(); btn.textContent = on ? 'Bật' : 'Tắt'; btn.classList.toggle('on', on); };
+  const show = () => { const on = !!get(); btn.textContent = names[on ? 1 : 0]; btn.classList.toggle('on', on); };
   btn.onclick = (e) => { e.preventDefault(); set(get() ? 0 : 1); saveTuning(); show(); };
   show(); row.append(name, btn); tuneFields.append(row);
 };
@@ -682,6 +684,16 @@ renderTune = () => {
     addNumber({ label: 'Số người đi bộ', min: 0, max: 80, step: 1, get: () => trafficTune.walkers, set: (v) => { trafficTune.walkers = v; applyTrafficTune(); } });
     addHeading('Đèn giao thông');
     addNumber({ label: 'Độ dài pha đèn (×)', min: 0.3, max: 3, step: 0.1, get: () => trafficTune.signal, set: (v) => { trafficTune.signal = v; applyTrafficTune(); } });
+    return;
+  }
+  if (tuneKind === 'park') {
+    tuneMode.hidden = true;
+    $('tune-title').textContent = 'Chế độ dừng xe (P)';
+    const T = stop.tune;
+    addNumber({ label: 'Thời gian dừng xe (s)', min: 0.5, max: 10, step: 0.1, get: () => T.stopTime, set: (v) => { T.stopTime = v; } });
+    addNumber({ label: 'Độ zoom ra (m lùi xa)', min: 0, max: 40, step: 0.5, get: () => T.zoom, set: (v) => { T.zoom = v; } });
+    addNumber({ label: 'Thời gian zoom ra (s)', min: 0.5, max: 20, step: 0.5, get: () => T.zoomTime, set: (v) => { T.zoomTime = v; } });
+    addToggle({ label: 'Camera quay quanh', names: ['Nhân vật', 'Xe'], get: () => T.orbitCar, set: (v) => { T.orbitCar = v; } });
     return;
   }
   if (tuneKind === 'lighting') {
@@ -763,6 +775,7 @@ $('tune-reset').onclick = () => {
   else if (tuneKind === 'time') { env.resetTune(); env.setTime(TIMES[state.time].hour); }
   else if (tuneKind === 'carLight') Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS);
   else if (tuneKind === 'traffic') { Object.assign(trafficTune, TRAFFIC_DEFAULTS); applyTrafficTune(); }
+  else if (tuneKind === 'park') Object.assign(stop.tune, PARK_DEFAULTS);
   else if (tuneKind === 'lighting') { Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS); Object.assign(scenery.lampTune, STREETLIGHT_DEFAULTS); Object.assign(lightTune, LIGHT_DEFAULTS); applyLightTune(); }
   else Object.assign(scenery.lampTune, STREETLIGHT_DEFAULTS);
   saveTuning(); refreshUI(); renderTune();
@@ -774,6 +787,7 @@ el.weather.onclick = () => openTune('weather');
 el.time.onclick = () => openTune('time');
 $('b-traffic').onclick = () => (tuneKind === 'traffic' ? closeTune() : openTune('traffic'));
 $('b-lighting').onclick = () => (tuneKind === 'lighting' ? closeTune() : openTune('lighting'));
+$('b-park').onclick = () => (tuneKind === 'park' ? closeTune() : openTune('park'));
 el.music.onclick = nextMusic;
 const toggleSettings = () => { $('bar').hidden = !$('bar').hidden; refreshUI(); };
 for (const [id, fn] of [['q-speed', () => toggleFast()], ['q-pause', () => toggleStop()], ['q-car', () => nextCar()], ['q-cam', () => nextCam()],
