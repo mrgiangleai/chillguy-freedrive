@@ -252,6 +252,17 @@ function refreshUI() {
   $('b-traffic').classList.toggle('on', tuneKind === 'traffic');
   el.full.hidden = !(CAN_FS && IS_PHONE);          // nút toàn màn hình chỉ có trên điện thoại (máy tính: phím U)
   setBtn(el.full, isFS() ? '🗗' : '⛶', isFS() ? 'Thoát toàn màn hình' : 'Toàn màn hình');
+  // lối tắt bên trái
+  const q = (id, text, title, on = false) => { const b = $(id); b.textContent = text; b.title = title; b.classList.toggle('on', on); return b; };
+  q('q-speed', drive.gear > 0 ? Math.round(GEARS[drive.gear] * 3.6) + ' km/h' : 'Speed', 'Tốc độ: ' + Math.round(GEARS[drive.gear] * 3.6) + ' km/h (phím F)', drive.gear > 0);
+  q('q-pause', stop.state === 'parked' ? 'Resume' : 'Pause', stop.state === 'parked' ? 'Đi tiếp (phím P)' : 'Dừng xe (phím P)', stop.active);
+  q('q-car', 'Car', 'Xe: ' + (cars.list[state.car]?.name ?? '…') + ' (phím C)');
+  q('q-cam', 'Camera', 'Camera: ' + CAMERAS[state.cam].name + ' (phím Q)');
+  q('q-driver', 'Driver', 'Nhân vật: ' + (state.character === 1 ? 'Chisa' : 'Người lái') + ' (phím X)').disabled = el.character.disabled;
+  q('q-map', 'Map', 'Map: ' + MAPS[state.map].name + ' (phím M)');
+  q('q-weather', 'Weather', 'Thời tiết: ' + WEATHERS[state.weather].name + ' (phím R)');
+  q('q-time', 'Time', 'Thời gian: ' + TIMES[state.time].name + ' (phím T)');
+  q('q-setting', 'Setting', 'Cài đặt (phím K)', !$('bar').hidden);
 }
 function loadQuality() {
   try { const i = QUALITY.findIndex((q) => q.id === localStorage.getItem('chilldrive.quality')); if (i >= 0) return i; } catch { /* không có localStorage */ }
@@ -625,6 +636,11 @@ el.weather.onclick = () => openTune('weather');
 el.time.onclick = () => openTune('time');
 $('b-traffic').onclick = () => (tuneKind === 'traffic' ? closeTune() : openTune('traffic'));
 el.music.onclick = nextMusic;
+const toggleSettings = () => { $('bar').hidden = !$('bar').hidden; refreshUI(); };
+for (const [id, fn] of [['q-speed', () => toggleFast()], ['q-pause', () => toggleStop()], ['q-car', () => nextCar()], ['q-cam', () => nextCam()],
+  ['q-driver', () => nextCharacter()], ['q-map', () => nextMap()], ['q-weather', () => nextWeather()], ['q-time', () => nextTime()], ['q-setting', toggleSettings]]) {
+  $(id).onclick = (e) => { fn(); e.currentTarget.blur(); };
+}
 $('b-info').onclick = () => { const c = $('credits'); c.hidden = !c.hidden; };
 
 // ---------- input ----------
@@ -632,20 +648,22 @@ window.addEventListener('keydown', (e) => {
   if (e.repeat) { keys.add(e.code); return; }
   keys.add(e.code);
   switch (e.code) {
-    case 'KeyC': nextCam(); break;
+    case 'KeyC': nextCar(); break;               // lối tắt: Car (C), Camera (Q), Driver (X), Map (M), Weather (R), Time (T), Setting (K)
+    case 'KeyV': nextCar(); break;
+    case 'KeyQ': nextCam(); break;
+    case 'KeyX': nextCharacter(); break;
+    case 'KeyM': nextMap(); break;
+    case 'KeyN': nextMusic(); break;
     case 'KeyH': document.body.classList.toggle('hidehud'); break;
-    case 'KeyM': nextMusic(); break;
     case 'KeyT': nextTime(); break;
     case 'KeyR': nextWeather(); break;
-    case 'KeyV': nextCar(); break;
-    case 'KeyN': nextMap(); break;
     case 'KeyF': toggleFast(); break;
     case 'KeyG': toggleMistPanel(); break;
     case 'KeyL': toggleLensPanel(); break;
-    case 'KeyQ': nextQuality(); break;
     case 'KeyP': toggleStop(); break;
     case 'KeyU': toggleFS(); break;
-    case 'KeyK': shotPending = true; break;
+    case 'KeyK': toggleSettings(); break;
+    case 'KeyO': shotPending = true; break;
   }
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
@@ -720,7 +738,7 @@ let idleTimer = 0;
 const wake = () => {
   document.body.classList.remove('idle');
   clearTimeout(idleTimer);
-  idleTimer = setTimeout(() => document.body.classList.add('idle'), 4500);
+  idleTimer = setTimeout(() => document.body.classList.add('idle'), 5000);   // lối tắt / nút tự ẩn sau 5 s, rê chuột / chạm để hiện lại
 };
 ['pointermove', 'pointerdown', 'keydown', 'touchstart'].forEach((ev) => window.addEventListener(ev, wake, { passive: true }));
 wake();

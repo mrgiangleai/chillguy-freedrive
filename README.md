@@ -39,11 +39,11 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 | `A` `D` / `←` `→` | đánh lái sang trái / phải (buông tay xe tự về giữa làn) |
 | `W` `S` / `↑` `↓` | tăng / giảm tốc độ (10–40 km/h) |
 | `F` | đổi cấp tốc độ 25 → 50 → 180 km/h (Fast drive) · `G` bảng sương mù |
-| `C` | đổi camera · `V` đổi xe · `N` đổi map · `R` đổi thời tiết · `T` đổi giờ · `M` đổi chế độ âm thanh |
+| `C` / `V` | đổi xe · `Q` đổi camera · `X` đổi nhân vật · `M` đổi map · `R` đổi thời tiết · `T` đổi giờ · `N` đổi chế độ âm thanh |
 | `+` `-` | zoom (tiêu cự 16–35 mm) · `L` bảng ống kính (tiêu cự + khẩu độ) |
-| `Q` | đổi mức chất lượng Low / Good / Ultra |
+| `K` | mở / đóng Setting (camera, thời tiết, thời gian, nhạc, chất lượng, giao thông) |
 | `P` | dừng xe (cảnh người bước ra) / đi tiếp |
-| `K` | chụp ảnh màn hình (nút 📸) |
+| `O` | chụp ảnh màn hình (biểu tượng máy ảnh góc phải dưới) |
 | `Space` / `B` | phanh (giữ) — map Phố, nút PHANH trên điện thoại |
 | `H` | ẩn / hiện giao diện |
 | `U` | bật / tắt toàn màn hình (nút ⛶) |
