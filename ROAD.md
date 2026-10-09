@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -151,7 +151,7 @@
   số người đi bộ, độ dài pha đèn × (`city.clockRate`).
   Thử Low: ~50 xe + ~38 người quanh xe, xe máy/người qua ngã tư theo đèn, cảnh tai nạn chạy trọn ~30 s. Chưa xem trên máy thật;
   chưa có ảnh rõ cảnh sát/cấp cứu; người lái bị bắt là hình dựng (không phải model nhân vật).
-- **Giao diện (HUD)**: bên trái là cột lối tắt hộp chữ thưa (`#quick .qbox`, cùng cỡ 136×38, chữ in hoa giãn .34em, phím
+- **Giao diện (HUD)**: bên trái là cột lối tắt hộp chữ thưa (`#quick .qbox`, cùng cỡ 104×54 — điện thoại 86×34, chữ hoa chữ đầu + thường giãn .22em, phím
   trong ngoặc bên phải): Speed (F; hiện "50 km/h"/"180 km/h" khi đang ở cấp đó) · Pause (P; "Resume" khi đang đỗ) · Car (C/V) ·
   Camera (Q) · Driver (X) · Map (M) · Weather (R) · Time (T). Góc phải dưới: biểu tượng máy ảnh nét sáng (chụp ảnh, phím O) +
   hộp Setting (K) mở thanh nút cũ `#bar` thành cột dọc: camera/thời tiết/thời gian (mở bảng chỉnh), nhạc (N), chất lượng,
@@ -190,3 +190,6 @@
 
 - **#3 — Giao diện mới: cột lối tắt bên trái + Setting (09/10/2026)**: xem mục Giao diện. Đổi phím: C đổi xe, Q camera,
   X nhân vật, M map, N nhạc, K Setting, O chụp ảnh (README cập nhật). Thử Low máy tính 1280×720 + điện thoại ngang 844×390.
+
+- **#4 — Hộp lối tắt gần vuông, chữ thường (09/10/2026)**: 136×38 → 104×54 (điện thoại 86×34), bỏ in hoa ("Speed", "Pause"…);
+  điện thoại: ⓘ dời sang phải để khỏi đè hộp Speed.

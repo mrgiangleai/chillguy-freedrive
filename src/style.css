@@ -164,9 +164,9 @@ body.intro #brake { display: none; }
 /* ---- lối tắt bên trái (hộp chữ thưa) + góc phải dưới: chụp ảnh + Setting ---- */
 #quick { position: absolute; left: max(18px, env(safe-area-inset-left)); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 9px; }
 .qrow { display: flex; align-items: center; gap: 10px; }
-.qbox { width: 136px; height: 38px; padding: 0 16px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .26);
-  background: rgba(255, 255, 255, .09); color: #fff; font: 500 12.5px/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .34em;
-  text-indent: .34em; text-transform: uppercase; white-space: nowrap; overflow: hidden; cursor: pointer;
+.qbox { width: 104px; height: 54px; padding: 0 10px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .26);
+  background: rgba(255, 255, 255, .09); color: #fff; font: 500 12.5px/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .22em;
+  text-indent: .22em; white-space: nowrap; overflow: hidden; cursor: pointer;
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: background .2s, border-color .2s; }
 .qbox:hover, .qbox:focus-visible { background: rgba(255, 255, 255, .2); border-color: rgba(255, 255, 255, .5); outline: none; }
 .qbox:active { background: rgba(255, 255, 255, .28); }
@@ -180,7 +180,7 @@ body.cine #corner { bottom: max(14px, calc(var(--bar) / 2 - 19px)); }
   filter: drop-shadow(0 0 5px rgba(255, 255, 255, .55)) drop-shadow(0 1px 3px rgba(0, 0, 0, .5)); transition: transform .15s, color .2s; }
 .lineicon:hover { color: #fff; transform: scale(1.08); }
 /* bảng Setting: thanh nút cũ thành cột dọc phía trên nút Setting */
-#bar { left: auto !important; right: max(18px, env(safe-area-inset-right)) !important; bottom: calc(max(18px, env(safe-area-inset-bottom)) + 52px) !important;
+#bar { left: auto !important; right: max(18px, env(safe-area-inset-right)) !important; bottom: calc(max(18px, env(safe-area-inset-bottom)) + 66px) !important;
   transform: none !important; flex-direction: column; align-items: stretch; border-radius: 16px; max-width: none !important; overflow: visible; }
 #bar[hidden] { display: none; }
 #bar button { border-radius: 10px; }
@@ -189,8 +189,9 @@ body.cine #corner { bottom: max(14px, calc(var(--bar) / 2 - 19px)); }
 #credits { bottom: auto; top: 56px; }
 @media (max-height: 500px), (max-width: 640px) {
   #quick { gap: 6px; }
-  .qbox { width: 112px; height: 30px; font-size: 11px; letter-spacing: .26em; text-indent: .26em; padding: 0 10px; }
+  .qbox { width: 86px; height: 34px; font-size: 11px; letter-spacing: .18em; text-indent: .18em; padding: 0 6px; border-radius: 9px; }
   .qrow kbd { font-size: 10.5px; }
   #corner { gap: 10px; }
+  #b-info { left: calc(max(14px, env(safe-area-inset-left)) + 128px) !important; top: max(8px, env(safe-area-inset-top)) !important; }
   #bar { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 42px) !important; }
 }
