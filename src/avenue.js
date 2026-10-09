@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { AVENUE, IC, icS, icIndex, rampU, TOLL, tollS, FLY, flyS, flyIndex, RIVER, riverS, riverIndex } from './road.js';
+import { AVENUE, IC, icS, icIndex, rampU, TOLL, tollS, CAM, camS, camIndex, FLY, flyS, flyIndex, RIVER, riverS, riverIndex } from './road.js';
 import { hLow } from './terrain-noise.js';
 import { withMist } from './mist.js';
 import { broadleafGeometry } from './scenery.js';
@@ -49,6 +49,17 @@ function signTexture() {
     g.fillText('TRẠM THU PHÍ', x + 256, y + 95); g.font = `38px ${FONT}`; g.fillStyle = '#ffd34a'; g.fillText('ETC · THU PHÍ TỰ ĐỘNG', x + 256, y + 180);
   }
   round(11, '40');
+  { // 12: biển báo khu vực camera giám sát tốc độ (nền xanh dương, hình máy ảnh trắng)
+    const [x, y] = cell(12);
+    g.fillStyle = '#1d56b8'; g.fillRect(x + 4, y + 4, 504, 248);
+    g.strokeStyle = '#fff'; g.lineWidth = 7; g.strokeRect(x + 14, y + 14, 484, 228);
+    g.fillStyle = '#fff'; g.fillRect(x + 40, y + 88, 120, 80); g.fillRect(x + 70, y + 72, 40, 20);
+    g.fillStyle = '#1d56b8'; g.beginPath(); g.arc(x + 100, y + 128, 28, 0, 7); g.fill();
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(x + 100, y + 128, 16, 0, 7); g.fill();
+    g.textAlign = 'left'; g.textBaseline = 'middle';
+    g.font = `bold 52px ${FONT}`; g.fillText('CAMERA', x + 190, y + 80);
+    g.font = `40px ${FONT}`; g.fillText('Giám sát', x + 190, y + 138); g.fillText('tốc độ', x + 190, y + 186);
+  }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   return t;
 }
@@ -239,6 +250,8 @@ export class Avenue {
     this.icGroups.clear();
     for (const T of (this.tolls || new Map()).values()) this._dispose(T.group);
     this.tolls?.clear();
+    for (const C of (this.cams || new Map()).values()) this._dispose(C.group);
+    this.cams?.clear();
     for (const g of (this.bigGroups || new Map()).values()) this._dispose(g);
     this.bigGroups?.clear(); this.flys?.clear(); this.rivers?.clear();
     this.ics.clear();
@@ -445,6 +458,10 @@ export class Avenue {
       if (d > -600 && d < 1900 && !this.tolls.has(k)) this.tolls.set(k, this._buildToll(k));
     }
     for (const [k, T] of this.tolls) { const d = tollS(k) - s; if (d < -700 || d > 2000) { this._dispose(T.group); this.tolls.delete(k); } }
+    this.cams ||= new Map();
+    for (let k = camIndex(s - 600); k <= camIndex(s + 1900); k++) { const d = camS(k) - s; if (d > -600 && d < 1900 && !this.cams.has(k)) this.cams.set(k, this._buildCam(k)); }
+    for (const [k, C] of this.cams) { const d = C.s - s; if (d < -700 || d > 2000) { this._dispose(C.group); this.cams.delete(k); } }
+    this._camFx(dt);
     this._exclusions(s);
     const k0 = Math.max(0, Math.floor((s - BEHIND) / CHUNK)), k1 = Math.floor((s + AHEAD) / CHUNK);
     const want = [];
@@ -460,6 +477,7 @@ export class Avenue {
     this.group.remove(g);
     g.traverse((o) => {
       if (o.isInstancedMesh) o.dispose();
+      if (o.isSprite) { o.material.dispose(); return; }                       // hình học sprite dùng chung của three
       if (o.geometry && o.geometry !== this.treeGeo && !this.boatGeos.includes(o.geometry)) o.geometry.dispose();
     });
     const m = g.userData.signMat;
@@ -926,6 +944,7 @@ export class Avenue {
     for (const dir of [1, -1]) {
       for (const [tt, cell] of [[-1000, 8], [-500, 9]]) { const t = tt * dir; post(t, dir * 14.4, 3.8, 0.07); post(t, dir * 17.4, 3.8, 0.07); sign(t - dir * 0.1, dir * 15.9, dir, 3.4, 1.7, 2.0, cell); }
       for (const tt of [-250, -120]) { const t = tt * dir; post(t, dir * 14.4, 3.2, 0.05); sign(t - dir * 0.08, dir * 14.4, dir, 1.0, 1.0, 2.2, 11, true); }
+      { const t = 120 * dir; post(t, dir * 14.4, 3.2, 0.05); sign(t - dir * 0.08, dir * 14.4, dir, 1.0, 1.0, 2.2, 4, true); }   // hết đoạn 40: lại 120
     }
     // barie mỗi làn ở vạch t = 0 (theo chiều xe): bản lề ở đảo bên phải làn, cần sọc đỏ trắng vươn sang trái
     const arms = [];
@@ -954,6 +973,91 @@ export class Avenue {
     group.userData.armGeo = armGeo;
     this.group.add(group);
     return { k, s: s0, group, arms };
+  }
+
+  // cột camera bắn tốc độ (mỗi chiều 1 cột bên phải, tay vươn qua 2 làn ngoài, 2 hộp camera + đèn chớp), biển "CAMERA giám sát"
+  // 500 m + 250 m trước, biển tốc độ trên cột. Đèn chớp: sprite trắng, `flashCam(dir)` bật, tắt dần trong `_camFx(dt)`
+  _buildCam(k) {
+    const road = this.road, group = new THREE.Group(), s0 = camS(k);
+    const Hs = { pos: [], nor: [], col: [], idx: [] }, S = { pos: [], nor: [], uv: [], idx: [] }, Mt = { pos: [], nor: [], idx: [] };
+    const push = (B, P, n, extra) => {
+      const b = B.pos.length / 3;
+      P.forEach((q, i) => { B.pos.push(q[0], q[1], q[2]); B.nor.push(n[0], n[1], n[2]); if (B.uv) B.uv.push(...extra[i]); if (B.col) B.col.push(...extra); });
+      const ax = P[1][0] - P[0][0], ay = P[1][1] - P[0][1], az = P[1][2] - P[0][2], bx = P[2][0] - P[0][0], by = P[2][1] - P[0][1], bz = P[2][2] - P[0][2];
+      const c = [ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx];
+      if (c[0] * n[0] + c[1] * n[1] + c[2] * n[2] >= 0) B.idx.push(b, b + 1, b + 2, b, b + 2, b + 3); else B.idx.push(b, b + 2, b + 1, b, b + 3, b + 2);
+    };
+    const P3 = (t, u, h) => { const q = road.at(s0 + t, {}); return [q.x + Math.cos(q.th) * u, q.y + h, q.z - Math.sin(q.th) * u]; };
+    const q0 = road.at(s0, {}), rx = Math.cos(q0.th), rz = -Math.sin(q0.th), fx = -Math.sin(q0.th), fz = -Math.cos(q0.th);
+    const box = (B, t0, t1, u0, u1, h0, h1, col) => {
+      if (t0 > t1) [t0, t1] = [t1, t0];
+      if (u0 > u1) [u0, u1] = [u1, u0];
+      const F = [[[t0, u0, h1], [t1, u0, h1], [t1, u1, h1], [t0, u1, h1], [0, 1, 0]], [[t0, u0, h0], [t1, u0, h0], [t1, u1, h0], [t0, u1, h0], [0, -1, 0]],
+        [[t0, u0, h0], [t1, u0, h0], [t1, u0, h1], [t0, u0, h1], [-rx, 0, -rz]], [[t0, u1, h0], [t1, u1, h0], [t1, u1, h1], [t0, u1, h1], [rx, 0, rz]],
+        [[t0, u0, h0], [t0, u1, h0], [t0, u1, h1], [t0, u0, h1], [-fx, 0, -fz]], [[t1, u0, h0], [t1, u1, h0], [t1, u1, h1], [t1, u0, h1], [fx, 0, fz]]];
+      for (const f of F) push(B, f.slice(0, 4).map((p) => P3(...p)), f[4], col);
+    };
+    const sign = (t, u, dir, w, hh, h0, cell, round) => {
+      const [u0, v0, u1, v1] = signUV(cell, round), q = road.at(s0 + t, {}), n = [Math.sin(q.th) * dir, 0, Math.cos(q.th) * dir];
+      const a = u - dir * w / 2, b = u + dir * w / 2;
+      push(S, [P3(t, a, h0), P3(t, b, h0), P3(t, b, h0 + hh), P3(t, a, h0 + hh)], n, [[u0, v0], [u1, v0], [u1, v1], [u0, v1]]);
+    };
+    const post = (t, u, h, w) => box(Mt, t - w, t + w, u - w, u + w, 0, h, null);
+    const DARK = [0.13, 0.14, 0.16], GREY = [0.55, 0.56, 0.58], WHITE = [0.9, 0.9, 0.88];
+    const flashes = [];
+    this.flashTex ||= (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+      const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(235,245,255,0.7)'); gr.addColorStop(1, 'rgba(200,220,255,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
+    })();
+    for (const dir of [1, -1]) {
+      const sd = dir;
+      box(Mt, -0.16, 0.16, sd * 14.44, sd * 14.76, 0, 7.4, null);                     // cột
+      box(Mt, -0.07, 0.07, sd * 7.2, sd * 14.6, 7.0, 7.16, null);                     // tay vươn
+      for (const l of [5.75, 9.25]) {                                                 // hộp camera nhìn về phía xe tới (chếch xuống)
+        const u = sd * l, tf = -dir * 0.32;
+        box(Mt, -0.03, 0.03, u - 0.03, u + 0.03, 6.7, 7.0, null);
+        box(Hs, -0.3, 0.3, u - 0.17, u + 0.17, 6.42, 6.72, GREY);
+        box(Hs, tf - 0.03 * dir, tf, u - 0.11, u + 0.11, 6.47, 6.67, DARK);           // mặt kính
+        box(Hs, -0.18, 0.18, u + sd * 0.26, u + sd * 0.5, 6.45, 6.69, WHITE);          // đèn chớp
+      }
+      box(Hs, -0.25, 0.25, sd * 14.0, sd * 14.4, 2.0, 2.7, GREY);                       // tủ điện
+      sign(-dir * 0.2, sd * 14.6, dir, 1.0, 1.0, 3.2, 4, true);                           // 120 trên cột
+      for (const tt of [-500, -250]) {                                                // biển báo trước
+        const t = tt * dir; post(t, sd * 14.4, 3.8, 0.07); post(t, sd * 17.4, 3.8, 0.07); sign(t - dir * 0.1, sd * 15.9, dir, 3.4, 1.7, 2.0, 12);
+      }
+      for (const l of [5.75, 9.25]) {
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.flashTex, color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+        sp.position.set(...P3(-dir * 0.4, sd * (l + 0.38), 6.57)); sp.scale.set(3, 3, 1); sp.visible = false; group.add(sp);
+        flashes.push({ dir, sp });
+      }
+    }
+    const mk = (B, mat) => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(B.pos, 3));
+      g.setAttribute('normal', new THREE.Float32BufferAttribute(B.nor, 3));
+      if (B.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(B.uv, 2));
+      if (B.col) g.setAttribute('color', new THREE.Float32BufferAttribute(B.col, 3));
+      g.setIndex(B.idx);
+      const m = new THREE.Mesh(g, mat); m.castShadow = m.receiveShadow = true; group.add(m);
+    };
+    mk(Hs, this.houseMat); mk(S, this.signMat); mk(Mt, this.metalMat);
+    this.group.add(group);
+    return { k, s: s0, group, flashes, fx: 0 };
+  }
+
+  // camera chớp (chú chạy quá tốc độ): đèn chớp trắng 2 lần ở cột gần nhất phía trước / vừa qua
+  flashCam(s, dir = 1) {
+    for (const C of this.cams?.values() ?? []) if (Math.abs(C.s - s) < 60) { C.fx = 0.0001; C.dir = dir; }
+  }
+  _camFx(dt) {
+    for (const C of this.cams?.values() ?? []) {
+      if (!C.fx) continue;
+      C.fx += dt;
+      const a = C.fx < 0.12 ? 1 : C.fx < 0.25 ? 0 : C.fx < 0.37 ? 1 : 0;           // chớp 2 lần
+      for (const f of C.flashes) { f.sp.visible = a > 0 && f.dir === C.dir; f.sp.material.opacity = a; }
+      if (C.fx > 0.5) C.fx = 0;
+    }
   }
 
   _build(k) {

@@ -31,6 +31,18 @@ export function tollDist(s, dir) {
   return d;
 }
 export const icIndex = (s) => Math.max(0, Math.round((s - IC.first) / IC.period));
+// camera bắn tốc độ (đại lộ): cột đầu ở 1450 m (giữa cầu cao và cầu sông), rồi mỗi 3 km từ 6200 m (700 m sau trạm phí / cầu)
+export const CAM = { first0: 1450, first: 6200, period: 3000, tol: 5 };
+export const camS = (k) => (k <= 0 ? CAM.first0 : CAM.first + (k - 1) * CAM.period);
+export const camIndex = (s) => (s < (CAM.first0 + CAM.first) / 2 ? 0 : 1 + Math.max(0, Math.round((s - CAM.first) / CAM.period)));
+// tốc độ tối đa (km/h) trên cao tốc theo biển: 40 quanh trạm phí (biển ở 250 m trước, hết 120 m sau), 100 quanh nút giao
+// (biển 100 ở t = −700, biển 120 ở t = 620), còn lại 120. Nhánh ra / vào: 60 (main tự xét)
+export function avLimit(s, dir = 1) {
+  const x = (s - tollS(Math.round((s - TOLL.first) / TOLL.period))) * dir;
+  if (x > -250 && x < 120) return 40;
+  const t = (s - icS(icIndex(s))) * dir;
+  return t > -700 && t < 620 ? 100 : 120;
+}
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 // Cầu vượt cao (FLY): mỗi 12 km (cái đầu ở 700 m), cao tốc nhô lên 12 m thành cầu cạn trên trụ, bắc qua quốc lộ 4 làn nằm trong
 // hào sâu 3 m (tĩnh không ~13 m). Cầu qua sông (RIVER): mỗi 12 km (cái đầu ở 2200 m), cao tốc nhô 8 m thành cầu cạn dài qua thung lũng sông

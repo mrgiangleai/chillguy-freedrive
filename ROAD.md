@@ -227,6 +227,12 @@
   Ở Phố / Đại lộ: đổi làn (cùng chiều) không bật đúng bên => "↔ Đổi làn không bật xi nhan!" (cộng `violations`); vào nhánh ra
   không bật xi nhan phải => lỗi; đổi map / bị bắt xong không tính. NPC: hộp đèn vàng 4 góc (`lamps()` cờ `ind`, `aFlash` 3/4),
   nháy theo `aBlink` (±1) khi đang đổi làn (`c.changing`) hoặc rẽ nhánh. `__app.blinker / violations` để kiểm thử.
+  **Giới hạn tốc độ + camera** (`updateSpeedLimit` trong main, `avLimit / CAM / camS / camIndex` trong road.js): biển tròn `#limit`
+  cạnh số km/h ở Phố / Đại lộ — Phố 50 (biển phố đổi 40 → 50), Đại lộ 120, 100 quanh nút giao (t −700…620), 40 quanh trạm phí
+  (−250…+120, sau trạm có biển 120), nhánh 60; vượt quá 5 km/h => số tốc độ đỏ. Cột camera (`avenue._buildCam`, s = 1450 rồi
+  6200 + 3000k, mỗi chiều 1 cột phải + tay vươn qua 2 làn ngoài, 2 hộp camera + đèn chớp, biển 120 trên cột, biển xanh "CAMERA giám sát
+  tốc độ" ô atlas 12 ở −500 / −250): đang quá tốc độ thì báo trước ~300 m, qua cột => đèn chớp 2 lần (`flashCam`) + toast
+  "📸 Camera bắn tốc độ … (lỗi thứ n)". Bản đồ tròn: chấm đỏ ở vị trí camera. Phố chưa có camera.
   **Va chạm vật lý** (`crashfx.js` + `impact()` trong main): xe mình chúi đầu + nảy ngang, rung camera mạnh tắt dần ~0.6 s,
   tiếng "rầm" + kim loại (`audio.crash`), đâm > ~20 km/h tương đối thì khói bốc từ capo 4–10 s (48 sprite dùng lại); xe bị đâm
   trôi theo lực (`slide` ≤ 9 m/s, giảm 7 m/s²). Map khác: đụng xe NPC cũng khựng + rung + khói (không cảnh sát), hồi 2.5 s.
@@ -290,4 +296,4 @@
   trạm thu phí), màn hình chờ chạy Low, bản đồ tròn (Drive), nút lái trái / phải trên điện thoại, cầu vượt cao qua quốc lộ 4 làn,
   cầu dây văng qua sông, bảng chỉ đường lớn kiểu Việt Nam, đèn cầu ban đêm + cây bờ sông + thuyền.
 - **#1 — Đại lộ: dời cầu cao (700 m) + cầu sông (2.2 km) về gần đầu đường, vào Đại lộ bắt đầu ở 150 m (09/10/2026)**.
-- **#2 — Cải thiện dần (09/10/2026)**: bản đồ phóng to ẩn HUD bị đè; đệm chống va + dải bê tông ở mũi nhánh Đại lộ; xe tải / container; xi nhan (xe mình + NPC, lỗi đổi làn / vào nhánh không xi nhan).
+- **#2 — Cải thiện dần (09/10/2026)**: bản đồ phóng to ẩn HUD bị đè; đệm chống va + dải bê tông ở mũi nhánh Đại lộ; xe tải / container; xi nhan (xe mình + NPC, lỗi đổi làn / vào nhánh không xi nhan); biển giới hạn tốc độ trên HUD + camera bắn tốc độ Đại lộ.

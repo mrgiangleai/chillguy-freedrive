@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ROAD, ROAD_HW, CITY, AVENUE, IC, icS, icIndex, rampU, avHump, TOLL, tollDist, riverIndex, Road } from './road.js';
+import { ROAD, ROAD_HW, CITY, AVENUE, IC, icS, icIndex, rampU, avHump, TOLL, tollDist, riverIndex, CAM, camS, camIndex, avLimit, Road } from './road.js';
 import { Avenue } from './avenue.js';
 import { Minimap } from './minimap.js';
 import { City, SIGNAL } from './city.js';
@@ -727,6 +727,25 @@ function updateBlinker(dt) {
   blinkLane = lane;
 }
 let blinkDone = 0;
+// giới hạn tốc độ (map Drive): biển tròn cạnh đồng hồ — Phố 50, Đại lộ theo biển (`avLimit`: 120 / 100 quanh nút giao / 40 quanh
+// trạm phí), trên nhánh 60; số tốc độ đỏ khi vượt quá 5 km/h. Đại lộ: qua cột camera mà đang quá tốc độ => đèn chớp + lỗi
+let camPrevS = null, camWarned = -1, limitShown = -1;
+function updateSpeedLimit() {
+  const on = cityTraffic.visible && state.started && !stop.active && !incident.active;
+  const lim = !on ? 0 : onAvenue() ? (drive.ramp != null ? 60 : avLimit(drive.s, 1)) : 50;
+  if (lim !== limitShown) { limitShown = lim; $('limit').hidden = !lim; $('limit').textContent = lim; }
+  const kmh = drive.v * 3.6, over = lim > 0 && kmh > lim + CAM.tol;
+  $('speed').parentElement.classList.toggle('over', over);
+  if (!on || !onAvenue() || drive.ramp != null) { camPrevS = null; return; }
+  const k = camIndex(drive.s + 400), cs = camS(k), ahead = cs - drive.s;
+  if (ahead > 0 && ahead < 320 && over && camWarned !== k) { camWarned = k; toast(`📷 Phía trước có camera bắn tốc độ — giới hạn ${lim} km/h`); }
+  const front = drive.s + (cars.dim?.length ?? 4) / 2;
+  if (camPrevS !== null && camPrevS < cs && front >= cs && front - camPrevS < 60 && over) {
+    violations++; avenue.flashCam(cs, 1); audio.tick(true);
+    toast(`📸 Camera bắn tốc độ: ${Math.round(kmh)} km/h — giới hạn ${lim} (lỗi thứ ${violations})`, true);
+  }
+  camPrevS = front;
+}
 // điện thoại: nút lái trái / phải hai bên hộp Space (giữ để lái như phím ← / →)
 let steerHeld = 0;
 if (IS_PHONE) document.body.classList.add('phone');
@@ -1445,6 +1464,7 @@ function frame(now) {
   avenue.update(drive.s, 1, dt); avenue.setLamps(st.lamps);
   minimap.update(dt);
   updateBlinker(dt);
+  updateSpeedLimit();
   city.update(drive.s, st.lamps, dt, 1, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   // map Phố: vượt vạch dừng khi đèn đỏ => báo lỗi
   if (city.visible && state.started && !stop.active && cars.dim) {

@@ -130,7 +130,7 @@ function roadSignTexture() {
     // 2
     g.fillStyle = '#fff'; g.beginPath(); g.arc(320, 64, 60, 0, 7); g.fill();
     g.strokeStyle = '#c8161d'; g.lineWidth = 12; g.beginPath(); g.arc(320, 64, 52, 0, 7); g.stroke();
-    g.fillStyle = '#1b3f9a'; g.font = 'bold 54px Arial, sans-serif'; g.fillText('40', 320, 68);
+    g.fillStyle = '#1b3f9a'; g.font = 'bold 54px Arial, sans-serif'; g.fillText('50', 320, 68);
     // 3
     g.fillStyle = '#1b4fb4'; g.beginPath(); g.arc(448, 64, 58, 0, 7); g.fill();
     g.strokeStyle = '#c8161d'; g.lineWidth = 11; g.beginPath(); g.arc(448, 64, 53, 0, 7); g.stroke();

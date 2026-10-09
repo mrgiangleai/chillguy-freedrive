@@ -1,4 +1,4 @@
-import { ROAD, CITY, IC, tollS, TOLL } from './road.js';
+import { ROAD, CITY, IC, tollS, TOLL, camS, camIndex } from './road.js';
 
 // Bản đồ tròn (góc phải giữa màn hình): vẽ 2D từ dữ liệu thật của thế giới — đường (road.pts), đường ngang + khối nhà map Phố,
 // nút giao / nhánh / đường gom / nhà / trạm thu phí map Đại lộ, xe khác, xe mình (mũi tên). Thu nhỏ: bám xe, quay theo hướng xe
@@ -143,6 +143,11 @@ export class Minimap {
       for (let k = Math.max(0, k0); k <= k1; k++) {
         const q = road.at(tollS(k), {});
         g.save(); g.translate(q.x, q.z); g.rotate(-q.th); g.fillStyle = '#2f5fae'; g.fillRect(-hw - 2, -12, hw * 2 + 4, 24); g.restore();
+      }
+      for (let k = camIndex(sNow - span * 1.6); k <= camIndex(sNow + span * 1.6); k++) {   // camera bắn tốc độ: chấm đỏ viền trắng bên phải
+        const q = road.at(camS(k), {}), r = Math.max(5, 6 / z);
+        g.beginPath(); g.arc(q.x + Math.cos(q.th) * (hw + r), q.z - Math.sin(q.th) * (hw + r), r, 0, Math.PI * 2);
+        g.fillStyle = '#d93025'; g.strokeStyle = '#fff'; g.lineWidth = Math.max(1.5, 2 / z); g.fill(); g.stroke();
       }
     }
     // ---- xe khác ----
