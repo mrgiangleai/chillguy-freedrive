@@ -212,7 +212,8 @@ body.cine #corner { bottom: max(14px, calc(var(--bar) / 2 - 19px)); }
 .lineicon:hover { color: #fff; transform: scale(1.08); }
 /* bảng Setting: thanh nút cũ thành cột dọc phía trên nút Setting */
 #bar { left: auto !important; right: max(18px, env(safe-area-inset-right)) !important; bottom: calc(max(18px, env(safe-area-inset-bottom)) + 70px) !important;
-  transform: none !important; flex-direction: column; align-items: stretch; border-radius: 16px; max-width: none !important; overflow: visible; }
+  transform: none !important; flex-direction: column; align-items: stretch; border-radius: 16px; max-width: none !important; overflow: visible;
+  max-height: calc(100vh - 200px); overflow-y: auto; }
 #bar[hidden] { display: none; }
 #bar button { border-radius: 10px; }
 #bar span { display: inline !important; }
@@ -225,6 +226,8 @@ body.cine #corner { bottom: max(14px, calc(var(--bar) / 2 - 19px)); }
   #corner { gap: 10px; }
   #b-info { left: calc(max(14px, env(safe-area-inset-left)) + 100px) !important; top: max(8px, env(safe-area-inset-top)) !important; }
   #bar { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 42px) !important; }
+  /* màn thấp (điện thoại nằm ngang): cột Setting xếp 2 cột, không tràn lên đồng hồ tốc độ; còn dài thì cuộn */
+  #bar:not([hidden]) { display: grid !important; grid-template-columns: repeat(2, auto); max-height: calc(100vh - 150px); overflow-y: auto; }
 }
 #bar button { font-weight: 300; }
 
@@ -254,6 +257,12 @@ body:not(.playing) #stats { opacity: 0; }
 #minimap .mm-close { top: 12%; right: 12%; }
 #minimap .mm-center { bottom: 16%; right: 12%; color: #1a73e8; }
 #minimap.off, body:not(.playing) #minimap { display: none; }
+/* cột Setting đang mở: bản đồ tròn trượt sang trái cạnh cột; màn nhỏ (điện thoại) thì mờ ẩn */
+#minimap:not(.big) { transition: right .3s ease, opacity .25s ease; }
+body.setopen:not(.idle) #minimap:not(.big) { right: calc(max(18px, env(safe-area-inset-right)) + var(--barw, 180px) + 14px); }
+@media (max-height: 500px), (max-width: 640px) {
+  body.setopen:not(.idle) #minimap:not(.big) { right: max(18px, env(safe-area-inset-right)); opacity: 0; pointer-events: none; }
+}
 @media (max-height: 500px), (max-width: 640px) { #minimap:not(.big) { width: 104px; height: 104px; } }
 /* đang xem bản đồ lớn: ẩn các hộp HUD bị bản đồ đè (lối tắt trái, góc phải, Space, nút lái) */
 body.mapopen #quick, body.mapopen #corner, body.mapopen #brake, body.mapopen .steer { opacity: 0 !important; pointer-events: none !important; transition: opacity .25s ease; }

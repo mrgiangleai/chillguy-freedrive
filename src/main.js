@@ -1043,7 +1043,13 @@ $('b-lighting').onclick = () => (tuneKind === 'lighting' ? closeTune() : openTun
 $('b-mode').onclick = () => { if (state.started) setGameMode(state.mode === 'drive' ? 'chill' : 'drive'); };
 $('b-park').onclick = () => (tuneKind === 'park' ? closeTune() : openTune('park'));
 el.music.onclick = nextMusic;
-const toggleSettings = () => { $('bar').hidden = !$('bar').hidden; refreshUI(); };
+// mở cột Setting (góc phải): bản đồ tròn trượt sang trái cạnh cột (điện thoại: ẩn đi) để không che nút
+const toggleSettings = () => {
+  const bar = $('bar'); bar.hidden = !bar.hidden;
+  document.body.classList.toggle('setopen', !bar.hidden);
+  if (!bar.hidden) document.body.style.setProperty('--barw', bar.offsetWidth + 'px');
+  refreshUI();
+};
 for (const [id, fn] of [['q-speed', () => toggleFast()], ['q-pause', () => toggleStop()], ['q-car', () => nextCar()], ['q-cam', () => nextCam()],
   ['q-driver', () => nextCharacter()], ['q-map', () => nextMap()], ['q-weather', () => nextWeather()], ['q-time', () => nextTime()], ['q-setting', toggleSettings]]) {
   $(id).onclick = (e) => { fn(); e.currentTarget.blur(); };

@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -268,7 +268,8 @@
   🅿️ Dừng xe (`stop.tune`, lưu mục `park`: thời gian giảm tốc tới dừng 0.5–10 s, độ zoom ra = m lùi xa khi tự zoom 0–40,
   thời gian zoom ra, camera quay quanh Nhân vật / Xe — nút bấm; lúc quay lại xe tâm luôn về người, tâm trượt mượt),
   💡 Lighting (đèn pha xe chú, đèn đường, hệ số `lightTune`: quầng + cỡ đèn giao thông, cửa sổ, biển hiệu, đèn xe khác, đèn ưu tiên),
-  🚦 giao thông (map Phố), ⛶ (điện thoại). Nút cũ fast/stop/car/character/map còn trong DOM nhưng ẩn (JS cũ vẫn cập nhật).
+  🚦 giao thông (map Phố), ⛶ (điện thoại). Mở cột Setting (`body.setopen`, `--barw` = bề rộng cột): bản đồ tròn trượt sang trái cạnh
+  cột; màn thấp / hẹp (điện thoại) thì bản đồ mờ ẩn và cột Setting xếp 2 cột (`grid`, cao tối đa 100vh − 150px, cuộn nếu dài). Nút cũ fast/stop/car/character/map còn trong DOM nhưng ẩn (JS cũ vẫn cập nhật).
   **Màn hình vào game**: tiêu đề + 2 hộp chọn chế độ `#m-chill` "Chill" (map ngắm cảnh, `nextMap` bỏ qua Phố; đang ở Phố thì
   về Đồi cỏ; có đoạn mở đầu) / `#m-drive` "Drive" (vào thẳng map Phố, không đoạn 180 km/h, phím M chỉ báo "chỉ có map Phố");
   phím Enter/1 = Chill, 2 = Drive (`state.mode`). Không còn "chạm bất kỳ để bắt đầu". Nền mờ blur 3.5 px. Màn hình chờ (`PREVIEW` trong main:
@@ -309,6 +310,7 @@
   trạm thu phí), màn hình chờ chạy Low, bản đồ tròn (Drive), nút lái trái / phải trên điện thoại, cầu vượt cao qua quốc lộ 4 làn,
   cầu dây văng qua sông, bảng chỉ đường lớn kiểu Việt Nam, đèn cầu ban đêm + cây bờ sông + thuyền.
 - **#1 — Đại lộ: dời cầu cao (700 m) + cầu sông (2.2 km) về gần đầu đường, vào Đại lộ bắt đầu ở 150 m (09/10/2026)**.
+- **#5 — Mở Setting không bị bản đồ che (09/10/2026)**: máy tính trượt bản đồ sang trái; điện thoại ẩn bản đồ + Setting 2 cột.
 - **#4 — Màn hình chờ nhẹ hơn (09/10/2026)**: đo trên máy ảo — đổi cảnh mỗi 3 s + 180 km/h làm khung đầu sau mỗi lần đổi map
   rất nặng (biên dịch 15–25 shader / map mới, dựng địa hình); nay 9 s / cảnh qua màn đen, 25 km/h, 0.5 điểm ảnh: p50 khung 1417 → 967 ms,
   p90 6750 → 2817 ms (máy ảo vẽ bằng CPU, chỉ so tương đối).
