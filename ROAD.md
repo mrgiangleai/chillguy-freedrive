@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -177,7 +177,15 @@
   độ ×2, làn trong nhanh ×1.12 / làn ngoài ×0.84, không xe máy, không ngã tư; vượt sang làn bên cạnh ưu tiên làn trong). Xe mình
   làn giữa 5.75, không qua dải phân cách; cấp tốc độ `AV_GEARS` 80 / 100 / 180 km/h, chỉnh tay tới 120. Bộ cài đặt riêng
   `chilldrive.avenue` (lần đầu lấy bộ của Phố, `SCOPED`); dùng chung bảng 🚦 + giao thông ngẫu nhiên. Cảnh tai nạn dùng
-  `cityTraffic.lanes`. Đang làm tiếp: nút giao + cầu vượt, biển báo, trạm thu phí.
+  `cityTraffic.lanes`. **Nút giao** (`IC` trong road.js: mỗi 3 km, nút đầu ở s = 1500): cao tốc nhô lên 7.5 m (`avHump`, đỉnh
+  phẳng ±40 m, dốc tới ±260 m) thành cầu vượt (bản mặt cầu + thành bê tông ±21 m, 2 hàng 3 trụ + xà mũ) qua đường ngang 2 làn
+  (±4.6 m, vạch vàng đôi, ±420 m, bằng nền ±60 m rồi theo địa hình) chui dưới cầu. Mỗi chiều 1 cặp nhánh kiểu kim cương
+  (`rampU(t)`: làn giảm tốc từ làn ngoài t = −480…−400, lệch dần ra |u| = 45 ở đường ngang, nhánh vào đối xứng sau cầu), đi ở cao
+  độ nền (`road.baseY`). Địa hình: `terrain.extraCarve` → `avenue.carve` (kênh đường ngang mái 45° dưới cầu + nền nhánh); cỏ:
+  `reeds` `uExcl` 16 đoạn loại cỏ (`avenue.excl`); hộ lan hở ở 300 < |t| < 495 (`scenery.railGap`). Xe mình: ở t −490…−390 lái
+  sang phải quá vạch mép ngoài => `drive.ramp` (vị trí ngang lướt theo rampU, cao độ nền), hết nhánh tự về làn ngoài + toast.
+  NPC làn ngoài 22% rẽ nhánh (≤ 50 km/h trên nhánh); xe đường ngang (`c.xr`, ±420 m, tốc độ phố) nhường xe đang qua chỗ nhánh
+  cắt đường ngang; dưới cầu (|u| < 16) không tính va chạm. Đang làm tiếp: biển báo, trạm thu phí.
   Khu chung cư (~9% lô mặt tiền, `apartment` trong `_build`): tòa nhà lùi 11 m, công viên nhỏ (cỏ `lawnMat`, hàng rào cây, cây tán
   tròn `broadleafGeometry`, ghế), bậc thang lên sân sảnh (sàn tầng trệt = sân), ban công 3D từng tầng (sàn + lan can); mẫu A 10–13
   tầng bậc hẹp 4 cây, mẫu B 6–8 tầng bậc rộng + ghế; nhà bên trong khối chừa chỗ. Bảng 🚦 có "Thêm xe của chú": xe model
@@ -245,3 +253,4 @@
   màn hình chọn Chill / Drive (cảnh nền tự đổi, nút đổi chế độ, tên chế độ giữa màn hình).
 
 - **#1 — Map Đại lộ bước 1: cao tốc 6 làn, dải phân cách, cỏ, giao thông 6 làn, nhóm Drive (09/10/2026)**. `compileFor` dùng `renderer.compile` (đồng bộ) thay `compileAsync` (lỗi `isReady` khi đổi map liên tục).
+- **#2 — Map Đại lộ bước 2: nút giao, cầu vượt, đường ngang có xe, nhánh ra / vào đi thử được (09/10/2026)**.

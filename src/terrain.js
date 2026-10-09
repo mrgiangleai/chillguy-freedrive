@@ -237,6 +237,7 @@ export class Terrain {
       // map núi: chân vách sát lề cũng lồi lõm (khối đá nhô ra ngay sau lề phẳng; không đào rãnh xuống thấp hơn mặt đường)
       if (side && this._nl < 0) h = Math.max(ry, h + Math.max(rel, -8) * sstep(HW + 1.5, HW + 8, this._nd) * (1 - t));
     }
+    if (this.extraCarve) h = this.extraCarve(x, z, h);          // map Đại lộ: đường ngang dưới cầu + nhánh rẽ
     return h;
   }
 

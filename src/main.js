@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ROAD, ROAD_HW, CITY, AVENUE, Road } from './road.js';
+import { ROAD, ROAD_HW, CITY, AVENUE, IC, icS, icIndex, rampU, avHump, Road } from './road.js';
 import { Avenue } from './avenue.js';
 import { City, SIGNAL } from './city.js';
 import { CityTraffic } from './cityTraffic.js';
@@ -117,7 +117,11 @@ const traffic = new Traffic(scene, cars);     // thỉnh thoảng có xe chạy 
 traffic.stopFor = (s, dir, v) => city.stopAhead(s, dir, v);   // xe NPC dừng đèn đỏ (map Phố)
 const cityTraffic = new CityTraffic(scene, road, city);      // map Phố: xe dựng bằng code, 4 làn + đường ngang
 const cityPeople = new CityPeople(scene, road, city);        // map Phố: người đi bộ
-const avenue = new Avenue(scene, road);                      // map Đại lộ: vạch kẻ 6 làn + dải phân cách (xe: cityTraffic chế độ avenue)
+const avenue = new Avenue(scene, road, scenery.cityTex);     // map Đại lộ: vạch kẻ 6 làn + dải phân cách + nút giao (xe: cityTraffic chế độ avenue)
+terrain.extraCarve = (x, z, h) => avenue.carve(x, z, h);
+scenery.railGap = (s) => avenue.visible && avenue.railGap(s);
+meadow.exclusions = avenue.excl;
+cityTraffic.avenue = avenue;
 cityTraffic.setup(scene, cars.softTex, camera);
 const crashFx = new CrashFx(scene, cars.softTex);   // va chạm: rung mạnh + khói đầu xe
 const _hood = new THREE.Vector3();
@@ -177,7 +181,8 @@ const incident = new CityIncident(cityTraffic, cityPeople, {   // map Phố: đ�
     drive.v = 0;
     // bắt đầu lại: xe về đúng làn ngoài bên phải, dọn xe / người đang chồng chỗ đó, 3 s không tính va chạm (khỏi bị bắt lặp lại)
     drive.home = cityTraffic.lanes[1]; drive.d = drive.home; drive.latVel = 0; drive.manual = false;
-    cityTraffic.cars = cityTraffic.cars.filter((c) => c.cross || c.script || Math.abs(c.d - drive.d) > 2.6 || c.s < drive.s - 14 || c.s > drive.s + 22);
+    drive.ramp = null;
+    cityTraffic.cars = cityTraffic.cars.filter((c) => c.cross || c.xr || c.script || Math.abs(c.d - drive.d) > 2.6 || c.s < drive.s - 14 || c.s > drive.s + 22);
     for (const p of cityPeople.peds.slice()) if (Math.abs(p.u - drive.d) < 2.5 && Math.abs(p.s - drive.s) < 6) cityPeople.remove(p);
     crashGrace = 3;
     state.cam = CAMERAS.findIndex((c) => c.id === 'chase'); rig.setMode(state.cam); onCamChange(); refreshUI(); crashCam = null;   // bắt đầu lại: luôn camera Sau xe
@@ -496,6 +501,9 @@ const applyMap = () => {
   // map Biển: mực nước thấp hơn chỗ thấp nhất của đường 3 m (xét 120 km đường phía trước)
   if (id === 'sea') { road.ensure(drive.s + 120000); let lo = Infinity; for (const p of road.pts) lo = Math.min(lo, p.y); TP.seaLevel = lo - 3; }
   ocean.setMap(id === 'sea', TP.seaLevel);
+  avenue.visible = isAvenue;    // trước địa hình: khung nút giao để đào kênh đường ngang / nền nhánh rẽ
+  avenue.prime(drive.s);
+  drive.ramp = null;
   scenery.setMap(id);
   terrain.reset();
   terrain.setCar(drive.s);
@@ -508,8 +516,6 @@ const applyMap = () => {
   town.visible = id === 'mountain';
   city.visible = isCity;
   city.prime(drive.s);
-  avenue.visible = isAvenue;
-  avenue.prime(drive.s);
   fireflies.ground.clear();     // độ cao mặt đất nhớ theo hình đường cũ
   traffic.policy.city = isCity;
   if (incident.active) incident.finish();
@@ -1184,14 +1190,28 @@ function frame(now) {
   drive.latVel += (wantLat - drive.latVel) * (1 - Math.exp(-dt * 5));
   drive.d += drive.latVel * dt;
   const lim = ROAD.halfWidth - 0.9;
-  if (Math.abs(drive.d) > lim) { drive.d = Math.sign(drive.d) * lim; drive.latVel = 0; }
+  if (Math.abs(drive.d) > lim && drive.ramp == null) { drive.d = Math.sign(drive.d) * lim; drive.latVel = 0; }
   if (onAvenue() && drive.d < AVENUE.median + 1.25) { drive.d = AVENUE.median + 1.25; drive.latVel = Math.max(0, drive.latVel); }   // đại lộ: không qua dải phân cách
+  // đại lộ: lái sang phải quá vạch mép ngoài ở đoạn làn giảm tốc trước nút giao => vào nhánh ra, đi xuống đường ngang dưới cầu,
+  // qua đường ngang rồi theo nhánh vào leo lại nhập làn ngoài sau cầu (vị trí ngang theo rampU, cao độ nền)
+  if (onAvenue()) {
+    if (drive.ramp == null && !stop.active && !incident.active) {
+      const t = drive.s - icS(icIndex(drive.s));
+      if (t > -490 && t < -390 && drive.d > AVENUE.edge - 0.2) { drive.ramp = icIndex(drive.s); toast('↘ Nhánh ra — xuống đường ngang dưới cầu vượt'); }
+    }
+    if (drive.ramp != null) {
+      const t = drive.s - icS(drive.ramp), u = rampU(t);
+      if (u === null || t > IC.rampLen - 6) { drive.ramp = null; drive.home = AVENUE.lanes[2]; drive.manual = false; say('↗ Đã nhập lại cao tốc'); }
+      else { const d0 = drive.d; drive.d += (u - drive.d) * Math.min(1, dt * 3); drive.latVel = (drive.d - d0) / Math.max(dt, 1e-3); drive.home = drive.d; }
+    }
+  }
 
   // tư thế xe (độ cao + độ dốc theo mặt đường)
   road.ensure(drive.s + 8000);
   road.at(drive.s, roadPt);
-  drive.pos.set(roadPt.x + Math.cos(roadPt.th) * drive.d, roadPt.y, roadPt.z - Math.sin(roadPt.th) * drive.d);
-  const yA = road.at(drive.s - 2.5, {}).y, yB = road.at(drive.s + 2.5, {}).y;
+  const onRamp = drive.ramp != null;                  // nhánh rẽ: đi ở cao độ nền (không theo cầu vượt)
+  drive.pos.set(roadPt.x + Math.cos(roadPt.th) * drive.d, onRamp ? road.baseY(drive.s) : roadPt.y, roadPt.z - Math.sin(roadPt.th) * drive.d);
+  const yA = onRamp ? road.baseY(drive.s - 2.5) : road.at(drive.s - 2.5, {}).y, yB = onRamp ? road.baseY(drive.s + 2.5) : road.at(drive.s + 2.5, {}).y;
   drive.pitch += (Math.atan2(yB - yA, 5) - drive.pitch) * (1 - Math.exp(-dt * 6));
   drive.yaw = roadPt.th - Math.atan2(drive.latVel, Math.max(drive.v, 4)) * 0.9;
 
@@ -1268,6 +1288,7 @@ function frame(now) {
     traffic.playerHome = drive.home; traffic.playerGoal = stop.active ? 0 : drive.goal;
     if (cityTraffic.visible) {
       if (trafficTune.models && !traffic.pool.length && !traffic.loading) traffic._load(cars.current.def.id);
+      cityTraffic.playerRamp = drive.ramp != null ? { k: drive.ramp, s: drive.s } : null;
       cityTraffic.update(dt, drive.s, drive.d, drive.v, st.lamps, cars.dim.length);
       cityPeople.update(dt, drive.s);
       chatter();
@@ -1293,9 +1314,10 @@ function frame(now) {
         if ((car && (drive.v > 1.2 || car.v > 1.2)) || (ped && drive.v > 0.8)) {
           violations++;
           if (car) {
-            const along = car.cross ? 0 : car.v * car.dir, rel = car.cross ? Math.hypot(drive.v, car.v) : Math.abs(drive.v - along);
-            impact(rel, drive.d >= (car.cross ? drive.d : car.d) ? 1 : -1);
-            if (!car.cross) { car.slide = Math.min(9, Math.max(0, drive.v - along) * 0.7); car.slideDir = 1; car.slideLat = car.d - drive.d; }
+            const side = car.cross || car.xr;                 // xe đường ngang (phố / dưới cầu đại lộ)
+            const along = side ? 0 : car.v * car.dir, rel = side ? Math.hypot(drive.v, car.v) : Math.abs(drive.v - along);
+            impact(rel, drive.d >= (side ? drive.d : car.d) ? 1 : -1);
+            if (!side) { car.slide = Math.min(9, Math.max(0, drive.v - along) * 0.7); car.slideDir = 1; car.slideLat = car.d - drive.d; }
           } else impact(drive.v * 0.4, 0);
           crashCam = state.cam;
           state.cam = CAMERAS.findIndex((c) => c.id === 'orbit'); rig.setMode(state.cam); onCamChange(); refreshUI();

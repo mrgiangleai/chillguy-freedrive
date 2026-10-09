@@ -36,6 +36,7 @@ export class CityIncident {
     if (v.ped) return [v.ped.s, v.ped.u];
     const c = v.car;
     if (c.cross) return [this.traffic.road.junction(c.cross.n) + c.cross.a, c.cross.u];
+    if (c.xr) return [this.traffic.xrS(c), c.xr.u];
     return [c.s, c.d];
   }
 

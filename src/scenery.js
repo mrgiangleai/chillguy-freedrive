@@ -418,8 +418,9 @@ export class Scenery {
         road.at(s, p);
         const x = p.x + Math.cos(p.th) * off, z = p.z - Math.sin(p.th) * off;
         rp.set([x, p.y + 0.5, z, x, p.y + 0.82, z], i * 6);
-        if (i < RN) { const a = i * 2; if (side > 0) ri.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); else ri.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
-        if (i % 2 === 0) rposts.push([x, p.y, z]);
+        const gap = this.railGap && (this.railGap(s) || this.railGap(s + STEP));   // đại lộ: hở chỗ nhánh rẽ tách / nhập
+        if (i < RN && !gap) { const a = i * 2; if (side > 0) ri.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); else ri.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+        if (i % 2 === 0 && !(this.railGap && this.railGap(s))) rposts.push([x, p.y, z]);
       }
       const rg = new THREE.BufferGeometry();
       rg.setAttribute('position', new THREE.BufferAttribute(rp, 3));

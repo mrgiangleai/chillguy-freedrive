@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CITY, AVENUE } from './road.js';
+import { CITY, AVENUE, IC, icS, icIndex, rampU } from './road.js';
 import { withMist } from './mist.js';
 import { createHeadlights, placeHeadlights, updateHeadlights } from './headlights.js';
 
@@ -261,19 +261,21 @@ export class CityTraffic {
   }
   // xe đang kẹt ngay sau xe mình (cùng làn, ≤ 30 m, gần như đứng yên)
   stuckBehind(s, d) {
-    return this.cars.filter((c) => !c.cross && !c.script && !c.crashed && c.dir > 0 && Math.abs(c.d - d) < 1.8 && c.s < s && s - c.s < 30 && c.v < 0.6);
+    return this.cars.filter((c) => !c.cross && !c.xr && !c.script && !c.crashed && c.dir > 0 && Math.abs(c.d - d) < 1.8 && c.s < s && s - c.s < 30 && c.v < 0.6);
   }
     // bỏ hết xe model của chú khỏi phố (tắt tuỳ chọn / rời phố)
   releaseModels() {
     this.cars = this.cars.filter((c) => !c.model || c.crashed);
     if (this.pool) for (const v of this.pool()) if (v.cityBusy) { v.cityBusy = false; v.busy = false; v.root.visible = false; }
   }
+  xrS(c) { return icS(c.xr.k) + c.xr.a; }
   remove(c) { const i = this.cars.indexOf(c); if (i >= 0) this.cars.splice(i, 1); }
   // xe (đường chính hoặc đường ngang) chồng lên hình chữ nhật [s ± len/2] × [d ± wid/2] (toạ độ đường chính)
   hitTest(s, d, len, wid) {
     for (const c of this.cars) {
       let cs, cd, cl, cw;
       if (c.cross) { cs = this.road.junction(c.cross.n) + c.cross.a; cd = c.cross.u; cl = c.wid; cw = c.len; }
+      else if (c.xr) { if (Math.abs(c.xr.u) < 16) continue; cs = icS(c.xr.k) + c.xr.a; cd = c.xr.u; cl = c.wid; cw = c.len; }   // dưới cầu: không va xe trên cầu
       else { cs = c.s; cd = c.d; cl = c.len; cw = c.wid; }
       if (Math.abs(cs - s) < (len + cl) / 2 - 0.25 && Math.abs(cd - d) < (wid + cw) / 2 - 0.15) return c;
     }
@@ -296,7 +298,7 @@ export class CityTraffic {
   }
   // làn đường chính còn chỗ tại s (không xe nào trong ±gap)
   _free(s, d, gap) {
-    for (const c of this.cars) if (!c.cross && Math.abs(c.d - d) < 1.8 && Math.abs(c.s - s) < gap) return false;
+    for (const c of this.cars) if (!c.cross && !c.xr && Math.abs(c.d - d) < 1.8 && Math.abs(c.s - s) < gap) return false;
     return true;
   }
 
@@ -357,10 +359,28 @@ export class CityTraffic {
       }
     }
     for (const k of this.crossTimers.keys()) { const n = Math.floor(k / 2); if (n < n0 - 1 || n > n1) this.crossTimers.delete(k); }
+    // ---- đại lộ: xe đường ngang dưới cầu vượt ở các nút giao gần ----
+    const k0 = this.avenue && !cfg.cross ? icIndex(s - 300) : 0, k1 = this.avenue && !cfg.cross ? icIndex(s + 1600) : -1;
+    for (let k = k0; k <= k1; k++) {
+      const off = icS(k) - s;
+      if (off < -300 || off > 1600) continue;
+      for (const du of [1, -1]) {
+        const key = 'x' + k + (du > 0 ? '+' : '-');
+        let tm = this.crossTimers.get(key) ?? Math.random() * 3;
+        tm -= dt;
+        if (tm <= 0) {
+          tm = (4 + Math.random() * 7) / Math.max(0.05, this.density);
+          const u0 = -du * IC.crossLen, busy = this.cars.some((c) => c.xr && c.xr.k === k && c.xr.du === du && Math.abs(c.xr.u - u0) < 16);
+          const t = this._pick();
+          if (!busy && t && t !== 'bus') { const c = this._new(t, { xr: { k, u: u0, a: du > 0 ? -1.75 : 1.75, du } }); c.vMax /= cfg.vK; c.v = c.vMax; this.cars.push(c); }
+        }
+        this.crossTimers.set(key, tm);
+      }
+    }
 
     // ---- chuyển động ----
     const player = { s, d, v, len: playerLen, wid: 1.9, dir: 1, player: true };
-    const main = this.cars.filter((c) => !c.cross);
+    const main = this.cars.filter((c) => !c.cross && !c.xr);
     const ahead = (A, lane) => {              // xe gần nhất phía trước A trong làn lane (đường chính)
       let best = null, bg = Infinity;
       for (const e of main.concat([player])) {
@@ -386,12 +406,21 @@ export class CityTraffic {
         continue;
       }
       let want = c.vMax;
+      // đại lộ: xe làn ngoài đôi khi rẽ vào nhánh ra ở nút giao (22%), đi chậm trên nhánh, qua đường ngang rồi nhập lại
+      if (this.avenue && !cfg.cross && c.ramp == null && Math.abs(Math.abs(c.home) - AVENUE.lanes[2]) < 0.1 && !c.model) {
+        const k = icIndex(c.s), t = (c.s - icS(k)) * c.dir;
+        if (c.rk !== k && t > -485 && t < -460) { c.rk = k; if (Math.random() < 0.22) c.ramp = k; }
+      }
+      if (c.ramp != null) {
+        const t = (c.s - icS(c.ramp)) * c.dir;
+        if (Math.abs(t) < 400) want = Math.min(want, 14);
+      }
       const f = ahead(c, c.d);
       if (f) {
         if (f.e.dir === c.dir || f.e.player) want = Math.min(want, follow(f.e.v * (f.e.dir === c.dir ? 1 : 0), f.gap));
         else want = Math.min(want, Math.max(0, (f.gap - 6) * 0.5));
         // vượt: sang làn cùng chiều bên cạnh khi xe trước chậm và làn kia trống
-        if (!c.changing && f.gap < 35 && f.e.v < c.vMax - 2.5 && (f.e.dir === c.dir || f.e.player)) {
+        if (!c.changing && c.ramp == null && f.gap < 35 && f.e.v < c.vMax - 2.5 && (f.e.dir === c.dir || f.e.player)) {
           // làn cùng chiều bên cạnh: ưu tiên làn trong (vượt bên trái), không có thì làn ngoài
           const li = lanes.indexOf(Math.abs(c.home));
           for (const oi of [li - 1, li + 1]) {
@@ -407,6 +436,12 @@ export class CityTraffic {
       c.v += Math.max(-7 * dt, Math.min(2.2 * dt, want - c.v));
       c.v = Math.max(0, c.v);
       c.s += c.dir * c.v * dt;
+      if (c.ramp != null) {                                  // trên nhánh: vị trí ngang theo rampU
+        const t = (c.s - icS(c.ramp)) * c.dir, u = rampU(t);
+        if (u === null || t > IC.rampLen - 6) { c.ramp = null; c.d = c.home; c.lat = 0; }
+        else { const nd = c.dir * u; c.lat = (nd - c.d) / Math.max(dt, 1e-3); c.d = nd; }
+        continue;
+      }
       const err = c.home - c.d, lv = Math.sign(err) * Math.min(1.3, Math.abs(err) * 2);
       c.lat = lv;
       c.d += lv * dt;
@@ -433,8 +468,30 @@ export class CityTraffic {
       c.v = Math.max(0, c.v);
       X.u += X.du * c.v * dt;
     }
+    // xe đường ngang đại lộ: bám xe trước; nhường xe đang qua chỗ nhánh rẽ cắt đường ngang (|u| = IC.rampU)
+    const rampBusy = (k, side) => (this.playerRamp && this.playerRamp.k === k && side > 0 && Math.abs(this.playerRamp.s - icS(k)) < 32)
+      || main.some((e) => e.ramp === k && e.dir === side && Math.abs(e.s - icS(k)) < 32);
+    for (const c of this.cars) {
+      if (!c.xr) continue;
+      if (c.crashed) { c.v = 0; continue; }
+      const X = c.xr;
+      let want = c.vMax;
+      for (const e of this.cars) {
+        if (e === c || !e.xr || e.xr.k !== X.k || e.xr.du !== X.du) continue;
+        const gap = (e.xr.u - X.u) * X.du - (e.len + c.len) / 2;
+        if (gap > -0.5) want = Math.min(want, follow(e.v, gap));
+      }
+      for (const uc of [IC.rampU, -IC.rampU]) {
+        const dist = (uc - X.u) * X.du - c.len / 2 - 4.5;
+        if (dist > -1 && dist < 45 && rampBusy(X.k, Math.sign(uc))) want = Math.min(want, Math.sqrt(2 * 3 * Math.max(0, dist)));
+      }
+      c.v += Math.max(-7 * dt, Math.min(2.2 * dt, want - c.v));
+      c.v = Math.max(0, c.v);
+      X.u += X.du * c.v * dt;
+    }
     // bỏ xe ra khỏi vùng
-    this.cars = this.cars.filter((c) => (c.crashed || c.script) ? true : c.cross ? cfg.cross && Math.abs(c.cross.u) <= CROSS_R + 2 && c.cross.n >= n0 - 1 : c.s > s - BEHIND - 20 && c.s < s + AHEAD + 40);
+    this.cars = this.cars.filter((c) => (c.crashed || c.script) ? true : c.cross ? cfg.cross && Math.abs(c.cross.u) <= CROSS_R + 2 && c.cross.n >= n0 - 1
+      : c.xr ? !cfg.cross && Math.abs(c.xr.u) <= IC.crossLen + 2 && icS(c.xr.k) - s > -320 && icS(c.xr.k) - s < 1700 : c.s > s - BEHIND - 20 && c.s < s + AHEAD + 40);
 
     // ---- xe mình bám xe trước cùng làn ----
     const fp = ahead(player, d);
@@ -459,14 +516,17 @@ export class CityTraffic {
       const im = this.meshes[c.type], i = counts[c.type]++;
       if (i >= TYPES[c.type].max) continue;
       let yaw;
-      if (c.cross) {
+      if (c.xr) {
+        const P = this.avenue.crossPose(c.xr.k, c.xr.u, c.xr.a, c.xr.du, this._xp || (this._xp = {}));
+        vv.set(P.x, P.y, P.z); yaw = P.yaw;
+      } else if (c.cross) {
         const F = this._frame(c.cross.n);
         const x = F.x + F.fx * c.cross.a + F.rx * c.cross.u, z = F.z + F.fz * c.cross.a + F.rz * c.cross.u;
         vv.set(x, this.city.groundJ(F, c.cross.u) + 0.05, z);
         yaw = F.th + (c.cross.du > 0 ? -Math.PI / 2 : Math.PI / 2);
       } else {
         road.at(c.s, p);
-        vv.set(p.x + Math.cos(p.th) * c.d, p.y + 0.05, p.z - Math.sin(p.th) * c.d);
+        vv.set(p.x + Math.cos(p.th) * c.d, (c.ramp != null ? road.baseY(c.s) : p.y) + 0.05, p.z - Math.sin(p.th) * c.d);
         yaw = p.th + (c.dir < 0 ? Math.PI : 0) - c.dir * Math.atan2(c.lat, Math.max(3, c.v));   // thân xoay theo hướng đổi làn
       }
       q.setFromAxisAngle(this._up, yaw);

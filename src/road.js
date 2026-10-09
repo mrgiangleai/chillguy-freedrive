@@ -14,6 +14,25 @@ const JPOS = [215, 455, 690];
 export const AVENUE = { hw: 13, median: 0.5, lanes: [2.25, 5.75, 9.25], seps: [4.0, 7.5], edge: 11 };
 const HA = (s) => 0.32 * Math.sin(0.0006 * s + 0.4) + 0.18 * Math.sin(0.00137 * s + 1.7);
 const HA0 = HA(0);
+// Nút giao (đại lộ): mỗi IC.period m có 1 cầu vượt tại s = icS(k). Cao tốc nhô lên IC.hump m (dốc ~3.4% trên 220 m, đỉnh
+// phẳng ±40 m) bắc qua đường ngang (vuông góc, ở cao độ nền). Mỗi chiều có 1 cặp nhánh (kiểu kim cương): nhánh ra tách khỏi làn
+// ngoài trước cầu, đi ở cao độ nền (cao tốc lên cầu, nhánh "xuống" dần so với cầu), cắt đường ngang ở |u| = IC.rampU, rồi nhánh vào
+// leo lại nhập làn ngoài sau cầu. rampU(t) = độ lệch ngang theo khung cao tốc (t = s − icS), chiều +s; chiều ngược: u = −rampU(−t).
+export const IC = { period: 3000, first: 1500, hump: 7.5, flat: 40, rise: 260, rampU: 45, rampLen: 480, crossHW: 4.6, crossLen: 420 };
+export const icS = (k) => IC.first + k * IC.period;
+export const icIndex = (s) => Math.max(0, Math.round((s - IC.first) / IC.period));
+const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+export function avHump(s) {
+  const a = Math.abs(s - icS(icIndex(s)));
+  return IC.hump * (1 - sm(IC.flat, IC.rise, a));
+}
+// nhánh rẽ phía phải (chiều +s): t ∈ [−rampLen, rampLen], ngoài khoảng trả null
+export function rampU(t) {
+  const a = Math.abs(t), L = IC.rampLen;
+  if (a > L) return null;
+  if (a > 400) return AVENUE.lanes[2] + (13.5 - AVENUE.lanes[2]) * sm(L, 400, a);    // làn giảm / tăng tốc
+  return 13.5 + (IC.rampU - 13.5) * sm(400, 60, a);
+}
 
 const H = (s) => 0.9 * Math.sin(0.0021 * s + 1.0) + 0.5 * Math.sin(0.0053 * s + 2.2) + 0.25 * Math.sin(0.0117 * s + 0.3);
 const H0 = H(0);
@@ -81,7 +100,9 @@ export class Road {
     return sst(DIRT.start, DIRT.start + DIRT.ramp, m) * (1 - sst(DIRT.start + DIRT.len - DIRT.ramp, DIRT.start + DIRT.len, m));
   }
 
-  _y(x, z, s) { return this.city || this.avenue ? hLow(x, z) : hLow(x, z) + this.dirtAt(s) * bump(s); }
+  _y(x, z, s) { return this.city ? hLow(x, z) : this.avenue ? hLow(x, z) + avHump(s) : hLow(x, z) + this.dirtAt(s) * bump(s); }
+  // cao độ nền của đại lộ tại s (không tính phần nhô lên cầu vượt) — nhánh rẽ / đường ngang đi ở cao độ này
+  baseY(s) { const y = this.at(s, this._by || (this._by = {})).y; return this.avenue ? y - avHump(s) : y; }
 
   heading(s) {
     if (this.avenue) return HA(s) - HA0;
