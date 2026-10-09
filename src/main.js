@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ROAD, ROAD_HW, CITY, AVENUE, IC, icS, icIndex, rampU, avHump, TOLL, tollDist, Road } from './road.js';
 import { Avenue } from './avenue.js';
+import { Minimap } from './minimap.js';
 import { City, SIGNAL } from './city.js';
 import { CityTraffic } from './cityTraffic.js';
 import { CityPeople } from './cityPeople.js';
@@ -122,6 +123,26 @@ terrain.extraCarve = (x, z, h) => avenue.carve(x, z, h);
 scenery.railGap = (s) => avenue.visible && avenue.railGap(s);
 meadow.exclusions = avenue.excl;
 cityTraffic.avenue = avenue;
+// bản đồ tròn góc phải: đường + xe thật; bấm vào để phóng to, kéo / zoom như bản đồ
+const _mmP = {}, _mmX = {};
+const minimap = new Minimap({
+  road, city, avenue,
+  visible: () => state.started && isDriveMap(state.map),      // chỉ chế độ Drive (Phố, Đại lộ)
+  mapId: () => MAPS[state.map].id,
+  s: () => drive.s,
+  player: () => ({ x: drive.pos.x, z: drive.pos.z, th: drive.yaw }),
+  cars: () => {
+    const out = [];
+    if (cityTraffic.visible) {
+      for (const c of cityTraffic.cars) {
+        if (c.xr) { avenue.crossPose(c.xr.k, c.xr.u, c.xr.a, c.xr.du, _mmX); out.push([_mmX.x, _mmX.z]); continue; }
+        if (c.cross) { const F = city._frame(road.junction(c.cross.n)); out.push([F.x + F.fx * c.cross.a + F.rx * c.cross.u, F.z + F.fz * c.cross.a + F.rz * c.cross.u]); continue; }
+        road.at(c.s, _mmP); out.push([_mmP.x + Math.cos(_mmP.th) * c.d, _mmP.z - Math.sin(_mmP.th) * c.d]);
+      }
+    } else for (const v of traffic.active) { road.at(v.s, _mmP); out.push([_mmP.x + Math.cos(_mmP.th) * v.d, _mmP.z - Math.sin(_mmP.th) * v.d]); }
+    return out;
+  },
+});
 cityTraffic.setup(scene, cars.softTex, camera);
 const crashFx = new CrashFx(scene, cars.softTex);   // va chạm: rung mạnh + khói đầu xe
 const _hood = new THREE.Vector3();
@@ -1361,6 +1382,7 @@ function frame(now) {
     }
   }
   avenue.update(drive.s); avenue.setLamps(st.lamps);
+  minimap.update(dt);
   city.update(drive.s, st.lamps, dt, 1, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   // map Phố: vượt vạch dừng khi đèn đỏ => báo lỗi
   if (city.visible && state.started && !stop.active && cars.dim) {
@@ -1534,4 +1556,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { get crashFx() { return crashFx; }, avenue, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { get crashFx() { return crashFx; }, minimap, avenue, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

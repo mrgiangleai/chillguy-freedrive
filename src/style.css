@@ -230,3 +230,19 @@ body.cine #stats { top: calc(var(--bar) + 12px) !important; }
 body.intro #stats { opacity: 0; }
 @media (max-height: 500px), (max-width: 640px) { #speed { font-size: 34px !important; } #stats small { font-size: 12px; } }
 body:not(.playing) #stats { opacity: 0; }
+
+/* bản đồ tròn (góc phải giữa): bấm vào phóng to giữa màn hình, kéo / zoom như bản đồ */
+#minimap { position: fixed; z-index: 6; top: 50%; right: max(18px, env(safe-area-inset-right)); width: 150px; height: 150px; transform: translateY(-50%);
+  border-radius: 50%; overflow: hidden; cursor: pointer; box-shadow: 0 4px 18px rgba(0,0,0,.35); touch-action: none; transition: opacity .5s ease; }
+#minimap canvas { width: 100%; height: 100%; display: block; }
+#minimap .mm-n { position: absolute; left: 0; top: 0; width: 14px; height: 16px; font: 700 11px/16px system-ui, sans-serif; color: #fff; text-align: center;
+  background: #d93025; border-radius: 3px; pointer-events: none; }
+#minimap button { position: absolute; display: none; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(255,255,255,.92); color: #333;
+  font: 20px/36px system-ui, sans-serif; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+#minimap.big { width: min(78vmin, 640px); height: min(78vmin, 640px); right: 50%; transform: translate(50%, -50%); z-index: 12; cursor: grab; }
+#minimap.big:active { cursor: grabbing; }
+#minimap.big button { display: block; }
+#minimap .mm-close { top: 12%; right: 12%; }
+#minimap .mm-center { bottom: 16%; right: 12%; color: #1a73e8; }
+#minimap.off, body:not(.playing) #minimap { display: none; }
+@media (max-height: 500px), (max-width: 640px) { #minimap:not(.big) { width: 104px; height: 104px; } }
