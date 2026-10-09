@@ -115,6 +115,29 @@ export class StopScene {
     return false;
   }
 
+  // cảnh tai nạn (map Phố): rời xe ngay, đi dọc hông xe về gần đuôi, đứng quay mặt ra sau chờ cảnh sát
+  // (không hút thuốc, không đi lanh quanh). Mọi chặng đi đều ở ngoài thân xe.
+  leaveCar(dim) {
+    if (!this.person.ready || this.state !== 'off') return false;
+    this.place(dim);
+    this.toggle(0);
+    this.hold = this.noSmoke = true;
+    this.stand.set(-dim.width / 2 - 0.6, 0, dim.length / 2 - 0.6);
+    this.corner.lerpVectors(this.out, this.stand, 0.5);
+    this.faceTo = FACE_REAR;
+    this._enterState('exit', dim);
+    return true;
+  }
+
+  // kết thúc cảnh rời xe ngay lập tức (người được thay bằng hình người của cảnh tai nạn): về ghế, đóng cửa
+  release() {
+    this.hold = this.noSmoke = false; this.faceTo = null;
+    this.smoking.on = false; this.smokeU = -1; this.handW = 0;
+    this.state = 'off';
+    this.cars.setDoor(0);
+    this.sit();
+  }
+
   // zoom ở toàn cảnh. f > 1: zoom ra — tiêu cự giảm tới 16 mm rồi máy lùi xa thêm (tối đa 20 m);
   // f < 1: zoom vào — máy tiến lại hết 20 m, tăng tiêu cự tới 35 mm, rồi tiến sát người tới 1 m. Trả về false nếu không ở toàn cảnh.
   zoomBy(f) {
@@ -200,10 +223,13 @@ export class StopScene {
       this._exit(dim, dt);
     } else if (this.state === 'enter') {
       this._enter(dim, dt);
-    } else if (this.state === 'parked' && this.smokeU > 3.4) {
+    } else if (this.state === 'parked' && this.smokeU > 3.4 && !this.hold) {   // hold: đứng yên (cảnh bị cảnh sát giữ)
       this._wander(dt, dim);
     }
-    if (this.smokeU >= 0 && this.state !== 'enter') this._smoke(dt);
+    if (this.smokeU >= 0 && this.state !== 'enter') {
+      if (this.noSmoke) { this.smokeU += dt; this.smoking.on = false; this.handW = 0; }   // không hút thuốc (tai nạn)
+      else this._smoke(dt);
+    }
     this._hand();
     this._look(dt);
     if (this.state !== 'stopping') this._camera(dt, carRoot);
@@ -308,7 +334,7 @@ export class StopScene {
     p.play('Idle_Loop', 0.4);
     root.position.copy(this.stand);
     if (this.smokeU < 0) { this.smokeU = 0; this.turnFrom = root.rotation.y; this.cyc.t = 0; this.cyc.n = 0; this.cyc.rest = SMOKE_REST_FIRST; }
-    root.rotation.y = lerpAng(this.turnFrom, FACE_CAR, ease(this.smokeU / 0.6));
+    root.rotation.y = lerpAng(this.turnFrom, this.faceTo ?? FACE_CAR, ease(this.smokeU / 0.6));
     if (this.smokeU > 0.8) this.state = 'parked';
   }
 

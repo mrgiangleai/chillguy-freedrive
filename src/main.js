@@ -130,6 +130,26 @@ const incident = new CityIncident(cityTraffic, cityPeople, {   // map Phố: đ�
   toast: (t, bad) => toast(t, bad),
   fade: (on, text) => { const f = $('fade'); if (text) f.textContent = text; f.classList.toggle('show', on); },
   driverHidden: (b) => { driverHidden = b; },
+  carPos: () => [drive.s, drive.d],
+  // chú bước ra khỏi xe (cảnh dừng xe, đứng yên chờ, không hút thuốc)
+  exitCar: () => { drive.v = 0; const ok = stop.leaveCar(cars.dim); if (ok) refreshUI(); return ok; },
+  personPos: () => {
+    if (stop.state !== 'parked' || !person.ready) return null;
+    person.root.getWorldPosition(_trafficPerson);
+    return roadPosition(_trafficPerson, road, drive.s);
+  },
+  // thôi cảnh đứng ngoài xe: người lái về ghế (bị ẩn), camera trả về chế độ quay quanh xe, lướt mượt từ chỗ đang đứng
+  endStop: () => {
+    if (!stop.active) return;
+    const look = stop.cam.look.clone();
+    stop.release();
+    rig.setMode(state.cam);
+    rig.relP.copy(camera.position).sub(drive.pos);
+    rig.relL.copy(look).sub(drive.pos);
+    rig.fov = camera.fov;
+    rig.look.yaw = rig.look.pitch = 0;
+    refreshUI();
+  },
   siren: (kind, level, pan) => audio.setSiren(kind, level, pan),
   end: () => {
     drive.v = 0;
@@ -1075,6 +1095,7 @@ function frame(now) {
     stop.update(dt, cars.root, drive.v);
     const c = stop.cam;
     stopLook(c.pos, c.look);                       // giữ chuột rê: xoay quanh người; tự quay nghỉ 2 giây sau thao tác
+    if (city.visible) { _sl.copy(c.look); _sl.y -= 1.3; city.collide(_sl, camera.position, dt); }   // map Phố: không xuyên nhà
     camera.lookAt(c.look);
     const fov = rig.fovFor(c.focal);
     const near = stop.closeK > 0.01 ? 0.06 : 0.3;                 // cận cảnh miệng: mặt phẳng cắt gần sát hơn (tay không bị cắt)

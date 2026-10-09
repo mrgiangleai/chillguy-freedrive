@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -169,8 +169,13 @@
   **Va chạm vật lý** (`crashfx.js` + `impact()` trong main): xe mình chúi đầu + nảy ngang, rung camera mạnh tắt dần ~0.6 s,
   tiếng "rầm" + kim loại (`audio.crash`), đâm > ~20 km/h tương đối thì khói bốc từ capo 4–10 s (48 sprite dùng lại); xe bị đâm
   trôi theo lực (`slide` ≤ 9 m/s, giảm 7 m/s²). Map khác: đụng xe NPC cũng khựng + rung + khói (không cảnh sát), hồi 2.5 s.
-  Thử Low: ~50 xe + ~38 người quanh xe, xe máy/người qua ngã tư theo đèn, cảnh tai nạn chạy trọn ~30 s. Chưa xem trên máy thật;
-  chưa có ảnh rõ cảnh sát/cấp cứu; người lái bị bắt là hình dựng (không phải model nhân vật).
+  **Cảnh tai nạn** (`cityIncident.js`): ~0.9 s sau va chạm chú bước ra khỏi xe (`stop.leaveCar`: cảnh dừng xe với `hold` +
+  `noSmoke` + `faceTo`; đi dọc hông trái về gần đuôi xe, đứng quay mặt ra sau, không hút thuốc / đi lanh quanh). Cảnh sát tới đỗ
+  sau xe, xuống cửa trái, đi thẳng ở ngoài mép trái 2 xe tới đứng trước mặt chú (cách 1.1 m), toast lời cảnh sát, 2.5 s sau
+  `endStop` (`stop.release`: người về ghế, bị ẩn; camera trả về quay quanh xe, lướt từ chỗ đang đứng) => hình người lái dựng
+  + cảnh sát đi cạnh nhau theo `cityPeople.goPath` về cửa xe cảnh sát. Hook main: `carPos/exitCar/personPos/endStop`.
+  Camera cảnh dừng xe ở phố cũng `city.collide` (không xuyên nhà). Thử Low: không điểm nào của cảnh sát / người lái lọt vào thân xe.
+  Thử Low: ~50 xe + ~38 người quanh xe, xe máy/người qua ngã tư theo đèn, cảnh tai nạn chạy trọn ~30 s. Chưa xem trên máy thật.
 - **Giao diện (HUD)**: bên trái là cột lối tắt hộp chữ thưa (`#quick .qbox`, cùng cỡ 80×58 — điện thoại 62×36, chữ mảnh weight 200, hoa chữ đầu + thường, giãn .16em, phím
   trong ngoặc bên phải): Speed (F; hiện "50 km/h"/"180 km/h" khi đang ở cấp đó) · Pause (P; "Resume" khi đang đỗ) · Car (C/V) ·
   Camera (Q) · Driver (X) · Map (M) · Weather (R) · Time (T). Góc phải dưới: biểu tượng máy ảnh nét sáng (chụp ảnh, phím O) +
@@ -207,3 +212,4 @@
   phố, khu chung cư có công viên.
 
 - **#1 — Va chạm vật lý: rung, khói, tiếng (09/10/2026)**: xem mục Map Phố. Thử Low: đâm xe van đỗ => xe van trôi, 48 hạt khói.
+- **#2 — Tai nạn: chú bước ra, cảnh sát tới trước mặt, không xuyên xe (09/10/2026)**: xem mục Map Phố.

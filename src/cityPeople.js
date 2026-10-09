@@ -103,7 +103,9 @@ export class CityPeople {
     return p;
   }
   remove(p) { const i = this.peds.indexOf(p); if (i >= 0) this.peds.splice(i, 1); }
-  goTo(p, s, u) { p.target = [s, u]; }
+  goTo(p, s, u) { p.target = [s, u]; p.path = null; }
+  // đi theo chuỗi điểm [[s, u], …] (vòng qua xe, không đi xuyên)
+  goPath(p, pts) { p.path = pts.slice(1); p.target = pts[0]; }
   arrived(p) { return !p.target; }
   // người trong hình chữ nhật [s ± len/2] × [d ± wid/2]
   hitTest(s, d, len, wid) {
@@ -149,7 +151,7 @@ export class CityPeople {
       if (p.mode === 'script') {
         if (p.target) {
           const ds = p.target[0] - p.s, du = p.target[1] - p.u, L = Math.hypot(ds, du);
-          if (L < 0.15) { p.target = null; } else { vs = ds / L * p.speed; vu = du / L * p.speed; }
+          if (L < 0.15) { p.target = p.path?.length ? p.path.shift() : null; } else { vs = ds / L * p.speed; vu = du / L * p.speed; }
         }
       } else if (p.mode === 'fallen') {
         // nằm yên
