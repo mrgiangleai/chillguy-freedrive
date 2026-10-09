@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -185,7 +185,13 @@
   `reeds` `uExcl` 16 đoạn loại cỏ (`avenue.excl`); hộ lan hở ở 300 < |t| < 495 (`scenery.railGap`). Xe mình: ở t −490…−390 lái
   sang phải quá vạch mép ngoài => `drive.ramp` (vị trí ngang lướt theo rampU, cao độ nền), hết nhánh tự về làn ngoài + toast.
   NPC làn ngoài 22% rẽ nhánh (≤ 50 km/h trên nhánh); xe đường ngang (`c.xr`, ±420 m, tốc độ phố) nhường xe đang qua chỗ nhánh
-  cắt đường ngang; dưới cầu (|u| < 16) không tính va chạm. Đang làm tiếp: biển báo, trạm thu phí.
+  cắt đường ngang; dưới cầu (|u| < 16) không tính va chạm. **Biển báo** (atlas `signTexture` 4×4 ô: biển chỉ dẫn xanh lá chữ
+  trắng kiểu VN + biển tròn 120 / 100 / 60 / tối thiểu 60; phản quang sáng lên ban đêm `setLamps`): mỗi chiều giàn biển "LỐI RA
+  … 1 km" (t = ∓1000) và "500 m" (∓500) trên cột + xà thép, biển "LỐI RA" ở mũi tách nhánh, biển tốc độ cột phải (120 / 100 / 120),
+  "60" trên nhánh ra, biển "CAO TỐC tối đa 120 / tối thiểu 60" sau chỗ nhập. Mũi tên sơn trên làn ở t = ∓760 / 680 / 600 (làn ngoài
+  thẳng + rẽ phải), vạch chéo vùng tách / nhập nhánh. **Đường gom + nhà**: mỗi nút giao 1–2 đường nhỏ 1 làn rẽ từ đường ngang ở
+  |u| = 78, chạy song song cao tốc 280–500 m (theo địa hình), nhà 1–2 tầng hai bên (tường sơn, mái dốc đỏ / xanh / xám, cửa +
+  cửa sổ phía đường), nền nhà / đường được đào phẳng (`I.lines`), loại cỏ (32 đoạn). Đang làm tiếp: trạm thu phí.
   Khu chung cư (~9% lô mặt tiền, `apartment` trong `_build`): tòa nhà lùi 11 m, công viên nhỏ (cỏ `lawnMat`, hàng rào cây, cây tán
   tròn `broadleafGeometry`, ghế), bậc thang lên sân sảnh (sàn tầng trệt = sân), ban công 3D từng tầng (sàn + lan can); mẫu A 10–13
   tầng bậc hẹp 4 cây, mẫu B 6–8 tầng bậc rộng + ghế; nhà bên trong khối chừa chỗ. Bảng 🚦 có "Thêm xe của chú": xe model
@@ -254,3 +260,4 @@
 
 - **#1 — Map Đại lộ bước 1: cao tốc 6 làn, dải phân cách, cỏ, giao thông 6 làn, nhóm Drive (09/10/2026)**. `compileFor` dùng `renderer.compile` (đồng bộ) thay `compileAsync` (lỗi `isReady` khi đổi map liên tục).
 - **#2 — Map Đại lộ bước 2: nút giao, cầu vượt, đường ngang có xe, nhánh ra / vào đi thử được (09/10/2026)**.
+- **#3 — Map Đại lộ bước 3: biển báo, giàn biển lối ra, mũi tên làn, đường gom + nhà (09/10/2026)**.

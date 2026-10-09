@@ -1351,7 +1351,7 @@ function frame(now) {
       }
     }
   }
-  avenue.update(drive.s);
+  avenue.update(drive.s); avenue.setLamps(st.lamps);
   city.update(drive.s, st.lamps, dt, 1, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   // map Phố: vượt vạch dừng khi đèn đỏ => báo lỗi
   if (city.visible && state.started && !stop.active && cars.dim) {

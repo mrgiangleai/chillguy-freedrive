@@ -5,6 +5,45 @@ import { withMist } from './mist.js';
 
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const RAMP_STEP = 6, RAMP_HW = 2.5;
+const hashR = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+const FONT = 'Arial, "Helvetica Neue", sans-serif';
+
+// atlas biển báo 2048×1024: lưới 4 × 4 ô 512×256. Ô 0–3: biển chỉ dẫn cao tốc nền xanh lá chữ trắng (kiểu Việt Nam);
+// ô 4–7: biển tròn (vẽ ở nửa trái vuông 256×256 của ô): 120, 100, 60 (tốc độ tối đa, viền đỏ), 60 (tối thiểu, nền xanh dương)
+function signTexture() {
+  const c = document.createElement('canvas'); c.width = 2048; c.height = 1024;
+  const g = c.getContext('2d');
+  const cell = (i) => [(i % 4) * 512, Math.floor(i / 4) * 256];
+  const green = (i, lines, arrow) => {
+    const [x, y] = cell(i);
+    g.fillStyle = '#0d7a3f'; g.fillRect(x + 4, y + 4, 504, 248);
+    g.strokeStyle = '#fff'; g.lineWidth = 7; g.strokeRect(x + 14, y + 14, 484, 228);
+    g.fillStyle = '#fff'; g.textAlign = 'left'; g.textBaseline = 'middle';
+    lines.forEach(([txt, size, yy, xx = 40, bold = true]) => { g.font = `${bold ? 'bold ' : ''}${size}px ${FONT}`; g.fillText(txt, x + xx, y + yy); });
+    if (arrow) {                                                   // mũi tên chéo lên phải (lối ra)
+      g.save(); g.translate(x + 430, y + 128); g.rotate(Math.PI / 4); g.fillStyle = '#fff';
+      g.fillRect(-11, -20, 22, 70); g.beginPath(); g.moveTo(-36, -18); g.lineTo(36, -18); g.lineTo(0, -62); g.closePath(); g.fill(); g.restore();
+    }
+  };
+  green(0, [['LỐI RA', 64, 70], ['Đường liên huyện', 40, 140, 40, false], ['1 km', 58, 205]], true);
+  green(1, [['LỐI RA', 64, 70], ['Đường liên huyện', 40, 140, 40, false], ['500 m', 58, 205]], true);
+  green(2, [['LỐI RA', 82, 128, 60]], true);
+  green(3, [['CAO TỐC', 64, 80], ['Tối đa 120 km/h', 40, 150, 40, false], ['Tối thiểu 60 km/h', 40, 200, 40, false]]);
+  const round = (i, txt, blue) => {
+    const [x, y] = cell(i), cx = x + 128, cy = y + 128;
+    g.fillStyle = blue ? '#1d56b8' : '#fff'; g.beginPath(); g.arc(cx, cy, 120, 0, 7); g.fill();
+    if (!blue) { g.strokeStyle = '#d0161c'; g.lineWidth = 26; g.beginPath(); g.arc(cx, cy, 106, 0, 7); g.stroke(); }
+    else { g.strokeStyle = '#fff'; g.lineWidth = 6; g.beginPath(); g.arc(cx, cy, 112, 0, 7); g.stroke(); }
+    g.fillStyle = blue ? '#fff' : '#111'; g.font = `bold ${txt.length > 2 ? 96 : 112}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(txt, cx, cy + 6);
+  };
+  round(4, '120'); round(5, '100'); round(6, '60'); round(7, '60', true);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+const signUV = (i, round) => { const x = (i % 4) / 4, y = 1 - Math.floor(i / 4) / 4; return [x, y - 0.25, x + (round ? 0.125 : 0.25), y]; };   // [u0, v0, u1, v1]
+const WALLS = [[0.93, 0.91, 0.86], [0.96, 0.89, 0.72], [0.82, 0.88, 0.8], [0.95, 0.82, 0.74], [0.88, 0.88, 0.9]];
+const ROOFS = [[0.62, 0.22, 0.14], [0.25, 0.42, 0.62], [0.42, 0.42, 0.44], [0.5, 0.3, 0.2]];
 
 // Map Đại lộ: đường cao tốc 6 làn (3 làn mỗi chiều), dải phân cách bê tông giữa, lề khẩn cấp, cỏ hai bên (địa hình đồi cỏ).
 // Toạ độ theo đường chính: s (dọc), u (ngang, + = bên phải). Dựng theo đoạn CHUNK m quanh xe; vạch kẻ là lưới tam giác
@@ -22,7 +61,11 @@ export class Avenue {
     this.icGroups = new Map();       // k -> mesh nút giao
     this.excl = [];                  // đoạn loại cỏ (đường ngang + nhánh) quanh nút giao gần nhất
     this.asphalt = new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 0.92, envMapIntensity: 0.38 });   // như mặt cao tốc (ít phản chiếu trời)
-    withMist(this.asphalt);
+    const st = signTexture();
+    this.signMat = new THREE.MeshStandardMaterial({ map: st, emissiveMap: st, emissive: 0xffffff, emissiveIntensity: 0.05, roughness: 0.45, side: THREE.DoubleSide });
+    this.metalMat = new THREE.MeshStandardMaterial({ color: 0x8d9296, roughness: 0.45, metalness: 0.5 });
+    this.houseMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+    for (const m of [this.asphalt, this.signMat, this.metalMat, this.houseMat]) withMist(m);
     this.group = new THREE.Group();
     this.group.visible = false;
     scene.add(this.group);
@@ -34,6 +77,8 @@ export class Avenue {
   }
 
   set visible(v) { this.group.visible = v; if (!v) this.reset(); }
+  // biển phản quang: sáng lên khi bật đèn (đêm)
+  setLamps(l) { this.signMat.emissiveIntensity = 0.05 + 0.55 * l; }
   get visible() { return this.group.visible; }
 
   reset() {
@@ -61,6 +106,35 @@ export class Avenue {
       const xs = pts.map((q) => q.x), zs = pts.map((q) => q.z);
       return { side, pts, x0: Math.min(...xs) - 16, x1: Math.max(...xs) + 16, z0: Math.min(...zs) - 16, z1: Math.max(...zs) + 16 };
     });
+    // đường nhỏ song song (đường gom) rẽ từ đường ngang ở |u| = 78, dài 280–500 m, dẫn vào vài căn nhà hai bên
+    I.lines = []; I.houses = []; I.lanes = [];
+    const nRoads = hashR(k * 3.1 + 0.7) < 0.6 ? 2 : 1;
+    for (let j = 0; j < nRoads; j++) {
+      const side = (hashR(k * 5.3 + j * 1.9) < 0.5 ? 1 : -1) * (j === 1 ? -1 : 1), dirT = hashR(k * 7.7 + j * 2.3) < 0.5 ? 1 : -1;
+      const uf = side * 78, len = 280 + hashR(k * 9.1 + j) * 220, pts = [];
+      const cy0 = this.crossY(I, uf);
+      for (let a = IC.crossHW; a <= len; a += 6) {
+        const t = dirT * a, q = road.at(s0 + t, {}), x = q.x + Math.cos(q.th) * uf, z = q.z - Math.sin(q.th) * uf;
+        pts.push({ x, z, y: cy0 + (hLow(x, z) - cy0) * sm(0, 70, a), t, u: uf });
+      }
+      I.lanes.push({ pts, hw: 2.1 });
+      I.lines.push({ pts, hw: 2.1 });
+      for (let a = 40 + hashR(k + j * 4.4) * 20; a < len - 15; a += 55 + hashR(a * 0.37 + k) * 30) {
+        const hs = hashR(a * 1.7 + k * 2.9 + j);
+        if (hs < 0.2) continue;
+        const w = 7 + hashR(a + k * 1.3) * 3, dpt = 8 + hashR(a * 2.1 + k) * 3, fl = hashR(a * 3.3 + k) < 0.45 ? 2 : 1;
+        const hu = uf + (hs < 0.6 ? 1 : -1) * (2.1 + 3 + dpt / 2);
+        const i0 = Math.min(pts.length - 1, Math.round((a - IC.crossHW) / 6)), py = pts[i0].y + 0.15;
+        const H = { t: dirT * a, u: hu, w, d: dpt, h: fl * 3.1, y: py, face: hu > uf ? -1 : 1, wall: WALLS[Math.floor(hashR(a * 4.1 + k) * WALLS.length)], roof: ROOFS[Math.floor(hashR(a * 5.9 + k) * ROOFS.length)] };
+        I.houses.push(H);
+        const mk = (dt) => { const q = road.at(s0 + H.t + dt, {}); return { x: q.x + Math.cos(q.th) * hu, z: q.z - Math.sin(q.th) * hu, y: py - 0.12 }; };
+        I.lines.push({ pts: [mk(-w / 2), mk(w / 2)], hw: dpt / 2 + 1.5 });   // nền nhà phẳng
+      }
+    }
+    for (const L of I.lines) {
+      const xs = L.pts.map((q) => q.x), zs = L.pts.map((q) => q.z);
+      Object.assign(L, { x0: Math.min(...xs) - 14, x1: Math.max(...xs) + 14, z0: Math.min(...zs) - 14, z1: Math.max(...zs) + 14 });
+    }
     const ends = [-1, 1].map((g) => [I.P.x + I.rx * g * IC.crossLen, I.P.z + I.rz * g * IC.crossLen]);
     const X = [...ends.map((e) => e[0]), ...I.ramps.flatMap((R) => [R.x0, R.x1])], Z = [...ends.map((e) => e[1]), ...I.ramps.flatMap((R) => [R.z0, R.z1])];
     I.x0 = Math.min(...X) - 20; I.x1 = Math.max(...X) + 20; I.z0 = Math.min(...Z) - 20; I.z1 = Math.max(...Z) + 20;
@@ -106,6 +180,18 @@ export class Avenue {
         }
         if (best < 14) { const ry = by - 0.03; h = ry + (h - ry) * sm(RAMP_HW + 0.6, 11, best); }
       }
+      for (const L of I.lines) {                               // đường gom + nền nhà
+        if (x < L.x0 || x > L.x1 || z < L.z0 || z > L.z1) continue;
+        const P = L.pts;
+        let best = Infinity, by = 0;
+        for (let i = 0; i + 1 < P.length; i++) {
+          const A = P[i], B = P[i + 1], abx = B.x - A.x, abz = B.z - A.z, l2 = abx * abx + abz * abz || 1;
+          const t = Math.min(1, Math.max(0, ((x - A.x) * abx + (z - A.z) * abz) / l2));
+          const d = Math.hypot(x - A.x - abx * t, z - A.z - abz * t);
+          if (d < best) { best = d; by = A.y + (B.y - A.y) * t; }
+        }
+        if (best < L.hw + 9) { const ry = by - 0.03; h = ry + (h - ry) * sm(L.hw + 0.4, L.hw + 8, best); }
+      }
     }
     return h;
   }
@@ -147,7 +233,11 @@ export class Avenue {
     E.push([...C(-34), ...C(34), 16], [...C(-IC.crossLen), ...C(IC.crossLen), IC.crossHW + 1.5]);
     for (const R of I.ramps) {
       const P = R.pts, idx = [8, 22, 38, 54, 70, 80, 96, 112, 126, 152].filter((i) => i < P.length);
-      for (let j = 0; j + 1 < idx.length && E.length < 16; j++) E.push([P[idx[j]].x, P[idx[j]].z, P[idx[j + 1]].x, P[idx[j + 1]].z, RAMP_HW + 1.2]);
+      for (let j = 0; j + 1 < idx.length && E.length < 32; j++) E.push([P[idx[j]].x, P[idx[j]].z, P[idx[j + 1]].x, P[idx[j + 1]].z, RAMP_HW + 1.2]);
+    }
+    for (const L of I.lines) {
+      const P = L.pts, n = P.length, stp = Math.max(1, Math.ceil(n / 4));
+      for (let j = 0; j + 1 < n && E.length < 32; j += stp) { const q = P[Math.min(n - 1, j + stp)]; E.push([P[j].x, P[j].z, q.x, q.z, L.hw + 1]); }
     }
   }
 
@@ -213,6 +303,93 @@ export class Avenue {
       for (const u of [-9.5, 0, 9.5]) box(px + I.rx * u, (I.yc + topY - 0.9) / 2, pz + I.rz * u, 1.1, topY - 0.9 - I.yc + 0.2, 1.1);
       box(px, topY - 0.45, pz, 26, 0.9, 1.6);
     }
+    // ---- biển báo + giàn biển (mỗi chiều: giàn "Lối ra 1 km" ở t = ∓1000, "500 m" ở ∓500, biển "Lối ra" ở mũi tách nhánh,
+    //      biển tốc độ cột bên phải; biển chỉ dẫn cao tốc sau chỗ nhập) ----
+    const S = { pos: [], nor: [], uv: [], idx: [] }, Mt = { pos: [], nor: [], idx: [] }, Hs = { pos: [], nor: [], col: [], idx: [] };
+    const P3 = (t, u, h, base) => { const q = road.at(I.s + t, {}); return [q.x + Math.cos(q.th) * u, (base ?? q.y) + h, q.z - Math.sin(q.th) * u]; };
+    // biển phẳng tại (t, u) quay mặt về xe tới (dir: chiều xe chạy), rộng w, cao hh, mép dưới ở h0 so với mặt đường
+    const sign = (t, u, dir, w, hh, h0, cell, round, base) => {
+      const [u0, v0, u1, v1] = signUV(cell, round), q = road.at(I.s + t, {});
+      const n = [Math.sin(q.th) * dir, 0, Math.cos(q.th) * dir];      // = −f·dir (quay về phía xe tới)
+      const a = u - dir * w / 2, b = u + dir * w / 2;                // mép trái / phải nhìn từ xe tới
+      push(S, [P3(t, a, h0, base), P3(t, b, h0, base), P3(t, b, h0 + hh, base), P3(t, a, h0 + hh, base)], n, [[u0, v0], [u1, v0], [u1, v1], [u0, v1]]);
+    };
+    const post = (t, u, h, wd = 0.12, base) => {                      // cột (hộp đứng) từ mặt đất lên h
+      const c = P3(t, u, 0, base), q = road.at(I.s + t, {}), rx = Math.cos(q.th), rz = -Math.sin(q.th), fx = -Math.sin(q.th), fz = -Math.cos(q.th);
+      const C = (i, k, y) => [c[0] + rx * i * wd + fx * k * wd, c[1] + y, c[2] + rz * i * wd + fz * k * wd];
+      for (const [i0, k0, i1, k1, n] of [[-1, -1, 1, -1, [-fx, 0, -fz]], [1, -1, 1, 1, [rx, 0, rz]], [1, 1, -1, 1, [fx, 0, fz]], [-1, 1, -1, -1, [-rx, 0, -rz]]])
+        push(Mt, [C(i0, k0, 0), C(i1, k1, 0), C(i1, k1, h), C(i0, k0, h)], n);
+    };
+    const beam = (t, uA, uB, h, th = 0.45) => {                       // xà ngang giàn biển
+      push(Mt, [P3(t - 0.25, uA, h), P3(t - 0.25, uB, h), P3(t - 0.25, uB, h + th), P3(t - 0.25, uA, h + th)], [0, 0, 1]);
+      push(Mt, [P3(t + 0.25, uA, h), P3(t + 0.25, uB, h), P3(t + 0.25, uB, h + th), P3(t + 0.25, uA, h + th)], [0, 0, -1]);
+      push(Mt, [P3(t - 0.25, uA, h + th), P3(t - 0.25, uB, h + th), P3(t + 0.25, uB, h + th), P3(t + 0.25, uA, h + th)], UP);
+      push(Mt, [P3(t - 0.25, uA, h), P3(t - 0.25, uB, h), P3(t + 0.25, uB, h), P3(t + 0.25, uA, h)], [0, -1, 0]);
+    };
+    for (const dir of [1, -1]) {
+      const sd = dir;                                                // bên phải của chiều xe chạy: u cùng dấu dir
+      for (const [tt, cell] of [[-1000, 0], [-500, 1]]) {
+        const t = tt * dir;
+        post(t, 0.0, 7.2, 0.18); post(t, sd * 14.3, 7.2, 0.18); beam(t, 0, sd * 14.3, 6.9);
+        sign(t - dir * 0.3, sd * 8.2, dir, 6.4, 3.1, 4.9, cell);
+      }
+      const tg = -290 * dir, ug = sd * (AVENUE.hw + rampU(-290) - RAMP_HW) / 2;   // mũi tách nhánh (giữa mép cao tốc và mép nhánh)
+      post(tg, ug, 3.6, 0.07); sign(tg - dir * 0.1, ug, dir, 2.4, 1.2, 2.3, 2);
+      for (const [tt, cell] of [[-1300, 4], [-700, 5], [620, 4]]) { const t = tt * dir; post(t, sd * 14.4, 3.2, 0.05); sign(t - dir * 0.08, sd * 14.4, dir, 1.0, 1.0, 2.2, cell, true); }
+      post(560 * dir, sd * 14.6, 3.6, 0.07); post(560 * dir, sd * 17.2, 3.6, 0.07); sign(560 * dir - dir * 0.1, sd * 15.9, dir, 3.2, 1.6, 1.9, 3);
+      const tr = -250 * dir, ur = sd * (rampU(-250) + RAMP_HW + 0.8);    // nhánh ra: tốc độ tối đa 60
+      post(tr, ur, 3.2, 0.05, road.baseY(I.s + tr)); sign(tr - dir * 0.08, ur, dir, 1.0, 1.0, 2.2, 6, true, road.baseY(I.s + tr));
+    }
+    // ---- mũi tên trên làn (trước lối ra: làn trong / giữa đi thẳng, làn ngoài thẳng + rẽ phải) + vạch chia nhánh ----
+    const mq = (t0, u0, t1, u1, t2, u2, t3, u3, base) => push(M, [P3(t0, u0, 0.055, base), P3(t1, u1, 0.055, base), P3(t2, u2, 0.055, base), P3(t3, u3, 0.055, base)], UP, WHITE);
+    const arrow = (t, u, dir, right) => {                            // mũi tên dài ~5 m theo chiều dir
+      const F = (a) => t + dir * a, R = (b) => u + dir * b;
+      mq(F(-2.6), R(-0.09), F(1.2), R(-0.09), F(1.2), R(0.09), F(-2.6), R(0.09));
+      mq(F(1.1), R(-0.45), F(2.6), R(0), F(2.6), R(0), F(1.1), R(0.45));
+      if (right) { mq(F(-0.9), R(0.02), F(0.4), R(0.85), F(0.55), R(0.72), F(-0.7), R(-0.1)); mq(F(0.15), R(1.0), F(1.15), R(1.15), F(1.15), R(1.15), F(0.65), R(0.45)); }
+    };
+    for (const dir of [1, -1]) for (const tt of [-760, -680, -600]) {
+      for (const [li, l] of AVENUE.lanes.entries()) arrow(tt * dir, dir * l, dir, li === 2);
+    }
+    for (const dir of [1, -1]) for (const g of [-1, 1]) {            // vạch chéo vùng tách / nhập nhánh (giữa mép làn ngoài và mép nhánh)
+      for (let a = 336; a < 398; a += 4) {
+        const t = g * a * dir, uin = rampU(g * a) - RAMP_HW + 0.2;
+        if (uin < AVENUE.edge + 0.5) continue;
+        const u0 = dir * (AVENUE.edge + 0.15), u1 = dir * uin;
+        mq(t, u0, t + 0.5 * dir, u0, t + 2.2 * dir, u1, t + 1.7 * dir, u1);
+      }
+    }
+    // ---- đường gom (nhựa 1 làn) + nhà hai bên: tường sơn, mái dốc hai phía, cửa + cửa sổ phía đường ----
+    for (const L of I.lanes) {
+      const P = L.pts;
+      for (let i = 0; i + 1 < P.length; i++) {
+        const a = P[i], b = P[i + 1];
+        push(A, [P3(a.t, a.u - L.hw, 0.04, a.y), P3(b.t, b.u - L.hw, 0.04, b.y), P3(b.t, b.u + L.hw, 0.04, b.y), P3(a.t, a.u + L.hw, 0.04, a.y)], UP,
+          [[a.t / 8, -0.26], [b.t / 8, -0.26], [b.t / 8, 0.26], [a.t / 8, 0.26]]);
+      }
+    }
+    const hq = (P, n, col) => push(Hs, P, n, col);
+    for (const H of I.houses) {
+      const q = road.at(I.s + H.t, {}), rx = Math.cos(q.th), rz = -Math.sin(q.th), fx = -Math.sin(q.th), fz = -Math.cos(q.th);
+      const cx = q.x + rx * H.u, cz = q.z + rz * H.u, y0 = H.y - 0.15;
+      const C = (a, b, y) => [cx + fx * a + rx * b, y, cz + fz * a + rz * b];   // a dọc s (±w/2), b ngang (±d/2)
+      const W = H.w / 2, D = H.d / 2, y1 = H.y + H.h, yr = y1 + 2.2, wl = H.wall, rf = H.roof;
+      hq([C(-W, -D, y0), C(W, -D, y0), C(W, -D, y1), C(-W, -D, y1)], [-rx, 0, -rz], wl);
+      hq([C(-W, D, y0), C(W, D, y0), C(W, D, y1), C(-W, D, y1)], [rx, 0, rz], wl);
+      hq([C(-W, -D, y0), C(-W, D, y0), C(-W, D, y1), C(-W, -D, y1)], [-fx, 0, -fz], wl);
+      hq([C(W, -D, y0), C(W, D, y0), C(W, D, y1), C(W, -D, y1)], [fx, 0, fz], wl);
+      hq([C(-W, -D, y1), C(-W, D, y1), C(-W, 0, yr), C(-W, 0, yr)], [-fx, 0, -fz], wl);   // đầu hồi
+      hq([C(W, -D, y1), C(W, D, y1), C(W, 0, yr), C(W, 0, yr)], [fx, 0, fz], wl);
+      const k1 = 0.35;                                               // mái chìa 35 cm
+      hq([C(-W - k1, -D - k1, y1 - 0.2), C(W + k1, -D - k1, y1 - 0.2), C(W + k1, 0, yr), C(-W - k1, 0, yr)], [-rx * 0.7, 0.7, -rz * 0.7], rf);
+      hq([C(-W - k1, D + k1, y1 - 0.2), C(W + k1, D + k1, y1 - 0.2), C(W + k1, 0, yr), C(-W - k1, 0, yr)], [rx * 0.7, 0.7, rz * 0.7], rf);
+      const fb = H.face * (D + 0.02), fn = [rx * H.face, 0, rz * H.face], DARK = [0.16, 0.17, 0.19], DOOR = [0.36, 0.24, 0.16];
+      hq([C(-0.5, fb, y0 + 0.02), C(0.5, fb, y0 + 0.02), C(0.5, fb, y0 + 2.1), C(-0.5, fb, y0 + 2.1)], fn, DOOR);
+      for (let f = 0; f < H.h / 3.1; f++) for (const a of [-W + 1.3, W - 1.3]) {
+        const yy = y0 + 1.0 + f * 3.1;
+        hq([C(a - 0.6, fb, yy), C(a + 0.6, fb, yy), C(a + 0.6, fb, yy + 1.2), C(a - 0.6, fb, yy + 1.2)], fn, DARK);
+      }
+    }
     const mk = (B, mat, opts = {}) => {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(B.pos, 3));
@@ -225,6 +402,7 @@ export class Avenue {
       group.add(m);
     };
     mk(A, this.asphalt); mk(M, this.markMat); mk(Cc, this.barrierMat, { cast: true });
+    mk(S, this.signMat); mk(Mt, this.metalMat, { cast: true }); mk(Hs, this.houseMat, { cast: true });
     this.group.add(group);
     return group;
   }

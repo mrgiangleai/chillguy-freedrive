@@ -144,8 +144,8 @@ uniform float uTime, uWind, uCell, uScale, uIn0, uIn1, uOut0, uOut1, uCorr;
 uniform vec2 uWindDir;
 uniform vec3 uRoad[${ROAD_PTS}];     // (x, y, z) của tim đường
 uniform float uCarve0, uCarve1, uTipH, uPatch;
-uniform vec4 uExcl[16];               // đoạn loại cỏ (x0, z0, x1, z1) — đại lộ: đường ngang + nhánh rẽ
-uniform float uExclW[16];
+uniform vec4 uExcl[32];               // đoạn loại cỏ (x0, z0, x1, z1) — đại lộ: đường ngang + nhánh rẽ
+uniform float uExclW[32];
 uniform int uExclN;
 ${TERRAIN_GLSL}
 // khoảng cách tới đường + độ cao mặt đường tại điểm gần nhất
@@ -170,7 +170,7 @@ float vis = smoothstep(uIn0, uIn1, dist) * (1.0 - smoothstep(uOut0, uOut1, dist)
 float ry;
 float rd = roadDist(wp, ry);
 vis *= smoothstep(uCorr, uCorr + 1.5, rd);
-for (int i = 0; i < 16; i++) {
+for (int i = 0; i < 32; i++) {
   if (i >= uExclN) break;
   vec2 ea = uExcl[i].xy, eb = uExcl[i].zw, eab = eb - ea;
   float et = clamp(dot(wp - ea, eab) / max(dot(eab, eab), 1e-4), 0.0, 1.0);
@@ -220,7 +220,7 @@ export class ReedField {
       uPatch: { value: meadow ? 1 : 0 },
       uCarve0: { value: ROAD.halfWidth + 1.2 }, uCarve1: { value: ROAD.halfWidth + 16 },
       uTLow: { value: TP.low }, uTDet: { value: TP.det }, uTFine: { value: TP.fine },
-      uExcl: { value: Array.from({ length: 16 }, () => new THREE.Vector4()) }, uExclW: { value: new Array(16).fill(0) }, uExclN: { value: 0 },
+      uExcl: { value: Array.from({ length: 32 }, () => new THREE.Vector4()) }, uExclW: { value: new Array(32).fill(0) }, uExclN: { value: 0 },
     };
 
     this.leafGeo = meadow ? meadowGeometry() : grass ? grassGeometry() : leafGeometry();
@@ -325,7 +325,7 @@ export class ReedField {
     sh.uWindDir.value.copy(st.windDir);
     sh.uTLow.value = TP.low; sh.uTDet.value = TP.det; sh.uTFine.value = TP.fine;
     const ex = this.exclusions || [];                    // [x0, z0, x1, z1, w]
-    sh.uExclN.value = Math.min(16, ex.length);
+    sh.uExclN.value = Math.min(32, ex.length);
     for (let i = 0; i < sh.uExclN.value; i++) { sh.uExcl.value[i].set(ex[i][0], ex[i][1], ex[i][2], ex[i][3]); sh.uExclW.value[i] = ex[i][4]; }
     sh.uCorr.value = ROAD.halfWidth + this.corrPad; sh.uCarve0.value = ROAD.halfWidth + 1.2; sh.uCarve1.value = ROAD.halfWidth + 16;   // bề rộng đường theo map
     const p = {};
