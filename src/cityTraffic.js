@@ -268,14 +268,14 @@ export class CityTraffic {
     this.cars = this.cars.filter((c) => !c.model || c.crashed);
     if (this.pool) for (const v of this.pool()) if (v.cityBusy) { v.cityBusy = false; v.busy = false; v.root.visible = false; }
   }
-  xrS(c) { return icS(c.xr.k) + c.xr.a; }
+  xrS(c) { return c.xr.I.s + c.xr.a; }
   remove(c) { const i = this.cars.indexOf(c); if (i >= 0) this.cars.splice(i, 1); }
   // xe (đường chính hoặc đường ngang) chồng lên hình chữ nhật [s ± len/2] × [d ± wid/2] (toạ độ đường chính)
   hitTest(s, d, len, wid) {
     for (const c of this.cars) {
       let cs, cd, cl, cw;
       if (c.cross) { cs = this.road.junction(c.cross.n) + c.cross.a; cd = c.cross.u; cl = c.wid; cw = c.len; }
-      else if (c.xr) { if (Math.abs(c.xr.u) < 16) continue; cs = icS(c.xr.k) + c.xr.a; cd = c.xr.u; cl = c.wid; cw = c.len; }   // dưới cầu: không va xe trên cầu
+      else if (c.xr) { if (Math.abs(c.xr.u) < 16) continue; cs = c.xr.I.s + c.xr.a; cd = c.xr.u; cl = c.wid; cw = c.len; }   // dưới cầu: không va xe trên cầu
       else { cs = c.s; cd = c.d; cl = c.len; cw = c.wid; }
       if (Math.abs(cs - s) < (len + cl) / 2 - 0.25 && Math.abs(cd - d) < (wid + cw) / 2 - 0.15) return c;
     }
@@ -359,24 +359,22 @@ export class CityTraffic {
       }
     }
     for (const k of this.crossTimers.keys()) { const n = Math.floor(k / 2); if (n < n0 - 1 || n > n1) this.crossTimers.delete(k); }
-    // ---- đại lộ: xe đường ngang dưới cầu vượt ở các nút giao gần ----
-    const k0 = this.avenue && !cfg.cross ? icIndex(s - 300) : 0, k1 = this.avenue && !cfg.cross ? icIndex(s + 1600) : -1;
-    for (let k = k0; k <= k1; k++) {
-      const off = icS(k) - s;
-      if (off < -300 || off > 1600) continue;
-      for (const du of [1, -1]) {
-        const key = 'x' + k + (du > 0 ? '+' : '-');
+    // ---- đại lộ: xe đường ngang dưới cầu (nút giao: 2 làn; cầu vượt cao: quốc lộ 4 làn) ----
+    for (const I of this.avenue && !cfg.cross ? this.avenue.crossings(s, -300, 1600) : []) {
+      for (const du of [1, -1]) for (const l of I.laneA) {
+        const a = du > 0 ? -l : l, key = I.key + (du > 0 ? '+' : '-') + l;
         let tm = this.crossTimers.get(key) ?? Math.random() * 3;
         tm -= dt;
         if (tm <= 0) {
           tm = (4 + Math.random() * 7) / Math.max(0.05, this.density);
-          const u0 = -du * IC.crossLen, busy = this.cars.some((c) => c.xr && c.xr.k === k && c.xr.du === du && Math.abs(c.xr.u - u0) < 16);
+          const u0 = -du * I.crossLen, busy = this.cars.some((c) => c.xr && c.xr.I === I && c.xr.a === a && Math.abs(c.xr.u - u0) < 16);
           const t = this._pick();
-          if (!busy && t && t !== 'bus') { const c = this._new(t, { xr: { k, u: u0, a: du > 0 ? -1.75 : 1.75, du } }); c.vMax /= cfg.vK; c.v = c.vMax; this.cars.push(c); }
+          if (!busy && t && (t !== 'bus' || I.kind === 'fly')) { const c = this._new(t, { xr: { I, u: u0, a, du } }); c.vMax /= cfg.vK; if (I.kind === 'fly') c.vMax *= 1.4; c.v = c.vMax; this.cars.push(c); }
         }
         this.crossTimers.set(key, tm);
       }
     }
+    if (this.crossTimers.size > 120) for (const key of this.crossTimers.keys()) if (typeof key === 'string') this.crossTimers.delete(key);   // dọn hẹn giờ cũ
 
     // ---- chuyển động ----
     const player = { s, d, v, len: playerLen, wid: 1.9, dir: 1, player: true };
@@ -481,13 +479,13 @@ export class CityTraffic {
       const X = c.xr;
       let want = c.vMax;
       for (const e of this.cars) {
-        if (e === c || !e.xr || e.xr.k !== X.k || e.xr.du !== X.du) continue;
+        if (e === c || !e.xr || e.xr.I !== X.I || e.xr.a !== X.a) continue;
         const gap = (e.xr.u - X.u) * X.du - (e.len + c.len) / 2;
         if (gap > -0.5) want = Math.min(want, follow(e.v, gap));
       }
-      for (const uc of [IC.rampU, -IC.rampU]) {
+      if (X.I.kind === 'ic') for (const uc of [IC.rampU, -IC.rampU]) {
         const dist = (uc - X.u) * X.du - c.len / 2 - 4.5;
-        if (dist > -1 && dist < 45 && rampBusy(X.k, Math.sign(uc))) want = Math.min(want, Math.sqrt(2 * 3 * Math.max(0, dist)));
+        if (dist > -1 && dist < 45 && rampBusy(X.I.k, Math.sign(uc))) want = Math.min(want, Math.sqrt(2 * 3 * Math.max(0, dist)));
       }
       c.v += Math.max(-7 * dt, Math.min(2.2 * dt, want - c.v));
       c.v = Math.max(0, c.v);
@@ -495,7 +493,7 @@ export class CityTraffic {
     }
     // bỏ xe ra khỏi vùng
     this.cars = this.cars.filter((c) => (c.crashed || c.script) ? true : c.cross ? cfg.cross && Math.abs(c.cross.u) <= CROSS_R + 2 && c.cross.n >= n0 - 1
-      : c.xr ? !cfg.cross && Math.abs(c.xr.u) <= IC.crossLen + 2 && icS(c.xr.k) - s > -320 && icS(c.xr.k) - s < 1700 : c.s > s - BEHIND - 20 && c.s < s + AHEAD + 40);
+      : c.xr ? !cfg.cross && Math.abs(c.xr.u) <= c.xr.I.crossLen + 2 && c.xr.I.s - s > -320 && c.xr.I.s - s < 1700 : c.s > s - BEHIND - 20 && c.s < s + AHEAD + 40);
 
     // ---- xe mình bám xe trước cùng làn ----
     const fp = ahead(player, d);
@@ -521,7 +519,7 @@ export class CityTraffic {
       if (i >= TYPES[c.type].max) continue;
       let yaw;
       if (c.xr) {
-        const P = this.avenue.crossPose(c.xr.k, c.xr.u, c.xr.a, c.xr.du, this._xp || (this._xp = {}));
+        const P = this.avenue.crossPose(c.xr.I, c.xr.u, c.xr.a, c.xr.du, this._xp || (this._xp = {}));
         vv.set(P.x, P.y, P.z); yaw = P.yaw;
       } else if (c.cross) {
         const F = this._frame(c.cross.n);

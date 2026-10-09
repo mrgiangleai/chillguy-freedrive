@@ -229,6 +229,7 @@ export class Terrain {
       h += hDetail(x * 1.7, z * 1.7) * 0.8;
       if (Math.abs(u) > 650) h += mountains(x, z) * sstep(650, 1500, Math.abs(u));
     } else if (dm > 500) h += mountains(x, z) * sstep(500, 1600, dm);
+    const h0 = h;                                                 // độ cao tự nhiên (trước khi xẻ theo đường)
     if (near) {
       this._d = this._nd; this._s = this._ns;
       const t = sstep(CARVE0, CARVE1, this._nd);
@@ -237,7 +238,7 @@ export class Terrain {
       // map núi: chân vách sát lề cũng lồi lõm (khối đá nhô ra ngay sau lề phẳng; không đào rãnh xuống thấp hơn mặt đường)
       if (side && this._nl < 0) h = Math.max(ry, h + Math.max(rel, -8) * sstep(HW + 1.5, HW + 8, this._nd) * (1 - t));
     }
-    if (this.extraCarve) h = this.extraCarve(x, z, h);          // map Đại lộ: đường ngang dưới cầu + nhánh rẽ
+    if (this.extraCarve) h = this.extraCarve(x, z, h, h0, near ? this._ns : -1, near ? this._nd : -1);   // map Đại lộ: đường ngang, nhánh, cầu cạn, sông
     return h;
   }
 

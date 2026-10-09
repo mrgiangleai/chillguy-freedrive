@@ -69,6 +69,10 @@ const WAVE = `
 uniform sampler2D uWave;
 uniform float uFrame, uFrameB, uWA, uWB, uSea, uLod, uT;
 uniform vec3 uCamW;
+uniform float uRiv, uRivHW;          // chế độ sông (map Đại lộ): 1 = bật; nửa bề rộng sông
+uniform vec4 uRivPF;                 // tâm sông (x, z) + hướng ngang sông f (x, z)
+// khoảng cách có dấu tới tim sông (đã trừ độ uốn 40·sin(u/300) như avenue.js)
+float rivA(vec2 p) { vec2 d = p - uRivPF.xy, f = uRivPF.zw, r = vec2(-f.y, f.x); float u = dot(d, r); return dot(d, f) - 40.0 * sin(u / 300.0); }
 uniform vec3 uRoad[${ROAD_N}];
 const float TILE = ${TILE.toFixed(3)};
 const mat2 ROT = mat2(0.906, 0.423, -0.423, 0.906);      // ô sóng xoay ~25° so với trục thế giới
@@ -111,6 +115,7 @@ function oceanMaterial(u) {
         float camD = length(ow.xz - uCamW.xz);
         vec3 wv = waveAt(ow.xz);
         float fadeH = 1.0 - smoothstep(80.0, 112.0, camD);           // xa: chỉ còn pháp tuyến, mặt phẳng (lưới gần rộng ±120 m)
+        if (uRiv > 0.5) fadeH *= 0.35;                              // sông: sóng nhỏ hơn biển
         transformed.y += wv.x * fadeH;
         // độ sâu ước lượng: khoảng cách tới tim đường + cao độ đường => cao độ đê (cùng công thức xẻ đường của terrain.js)
         float dm = 1e9, ry = uSea + 10.0;
@@ -122,7 +127,7 @@ function oceanMaterial(u) {
         }
         float ground = mix(ry - 0.02, uSea - ${SEA_BED.toFixed(1)}, smoothstep(${CARVE0.toFixed(2)}, ${CARVE1.toFixed(2)}, dm));
         vDepth = uSea + wv.x * fadeH - ground;
-        vShore = 1.0 - smoothstep(30.0, 60.0, dm);
+        vShore = (1.0 - smoothstep(30.0, 60.0, dm)) * (1.0 - uRiv);
         vOW = ow; vOW.y += wv.x * fadeH;`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>\n${WAVE}\nvarying vec3 vOW; varying float vDepth, vShore;\nfloat oFoam = 0.0;
@@ -130,6 +135,7 @@ function oceanMaterial(u) {
         float oNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
           return mix(mix(oHash(i), oHash(i + vec2(1.0, 0.0)), f.x), mix(oHash(i + vec2(0.0, 1.0)), oHash(i + vec2(1.0, 1.0)), f.x), f.y); }`)
       .replace('#include <map_fragment>', `
+        if (uRiv > 0.5 && abs(rivA(vOW.xz)) > uRivHW) discard;      // sông: chỉ trong dải nước
         float camD = length(vOW.xz - uCamW.xz);
         oLod = clamp(log2(camD * camD / uLod), 0.0, 2.5);           // xa / nhìn xiên: mipmap thô hơn (ô 128 px có viền đệm => tối đa ~2.5)
         vec3 wv = waveAt(vOW.xz);
@@ -140,13 +146,13 @@ function oceanMaterial(u) {
         float shallow = 1.0 - smoothstep(0.5, 6.0, dep);
         // bọt: ven bờ (nước rất nông, vỗ theo nhịp sóng) + đầu ngọn sóng cao
         oFoam = clamp((1.0 - smoothstep(0.0, 0.9 + 0.5 * n, dep)) * (0.55 + 0.45 * n) + crest * smoothstep(0.62, 0.9, n) * 0.5, 0.0, 1.0);
-        vec3 deep = vec3(0.010, 0.050, 0.065), turq = vec3(0.05, 0.30, 0.30);
+        vec3 deep = mix(vec3(0.010, 0.050, 0.065), vec3(0.008, 0.026, 0.024), uRiv), turq = mix(vec3(0.05, 0.30, 0.30), vec3(0.03, 0.10, 0.08), uRiv);   // sông: sẫm hơn biển
         diffuseColor.rgb = mix(mix(deep, turq, shallow), vec3(0.75, 0.80, 0.82), oFoam);
         diffuseColor.a = mix(mix(1.0, 0.55, shallow), 0.95, oFoam);`)
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor + smoothstep(150.0, 1500.0, camD) * 0.12, 0.85, oFoam);')
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor + smoothstep(150.0, 1500.0, camD) * 0.12 + uRiv * 0.16, 0.85, oFoam);')
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         {
-          vec2 sl = wv.yz / (1.0 + camD / 400.0);                // xa: dịu pháp tuyến (đỡ lấp lánh răng cưa)
+          vec2 sl = wv.yz / (1.0 + camD / 400.0) * (1.0 - 0.55 * uRiv);   // xa: dịu pháp tuyến (đỡ lấp lánh răng cưa); sông êm hơn
           vec3 nw = normalize(vec3(-sl.x, 1.0, -sl.y));
           normal = normalize((viewMatrix * vec4(nw, 0.0)).xyz);
         }`);
@@ -162,7 +168,8 @@ export class Ocean {
     scene.add(this.group);
     this.level = 0;
     this.roadPts = Array.from({ length: ROAD_N }, () => new THREE.Vector3());
-    this.u = { uWave: { value: null }, uFrame: { value: 0 }, uFrameB: { value: 0 }, uWA: { value: 1 }, uWB: { value: 0 }, uT: { value: 0 }, uSea: { value: 0 }, uLod: { value: 3000 }, uCamW: { value: new THREE.Vector3() }, uRoad: { value: this.roadPts } };
+    this.u = { uWave: { value: null }, uFrame: { value: 0 }, uFrameB: { value: 0 }, uWA: { value: 1 }, uWB: { value: 0 }, uT: { value: 0 }, uSea: { value: 0 }, uLod: { value: 3000 }, uCamW: { value: new THREE.Vector3() }, uRoad: { value: this.roadPts },
+      uRiv: { value: 0 }, uRivHW: { value: 100 }, uRivPF: { value: new THREE.Vector4() } };
     this.material = null;
     this._p = {};
   }
@@ -185,9 +192,22 @@ export class Ocean {
 
   // on: map biển; level: mực nước (m)
   setMap(on, level = 0) {
+    this.u.uRiv.value = 0;
     this.group.visible = on;
     this.level = level;
     if (on && !this.material) this._build();
+  }
+
+  // map Đại lộ: mặt sông (sóng biển nhỏ lại, nước sẫm), chỉ trong dải |a| < hw quanh tim sông P, hướng ngang sông f
+  setRiver(on, level = 0, P = null, f = null, hw = 100) {
+    if (!on && this.u.uRiv.value < 0.5) return;                     // đang không ở chế độ sông: không đụng tới map Biển
+    this.u.uRiv.value = on ? 1 : 0;
+    this.group.visible = on;
+    if (!on) return;
+    if (!this.material) this._build();
+    this.level = level;
+    this.u.uRivHW.value = hw;
+    this.u.uRivPF.value.set(P.x, P.z, f.x, f.z);
   }
 
   update(time, cam, road, s) {

@@ -112,6 +112,16 @@ export class Minimap {
     }
     // ---- map Đại lộ: đường ngang, nhánh, đường gom, nhà, trạm thu phí ----
     if (id === 'avenue' && S.avenue) {
+      for (const Rv of (S.avenue.rivers || new Map()).values()) {    // sông: dải xanh theo độ uốn
+        if (Math.abs(Rv.P.x - cx) > span + 3000 || Math.abs(Rv.P.z - cz) > span + 3000) continue;
+        const pts = [];
+        for (let u = -3000; u <= 3000; u += 60) { const m = 40 * Math.sin(u / 300); pts.push([Rv.P.x + Rv.rx * u + Rv.fx * m, Rv.P.z + Rv.rz * u + Rv.fz * m]); }
+        line(pts, Rv.hw * 2, '#6fa8d6', 3);
+      }
+      for (const F of (S.avenue.flys || new Map()).values()) {       // quốc lộ 4 làn dưới cầu cao
+        if (Math.abs(F.P.x - cx) > span + 700 || Math.abs(F.P.z - cz) > span + 700) continue;
+        line([[F.P.x - F.rx * F.crossLen, F.P.z - F.rz * F.crossLen], [F.P.x + F.rx * F.crossLen, F.P.z + F.rz * F.crossLen]], F.crossHW * 2, '#ffffff', 2);
+      }
       for (const I of S.avenue.ics.values()) {
         if (Math.abs(I.P.x - cx) > span + 600 || Math.abs(I.P.z - cz) > span + 600) continue;
         for (const L of I.lanes) line(L.pts.map((q) => [q.x, q.z]), 4.2, '#ffffff', 1.2);

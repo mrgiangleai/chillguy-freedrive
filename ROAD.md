@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -197,7 +197,15 @@
   kính tối mái xanh, mái che 24 m có dải chữ "TRẠM THU PHÍ · ETC" 2 mặt, barie sọc đỏ trắng mỗi làn (`updateToll`: nâng khi có xe
   ≤ 16 m trước vạch, hạ khi trống), biển 1 km / 500 m + tốc độ 40. Mọi xe (NPC + xe mình, kể cả khi tắt tự giữ khoảng cách) giảm
   còn ~20 km/h tới vạch (v = 5.55 + √(3.2·(d − 2)), vùng 160 m) rồi tăng tốc; xe mình: toast báo trước ~300 m, qua vạch "bíp" 2 tiếng
-  (`audio.beep`) + toast "Đã trừ phí tự động (ETC): 35.000đ".
+  (`audio.beep`) + toast "Đã trừ phí tự động (ETC): 35.000đ". **Cầu vượt cao** (`FLY` trong road.js, s = 6000 + 12000k): cao tốc nhô
+  12 m (đỉnh ±70, dốc tới ±400) thành **cầu cạn** |t| < 230 (bản mặt cầu dày 1.6 m rộng ±14.8, gờ lan can, trụ đôi mỗi 28 m + xà mũ,
+  tường mố 2 đầu; dưới cầu mặt đất giữ tự nhiên — `avenue.carve` nhận `h0` + `ns/nd` từ terrain) qua **quốc lộ 4 làn** (±8.2 m, vàng
+  đôi, đứt ±3.5, ±520 m) nằm trong hào 3 m; xe 2 chiều mỗi chiều 2 làn (`c.xr.I` = khung đường ngang chung cho nút giao / cầu cao,
+  `avenue.crossings`). **Cầu sông** (`RIVER`, s = 12000 + 12000k): cao tốc nhô 8 m, cầu cạn |t| < 330 qua thung lũng sông rộng 240 m
+  (mặt nước thấp hơn nền 14 m, sâu 5 m, bờ thoải; sông uốn `meander(u) = 40·sin(u/300)`), trụ xuống lòng sông, 2 tháp dây văng cao 42 m
+  trên dải phân cách ở t = ±70 (dây thép `cableMat`). Mặt nước: shader Ocean chế độ sông (`ocean.setRiver`: cắt theo dải sông, sóng
+  ×0.35, màu sẫm, nhám hơn, không bọt bờ), bật khi xe trong 3.5 km quanh cầu sông. Cỏ: loại dọc cầu cạn ±30 m + dải sông. Biển tốc độ
+  của nút giao dời từ ±1300 về ±1150 (không rơi vào cầu cạn).
   Khu chung cư (~9% lô mặt tiền, `apartment` trong `_build`): tòa nhà lùi 11 m, công viên nhỏ (cỏ `lawnMat`, hàng rào cây, cây tán
   tròn `broadleafGeometry`, ghế), bậc thang lên sân sảnh (sàn tầng trệt = sân), ban công 3D từng tầng (sàn + lan can); mẫu A 10–13
   tầng bậc hẹp 4 cây, mẫu B 6–8 tầng bậc rộng + ghế; nhà bên trong khối chừa chỗ. Bảng 🚦 có "Thêm xe của chú": xe model
@@ -273,3 +281,4 @@
 - **#5 — Màn hình chờ chạy chất lượng Low (09/10/2026)**.
 - **#6 — Bản đồ tròn (Drive): đường + xe thật, bấm để phóng to, kéo / zoom (09/10/2026)**.
 - **#7 — Điện thoại: nút lái trái / phải hai bên Space (09/10/2026)**.
+- **#8 — Đại lộ: cầu vượt cao qua quốc lộ 4 làn + cầu dây văng qua sông lớn (09/10/2026)**.

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ROAD, ROAD_HW, CITY, AVENUE, IC, icS, icIndex, rampU, avHump, TOLL, tollDist, Road } from './road.js';
+import { ROAD, ROAD_HW, CITY, AVENUE, IC, icS, icIndex, rampU, avHump, TOLL, tollDist, riverIndex, Road } from './road.js';
 import { Avenue } from './avenue.js';
 import { Minimap } from './minimap.js';
 import { City, SIGNAL } from './city.js';
@@ -119,7 +119,7 @@ traffic.stopFor = (s, dir, v) => city.stopAhead(s, dir, v);   // xe NPC dừng �
 const cityTraffic = new CityTraffic(scene, road, city);      // map Phố: xe dựng bằng code, 4 làn + đường ngang
 const cityPeople = new CityPeople(scene, road, city);        // map Phố: người đi bộ
 const avenue = new Avenue(scene, road, scenery.cityTex);     // map Đại lộ: vạch kẻ 6 làn + dải phân cách + nút giao (xe: cityTraffic chế độ avenue)
-terrain.extraCarve = (x, z, h) => avenue.carve(x, z, h);
+terrain.extraCarve = (x, z, h, h0, ns, nd) => avenue.carve(x, z, h, h0, ns, nd);
 scenery.railGap = (s) => avenue.visible && avenue.railGap(s);
 meadow.exclusions = avenue.excl;
 cityTraffic.avenue = avenue;
@@ -135,7 +135,7 @@ const minimap = new Minimap({
     const out = [];
     if (cityTraffic.visible) {
       for (const c of cityTraffic.cars) {
-        if (c.xr) { avenue.crossPose(c.xr.k, c.xr.u, c.xr.a, c.xr.du, _mmX); out.push([_mmX.x, _mmX.z]); continue; }
+        if (c.xr) { avenue.crossPose(c.xr.I, c.xr.u, c.xr.a, c.xr.du, _mmX); out.push([_mmX.x, _mmX.z]); continue; }
         if (c.cross) { const F = city._frame(road.junction(c.cross.n)); out.push([F.x + F.fx * c.cross.a + F.rx * c.cross.u, F.z + F.fz * c.cross.a + F.rz * c.cross.u]); continue; }
         road.at(c.s, _mmP); out.push([_mmP.x + Math.cos(_mmP.th) * c.d, _mmP.z - Math.sin(_mmP.th) * c.d]);
       }
@@ -1290,6 +1290,10 @@ function frame(now) {
   scenery.update(drive.s);
   scenery.apply(st);
   scenery.updateLights(camera.position);
+  if (avenue.visible) {                                    // đại lộ: mặt sông khi tới gần cầu sông (≤ 3.5 km)
+    const R = avenue.river(riverIndex(drive.s));
+    ocean.setRiver(Math.abs(R.s - drive.s) < 3500, R.level, R.P, { x: R.fx, z: R.fz }, R.hw);
+  }
   ocean.update(now / 1000, camera.position, road, drive.s);
   waterfalls.update(now / 1000, drive.s, st.light, { d: drive.d, v: drive.v, dim: cars.dim, npcs: traffic.active, cam: camera, audio });
   if (reeds.visible) reeds.update(now / 1000, camera.position, road, drive.s, st);

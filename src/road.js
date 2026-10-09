@@ -32,9 +32,18 @@ export function tollDist(s, dir) {
 }
 export const icIndex = (s) => Math.max(0, Math.round((s - IC.first) / IC.period));
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+// Cầu vượt cao (FLY): mỗi 12 km tại 6000 + 12000k, cao tốc nhô lên 12 m thành cầu cạn trên trụ, bắc qua quốc lộ 4 làn nằm trong
+// hào sâu 3 m (tĩnh không ~13 m). Cầu qua sông (RIVER): tại 12000 + 12000k, cao tốc nhô 8 m thành cầu cạn dài qua thung lũng sông
+// rộng 2·hw (mặt nước thấp hơn nền drop m). `viaduct` = |t| mà ở trong đó mặt đất dưới cầu giữ tự nhiên (không đắp nền).
+export const FLY = { period: 12000, first: 6000, hump: 12, flat: 70, rise: 400, cut: 3, crossLen: 520, crossHW: 8.2, lanes: [1.75, 5.25], viaduct: 230 };
+export const RIVER = { period: 12000, first: 12000, hump: 8, flat: 200, rise: 430, hw: 120, drop: 14, depth: 5, viaduct: 330 };
+export const flyS = (k) => FLY.first + k * FLY.period;
+export const flyIndex = (s) => Math.max(0, Math.round((s - FLY.first) / FLY.period));
+export const riverS = (k) => RIVER.first + k * RIVER.period;
+export const riverIndex = (s) => Math.max(0, Math.round((s - RIVER.first) / RIVER.period));
 export function avHump(s) {
-  const a = Math.abs(s - icS(icIndex(s)));
-  return IC.hump * (1 - sm(IC.flat, IC.rise, a));
+  const a = Math.abs(s - icS(icIndex(s))), b = Math.abs(s - flyS(flyIndex(s))), c = Math.abs(s - riverS(riverIndex(s)));
+  return IC.hump * (1 - sm(IC.flat, IC.rise, a)) + FLY.hump * (1 - sm(FLY.flat, FLY.rise, b)) + RIVER.hump * (1 - sm(RIVER.flat, RIVER.rise, c));
 }
 // nhánh rẽ phía phải (chiều +s): t ∈ [−rampLen, rampLen], ngoài khoảng trả null
 export function rampU(t) {

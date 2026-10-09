@@ -1,10 +1,12 @@
 import * as THREE from 'three';
-import { AVENUE, IC, icS, icIndex, rampU, TOLL, tollS } from './road.js';
+import { AVENUE, IC, icS, icIndex, rampU, TOLL, tollS, FLY, flyS, flyIndex, RIVER, riverS, riverIndex } from './road.js';
 import { hLow } from './terrain-noise.js';
 import { withMist } from './mist.js';
 
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const RAMP_STEP = 6, RAMP_HW = 2.5;
+export const meander = (u) => 40 * Math.sin(u / 300);       // sông uốn nhẹ (cùng công thức trong shader nước)
+const DECK_HW = 14.8;                                        // nửa bề rộng bản mặt cầu cạn (chứa cả cột đèn)
 const hashR = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 const FONT = 'Arial, "Helvetica Neue", sans-serif';
 
@@ -74,6 +76,7 @@ export class Avenue {
     this.metalMat = new THREE.MeshStandardMaterial({ color: 0x8d9296, roughness: 0.45, metalness: 0.5 });
     this.houseMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
     this.armMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5 });
+    this.cableMat = new THREE.LineBasicMaterial({ color: 0xd8dadc });
     for (const m of [this.asphalt, this.signMat, this.metalMat, this.houseMat]) withMist(m);
     this.group = new THREE.Group();
     this.group.visible = false;
@@ -97,6 +100,8 @@ export class Avenue {
     this.icGroups.clear();
     for (const T of (this.tolls || new Map()).values()) this._dispose(T.group);
     this.tolls?.clear();
+    for (const g of (this.bigGroups || new Map()).values()) this._dispose(g);
+    this.bigGroups?.clear(); this.flys?.clear(); this.rivers?.clear();
     this.ics.clear();
     this.excl.length = 0;
   }
@@ -106,7 +111,8 @@ export class Avenue {
     let I = this.ics.get(k);
     if (I) return I;
     const road = this.road, s0 = icS(k), p = road.at(s0, {});
-    I = { k, s: s0, th: p.th, rx: Math.cos(p.th), rz: -Math.sin(p.th), fx: -Math.sin(p.th), fz: -Math.cos(p.th), yc: road.baseY(s0) };
+    I = { kind: 'ic', key: 'i' + k, k, s: s0, th: p.th, rx: Math.cos(p.th), rz: -Math.sin(p.th), fx: -Math.sin(p.th), fz: -Math.cos(p.th), yc: road.baseY(s0),
+      crossLen: IC.crossLen, crossHW: IC.crossHW, laneA: [1.75], flat: 60, blend: 140 };
     I.P = { x: p.x, y: I.yc, z: p.z };
     I.ramps = [1, -1].map((side) => {
       const pts = [];
@@ -155,21 +161,81 @@ export class Avenue {
   // cao độ đường ngang tại u (bằng nền ±60 m quanh cao tốc, xa dần thì theo địa hình)
   crossY(I, u) {
     const x = I.P.x + I.rx * u, z = I.P.z + I.rz * u;
-    return I.yc + (hLow(x, z) - I.yc) * sm(60, 140, Math.abs(u));
+    return I.yc + (hLow(x, z) - I.yc) * sm(I.flat, I.blend, Math.abs(u));
   }
-  // vị trí + hướng xe trên đường ngang của nút giao k: u (dọc đường ngang), a (lệch làn theo f), du (hướng chạy)
-  crossPose(k, u, a, du, out) {
-    const I = this.ic(k);
+  // cầu vượt cao k: quốc lộ 4 làn trong hào dưới cầu cạn (cùng dạng khung với nút giao, không có nhánh)
+  fly(k) {
+    this.flys ||= new Map();
+    let F = this.flys.get(k);
+    if (F) return F;
+    const road = this.road, s0 = flyS(k), p = road.at(s0, {});
+    F = { kind: 'fly', key: 'f' + k, k, s: s0, th: p.th, rx: Math.cos(p.th), rz: -Math.sin(p.th), fx: -Math.sin(p.th), fz: -Math.cos(p.th),
+      yc: road.baseY(s0) - FLY.cut, crossLen: FLY.crossLen, crossHW: FLY.crossHW, laneA: FLY.lanes, flat: 90, blend: 220, viaduct: FLY.viaduct,
+      ramps: [], lines: [], lanes: [], houses: [] };
+    F.P = { x: p.x, y: F.yc, z: p.z };
+    const e = FLY.crossLen + 40;
+    const X = [p.x - F.rx * e, p.x + F.rx * e, p.x - F.fx * 300, p.x + F.fx * 300], Z = [p.z - F.rz * e, p.z + F.rz * e, p.z - F.fz * 300, p.z + F.fz * 300];
+    F.x0 = Math.min(...X); F.x1 = Math.max(...X); F.z0 = Math.min(...Z); F.z1 = Math.max(...Z);
+    this.flys.set(k, F);
+    return F;
+  }
+  // sông lớn k: dải nước rộng 2·hw chạy theo r (uốn nhẹ), mặt nước thấp hơn nền RIVER.drop m
+  river(k) {
+    this.rivers ||= new Map();
+    let R = this.rivers.get(k);
+    if (R) return R;
+    const road = this.road, s0 = riverS(k), p = road.at(s0, {}), yb = road.baseY(s0);
+    R = { kind: 'river', key: 'r' + k, k, s: s0, th: p.th, rx: Math.cos(p.th), rz: -Math.sin(p.th), fx: -Math.sin(p.th), fz: -Math.cos(p.th),
+      P: { x: p.x, y: yb, z: p.z }, level: yb - RIVER.drop, hw: RIVER.hw, viaduct: RIVER.viaduct };
+    this.rivers.set(k, R);
+    return R;
+  }
+  // khoảng cách có dấu tới tim sông (theo f) tại (x, z), đã trừ độ uốn
+  riverA(R, x, z) { const dx = x - R.P.x, dz = z - R.P.z, u = dx * R.rx + dz * R.rz; return dx * R.fx + dz * R.fz - meander(u); }
+  // các đường ngang (nút giao + cầu vượt cao) có tâm trong [s + lo, s + hi]
+  crossings(s, lo, hi) {
+    const out = [];
+    for (let k = icIndex(s + lo); k <= icIndex(s + hi); k++) { const d = icS(k) - s; if (d >= lo && d <= hi) out.push(this.ic(k)); }
+    for (let k = flyIndex(s + lo); k <= flyIndex(s + hi); k++) { const d = flyS(k) - s; if (d >= lo && d <= hi) out.push(this.fly(k)); }
+    return out;
+  }
+  // vị trí + hướng xe trên đường ngang I: u (dọc đường ngang), a (lệch làn theo f), du (hướng chạy)
+  crossPose(I, u, a, du, out) {
     out.x = I.P.x + I.rx * u + I.fx * a; out.z = I.P.z + I.rz * u + I.fz * a;
     out.y = this.crossY(I, u) + 0.05; out.yaw = I.th + (du > 0 ? -Math.PI / 2 : Math.PI / 2);
     return out;
   }
   // hộ lan cao tốc hở ở chỗ nhánh rẽ tách / nhập (cả 2 bên)
   railGap(s) { const t = Math.abs(s - icS(icIndex(s))); return t > 300 && t < 495; }
+  // cao tốc đang trên cầu cạn ở s? (độ nhô của cầu cao / cầu sông)
+  onViaduct(s) { return Math.abs(s - flyS(flyIndex(s))) < FLY.viaduct || Math.abs(s - riverS(riverIndex(s))) < RIVER.viaduct; }
 
   // địa hình: kênh đường ngang dưới cầu + nền nhánh rẽ (gọi từ terrain._height sau khi đã xẻ theo cao tốc)
-  carve(x, z, h) {
+  // h0: độ cao tự nhiên (trước khi xẻ theo cao tốc); ns / nd: quãng s và khoảng cách tới tim cao tốc gần nhất (nd < 0: xa đường)
+  carve(x, z, h, h0 = h, ns = -1, nd = -1) {
     if (!this.group.visible) return h;
+    // dưới cầu cạn (cầu cao / cầu sông): mặt đất giữ tự nhiên, không đắp nền theo mặt cầu
+    if (nd >= 0 && nd < 46) {
+      for (const [S, V] of [[flyS(flyIndex(ns)), FLY.viaduct], [riverS(riverIndex(ns)), RIVER.viaduct]]) {
+        const t = Math.abs(ns - S);
+        if (t < V) h += (h0 - h) * (1 - sm(V - 12, V, t));
+      }
+    }
+    for (const F of (this.flys || new Map()).values()) {           // hào quốc lộ dưới cầu cao
+      if (x < F.x0 || x > F.x1 || z < F.z0 || z > F.z1) continue;
+      const dx = x - F.P.x, dz = z - F.P.z, u = dx * F.rx + dz * F.rz, a = Math.abs(dx * F.fx + dz * F.fz);
+      if (Math.abs(u) < F.crossLen + 20 && a < F.crossHW + 22) {
+        const cy = this.crossY(F, u) - 0.03;
+        h = cy + (h - cy) * sm(F.crossHW + 1.6, F.crossHW + (Math.abs(u) < 60 ? 9 : 16), a);
+      }
+    }
+    for (const R of (this.rivers || new Map()).values()) {         // lòng sông + bờ thoải (bờ cao hơn mặt nước ≥ 1.5 m)
+      const a = Math.abs(this.riverA(R, x, z));
+      if (a > R.hw + 90) continue;
+      const bank = R.level + 1.6;
+      if (a < R.hw + 6) h = R.level - RIVER.depth + (bank - R.level + RIVER.depth) * sm(R.hw - 30, R.hw + 6, a);
+      else h = bank + (Math.max(h, bank) - bank) * sm(R.hw + 6, R.hw + 90, a);
+    }
     for (const I of this.ics.values()) {
       if (x < I.x0 || x > I.x1 || z < I.z0 || z > I.z1) continue;
       const dx = x - I.P.x, dz = z - I.P.z, u = dx * I.rx + dz * I.rz, a = Math.abs(dx * I.fx + dz * I.fz);
@@ -219,6 +285,20 @@ export class Avenue {
       if (d > -700 && d < 1900 && !this.icGroups.has(k)) this.icGroups.set(k, this._buildIC(this.ic(k)));
     }
     for (const [k, g] of this.icGroups) { const d = icS(k) - s; if (d < -800 || d > 2000) { this._dispose(g); this.icGroups.delete(k); } }
+    // cầu cao + sông: khung (địa hình xa) và mesh (gần)
+    this.flys ||= new Map(); this.rivers ||= new Map(); this.bigGroups ||= new Map();
+    for (let k = flyIndex(s - 2500); k <= flyIndex(s + 6500); k++) { const d = flyS(k) - s; if (d > -2500 && d < 6500) this.fly(k); }
+    for (const [k, F] of this.flys) if (F.s - s < -2600 || F.s - s > 6600) this.flys.delete(k);
+    for (let k = riverIndex(s - 3000); k <= riverIndex(s + 7000); k++) { const d = riverS(k) - s; if (d > -3000 && d < 7000) this.river(k); }
+    for (const [k, R] of this.rivers) if (R.s - s < -3100 || R.s - s > 7100) this.rivers.delete(k);
+    for (const O of [...this.flys.values(), ...this.rivers.values()]) {
+      const d = O.s - s;
+      if (d > -800 && d < 2200 && !this.bigGroups.has(O.key)) this.bigGroups.set(O.key, this._buildBig(O));
+    }
+    for (const [key, g] of this.bigGroups) {
+      const O = key[0] === 'f' ? this.flys.get(+key.slice(1)) : this.rivers.get(+key.slice(1));
+      if (!O || O.s - s < -900 || O.s - s > 2300) { this._dispose(g); this.bigGroups.delete(key); }
+    }
     this.tolls ||= new Map();
     for (let k = Math.max(0, Math.round((s - TOLL.first) / TOLL.period) - 1); k <= Math.round((s - TOLL.first) / TOLL.period) + 1; k++) {
       const d = tollS(k) - s;
@@ -244,6 +324,25 @@ export class Avenue {
   // đoạn loại cỏ quanh nút giao gần nhất: [x0, z0, x1, z1, nửa bề rộng]
   _exclusions(s) {
     const E = this.excl; E.length = 0;
+    const road = this.road;
+    // cầu cạn: cỏ tính nền theo mặt cầu => bỏ cỏ dọc cầu (±30 m)
+    const viaductExcl = (S, V) => { for (let t = -V; t < V && E.length < 32; t += 70) { const a = road.at(S + t, {}), b = road.at(S + Math.min(V, t + 70), {}); E.push([a.x, a.z, b.x, b.z, 30]); } };
+    const fk = flyIndex(s), rk = riverIndex(s);
+    if (Math.abs(flyS(fk) - s) < 800) {
+      const F = this.fly(fk), C = (u) => [F.P.x + F.rx * u, F.P.z + F.rz * u];
+      E.push([...C(-F.crossLen), ...C(F.crossLen), F.crossHW + 2]);
+      viaductExcl(F.s, FLY.viaduct);
+      return;
+    }
+    if (Math.abs(riverS(rk) - s) < 1400) {
+      const R = this.river(rk);
+      for (let u = -2400; u < 2400; u += 400) {                   // dải sông (theo độ uốn)
+        const P = (uu) => [R.P.x + R.rx * uu + R.fx * meander(uu), R.P.z + R.rz * uu + R.fz * meander(uu)];
+        E.push([...P(u), ...P(u + 400), R.hw + 4]);
+      }
+      viaductExcl(R.s, RIVER.viaduct);
+      return;
+    }
     const k = icIndex(s);
     if (Math.abs(icS(k) - s) > 900) return;
     const I = this.ic(k), C = (u) => [I.P.x + I.rx * u, I.P.z + I.rz * u];
@@ -352,7 +451,7 @@ export class Avenue {
       }
       const tg = -290 * dir, ug = sd * (AVENUE.hw + rampU(-290) - RAMP_HW) / 2;   // mũi tách nhánh (giữa mép cao tốc và mép nhánh)
       post(tg, ug, 3.6, 0.07); sign(tg - dir * 0.1, ug, dir, 2.4, 1.2, 2.3, 2);
-      for (const [tt, cell] of [[-1300, 4], [-700, 5], [620, 4]]) { const t = tt * dir; post(t, sd * 14.4, 3.2, 0.05); sign(t - dir * 0.08, sd * 14.4, dir, 1.0, 1.0, 2.2, cell, true); }
+      for (const [tt, cell] of [[-1150, 4], [-700, 5], [620, 4]]) { const t = tt * dir; post(t, sd * 14.4, 3.2, 0.05); sign(t - dir * 0.08, sd * 14.4, dir, 1.0, 1.0, 2.2, cell, true); }
       post(560 * dir, sd * 14.6, 3.6, 0.07); post(560 * dir, sd * 17.2, 3.6, 0.07); sign(560 * dir - dir * 0.1, sd * 15.9, dir, 3.2, 1.6, 1.9, 3);
       const tr = -250 * dir, ur = sd * (rampU(-250) + RAMP_HW + 0.8);    // nhánh ra: tốc độ tối đa 60
       post(tr, ur, 3.2, 0.05, road.baseY(I.s + tr)); sign(tr - dir * 0.08, ur, dir, 1.0, 1.0, 2.2, 6, true, road.baseY(I.s + tr));
@@ -420,6 +519,108 @@ export class Avenue {
     };
     mk(A, this.asphalt); mk(M, this.markMat); mk(Cc, this.barrierMat, { cast: true });
     mk(S, this.signMat); mk(Mt, this.metalMat, { cast: true }); mk(Hs, this.houseMat, { cast: true });
+    this.group.add(group);
+    return group;
+  }
+
+  // cầu cạn (cầu vượt cao / cầu sông): bản mặt cầu + gờ lan can bê tông dọc |t| < V, trụ đôi mỗi ~28 m (không đặt trên quốc lộ),
+  // tường mố ở 2 đầu; cầu cao: quốc lộ 4 làn dưới gầm (vạch vàng đôi, vạch trắng đứt chia làn); cầu sông: trụ xuống tới lòng sông
+  // + 2 tháp dây văng giữa sông (dây thép toả xuống 2 mép cầu)
+  _buildBig(O) {
+    const road = this.road, group = new THREE.Group(), river = O.kind === 'river', V = O.viaduct;
+    const C = { pos: [], nor: [], idx: [] }, A = { pos: [], nor: [], uv: [], idx: [] }, M = { pos: [], nor: [], col: [], idx: [] };
+    const push = (B, P, n, extra) => {
+      const b = B.pos.length / 3;
+      P.forEach((q, i) => { B.pos.push(q[0], q[1], q[2]); B.nor.push(n[0], n[1], n[2]); if (B.uv) B.uv.push(...extra[i]); if (B.col) B.col.push(...extra); });
+      const ax = P[1][0] - P[0][0], ay = P[1][1] - P[0][1], az = P[1][2] - P[0][2], bx = P[2][0] - P[0][0], by = P[2][1] - P[0][1], bz = P[2][2] - P[0][2];
+      const c = [ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx];
+      if (c[0] * n[0] + c[1] * n[1] + c[2] * n[2] >= 0) B.idx.push(b, b + 1, b + 2, b, b + 2, b + 3); else B.idx.push(b, b + 2, b + 1, b, b + 3, b + 2);
+    };
+    const Q = (t) => road.at(O.s + t, {});
+    const P3 = (q, u, y) => [q.x + Math.cos(q.th) * u, y, q.z - Math.sin(q.th) * u];
+    const UP = [0, 1, 0], DOWN = [0, -1, 0];
+    // ---- bản mặt cầu: mặt dưới (dày 1.6 m), 2 mặt bên, phần mặt trên ngoài mép nhựa (13 → 14.8) + gờ lan can ----
+    for (let t = -V; t < V; t += 4) {
+      const qa = Q(t), qb = Q(Math.min(V, t + 4)), ya = qa.y, yb = qb.y;
+      push(C, [P3(qa, -DECK_HW, ya - 1.6), P3(qb, -DECK_HW, yb - 1.6), P3(qb, DECK_HW, yb - 1.6), P3(qa, DECK_HW, ya - 1.6)], DOWN);
+      for (const e of [-1, 1]) {
+        const n = [Math.cos(qa.th) * e, 0, -Math.sin(qa.th) * e];
+        push(C, [P3(qa, e * DECK_HW, ya - 1.6), P3(qb, e * DECK_HW, yb - 1.6), P3(qb, e * DECK_HW, yb + 1.0), P3(qa, e * DECK_HW, ya + 1.0)], n);
+        push(C, [P3(qa, e * AVENUE.hw, ya + 0.01), P3(qb, e * AVENUE.hw, yb + 0.01), P3(qb, e * (DECK_HW - 0.35), yb + 0.01), P3(qa, e * (DECK_HW - 0.35), ya + 0.01)], UP);
+        push(C, [P3(qa, e * (DECK_HW - 0.35), ya), P3(qb, e * (DECK_HW - 0.35), yb), P3(qb, e * (DECK_HW - 0.35), yb + 1.0), P3(qa, e * (DECK_HW - 0.35), ya + 1.0)], [-n[0], 0, -n[2]]);
+        push(C, [P3(qa, e * (DECK_HW - 0.35), ya + 1.0), P3(qb, e * (DECK_HW - 0.35), yb + 1.0), P3(qb, e * DECK_HW, yb + 1.0), P3(qa, e * DECK_HW, ya + 1.0)], UP);
+      }
+    }
+    // hộp dựng theo khung cao tốc tại t: rộng du (theo r), dài dt (theo f), từ y0 tới y1
+    const box = (t, u, du, dt, y0, y1) => {
+      const q = Q(t), rx = Math.cos(q.th), rz = -Math.sin(q.th), fx = -Math.sin(q.th), fz = -Math.cos(q.th);
+      const cx = q.x + rx * u, cz = q.z + rz * u;
+      const Cn = (i, k, y) => [cx + rx * i * du / 2 + fx * k * dt / 2, y, cz + rz * i * du / 2 + fz * k * dt / 2];
+      for (const [a, b, c, d, n] of [[[-1, -1], [1, -1], [1, 1], [-1, 1], UP], [[-1, -1], [1, -1], [1, 1], [-1, 1], DOWN]]) {
+        const y = n === UP ? y1 : y0;
+        push(C, [Cn(...a, y), Cn(...b, y), Cn(...c, y), Cn(...d, y)], n);
+      }
+      for (const [i0, k0, i1, k1, n] of [[-1, -1, 1, -1, [-fx, 0, -fz]], [1, -1, 1, 1, [rx, 0, rz]], [1, 1, -1, 1, [fx, 0, fz]], [-1, 1, -1, -1, [-rx, 0, -rz]]])
+        push(C, [Cn(i0, k0, y0), Cn(i1, k1, y0), Cn(i1, k1, y1), Cn(i0, k0, y1)], n);
+    };
+    const groundAt = (t, u) => {                                    // đáy trụ: mặt đất tự nhiên / lòng sông / đáy hào
+      const q = Q(t), x = q.x + Math.cos(q.th) * u, z = q.z - Math.sin(q.th) * u;
+      if (river && Math.abs(this.riverA(O, x, z)) < O.hw + 10) return O.level - RIVER.depth - 0.5;
+      return hLow(x, z) - 1.5;
+    };
+    const clear = river ? 0 : O.crossHW + 3.5;
+    for (let t = -V + 20; t <= V - 20; t += 28) {
+      if (Math.abs(t) < clear) continue;
+      const top = Q(t).y - 1.6;
+      for (const u of [-7.5, 7.5]) box(t, u, 1.6, 1.6, groundAt(t, u), top - 1.0);
+      box(t, 0, 2 * DECK_HW - 2, 1.8, top - 1.0, top);              // xà mũ
+    }
+    if (!river) for (const e of [-1, 1]) {                            // 2 hàng trụ sát hai mép quốc lộ
+      const t = e * (O.crossHW + 3), top = Q(t).y - 1.6;
+      for (const u of [-7.5, 7.5]) box(t, u, 1.6, 1.6, O.yc - 0.5, top - 1.0);
+      box(t, 0, 2 * DECK_HW - 2, 1.8, top - 1.0, top);
+    }
+    for (const e of [-1, 1]) {                                        // tường mố hai đầu cầu
+      const t = e * (V - 12), q = Q(t);
+      box(t, 0, 2 * DECK_HW, 1.2, Math.min(groundAt(t, -12), groundAt(t, 12), groundAt(t, 0)), q.y - 0.05);
+    }
+    if (river) {
+      // 2 tháp dây văng giữa sông (trên dải phân cách) + dây thép
+      const cab = [];
+      for (const tp of [-70, 70]) {
+        const q = Q(tp), top = q.y + 42;
+        box(tp, 0, 2.2, 2.6, groundAt(tp, 0), top);
+        box(tp, 0, 6, 3.4, q.y - 1.6 - 3, q.y - 1.6);                  // đế tháp
+        for (const e of [-1, 1]) for (let k = 1; k <= 7; k++) for (const sg of [-1, 1]) {
+          const ta = tp + sg * k * 14, qa = Q(ta);
+          cab.push(...P3(q, 0, top - 2 - k * 2.2), ...P3(qa, e * (DECK_HW - 0.6), qa.y + 1.0));
+        }
+      }
+      const cg = new THREE.BufferGeometry(); cg.setAttribute('position', new THREE.Float32BufferAttribute(cab, 3));
+      group.add(new THREE.LineSegments(cg, this.cableMat));
+    } else {
+      // quốc lộ 4 làn dưới gầm: dải nhựa ±crossHW, vàng đôi giữa, trắng đứt ±3.5, trắng liền mép ±(crossHW − 0.6)
+      const X = (u, a, y) => [O.P.x + O.rx * u + O.fx * a, y, O.P.z + O.rz * u + O.fz * a];
+      const CH = O.crossHW, WHITE = [0.86, 0.86, 0.83], YEL = [0.86, 0.66, 0.16];
+      for (let u = -O.crossLen; u < O.crossLen; u += 4) {
+        const y0 = this.crossY(O, u) + 0.03, y1 = this.crossY(O, u + 4) + 0.03;
+        push(A, [X(u, -CH, y0), X(u + 4, -CH, y1), X(u + 4, CH, y1), X(u, CH, y0)], UP, [[u / 8, -CH / 8], [(u + 4) / 8, -CH / 8], [(u + 4) / 8, CH / 8], [u / 8, CH / 8]]);
+        const m = (a0, a1, col) => push(M, [X(u, a0, y0 + 0.02), X(u + 4, a0, y1 + 0.02), X(u + 4, a1, y1 + 0.02), X(u, a1, y0 + 0.02)], UP, col);
+        m(-0.2, -0.08, YEL); m(0.08, 0.2, YEL); m(-CH + 0.6, -CH + 0.75, WHITE); m(CH - 0.75, CH - 0.6, WHITE);
+        if (Math.floor(u / 4) % 3 === 0) { m(-3.57, -3.43, WHITE); m(3.43, 3.57, WHITE); }
+      }
+    }
+    const mk = (B, mat) => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(B.pos, 3));
+      g.setAttribute('normal', new THREE.Float32BufferAttribute(B.nor, 3));
+      if (B.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(B.uv, 2));
+      if (B.col) g.setAttribute('color', new THREE.Float32BufferAttribute(B.col, 3));
+      g.setIndex(B.idx);
+      const m = new THREE.Mesh(g, mat); m.castShadow = m.receiveShadow = true; group.add(m);
+    };
+    mk(C, this.barrierMat);
+    if (A.pos.length) { mk(A, this.asphalt); mk(M, this.markMat); }
     this.group.add(group);
     return group;
   }
