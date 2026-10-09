@@ -51,6 +51,73 @@ function signTexture() {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   return t;
 }
+// bảng chỉ đường riêng từng nút giao (canvas 1024×768, lưới 2 × 3 ô 512×256): 0 / 1 sơ đồ tách làn (mũi tên thẳng + nhánh phải đầu
+// thoi đỏ, biển số tuyến vàng "CT.xx" + điểm đến đi thẳng, biển trắng "QL.xx" + 2 địa danh lối ra) cho chiều +s / −s; 2 biển hình mũi
+// tên ở mũi tách nhánh; 3 nửa trái "LỐI RA / EXIT ↗" (xanh) + nửa phải "GIẢM TỐC ĐỘ / SLOW DOWN" (vàng); 4 / 5 "LỐI RA … 1 km / 500 m"
+const PLACES = ['NỘI BÀI', 'LONG THÀNH', 'BẾN LỨC', 'LONG AN', 'DẦU GIÂY', 'PHÁP VÂN', 'CẦU GIẼ', 'PHỦ LÝ', 'NINH BÌNH', 'TRUNG LƯƠNG',
+  'XUÂN ĐỈNH', 'CỔ NHUẾ', 'BIÊN HÒA', 'THỦ ĐỨC', 'MỸ THUẬN', 'CAM LỘ', 'LA SƠN', 'HÒA LẠC', 'SƠN TÂY', 'VĨNH YÊN', 'BẮC NINH', 'HẢI DƯƠNG'];
+const ROUTES = ['QL.1A', 'QL.5', 'QL.21B', 'QL.51', 'QL.13', 'ĐT.741', 'QL.32', 'QL.38', 'ĐT.420', 'QL.18'];
+function icSignTexture(k) {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 768;
+  const g = c.getContext('2d');
+  const pick = (arr, n) => arr[Math.floor(hashR(k * 13.7 + n * 3.1) * arr.length)];
+  const exitA = pick(PLACES, 1), exitB = pick(PLACES.filter((p) => p !== exitA), 2), route = pick(ROUTES, 3);
+  const aheadP = pick(PLACES.filter((p) => p !== exitA && p !== exitB), 4), aheadM = pick(PLACES.filter((p) => p !== exitA && p !== exitB && p !== aheadP), 5);
+  const ct = 'CT.' + String(1 + Math.floor(hashR(k * 2.9) * 30)).padStart(2, '0'), plane = hashR(k * 7.3) < 0.35;
+  const cell = (i) => [(i % 2) * 512, Math.floor(i / 2) * 256];
+  const frame = (x, y, col = '#0d7a3f') => { g.fillStyle = col; g.fillRect(x + 3, y + 3, 506, 250); g.strokeStyle = '#fff'; g.lineWidth = 5; g.strokeRect(x + 10, y + 10, 492, 236); };
+  const txt = (t, x, y, size, col = '#fff', align = 'left', bold = true) => { g.fillStyle = col; g.font = `${bold ? 'bold ' : ''}${size}px ${FONT}`; g.textAlign = align; g.textBaseline = 'middle'; g.fillText(t, x, y); };
+  const shield = (t, x, y, bg, fg) => { g.font = `bold 30px ${FONT}`; const w = g.measureText(t).width + 20; g.fillStyle = bg; g.fillRect(x, y - 21, w, 42); g.strokeStyle = '#222'; g.lineWidth = 2; g.strokeRect(x + 2, y - 19, w - 4, 38); txt(t, x + 10, y + 1, 30, fg); return w; };
+  const planeIcon = (x, y) => {                                   // máy bay trong ô trắng
+    g.fillStyle = '#fff'; g.fillRect(x, y - 24, 48, 48); g.fillStyle = '#111';
+    g.save(); g.translate(x + 24, y); g.rotate(-Math.PI / 2);
+    g.beginPath(); g.ellipse(0, 0, 18, 3.5, 0, 0, 7); g.fill();
+    g.beginPath(); g.moveTo(-2, 0); g.lineTo(-10, -17); g.lineTo(-4, -17); g.lineTo(8, 0); g.lineTo(-4, 17); g.lineTo(-10, 17); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(-14, 0); g.lineTo(-19, -7); g.lineTo(-16, -7); g.lineTo(-11, 0); g.lineTo(-16, 7); g.lineTo(-19, 7); g.closePath(); g.fill();
+    g.restore();
+  };
+  for (const [i, ahead] of [[0, aheadP], [1, aheadM]]) {         // sơ đồ tách làn
+    const [x, y] = cell(i);
+    frame(x, y);
+    shield(ct, x + 30, y + 52, '#f2b51c', '#111');
+    if (plane) planeIcon(x + 26, y + 168);
+    txt(ahead, x + (plane ? 82 : 30), y + 168, 34);
+    g.fillStyle = '#fff';                                         // mũi tên thẳng + nhánh phải
+    g.fillRect(x + 236, y + 70, 16, 160);
+    g.beginPath(); g.moveTo(x + 220, y + 78); g.lineTo(x + 244, y + 34); g.lineTo(x + 268, y + 78); g.closePath(); g.fill();
+    g.save(); g.translate(x + 244, y + 175); g.rotate(-Math.PI / 4); g.fillRect(-8, -78, 16, 78); g.restore();
+    g.fillStyle = '#d8242b'; g.save(); g.translate(x + 302, y + 117); g.rotate(Math.PI / 4); g.fillRect(-19, -19, 38, 38); g.restore();
+    shield(route, x + 320, y + 52, '#fff', '#111');
+    txt(exitA, x + 320, y + 130, 30); txt(exitB, x + 320, y + 182, 30);
+  }
+  { // biển hình mũi tên (nền trong suốt ngoài hình)
+    const [x, y] = cell(2);
+    g.fillStyle = '#0d7a3f'; g.beginPath(); g.moveTo(x + 8, y + 40); g.lineTo(x + 420, y + 40); g.lineTo(x + 500, y + 128); g.lineTo(x + 420, y + 216); g.lineTo(x + 8, y + 216); g.closePath(); g.fill();
+    g.strokeStyle = '#fff'; g.lineWidth = 5; g.beginPath(); g.moveTo(x + 18, y + 50); g.lineTo(x + 414, y + 50); g.lineTo(x + 486, y + 128); g.lineTo(x + 414, y + 206); g.lineTo(x + 18, y + 206); g.closePath(); g.stroke();
+    txt(exitA, x + 40, y + 98, 40); txt(exitB, x + 40, y + 160, 40);
+  }
+  { // LỐI RA / EXIT + GIẢM TỐC ĐỘ / SLOW DOWN
+    const [x, y] = cell(3);
+    g.fillStyle = '#0d7a3f'; g.fillRect(x + 3, y + 3, 226, 250); g.strokeStyle = '#fff'; g.lineWidth = 5; g.strokeRect(x + 9, y + 9, 214, 238);
+    g.fillStyle = '#fff'; g.fillRect(x + 9, y + 150, 214, 4);
+    txt('LỐI RA', x + 116, y + 52, 40, '#fff', 'center'); txt('EXIT', x + 116, y + 108, 34, '#fff', 'center');
+    g.save(); g.translate(x + 116, y + 205); g.rotate(Math.PI / 4); g.fillStyle = '#fff'; g.fillRect(-6, -10, 12, 36);
+    g.beginPath(); g.moveTo(-16, -8); g.lineTo(16, -8); g.lineTo(0, -28); g.closePath(); g.fill(); g.restore();
+    g.fillStyle = '#f2b51c'; g.fillRect(x + 250, y + 50, 258, 156); g.strokeStyle = '#222'; g.lineWidth = 4; g.strokeRect(x + 256, y + 56, 246, 144);
+    txt('GIẢM TỐC ĐỘ', x + 379, y + 106, 34, '#222', 'center'); txt('SLOW DOWN', x + 379, y + 158, 28, '#222', 'center');
+  }
+  for (const [i, dist] of [[4, '1 km'], [5, '500 m']]) {
+    const [x, y] = cell(i);
+    frame(x, y);
+    txt('LỐI RA', x + 34, y + 58, 50); shield(route, x + 250, y + 58, '#fff', '#111');
+    txt(exitA + ' · ' + exitB, x + 34, y + 134, 30, '#fff', 'left', false); txt(dist, x + 34, y + 202, 48);
+    g.save(); g.translate(x + 440, y + 190); g.rotate(Math.PI / 4); g.fillStyle = '#fff'; g.fillRect(-9, -14, 18, 52);
+    g.beginPath(); g.moveTo(-24, -12); g.lineTo(24, -12); g.lineTo(0, -42); g.closePath(); g.fill(); g.restore();
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+const icUV = (i, x0 = 0, x1 = 1) => { const u = (i % 2) / 2, v = 1 - Math.floor(i / 2) / 3; return [u + x0 / 2, v - 1 / 3, u + x1 / 2, v]; };
 const signUV = (i, round) => { const x = (i % 4) / 4, y = 1 - Math.floor(i / 4) / 4; return [x, y - 0.25, x + (round ? 0.125 : 0.25), y]; };   // [u0, v0, u1, v1]
 const WALLS = [[0.93, 0.91, 0.86], [0.96, 0.89, 0.72], [0.82, 0.88, 0.8], [0.95, 0.82, 0.74], [0.88, 0.88, 0.9]];
 const ROOFS = [[0.62, 0.22, 0.14], [0.25, 0.42, 0.62], [0.42, 0.42, 0.44], [0.5, 0.3, 0.2]];
@@ -77,6 +144,8 @@ export class Avenue {
     this.houseMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
     this.armMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5 });
     this.cableMat = new THREE.LineBasicMaterial({ color: 0xd8dadc });
+    this.trussMat = new THREE.LineBasicMaterial({ color: 0xa9adb0 });
+    this.icSignMats = new Set();                                   // vật liệu bảng chỉ đường riêng từng nút giao (đèn đêm + huỷ)
     for (const m of [this.asphalt, this.signMat, this.metalMat, this.houseMat]) withMist(m);
     this.group = new THREE.Group();
     this.group.visible = false;
@@ -90,7 +159,7 @@ export class Avenue {
 
   set visible(v) { this.group.visible = v; if (!v) this.reset(); }
   // biển phản quang: sáng lên khi bật đèn (đêm)
-  setLamps(l) { this.signMat.emissiveIntensity = 0.05 + 0.55 * l; }
+  setLamps(l) { this.signMat.emissiveIntensity = 0.05 + 0.55 * l; for (const m of this.icSignMats) m.emissiveIntensity = this.signMat.emissiveIntensity; }
   get visible() { return this.group.visible; }
 
   reset() {
@@ -319,6 +388,8 @@ export class Avenue {
   _dispose(g) {
     this.group.remove(g);
     g.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+    const m = g.userData.signMat;
+    if (m) { m.map.dispose(); m.dispose(); this.icSignMats.delete(m); }
   }
 
   // đoạn loại cỏ quanh nút giao gần nhất: [x0, z0, x1, z1, nửa bề rộng]
@@ -436,6 +507,19 @@ export class Avenue {
       for (const [i0, k0, i1, k1, n] of [[-1, -1, 1, -1, [-fx, 0, -fz]], [1, -1, 1, 1, [rx, 0, rz]], [1, 1, -1, 1, [fx, 0, fz]], [-1, 1, -1, -1, [-rx, 0, -rz]]])
         push(Mt, [C(i0, k0, 0), C(i1, k1, 0), C(i1, k1, h), C(i0, k0, h)], n);
     };
+    const S2 = { pos: [], nor: [], uv: [], idx: [] }, lat = [];
+    const sign2 = (t, u, dir, w, hh, h0, [u0, v0, u1, v1]) => {      // biển dùng texture riêng của nút giao
+      const q = road.at(I.s + t, {}), n = [Math.sin(q.th) * dir, 0, Math.cos(q.th) * dir], a = u - dir * w / 2, b = u + dir * w / 2;
+      push(S2, [P3(t, a, h0), P3(t, b, h0), P3(t, b, h0 + hh), P3(t, a, h0 + hh)], n, [[u0, v0], [u1, v0], [u1, v1], [u0, v1]]);
+    };
+    const truss = (t, uA, uB, h) => {                                 // dàn: 2 thanh ngang (dưới h, trên h + 1.2) + giằng chéo
+      beam(t, uA, uB, h, 0.22); beam(t, uA, uB, h + 1.2, 0.22);
+      const n = Math.max(2, Math.round(Math.abs(uB - uA) / 1.2));
+      for (let i = 0; i < n; i++) {
+        const a = uA + (uB - uA) * i / n, b = uA + (uB - uA) * (i + 1) / n;
+        for (const dt of [-0.25, 0.25]) lat.push(...P3(t + dt, a, h + 0.2), ...P3(t + dt, b, h + 1.2), ...P3(t + dt, b, h + 0.2), ...P3(t + dt, b, h + 1.2));
+      }
+    };
     const beam = (t, uA, uB, h, th = 0.45) => {                       // xà ngang giàn biển
       push(Mt, [P3(t - 0.25, uA, h), P3(t - 0.25, uB, h), P3(t - 0.25, uB, h + th), P3(t - 0.25, uA, h + th)], [0, 0, 1]);
       push(Mt, [P3(t + 0.25, uA, h), P3(t + 0.25, uB, h), P3(t + 0.25, uB, h + th), P3(t + 0.25, uA, h + th)], [0, 0, -1]);
@@ -444,13 +528,20 @@ export class Avenue {
     };
     for (const dir of [1, -1]) {
       const sd = dir;                                                // bên phải của chiều xe chạy: u cùng dấu dir
-      for (const [tt, cell] of [[-1000, 0], [-500, 1]]) {
+      // giàn biển dàn thép (2 cột + 2 thanh ngang + giằng chéo) vượt hết chiều đường: 1 km, 500 m, sơ đồ tách làn
+      for (const [tt, cell, w, hh] of [[-1000, 4, 6.4, 3.2], [-500, 5, 6.4, 3.2], [-430, dir > 0 ? 0 : 1, 7.6, 3.6]]) {
         const t = tt * dir;
-        post(t, 0.0, 7.2, 0.18); post(t, sd * 14.3, 7.2, 0.18); beam(t, 0, sd * 14.3, 6.9);
-        sign(t - dir * 0.3, sd * 8.2, dir, 6.4, 3.1, 4.9, cell);
+        post(t, sd * 0.6, 8.6, 0.2); post(t, sd * 14.6, 8.6, 0.2); truss(t, sd * 0.6, sd * 14.6, 7.0);
+        sign2(t - dir * 0.35, sd * 7.8, dir, w, hh, 8.4 - hh, icUV(cell));
       }
-      const tg = -290 * dir, ug = sd * (AVENUE.hw + rampU(-290) - RAMP_HW) / 2;   // mũi tách nhánh (giữa mép cao tốc và mép nhánh)
-      post(tg, ug, 3.6, 0.07); sign(tg - dir * 0.1, ug, dir, 2.4, 1.2, 2.3, 2);
+      // khung biển trên đầu nhánh ra: cột bên phải, tay vươn sang trái; "LỐI RA / EXIT" trên nhánh, "GIẢM TỐC ĐỘ" trên làn ngoài
+      { const t = -365 * dir;
+        post(t, sd * 19.5, 8.6, 0.22); truss(t, sd * 8.2, sd * 19.5, 7.0);
+        sign2(t - dir * 0.35, sd * 15.2, dir, 2.4, 2.6, 5.4, icUV(3, 0, 0.45));
+        sign2(t - dir * 0.35, sd * 10.6, dir, 3.6, 2.2, 5.8, icUV(3, 0.49, 1)); }
+      // biển hình mũi tên ở mũi tách nhánh (2 cột)
+      { const tg = -285 * dir, ug = sd * (AVENUE.hw + rampU(-285) - RAMP_HW) / 2;
+        post(tg, ug - sd * 1.2, 3.4, 0.07); post(tg, ug + sd * 1.2, 3.4, 0.07); sign2(tg - dir * 0.1, ug, dir, 3.6, 1.8, 1.6, icUV(2)); }
       for (const [tt, cell] of [[-1150, 4], [-700, 5], [620, 4]]) { const t = tt * dir; post(t, sd * 14.4, 3.2, 0.05); sign(t - dir * 0.08, sd * 14.4, dir, 1.0, 1.0, 2.2, cell, true); }
       post(560 * dir, sd * 14.6, 3.6, 0.07); post(560 * dir, sd * 17.2, 3.6, 0.07); sign(560 * dir - dir * 0.1, sd * 15.9, dir, 3.2, 1.6, 1.9, 3);
       const tr = -250 * dir, ur = sd * (rampU(-250) + RAMP_HW + 0.8);    // nhánh ra: tốc độ tối đa 60
@@ -519,6 +610,15 @@ export class Avenue {
     };
     mk(A, this.asphalt); mk(M, this.markMat); mk(Cc, this.barrierMat, { cast: true });
     mk(S, this.signMat); mk(Mt, this.metalMat, { cast: true }); mk(Hs, this.houseMat, { cast: true });
+    // bảng chỉ đường riêng (tên địa danh theo nút giao): vật liệu + texture riêng, huỷ cùng nhóm
+    const tex = icSignTexture(I.k);
+    const mat = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: this.signMat.emissiveIntensity, roughness: 0.45, side: THREE.DoubleSide, alphaTest: 0.5 });
+    withMist(mat);
+    mk(S2, mat);
+    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lat, 3));
+    group.add(new THREE.LineSegments(lg, this.trussMat));
+    group.userData.signMat = mat;
+    this.icSignMats.add(mat);
     this.group.add(group);
     return group;
   }

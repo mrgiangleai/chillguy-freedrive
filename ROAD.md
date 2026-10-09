@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -189,7 +189,12 @@
   cắt đường ngang; dưới cầu (|u| < 16) không tính va chạm. **Biển báo** (atlas `signTexture` 4×4 ô: biển chỉ dẫn xanh lá chữ
   trắng kiểu VN + biển tròn 120 / 100 / 60 / tối thiểu 60; phản quang sáng lên ban đêm `setLamps`): mỗi chiều giàn biển "LỐI RA
   … 1 km" (t = ∓1000) và "500 m" (∓500) trên cột + xà thép, biển "LỐI RA" ở mũi tách nhánh, biển tốc độ cột phải (120 / 100 / 120),
-  "60" trên nhánh ra, biển "CAO TỐC tối đa 120 / tối thiểu 60" sau chỗ nhập. Mũi tên sơn trên làn ở t = ∓760 / 680 / 600 (làn ngoài
+  "60" trên nhánh ra, biển "CAO TỐC tối đa 120 / tối thiểu 60" sau chỗ nhập. **Bảng chỉ đường lớn riêng từng nút giao**
+  (`icSignTexture(k)`: canvas 1024×768, tên địa danh / số tuyến chọn theo k từ `PLACES` / `ROUTES`, vật liệu riêng huỷ cùng nhóm,
+  phản quang theo `setLamps`): giàn dàn thép (2 cột + 2 thanh + giằng chéo `trussMat`) "LỐI RA … 1 km" (t = ∓1000), "500 m" (∓500),
+  sơ đồ tách làn (∓430: biển vàng CT.xx + điểm đến đi thẳng, có thể kèm máy bay; mũi tên thẳng + nhánh phải đầu thoi đỏ; biển trắng
+  QL.xx + 2 địa danh lối ra); khung trên đầu nhánh (∓365, cột phải, tay vươn): "LỐI RA / EXIT ↗" trên nhánh + "GIẢM TỐC ĐỘ / SLOW
+  DOWN" vàng trên làn ngoài; biển hình mũi tên 2 cột ở mũi tách nhánh (∓285, alphaTest). Mũi tên sơn trên làn ở t = ∓760 / 680 / 600 (làn ngoài
   thẳng + rẽ phải), vạch chéo vùng tách / nhập nhánh. **Đường gom + nhà**: mỗi nút giao 1–2 đường nhỏ 1 làn rẽ từ đường ngang ở
   |u| = 78, chạy song song cao tốc 280–500 m (theo địa hình), nhà 1–2 tầng hai bên (tường sơn, mái dốc đỏ / xanh / xám, cửa +
   cửa sổ phía đường), nền nhà / đường được đào phẳng (`I.lines`), loại cỏ (32 đoạn). **Trạm thu phí** (`TOLL`: s = 3000 + 6000k,
@@ -282,3 +287,4 @@
 - **#6 — Bản đồ tròn (Drive): đường + xe thật, bấm để phóng to, kéo / zoom (09/10/2026)**.
 - **#7 — Điện thoại: nút lái trái / phải hai bên Space (09/10/2026)**.
 - **#8 — Đại lộ: cầu vượt cao qua quốc lộ 4 làn + cầu dây văng qua sông lớn (09/10/2026)**.
+- **#9 — Đại lộ: bảng chỉ đường lớn kiểu Việt Nam ở các lối ra (09/10/2026)**.
