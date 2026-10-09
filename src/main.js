@@ -256,7 +256,7 @@ const QUICK_OPENING = true;          // TẠM: đầu game rút còn 0.5 s (đ�
 const TUNE_KEY = 'chilldrive.tuning.v1';
 let savedTuning = null;
 // bảng 🚦 Giao thông (map Phố): chú tự chỉnh để thử
-const TRAFFIC_DEFAULTS = Object.freeze({ avoid: 1, density: 1, speed: 1, walkers: 38, signal: 1, models: 0 });
+const TRAFFIC_DEFAULTS = Object.freeze({ avoid: 1, redStop: 0, density: 1, speed: 1, walkers: 38, signal: 1, models: 0 });
 // bảng Lighting: hệ số các loại đèn (ngoài đèn pha xe chú / đèn đường đã có thông số riêng)
 const LIGHT_DEFAULTS = Object.freeze({ signal: 1, signalSize: 1, windows: 1, signs: 1, npc: 1, emergency: 1 });
 const lightTune = { ...LIGHT_DEFAULTS };
@@ -650,6 +650,14 @@ const addChoice = ({ label, options, get, set }) => {
   options.forEach((text, value) => { const option = document.createElement('option'); option.value = value; option.textContent = text; option.selected = value === get(); select.append(option); });
   select.onchange = () => { set(Number(select.value)); saveTuning(); }; row.append(name, select); tuneFields.append(row);
 };
+// nút bật / tắt (bấm là đổi ngay, không cần thả danh sách)
+const addToggle = ({ label, get, set }) => {
+  const row = document.createElement('label'), name = document.createElement('span'), btn = document.createElement('button');
+  name.textContent = label; btn.type = 'button'; btn.className = 'tog';
+  const show = () => { const on = !!get(); btn.textContent = on ? 'Bật' : 'Tắt'; btn.classList.toggle('on', on); };
+  btn.onclick = (e) => { e.preventDefault(); set(get() ? 0 : 1); saveTuning(); show(); };
+  show(); row.append(name, btn); tuneFields.append(row);
+};
 const cameraSpecs = () => {
   const id = CAMERAS[state.cam].id, values = rig.tune[id];
   return CAM_FIELDS[id].map(([key,label,min,max,step]) => ({ label, min, max, step, get: () => values[key], set: (v) => {
@@ -665,8 +673,9 @@ renderTune = () => {
     tuneMode.hidden = true;
     $('tune-title').textContent = 'Giao thông (map Phố)';
     addHeading('Xe của chú');
-    addChoice({ label: 'Tự giữ khoảng cách (tránh đâm xe trước)', options: ['Tắt — tự phanh, có thể đâm', 'Bật'], get: () => trafficTune.avoid, set: (v) => { trafficTune.avoid = v; toast(v ? 'Đã bật tự giữ khoảng cách' : 'Đã tắt tự giữ khoảng cách — chú tự phanh, đâm là có cảnh sát tới', !v); } });
-    addChoice({ label: 'Thêm xe của chú (Mustang, Mazda) vào giao thông', options: ['Không', 'Có'], get: () => trafficTune.models, set: (v) => { trafficTune.models = v; applyTrafficTune(); } });
+    addToggle({ label: 'Tự giữ khoảng cách (tránh đâm xe trước)', get: () => trafficTune.avoid, set: (v) => { trafficTune.avoid = v; toast(v ? 'Đã bật tự giữ khoảng cách' : 'Đã tắt tự giữ khoảng cách — chú tự phanh, đâm là có cảnh sát tới', !v); } });
+    addToggle({ label: 'Tự động dừng xe khi đèn đỏ', get: () => trafficTune.redStop, set: (v) => { trafficTune.redStop = v; toast(v ? 'Đã bật tự dừng đèn đỏ' : 'Đã tắt tự dừng đèn đỏ — chú tự phanh (Space)'); } });
+    addToggle({ label: 'Thêm xe của chú (Mustang, Mazda) vào giao thông', get: () => trafficTune.models, set: (v) => { trafficTune.models = v; applyTrafficTune(); } });
     addHeading('Xe và người');
     addNumber({ label: 'Mật độ xe (×)', min: 0.05, max: 2.5, step: 0.05, get: () => trafficTune.density, set: (v) => { trafficTune.density = v; applyTrafficTune(); } });
     addNumber({ label: 'Tốc độ xe khác (×)', min: 0.4, max: 2, step: 0.05, get: () => trafficTune.speed, set: (v) => { trafficTune.speed = v; applyTrafficTune(); } });
@@ -1180,7 +1189,12 @@ function frame(now) {
           incident.start(drive.s, drive.d, cars.dim, car ? { car } : { ped });
         }
       }
-      traffic.ctrl.lane = null; traffic.ctrl.maxV = stop.active || !trafficTune.avoid ? Infinity : cityTraffic.ctrl.maxV;
+      let maxV = stop.active || !trafficTune.avoid ? Infinity : cityTraffic.ctrl.maxV;
+      if (trafficTune.redStop && !stop.active && !incident.active) {        // tự dừng trước vạch khi đèn đỏ (vàng: chỉ khi còn kịp phanh êm)
+        const dl = city.stopAhead(drive.s + cars.dim.length / 2, 1, drive.v);
+        if (dl < Infinity) maxV = Math.min(maxV, Math.sqrt(2 * 3.5 * Math.max(0, dl - 1.2)));
+      }
+      traffic.ctrl.lane = null; traffic.ctrl.maxV = maxV;
     } else {
       traffic.update(dt, drive.s, drive.d, road, st.lamps, cars.current.def.id, obstacles, audio);
       // các map khác: đụng xe NPC => khựng lại, rung, khói (không có cảnh sát)

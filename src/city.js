@@ -20,7 +20,7 @@ const POLE_GAP = 30;
 // đèn giao thông mỗi ngã tư (chu kỳ 46 s, lệch pha ngẫu nhiên theo ngã tư): đường chính xanh 22 s → vàng 3 s → đỏ;
 // đường ngang xanh 15.5 s → vàng 3 s; giữa hai pha đỏ cả hai 1.5 s
 export const SIGNAL = { cycle: 46, mainG: 22, y: 3, allRed: 1.5, crossG: 15.5, stopA: 11.45 };
-const LENS_ON = [[0.15, 1.0, 0.6], [1.0, 0.72, 0.05], [1.0, 0.08, 0.04]], LENS_OFF = [[0.03, 0.06, 0.05], [0.07, 0.06, 0.02], [0.07, 0.02, 0.02]];
+const LENS_ON = [[0.0, 1.0, 0.42], [1.0, 0.55, 0.0], [1.0, 0.03, 0.02]], LENS_OFF = [[0.03, 0.06, 0.05], [0.07, 0.06, 0.02], [0.07, 0.02, 0.02]];
 const FONT = '"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Noto Sans CJK JP","Yu Gothic","Meiryo",sans-serif';
 // biển ngang cửa hàng: [chữ, nền, màu chữ]
 const SHOPS = [
@@ -379,15 +379,18 @@ export class City {
           float face = smoothstep(-0.1, 0.45, dot(normalize(cameraPosition - wp.xyz), aDir));
           float fd = uFogD * -mv.z;
           vCol = aCol * face * exp(-fd * fd * 0.5) * uGain;
-          gl_PointSize = clamp(1.9 * uScale / -mv.z, 11.0, 90.0) * uSize;
+          gl_PointSize = clamp(2.8 * uScale / -mv.z, 16.0, 130.0) * uSize;
           gl_Position = projectionMatrix * mv;
         }`,
       fragmentShader: `uniform float uDay; varying vec3 vCol;
         void main() {
           float d = length(gl_PointCoord - 0.5) * 2.0;
-          float a = smoothstep(0.32, 0.0, d) + exp(-d * d * 4.0) * 0.55;
-          if (a * max(vCol.r, max(vCol.g, vCol.b)) < 0.004) discard;
-          gl_FragColor = vec4(vCol * a * mix(1.6, 0.9, uDay), 1.0);
+          // lõi nhỏ dịu + quầng màu toả rộng; giới hạn kênh sáng nhất <= 1 để không cháy trắng (giữ đúng màu)
+          float a = smoothstep(0.2, 0.0, d) * 0.75 + exp(-d * d * 2.4) * 0.5 * (1.0 - smoothstep(0.75, 1.0, d));
+          vec3 c = vCol * a * mix(1.3, 0.85, uDay);
+          float m = max(c.r, max(c.g, c.b));
+          if (m < 0.004) discard;
+          gl_FragColor = vec4(c / max(1.0, m), 1.0);
         }`,
     });
   }
@@ -463,7 +466,7 @@ export class City {
     for (const [n, g] of this.blocks) {
       const L = g.userData.lens;
       if (!L) continue;
-      const ph = this._phase(n), k = 3 + 4 * lamps;
+      const ph = this._phase(n), k = 1.5 + 1.3 * lamps;   // thấu kính: vừa đủ sáng, không cháy trắng (giữ rõ màu)
       for (let i = 0; i < L.kind.length; i++) {
         const on = (L.kind[i] ? ph.cross : ph.main) === L.col[i];
         const v = on ? LENS_ON[L.col[i]] : LENS_OFF[L.col[i]];
@@ -474,7 +477,7 @@ export class City {
         const a = L.glow.geometry.attributes.aCol;
         for (let i = 0; i < L.kind.length; i++) {
           const on = (L.kind[i] ? ph.cross : ph.main) === L.col[i], v = LENS_ON[L.col[i]];
-          a.setXYZ(i, on ? v[0] * 3 : 0, on ? v[1] * 3 : 0, on ? v[2] * 3 : 0);
+          a.setXYZ(i, on ? v[0] * 1.5 : 0, on ? v[1] * 1.5 : 0, on ? v[2] * 1.5 : 0);
         }
         a.needsUpdate = true;
       }

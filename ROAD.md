@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -148,7 +148,9 @@
   `terrain.js`/`scenery.js` đọc bề rộng đường lúc reset/setMap. Xe mình chạy làn ngoài phải (5.25), buông tay về làn gần nhất;
   vượt xe sang làn cùng chiều bên cạnh (`TrafficPolicy._other`). Camera bên hông 13 m, quay quanh 10 m. Không đom đóm.
   **Bảng 🚦 Giao thông** (nút `b-traffic`, chỉ hiện ở map Phố; `trafficTune` lưu trong `chilldrive.tuning.v1` mục `traffic`):
-  tự giữ khoảng cách bật/tắt (tắt => xe mình không bám xe trước, đâm được để thử cảnh tai nạn), mật độ xe × (0.05–2.5;
+  nút bấm Bật/Tắt (`addToggle`, không thả danh sách): tự giữ khoảng cách (tắt => xe mình không bám xe trước, đâm được để thử
+  cảnh tai nạn), tự động dừng xe khi đèn đỏ (`trafficTune.redStop`, mặc định tắt: giới hạn tốc độ √(2·3.5·(khoảng cách vạch − 1.2)),
+  vàng chỉ dừng khi kịp phanh êm), thêm xe của chú; mật độ xe × (0.05–2.5;
   giảm thì bớt ngay xe đang chạy, xe đường ngang thưa theo), tốc độ xe khác ×,
   số người đi bộ, độ dài pha đèn × (`city.clockRate`).
   Xe mình đứng yên > 7 s (không phải chờ đèn đỏ trong 25 m) => xe kẹt sau cùng làn (≤ 30 m, `stuckBehind`) bấm còi
@@ -158,7 +160,8 @@
   thêm 2 SpotLight thật), quầng đèn hiệu trên nóc nhấp nháy đổi màu (cảnh sát đỏ/xanh, cấp cứu đỏ/trắng) + 1 PointLight hắt màu.
   Thời tiết `auto` mới (WEATHERS, `autoWeather`: đổi ngẫu nhiên 2.5–5 phút); vào phố: thời tiết + giờ Tự động tới khi chú tự đổi.
   Ngã tư: 4 đèn đường góc (tay đòn chĩa vào tâm; `city.lamps()` → `scenery.extraLamps` để 3 SpotLight dùng chung gán được),
-  quầng sáng thấu kính đèn giao thông (Points to theo khoảng cách 11–90 px, chỉ thấy từ phía mặt đèn), biển báo atlas 4 ô
+  quầng sáng thấu kính đèn giao thông (Points to theo khoảng cách 16–130 px, chỉ thấy từ phía mặt đèn; lõi nhỏ dịu + quầng màu rộng,
+  kênh sáng nhất kẹp ≤ 1 để không cháy trắng; màu thấu kính bão hoà hơn, hệ số sáng 1.5–2.8), biển báo atlas 4 ô
   (vạch qua đường xanh, "止まれ" trên đường ngang, tốc độ 40, cấm đỗ). Cài đặt thời tiết / giờ / camera của phố tách riêng
   (`scopes`, lưu `chilldrive.city`; mặc định Tự động / Tự động / Sau xe); ra khỏi phố trả lại bộ của map khác.
   Mỗi lần chuyển đổi (camera, xe, map, thời tiết, giờ, nhân vật, tốc độ, nhạc, chất lượng, dừng) có toast ngắn 1.6 s (`say`).
@@ -213,3 +216,5 @@
 
 - **#1 — Va chạm vật lý: rung, khói, tiếng (09/10/2026)**: xem mục Map Phố. Thử Low: đâm xe van đỗ => xe van trôi, 48 hạt khói.
 - **#2 — Tai nạn: chú bước ra, cảnh sát tới trước mặt, không xuyên xe (09/10/2026)**: xem mục Map Phố.
+- **#3 — Đèn giao thông rõ màu, bớt chói, quầng rộng hơn (09/10/2026)**.
+- **#4 — Bảng 🚦: nút Bật/Tắt + tự dừng đèn đỏ (09/10/2026)**.
