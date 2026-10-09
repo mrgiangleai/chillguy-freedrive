@@ -85,6 +85,7 @@ export class CityPeople {
     this._p = {}; this._m = new THREE.Matrix4(); this._q = new THREE.Quaternion(); this._e = new THREE.Euler(0, 0, 0, 'YXZ');
     this._v = new THREE.Vector3(); this._one = new THREE.Vector3(1, 1, 1); this._c = new THREE.Color();
     this.filled = false;
+    this.walkers = WALKERS;    // số người đi vỉa hè (bảng 🚦)
   }
 
   set visible(v) { this.group.visible = v; if (!v) { this.peds.length = 0; this.filled = false; this.timers.clear(); } }
@@ -120,10 +121,10 @@ export class CityPeople {
     const road = this.road, city = this.city, HW = CITY.hw;
     if (!this.filled) {
       this.filled = true;
-      for (let i = 0; i < WALKERS; i++) this.peds.push(this._walker(s - BEHIND + Math.random() * (AHEAD + BEHIND), Math.random() < 0.5 ? -1 : 1, Math.random() < 0.5 ? -1 : 1));
+      for (let i = 0; i < this.walkers; i++) this.peds.push(this._walker(s - BEHIND + Math.random() * (AHEAD + BEHIND), Math.random() < 0.5 ? -1 : 1, Math.random() < 0.5 ? -1 : 1));
     }
     const walkers = this.peds.filter((p) => p.mode === 'walk' || p.mode === 'wait').length;
-    if (walkers < WALKERS && Math.random() < dt * 2) {
+    if (walkers < this.walkers && Math.random() < dt * 2) {
       const dir = Math.random() < 0.5 ? -1 : 1, at = dir > 0 ? s - BEHIND + 5 : s + AHEAD - 5;
       this.peds.push(this._walker(at + (Math.random() - 0.5) * 20, Math.random() < 0.5 ? -1 : 1, dir));
     }

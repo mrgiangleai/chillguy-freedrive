@@ -227,6 +227,8 @@ export class CityTraffic {
     this._c = new THREE.Color(); this._up = new THREE.Vector3(0, 1, 0);
     this.crossTimers = new Map();
     this.filled = false;
+    this.density = 1;          // hệ số mật độ xe (bảng 🚦)
+    this.speedK = 1;           // hệ số tốc độ xe khác
   }
 
   set visible(v) { this.group.visible = v; if (!v) { this.cars.length = 0; this.filled = false; this.crossTimers.clear(); } }
@@ -261,7 +263,7 @@ export class CityTraffic {
   }
   _new(type, extra) {
     const def = TYPES[type], cols = COLORS[type];
-    const v = (def.v[0] + Math.random() * (def.v[1] - def.v[0])) * KMH;
+    const v = (def.v[0] + Math.random() * (def.v[1] - def.v[0])) * KMH * (type === 'police' || type === 'ambulance' ? 1 : this.speedK);
     return Object.assign({ type, len: def.len, wid: def.wid, vMax: v, v, color: cols[Math.floor(Math.random() * cols.length)], lat: 0 }, extra);
   }
   // làn đường chính còn chỗ tại s (không xe nào trong ±gap)
@@ -279,7 +281,7 @@ export class CityTraffic {
     if (!this.filled) {
       this.filled = true;
       for (const dir of [1, -1]) for (const l of lanes) {
-        for (let x = s - BEHIND + Math.random() * 40; x < s + AHEAD; x += MAIN_GAP[0] + Math.random() * (MAIN_GAP[1] - MAIN_GAP[0])) {
+        for (let x = s - BEHIND + Math.random() * 40; x < s + AHEAD; x += (MAIN_GAP[0] + Math.random() * (MAIN_GAP[1] - MAIN_GAP[0])) / this.density) {
           const dd = dir * l;
           if (Math.abs(x - s) < 15 && Math.abs(dd - d) < 2) continue;
           const t = this._pick(); if (!t) continue;
@@ -291,7 +293,7 @@ export class CityTraffic {
       const dd = dir * l;
       // xe ngược chiều: vào từ xa phía trước; cùng chiều: vào từ phía sau (xe mình chậm) hoặc phía trước (xe mình nhanh)
       const at = dir < 0 ? s + AHEAD - 10 : v < 10 ? s - BEHIND + 10 : s + AHEAD - 10;
-      if (Math.random() < dt * 0.35 && this._free(at, dd, MAIN_GAP[0] + 10) && Math.abs(at - s) > 30) {
+      if (Math.random() < dt * 0.35 && this._free(at, dd, MAIN_GAP[0] / this.density + 10) && Math.abs(at - s) > 30) {
         const t = this._pick();
         if (t) { const c = this._new(t, { s: at, d: dd, home: dd, dir }); if (dir > 0 && at > s) c.vMax = Math.min(c.vMax, Math.max(4, v - 2)); this.cars.push(c); }
       }

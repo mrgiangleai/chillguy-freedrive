@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -146,6 +146,9 @@
   chia làn ±3.5), vỉa hè 4 m cao 0.2; đường ngang rộng 7 m + vỉa hè 2.5 m. Mặt đất theo hLow phố (phần lớn bằng), đồi xanh > 500 m.
   `terrain.js`/`scenery.js` đọc bề rộng đường lúc reset/setMap. Xe mình chạy làn ngoài phải (5.25), buông tay về làn gần nhất;
   vượt xe sang làn cùng chiều bên cạnh (`TrafficPolicy._other`). Camera bên hông 13 m, quay quanh 10 m. Không đom đóm.
+  **Bảng 🚦 Giao thông** (nút `b-traffic`, chỉ hiện ở map Phố; `trafficTune` lưu trong `chilldrive.tuning.v1` mục `traffic`):
+  tự giữ khoảng cách bật/tắt (tắt => xe mình không bám xe trước, đâm được để thử cảnh tai nạn), mật độ xe ×, tốc độ xe khác ×,
+  số người đi bộ, độ dài pha đèn × (`city.clockRate`).
   Thử Low: ~50 xe + ~38 người quanh xe, xe máy/người qua ngã tư theo đèn, cảnh tai nạn chạy trọn ~30 s. Chưa xem trên máy thật;
   chưa có ảnh rõ cảnh sát/cấp cứu; người lái bị bắt là hình dựng (không phải model nhân vật).
 - **Chụp ảnh**: nút 📸 / phím K — chụp canvas ngay sau `post.render` (không cần preserveDrawingBuffer), tải PNG
@@ -175,3 +178,6 @@
 
 - **#1 — Tiếng xe to dần khi tăng tốc / chạy nhanh (09/10/2026)**: viết lại tiếng động cơ (xem dòng `audio.js`): 25 km/h êm
   (~1700 rpm), đạp ga gầm to, 180 km/h gầm + ống xả rào (to gấp ~4 lần trước).
+
+- **#2 — Bảng cài đặt giao thông 🚦 (09/10/2026)**: xem mục Map Phố. Thử Low: bảng mở được, tắt "tự giữ khoảng cách" thì xe đâm
+  xe đỗ phía trước và cảnh tai nạn bắt đầu.

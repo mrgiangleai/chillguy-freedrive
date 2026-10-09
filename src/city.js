@@ -308,6 +308,7 @@ export class City {
     this.lastS = 0;
     this.camF = 1;
     this.clock = 0;                                              // đồng hồ đèn giao thông (s)
+    this.clockRate = 1;                                          // < 1 => pha đèn dài hơn (bảng 🚦)
     this.sigMat = new THREE.MeshStandardMaterial({ color: 0x2b2d30, roughness: 0.6, metalness: 0.3 });
     this.lensMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
     withMist(this.sigMat); withMist(this.lensMat);
@@ -382,7 +383,7 @@ export class City {
   // s: quãng đường xe; lamps: 0..1 (đèn bật)
   update(s, lamps, dt = 0, budget = 1) {
     if (!this.group.visible) return;
-    this.clock += dt;
+    this.clock += dt * this.clockRate;
     const c = this._c;
     for (const [n, g] of this.blocks) {
       const L = g.userData.lens;
