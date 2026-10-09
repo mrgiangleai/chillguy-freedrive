@@ -548,6 +548,8 @@ const applyMap = () => {
   if (isTraffic) { traffic.clearAll(); trafficLevel = TRAFFIC_START; trafficStartT = 5; }   // vào phố / đại lộ: giao thông thấp 5 s đầu
   $('brake').hidden = !isTraffic;
   $('b-traffic').hidden = !isTraffic;
+  $('b-score').hidden = !isTraffic;
+  if (!isTraffic) $('score').hidden = true;
   if (!isTraffic && tuneKind === 'traffic') closeTune();
   applyTrafficTune(); applyLightTune();
   if (isCity && state.started) toast('Map Phố: tự phanh khi gặp đèn đỏ — giữ phím Space hoặc nút Space');
@@ -592,9 +594,12 @@ function showModeName(mode) {
 function setGameMode(mode) {
   if (state.mode === mode) return;
   if (state.mode === 'chill') lastChillMap = state.map; else lastDriveMap = state.map;
+  const leftDrive = state.mode === 'drive' && session.dist > 300;
   state.mode = mode;
   state.map = mode === 'drive' ? lastDriveMap : lastChillMap;
   applyMap(); refreshUI(); showModeName(mode);
+  if (leftDrive) { renderScore(); $('score').hidden = false; }   // rời Drive: hiện bảng điểm buổi vừa lái
+  if (mode === 'drive') { session = newSession(); violations = 0; }
 }
 const nextMap = () => {
   // Chill: các map ngắm cảnh; Drive: Phố ↔ Đại lộ
@@ -720,13 +725,55 @@ function updateBlinker(dt) {
   const L = cityTraffic.lanes, lane = Math.sign(drive.d || 1) * L.reduce((b, l) => (Math.abs(Math.abs(drive.d) - l) < Math.abs(Math.abs(drive.d) - b) ? l : b), L[0]);
   if (blinkLane !== null && lane !== blinkLane && Math.sign(lane) === Math.sign(blinkLane)) {
     const side = Math.sign(lane - blinkLane);                                        // + = sang phải
-    if (blinker !== side) { violations++; toast(`↔ Đổi làn không bật xi nhan! (lỗi thứ ${violations})`, true); }
+    if (blinker !== side) foul('lane', '↔ Đổi làn không bật xi nhan!');
   }
   if (blinker && blinkLane !== null && lane !== blinkLane) blinkDone = 1.5;   // đổi xong => tự tắt sau 1.5 s
   if (blinkDone > 0 && (blinkDone -= dt) <= 0 && !steerHeld) blinker = 0;
   blinkLane = lane;
 }
 let blinkDone = 0;
+// chấm điểm buổi lái (map Drive): mỗi lỗi trừ điểm theo loại, bảng điểm 📋 / phím J (thời gian, quãng đường, tốc độ, số lỗi),
+// rời chế độ Drive sau ≥ 300 m thì tự hiện bảng. Điểm nhỏ dưới đồng hồ. `violations` = tổng lỗi của buổi
+const FOULS = { red: ['🚨 Vượt đèn đỏ', 15], ped: ['🚸 Không nhường người đi bộ', 15], crash: ['💥 Va chạm', 25],
+  speed: ['📸 Quá tốc độ (camera)', 10], lane: ['↔ Đổi làn không xi nhan', 5], ramp: ['↘ Vào nhánh ra không xi nhan', 5] };
+const newSession = () => ({ t: 0, dist: 0, vmax: 0, n: {} });
+let session = newSession(), scoreHit = 0;
+const sessionScore = () => Math.max(0, 100 - Object.entries(session.n).reduce((a, [k, n]) => a + n * FOULS[k][1], 0));
+const scoreGrade = (p) => (p >= 90 ? 'Xuất sắc' : p >= 75 ? 'Tốt' : p >= 50 ? 'Đạt' : 'Chưa đạt');
+function foul(type, text) {
+  violations++; session.n[type] = (session.n[type] || 0) + 1; scoreHit = 1.5;
+  if (text) toast(`${text} (lỗi thứ ${violations}, −${FOULS[type][1]} điểm)`, true);
+  if (!$('score').hidden) renderScore();
+}
+function renderScore() {
+  const p = sessionScore(), mm = Math.floor(session.t / 60), ss = Math.floor(session.t % 60);
+  $('sc-pt').textContent = p; $('sc-grade').textContent = scoreGrade(p);
+  $('sc-stats').innerHTML = `<span>Thời gian: ${mm}:${String(ss).padStart(2, '0')}</span><span>Quãng đường: ${(session.dist / 1000).toFixed(2)} km</span>`
+    + `<span>Tốc độ TB: ${session.t > 1 ? Math.round(session.dist / session.t * 3.6) : 0} km/h</span><span>Cao nhất: ${Math.round(session.vmax * 3.6)} km/h</span>`;
+  $('sc-list').innerHTML = Object.entries(FOULS).map(([k, [name, pen]]) => {
+    const n = session.n[k] || 0;
+    return `<tr class="${n ? '' : 'ok'}"><td>${name}</td><td>× ${n}</td><td>${n ? '−' + n * pen : ''}</td></tr>`;
+  }).join('');
+}
+function toggleScore(show = $('score').hidden) {
+  if (show) renderScore();
+  $('score').hidden = !show;
+}
+function resetSession() { session = newSession(); violations = 0; renderScore(); say('Bắt đầu buổi lái mới'); }
+$('b-score').onclick = () => toggleScore();
+$('sc-close').onclick = () => toggleScore(false);
+$('sc-new').onclick = () => resetSession();
+$('score').addEventListener('pointerdown', (e) => { if (e.target.id === 'score') toggleScore(false); });
+function updateSession(dt) {
+  const on = cityTraffic.visible && state.started;
+  $('scoremini').hidden = !on;
+  if (!on) return;
+  if (!stop.active && !incident.active) { session.t += dt; session.dist += Math.abs(drive.v) * dt; session.vmax = Math.max(session.vmax, drive.v); }
+  scoreHit = Math.max(0, scoreHit - dt);
+  const txt = 'Điểm ' + sessionScore();
+  if ($('scoremini').textContent !== txt) $('scoremini').textContent = txt;
+  $('scoremini').classList.toggle('hit', scoreHit > 0);
+}
 // giới hạn tốc độ (map Drive): biển tròn cạnh đồng hồ — Phố 50, Đại lộ theo biển (`avLimit`: 120 / 100 quanh nút giao / 40 quanh
 // trạm phí), trên nhánh 60; số tốc độ đỏ khi vượt quá 5 km/h. Đại lộ: qua cột camera mà đang quá tốc độ => đèn chớp + lỗi
 let camPrevS = null, camWarned = -1, limitShown = -1;
@@ -741,8 +788,8 @@ function updateSpeedLimit() {
   if (ahead > 0 && ahead < 320 && over && camWarned !== k) { camWarned = k; toast(`📷 Phía trước có camera bắn tốc độ — giới hạn ${lim} km/h`); }
   const front = drive.s + (cars.dim?.length ?? 4) / 2;
   if (camPrevS !== null && camPrevS < cs && front >= cs && front - camPrevS < 60 && over) {
-    violations++; avenue.flashCam(cs, 1); audio.tick(true);
-    toast(`📸 Camera bắn tốc độ: ${Math.round(kmh)} km/h — giới hạn ${lim} (lỗi thứ ${violations})`, true);
+    avenue.flashCam(cs, 1); audio.tick(true);
+    foul('speed', `📸 Camera bắn tốc độ: ${Math.round(kmh)} km/h — giới hạn ${lim}`);
   }
   camPrevS = front;
 }
@@ -1009,6 +1056,8 @@ window.addEventListener('keydown', (e) => {
     case 'KeyU': toggleFS(); break;
     case 'KeyK': toggleSettings(); break;
     case 'KeyO': shotPending = true; break;
+    case 'KeyJ': if (cityTraffic.visible) toggleScore(); break;
+    case 'Escape': if (!$('score').hidden) toggleScore(false); break;
     case 'Comma': setBlinker(-1); break;         // xi nhan trái (<) / phải (>)
     case 'Period': setBlinker(1); break;
   }
@@ -1291,7 +1340,7 @@ function frame(now) {
       const t = drive.s - icS(icIndex(drive.s));
       if (t > -490 && t < -390 && drive.d > AVENUE.edge - 0.2) {
         drive.ramp = icIndex(drive.s);
-        if (blinker !== 1) { violations++; toast(`↘ Vào nhánh ra không bật xi nhan phải! (lỗi thứ ${violations})`, true); }
+        if (blinker !== 1) foul('ramp', '↘ Vào nhánh ra không bật xi nhan phải!');
         else toast('↘ Nhánh ra — xuống đường ngang dưới cầu vượt');
         blinkDone = 2;
       }
@@ -1413,7 +1462,7 @@ function frame(now) {
         const L = cars.dim.length, W = cars.dim.width;
         const car = cityTraffic.hitTest(drive.s, drive.d, L, W), ped = car ? null : cityPeople.hitTest(drive.s, drive.d, L, W);
         if ((car && (drive.v > 1.2 || car.v > 1.2)) || (ped && drive.v > 0.8)) {
-          violations++;
+          foul('crash');
           if (car) {
             const side = car.cross || car.xr;                 // xe đường ngang (phố / dưới cầu đại lộ)
             const along = side ? 0 : car.v * car.dir, rel = side ? Math.hypot(drive.v, car.v) : Math.abs(drive.v - along);
@@ -1465,6 +1514,7 @@ function frame(now) {
   minimap.update(dt);
   updateBlinker(dt);
   updateSpeedLimit();
+  updateSession(dt);
   city.update(drive.s, st.lamps, dt, 1, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   // map Phố: vượt vạch dừng khi đèn đỏ => báo lỗi
   if (city.visible && state.started && !stop.active && cars.dim) {
@@ -1472,15 +1522,13 @@ function frame(now) {
     if (cityFront !== null && front > cityFront && drive.d > 0) {
       const n = road.junctionIndex(cityFront + SIGNAL.stopA);
       if (road.junction(n) - SIGNAL.stopA <= front && city.mainLight(n) === 2) {
-        violations++;
-        toast(`🚨 Vượt đèn đỏ! (lỗi thứ ${violations})`, true);
+        foul('red', '🚨 Vượt đèn đỏ!');
       }
       // đi qua vạch qua đường khi có người đang băng qua trước mặt => không nhường người đi bộ
       const jn = road.nearJunction(front);
       for (const c of [jn - 8.4, jn + 8.4]) {
         if (Math.abs(front - c) < 2 && drive.v > 0.8 && yieldWarned !== c && cityPeople.crossingNear(c, drive.d)) {
-          yieldWarned = c; violations++;
-          toast(`🚸 Không nhường người đi bộ! (lỗi thứ ${violations})`, true);
+          yieldWarned = c; foul('ped', '🚸 Không nhường người đi bộ!');
         }
       }
     }

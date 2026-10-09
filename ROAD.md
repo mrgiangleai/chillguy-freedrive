@@ -233,6 +233,11 @@
   6200 + 3000k, mỗi chiều 1 cột phải + tay vươn qua 2 làn ngoài, 2 hộp camera + đèn chớp, biển 120 trên cột, biển xanh "CAMERA giám sát
   tốc độ" ô atlas 12 ở −500 / −250): đang quá tốc độ thì báo trước ~300 m, qua cột => đèn chớp 2 lần (`flashCam`) + toast
   "📸 Camera bắn tốc độ … (lỗi thứ n)". Bản đồ tròn: chấm đỏ ở vị trí camera. Phố chưa có camera.
+  **Chấm điểm buổi lái** (`foul(type, text)`, `session`, `FOULS` trong main): mọi lỗi Drive đi qua `foul` (đỏ −15, không nhường −15,
+  va chạm −25, camera −10, đổi làn / vào nhánh không xi nhan −5; toast ghi "lỗi thứ n, −x điểm"). "Điểm n" nhỏ dưới giờ (đỏ 1.5 s khi
+  vừa bị trừ). Bảng 📋 (`#score`, nút `b-score` trong Setting ở map Drive, phím J, Esc / bấm nền để đóng): điểm + xếp loại (≥ 90 Xuất
+  sắc / ≥ 75 Tốt / ≥ 50 Đạt / Chưa đạt), thời gian, quãng đường, tốc độ TB / cao nhất (không tính lúc dừng xe / tai nạn), số lỗi từng
+  loại; "Buổi mới" đặt lại. Vào Drive => buổi mới; rời Drive sau > 300 m => tự hiện bảng.
   **Va chạm vật lý** (`crashfx.js` + `impact()` trong main): xe mình chúi đầu + nảy ngang, rung camera mạnh tắt dần ~0.6 s,
   tiếng "rầm" + kim loại (`audio.crash`), đâm > ~20 km/h tương đối thì khói bốc từ capo 4–10 s (48 sprite dùng lại); xe bị đâm
   trôi theo lực (`slide` ≤ 9 m/s, giảm 7 m/s²). Map khác: đụng xe NPC cũng khựng + rung + khói (không cảnh sát), hồi 2.5 s.
@@ -296,4 +301,4 @@
   trạm thu phí), màn hình chờ chạy Low, bản đồ tròn (Drive), nút lái trái / phải trên điện thoại, cầu vượt cao qua quốc lộ 4 làn,
   cầu dây văng qua sông, bảng chỉ đường lớn kiểu Việt Nam, đèn cầu ban đêm + cây bờ sông + thuyền.
 - **#1 — Đại lộ: dời cầu cao (700 m) + cầu sông (2.2 km) về gần đầu đường, vào Đại lộ bắt đầu ở 150 m (09/10/2026)**.
-- **#2 — Cải thiện dần (09/10/2026)**: bản đồ phóng to ẩn HUD bị đè; đệm chống va + dải bê tông ở mũi nhánh Đại lộ; xe tải / container; xi nhan (xe mình + NPC, lỗi đổi làn / vào nhánh không xi nhan); biển giới hạn tốc độ trên HUD + camera bắn tốc độ Đại lộ.
+- **#2 — Cải thiện dần (09/10/2026)**: bản đồ phóng to ẩn HUD bị đè; đệm chống va + dải bê tông ở mũi nhánh Đại lộ; xe tải / container; xi nhan (xe mình + NPC, lỗi đổi làn / vào nhánh không xi nhan); biển giới hạn tốc độ trên HUD + camera bắn tốc độ Đại lộ; bảng chấm điểm buổi lái (J).
