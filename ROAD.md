@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -210,7 +210,11 @@
   (mặt nước thấp hơn nền 14 m, sâu 5 m, bờ thoải; sông uốn `meander(u) = 40·sin(u/300)`), trụ xuống lòng sông, 2 tháp dây văng cao 42 m
   trên dải phân cách ở t = ±70 (dây thép `cableMat`). Mặt nước: shader Ocean chế độ sông (`ocean.setRiver`: cắt theo dải sông, sóng
   ×0.35, màu sẫm, nhám hơn, không bọt bờ), bật khi xe trong 3.5 km quanh cầu sông. Cỏ: loại dọc cầu cạn ±30 m + dải sông. Biển tốc độ
-  của nút giao dời từ ±1300 về ±1150 (không rơi vào cầu cạn).
+  của nút giao dời từ ±1300 về ±1150 (không rơi vào cầu cạn). Ban đêm: đèn vàng dọc 2 lan can cầu cạn mỗi 12 m (`railGlow`), cầu sông
+  có đèn hắt dọc tháp (`towerGlow`), đèn đỏ đỉnh tháp nhấp nháy cả ngày (`redGlow`), dây văng sáng ấm lên theo `setLamps`. Bờ sông:
+  hàng cây tán tròn (`broadleafGeometry`, instancing) 2 bờ trong ±1400 m (bỏ đoạn gần cao tốc), cao độ theo `avenue.groundAt` =
+  `terrain.heightAt`; 6 thuyền (2 sà lan chở cát 30 m, 4 thuyền nhỏ 9 m, `boatGeometry`) chạy dọc sông theo độ uốn, nhấp nhô, có đèn
+  ban đêm (`_boats(dt)`); nhịp chính giữa 2 tháp (|t| < 84) không có trụ để làm luồng tàu.
   Khu chung cư (~9% lô mặt tiền, `apartment` trong `_build`): tòa nhà lùi 11 m, công viên nhỏ (cỏ `lawnMat`, hàng rào cây, cây tán
   tròn `broadleafGeometry`, ghế), bậc thang lên sân sảnh (sàn tầng trệt = sân), ban công 3D từng tầng (sàn + lan can); mẫu A 10–13
   tầng bậc hẹp 4 cây, mẫu B 6–8 tầng bậc rộng + ghế; nhà bên trong khối chừa chỗ. Bảng 🚦 có "Thêm xe của chú": xe model
@@ -274,17 +278,6 @@
 - `QUICK_OPENING = true` (TẠM, đầu game 0.5 s) — bật lại khi chú bảo. Kiểm thử Playwright: vào game bằng `#m-chill` / `#m-drive`.
 
 ## 6. Nhật ký cập nhật
-- Đã tóm tắt tới commit này (sau `52e209a`): va chạm vật lý (rung, khói, tiếng), cảnh tai nạn mới (chú bước ra, cảnh sát đi
-  vòng ngoài xe tới trước mặt), đèn giao thông rõ màu + đặt kiểu Việt Nam + đèn đi bộ, bảng 🚦 nút Bật/Tắt + tự dừng đèn đỏ +
-  giao thông ngẫu nhiên 3 mức, cài đặt chế độ P, người đi bộ (xem tai nạn, nói chuyện có tiếng, điện thoại / tai nghe),
-  màn hình chọn Chill / Drive (cảnh nền tự đổi, nút đổi chế độ, tên chế độ giữa màn hình).
-
-- **#1 — Map Đại lộ bước 1: cao tốc 6 làn, dải phân cách, cỏ, giao thông 6 làn, nhóm Drive (09/10/2026)**. `compileFor` dùng `renderer.compile` (đồng bộ) thay `compileAsync` (lỗi `isReady` khi đổi map liên tục).
-- **#2 — Map Đại lộ bước 2: nút giao, cầu vượt, đường ngang có xe, nhánh ra / vào đi thử được (09/10/2026)**.
-- **#3 — Map Đại lộ bước 3: biển báo, giàn biển lối ra, mũi tên làn, đường gom + nhà (09/10/2026)**.
-- **#4 — Map Đại lộ bước 4: trạm thu phí tự động, mọi xe chậm lại (09/10/2026)**.
-- **#5 — Màn hình chờ chạy chất lượng Low (09/10/2026)**.
-- **#6 — Bản đồ tròn (Drive): đường + xe thật, bấm để phóng to, kéo / zoom (09/10/2026)**.
-- **#7 — Điện thoại: nút lái trái / phải hai bên Space (09/10/2026)**.
-- **#8 — Đại lộ: cầu vượt cao qua quốc lộ 4 làn + cầu dây văng qua sông lớn (09/10/2026)**.
-- **#9 — Đại lộ: bảng chỉ đường lớn kiểu Việt Nam ở các lối ra (09/10/2026)**.
+- Đã tóm tắt tới commit này (sau `603bcbe`): map Đại lộ đủ 4 bước (cao tốc 6 làn, nút giao + nhánh, biển báo + đường gom + nhà,
+  trạm thu phí), màn hình chờ chạy Low, bản đồ tròn (Drive), nút lái trái / phải trên điện thoại, cầu vượt cao qua quốc lộ 4 làn,
+  cầu dây văng qua sông, bảng chỉ đường lớn kiểu Việt Nam, đèn cầu ban đêm + cây bờ sông + thuyền.

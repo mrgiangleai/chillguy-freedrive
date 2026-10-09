@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { AVENUE, IC, icS, icIndex, rampU, TOLL, tollS, FLY, flyS, flyIndex, RIVER, riverS, riverIndex } from './road.js';
 import { hLow } from './terrain-noise.js';
 import { withMist } from './mist.js';
+import { broadleafGeometry } from './scenery.js';
 
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const RAMP_STEP = 6, RAMP_HW = 2.5;
@@ -118,6 +119,45 @@ function icSignTexture(k) {
   return t;
 }
 const icUV = (i, x0 = 0, x1 = 1) => { const u = (i % 2) / 2, v = 1 - Math.floor(i / 2) / 3; return [u + x0 / 2, v - 1 / 3, u + x1 / 2, v]; };
+// quầng đèn mềm (điểm sáng ban đêm trên cầu / thuyền)
+function glowTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,0.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+// thuyền dựng bằng code (màu đỉnh), dài theo trục +x, đáy ở y = −draft: 0 = sà lan chở cát dài 30 m, 1 = thuyền nhỏ 9 m
+function boatGeometry(kind) {
+  const P = [], N = [], C = [];
+  const quad = (a, b, c, d, col) => {
+    const n = new THREE.Vector3().subVectors(new THREE.Vector3(...b), new THREE.Vector3(...a)).cross(new THREE.Vector3().subVectors(new THREE.Vector3(...d), new THREE.Vector3(...a))).normalize();
+    for (const q of [a, b, c, a, c, d]) { P.push(...q); N.push(n.x, n.y, n.z); C.push(...col); }
+  };
+  const box = (x0, x1, y0, y1, z0, z1, col, taper = 0) => {        // taper: thu hẹp đáy (thân thuyền)
+    const b = [[x0 + taper, y0, z0 + taper * 0.4], [x1 - taper, y0, z0 + taper * 0.4], [x1 - taper, y0, z1 - taper * 0.4], [x0 + taper, y0, z1 - taper * 0.4]];
+    const t = [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]];
+    quad(t[0], t[3], t[2], t[1], col); quad(b[0], b[1], b[2], b[3], col);
+    quad(b[0], t[0], t[1], b[1], col); quad(b[1], t[1], t[2], b[2], col); quad(b[2], t[2], t[3], b[3], col); quad(b[3], t[3], t[0], b[0], col);
+  };
+  if (kind === 0) {
+    box(-15, 15, -1.2, 0.9, -3.2, 3.2, [0.18, 0.2, 0.22], 1.2);            // thân sà lan
+    box(-12, 9, 0.9, 1.6, -2.6, 2.6, [0.72, 0.62, 0.42]);                   // đống cát
+    box(10, 14, 0.9, 3.4, -2.4, 2.4, [0.86, 0.86, 0.82]);                   // cabin lái phía sau
+    box(9.8, 14.2, 3.4, 3.6, -2.6, 2.6, [0.25, 0.35, 0.55]);
+    box(10.4, 13.6, 2.2, 3.0, -2.45, 2.45, [0.12, 0.15, 0.18]);             // cửa kính
+  } else {
+    box(-4.5, 4.5, -0.6, 0.7, -1.3, 1.3, [0.2, 0.42, 0.68], 0.8);           // thân xanh
+    box(-4.6, 4.6, 0.55, 0.75, -1.35, 1.35, [0.92, 0.92, 0.9]);             // mạn trắng
+    box(-1.5, 1.8, 0.75, 2.2, -1.0, 1.0, [0.93, 0.9, 0.84]);                // mui
+    box(-1.7, 2.0, 2.2, 2.35, -1.15, 1.15, [0.7, 0.25, 0.2]);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+  return g;
+}
 const signUV = (i, round) => { const x = (i % 4) / 4, y = 1 - Math.floor(i / 4) / 4; return [x, y - 0.25, x + (round ? 0.125 : 0.25), y]; };   // [u0, v0, u1, v1]
 const WALLS = [[0.93, 0.91, 0.86], [0.96, 0.89, 0.72], [0.82, 0.88, 0.8], [0.95, 0.82, 0.74], [0.88, 0.88, 0.9]];
 const ROOFS = [[0.62, 0.22, 0.14], [0.25, 0.42, 0.62], [0.42, 0.42, 0.44], [0.5, 0.3, 0.2]];
@@ -145,6 +185,18 @@ export class Avenue {
     this.armMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5 });
     this.cableMat = new THREE.LineBasicMaterial({ color: 0xd8dadc });
     this.trussMat = new THREE.LineBasicMaterial({ color: 0xa9adb0 });
+    // ban đêm trên cầu: đèn dọc lan can (vàng ấm), đèn hắt lên tháp (trắng), đèn đỏ đỉnh tháp nhấp nháy; thuyền: đèn trắng
+    const gt = glowTex();
+    const glow = (color, size) => withMist(new THREE.PointsMaterial({ map: gt, color, size, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true }));
+    this.railGlow = glow(0xffc27a, 3.4);
+    this.towerGlow = glow(0xdfe8ff, 4.5);
+    this.redGlow = glow(0xff2a1a, 7);
+    this.boatGlow = glow(0xfff1d0, 3);
+    this.treeMat = withMist(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }));
+    this.treeGeo = broadleafGeometry();
+    this.boatMat = withMist(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 }));
+    this.boatGeos = [boatGeometry(0), boatGeometry(1)];
+    this.lampK = 0; this.time = 0;
     this.icSignMats = new Set();                                   // vật liệu bảng chỉ đường riêng từng nút giao (đèn đêm + huỷ)
     for (const m of [this.asphalt, this.signMat, this.metalMat, this.houseMat]) withMist(m);
     this.group = new THREE.Group();
@@ -159,7 +211,25 @@ export class Avenue {
 
   set visible(v) { this.group.visible = v; if (!v) this.reset(); }
   // biển phản quang: sáng lên khi bật đèn (đêm)
-  setLamps(l) { this.signMat.emissiveIntensity = 0.05 + 0.55 * l; for (const m of this.icSignMats) m.emissiveIntensity = this.signMat.emissiveIntensity; }
+  setLamps(l) {
+    this.signMat.emissiveIntensity = 0.05 + 0.55 * l; for (const m of this.icSignMats) m.emissiveIntensity = this.signMat.emissiveIntensity;
+    this.lampK = l;
+    this.railGlow.opacity = 0.95 * l; this.towerGlow.opacity = 0.8 * l; this.boatGlow.opacity = 0.9 * l;
+    this.redGlow.opacity = (0.25 + 0.75 * l) * (Math.floor(this.time * 1.2) % 2 ? 1 : 0.08);   // đèn báo không: nhấp nháy cả ngày
+    this.cableMat.color.setRGB(0.85 + 0.15 * l, 0.86 + 0.08 * l, 0.87 - 0.1 * l);
+  }
+  // thuyền trên các sông gần: chạy dọc sông (theo độ uốn), nhấp nhô; ra khỏi ±1500 m thì quay lại đầu kia
+  _boats(dt) {
+    this.time += dt;
+    for (const R of (this.rivers || new Map()).values()) for (const B of R.boats || []) {
+      B.u += B.v * dt;
+      if (B.u > 1500) B.u = -1500; else if (B.u < -1500) B.u = 1500;
+      const m = meander(B.u), dm = 40 / 300 * Math.cos(B.u / 300);
+      const tx = R.rx + R.fx * dm, tz = R.rz + R.fz * dm, a = B.a + m;
+      B.mesh.position.set(R.P.x + R.rx * B.u + R.fx * a, R.level + 0.12 * Math.sin(this.time * 1.3 + B.ph), R.P.z + R.rz * B.u + R.fz * a);
+      B.mesh.rotation.set(0.02 * Math.sin(this.time * 0.9 + B.ph), Math.atan2(-tz, tx) + (B.v < 0 ? Math.PI : 0), 0.03 * Math.sin(this.time * 1.1 + B.ph), 'YXZ');
+    }
+  }
   get visible() { return this.group.visible; }
 
   reset() {
@@ -342,8 +412,9 @@ export class Avenue {
     return h;
   }
 
-  update(s, budget = 1) {
+  update(s, budget = 1, dt = 0) {
     if (!this.group.visible) return;
+    this._boats(dt);
     // nút giao: khung (cho địa hình xa) và mesh (gần)
     const kc0 = icIndex(s - 2500), kc1 = icIndex(s + 6500);
     for (let k = kc0; k <= kc1; k++) this.ic(k);
@@ -387,7 +458,10 @@ export class Avenue {
 
   _dispose(g) {
     this.group.remove(g);
-    g.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+    g.traverse((o) => {
+      if (o.isInstancedMesh) o.dispose();
+      if (o.geometry && o.geometry !== this.treeGeo && !this.boatGeos.includes(o.geometry)) o.geometry.dispose();
+    });
     const m = g.userData.signMat;
     if (m) { m.map.dispose(); m.dispose(); this.icSignMats.delete(m); }
   }
@@ -668,7 +742,7 @@ export class Avenue {
       if (river && Math.abs(this.riverA(O, x, z)) < O.hw + 10) return O.level - RIVER.depth - 0.5;
       return hLow(x, z) - 1.5;
     };
-    const clear = river ? 0 : O.crossHW + 3.5;
+    const clear = river ? 84 : O.crossHW + 3.5;                   // cầu sông: nhịp chính giữa 2 tháp không có trụ (luồng tàu)
     for (let t = -V + 20; t <= V - 20; t += 28) {
       if (Math.abs(t) < clear) continue;
       const top = Q(t).y - 1.6;
@@ -708,6 +782,44 @@ export class Avenue {
         const m = (a0, a1, col) => push(M, [X(u, a0, y0 + 0.02), X(u + 4, a0, y1 + 0.02), X(u + 4, a1, y1 + 0.02), X(u, a1, y0 + 0.02)], UP, col);
         m(-0.2, -0.08, YEL); m(0.08, 0.2, YEL); m(-CH + 0.6, -CH + 0.75, WHITE); m(CH - 0.75, CH - 0.6, WHITE);
         if (Math.floor(u / 4) % 3 === 0) { m(-3.57, -3.43, WHITE); m(3.43, 3.57, WHITE); }
+      }
+    }
+    // ---- đèn ban đêm: dọc 2 lan can mỗi 12 m; cầu sông: đèn hắt dọc tháp + đèn đỏ đỉnh tháp ----
+    const pts = (arr, mat) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3)); const p = new THREE.Points(g, mat); p.frustumCulled = false; p.renderOrder = 4; group.add(p); };
+    const rl = [];
+    for (let t = -V + 6; t <= V - 6; t += 12) { const q = Q(t); for (const e of [-1, 1]) rl.push(...P3(q, e * (DECK_HW - 0.2), q.y + 1.15)); }
+    pts(rl, this.railGlow);
+    if (river) {
+      const tw = [], red = [];
+      for (const tp of [-70, 70]) {
+        const q = Q(tp), top = q.y + 42;
+        for (let y = q.y + 3; y < top - 1; y += 4) for (const e of [-1, 1]) tw.push(...P3(q, e * 1.4, y));
+        red.push(...P3(q, 0, top + 0.6));
+      }
+      pts(tw, this.towerGlow); pts(red, this.redGlow);
+      // ---- bờ sông: hàng cây ven 2 bờ (bỏ đoạn gần cao tốc), thuyền chạy trên sông ----
+      const trees = [], mtx = new THREE.Matrix4(), qt = new THREE.Quaternion(), sc = new THREE.Vector3(), ps = new THREE.Vector3(), UPV = new THREE.Vector3(0, 1, 0);
+      for (const e of [-1, 1]) for (let u = -1400; u < 1400; u += 14 + hashR(u * 0.13 + e + O.k) * 22) {
+        if (Math.abs(u) < 50) continue;
+        const a = e * (O.hw + 10 + hashR(u * 0.71 + e * 3 + O.k) * 38) + meander(u);
+        const x = O.P.x + O.rx * u + O.fx * a, z = O.P.z + O.rz * u + O.fz * a;
+        const y = this.groundAt ? this.groundAt(x, z) : O.level + 1.6;
+        trees.push(mtx.compose(ps.set(x, y - 0.1, z), qt.setFromAxisAngle(UPV, hashR(u + e) * 6.28), sc.setScalar(0.9 + hashR(u * 2.3 + e) * 0.9)).clone());
+      }
+      const im = new THREE.InstancedMesh(this.treeGeo, this.treeMat, trees.length);
+      trees.forEach((m4, i) => im.setMatrixAt(i, m4));
+      im.castShadow = true; im.receiveShadow = true;
+      group.add(im);
+      group.userData.keepGeo = true;
+      O.boats = [];
+      for (let i = 0; i < 6; i++) {
+        const kind = i < 2 ? 0 : 1, mesh = new THREE.Mesh(this.boatGeos[kind], this.boatMat);
+        mesh.castShadow = true;
+        const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(kind === 0 ? [12, 3.9, 0, -15, 1.2, 0] : [0, 2.6, 0], 3));
+        const lp = new THREE.Points(lg, this.boatGlow); lp.frustumCulled = false; mesh.add(lp);
+        group.add(mesh);
+        const dir = i % 2 ? 1 : -1;
+        O.boats.push({ mesh, u: -1400 + hashR(i * 3.7 + O.k) * 2800, a: dir * (14 + hashR(i * 1.9) * 40), v: dir * (kind === 0 ? 3 : 5.5), ph: i * 1.7 });
       }
     }
     const mk = (B, mat) => {

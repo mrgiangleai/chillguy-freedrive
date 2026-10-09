@@ -120,6 +120,7 @@ const cityTraffic = new CityTraffic(scene, road, city);      // map Phố: xe d�
 const cityPeople = new CityPeople(scene, road, city);        // map Phố: người đi bộ
 const avenue = new Avenue(scene, road, scenery.cityTex);     // map Đại lộ: vạch kẻ 6 làn + dải phân cách + nút giao (xe: cityTraffic chế độ avenue)
 terrain.extraCarve = (x, z, h, h0, ns, nd) => avenue.carve(x, z, h, h0, ns, nd);
+avenue.groundAt = (x, z) => terrain.heightAt(x, z);
 scenery.railGap = (s) => avenue.visible && avenue.railGap(s);
 meadow.exclusions = avenue.excl;
 cityTraffic.avenue = avenue;
@@ -1393,7 +1394,7 @@ function frame(now) {
       }
     }
   }
-  avenue.update(drive.s); avenue.setLamps(st.lamps);
+  avenue.update(drive.s, 1, dt); avenue.setLamps(st.lamps);
   minimap.update(dt);
   city.update(drive.s, st.lamps, dt, 1, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   // map Phố: vượt vạch dừng khi đèn đỏ => báo lỗi
