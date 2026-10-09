@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { TRAFFIC, trafficSpeed, trafficCurveSpeed, stepTraffic, roadPosition } from '../src/traffic-ai.js';
 import { Road } from '../src/road.js';
+import { HEADLIGHT_DEFAULTS } from '../src/headlights.js';
 const dt = 1 / 60;
 const car = (s, d, kmh = 200) => ({ s, d, baseD: d, v: kmh / 3.6, cruise: kmh / 3.6, dim: { width: 2, length: 4.7 } });
 const obstacle = (s, d, width = 2, length = 4.7, speed = 0, direction = 0, id = 'obstacle') => ({ id, s, d, width, length, speed, direction });
@@ -100,12 +101,12 @@ for(const sample of [0,1]) {
   t.update(.05,150,1.5,straight,1,'player',[]);
   assert(Math.abs(t.sameTimer-(sample?60:25))<1e-8);assert.equal(t.active.length,1);
   const v=t.active[0];assert.equal(v.direction,1);assert(v.s<150);assert.equal(v.baseD,1.8);
-  assert(Math.abs(v.cruise*3.6-(sample?200:50))<1e-8);assert(Math.abs(t.beam.spots[0].intensity-85*0.24)<1e-9);assert.equal(v.headlights.spots.length,0,'NPC has glows only');
+  assert(Math.abs(v.cruise*3.6-(sample?200:50))<1e-8);assert(Math.abs(t.beam.spots[0].intensity-HEADLIGHT_DEFAULTS.intensity*0.24)<1e-9);assert.equal(v.headlights.spots.length,0,'NPC has glows only');
   assert(Math.abs(v.root.rotation.y)<1e-8,'Same-direction yaw must face forward');
   const s=v.s;t.update(.05,150,1.5,straight,1,'player',[]);assert(v.s>s);
  } finally {Math.random=random;}
 }
-console.log('PASS: actual Traffic spawn at both random bounds: 25/60 seconds, 50/200 km/h, rear entry, forward motion/yaw, shared NPC beam 20.4.');
+console.log('PASS: actual Traffic spawn at both random bounds: 25/60 seconds, 50/200 km/h, rear entry, forward motion/yaw, shared NPC beam = 24% of the player beam.');
 
 for(const direction of [-1,1]) for(const kmh of [50,100,200]) {
  const curved={heading:s=>s*.003},flat={heading:()=>0};

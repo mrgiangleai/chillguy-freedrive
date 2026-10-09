@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {TrafficPolicy} from '../src/traffic-policy.js';
 import {Traffic} from '../src/traffic.js';
 import * as THREE from 'three';
+import { HEADLIGHT_DEFAULTS } from '../src/headlights.js';
 const policy=new TrafficPolicy();
 Object.assign(policy.player,{s:130,d:1.5,v:14,len:4.7,w:2,home:1.5});
 const a={s:100,d:1.8,v:30,dir:1,len:4.7,w:2,home:1.8,state:'cruise',target:null};
@@ -22,9 +23,9 @@ const v=t.pool[0];Object.assign(v,{s:160,d:-1.8,baseD:-1.8,v:50/3.6,cruise:50/3.
 const road={at(s,p){Object.assign(p,{x:0,y:0,z:-s,th:0});return p;}};
 let passes=0;const audio={passDur:()=>2,passBy(){passes++;}};
 for(let i=0;i<100;i++)t.update(.05,150,1.5,road,1,'player',[{id:'player',s:150,d:1.5,speed:25/3.6,direction:1,width:2,length:4.7}],audio);
-assert.equal(passes,1,'One pass-by sound per encounter');assert(Math.abs(t.beam.spots[0].intensity-85*0.24)<1e-9);
+assert.equal(passes,1,'One pass-by sound per encounter');assert(Math.abs(t.beam.spots[0].intensity-HEADLIGHT_DEFAULTS.intensity*0.24)<1e-9);
 assert(t.ctrl&&Number.isFinite(t.ctrl.lane));
-console.log('PASS: upstream 50 m overtaking visibility, closing-time rejection, clear-lane pass, unsafe-lane wait; oncoming NPCs never overtake; actual merged Traffic pass-by once and headlights 20.4.');
+console.log('PASS: upstream 50 m overtaking visibility, closing-time rejection, clear-lane pass, unsafe-lane wait; oncoming NPCs never overtake; actual merged Traffic pass-by once and headlights = 24% of the player beam.');
 // xe ngựa: chạy trên mặt đường như NPC (không đèn), 15–30 s/chiếc, tối đa 2; xe ngược chiều sinh theo làn nhà của xe mình
 {const t2=new Traffic(new THREE.Scene(),cars);await t2._load('player');t2.timer=t2.sameTimer=1e9;t2.playerHome=1.5;
  t2.makeCarriage=()=>({group:new THREE.Group(),dim:{length:5.6,width:2.8,height:2.4},wheels:[],mixer:null,carriage:true});t2.carriageTimer=0;

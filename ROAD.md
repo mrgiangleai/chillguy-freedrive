@@ -298,7 +298,6 @@
 - Chưa xem trên máy thật: chuyển động sóng biển (đã sửa giật 2 lần), cảnh dừng xe mới (quay quanh + zoom 5 s), xe ngựa ban đêm,
   map Biển ban đêm / mưa / trong xe; vân sóng lặp còn thấy khi nhìn từ trên cao.
 - Vài tảng đá terrain trông lơ lửng trên vách núi gần đường (s≈250) — chưa sửa.
-- `scripts/check-traffic-policy.mjs` và `check-traffic.mjs` đang lỗi sẵn (lỗi cả trước khi thêm map Phố) — chưa xem nguyên nhân.
 - Map Phố: camera Từ trên cao hay bị nhà chắn nên kéo sát xe; Mustang/Mazda NPC không chạy trong phố (thay bằng xe dựng code).
 - Chưa nghe trên máy thật: tiếng người nói chuyện (`setChatter`), còi hụ, tiếng va chạm. Chưa chụp cận đèn đi bộ.
 - `QUICK_OPENING = true` (TẠM, đầu game 0.5 s) — bật lại khi chú bảo. Kiểm thử Playwright: vào game bằng `#m-chill` / `#m-drive`.
@@ -309,4 +308,4 @@
   cầu dây văng qua sông, bảng chỉ đường lớn kiểu Việt Nam, đèn cầu ban đêm + cây bờ sông + thuyền.
 - **#1 — Đại lộ: dời cầu cao (700 m) + cầu sông (2.2 km) về gần đầu đường, vào Đại lộ bắt đầu ở 150 m (09/10/2026)**.
 - **#3 — Bảng 🚦: nút bật / tắt chấm điểm, bật lại thì tính lại từ đầu (09/10/2026)**.
-- **#2 — Cải thiện dần (09/10/2026)**: bản đồ phóng to ẩn HUD bị đè; đệm chống va + dải bê tông ở mũi nhánh Đại lộ; xe tải / container; xi nhan (xe mình + NPC, lỗi đổi làn / vào nhánh không xi nhan); biển giới hạn tốc độ trên HUD + camera bắn tốc độ Đại lộ; bảng chấm điểm buổi lái (J); sửa cảnh tai nạn Đại lộ (kẹt) + trên nhánh rẽ / cầu cạn.
+- **#2 — Cải thiện dần (09/10/2026)**: bản đồ phóng to ẩn HUD bị đè; đệm chống va + dải bê tông ở mũi nhánh Đại lộ; xe tải / container; xi nhan (xe mình + NPC, lỗi đổi làn / vào nhánh không xi nhan); biển giới hạn tốc độ trên HUD + camera bắn tốc độ Đại lộ; bảng chấm điểm buổi lái (J); sửa cảnh tai nạn Đại lộ (kẹt) + trên nhánh rẽ / cầu cạn; `check-traffic*.mjs` PASS lại (test còn so đèn pha 85, nay so `HEADLIGHT_DEFAULTS.intensity` × 0.24).
