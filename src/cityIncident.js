@@ -25,7 +25,8 @@ export class CityIncident {
     this.medics = [];
     this.exited = this.exitTried = false;
     if (victim.car) { victim.car.crashed = true; victim.car.v = 0; }
-    if (victim.ped) { victim.ped.mode = 'fallen'; victim.ped.crossing = false; }
+    if (victim.ped) { victim.ped.mode = 'fallen'; victim.ped.crossing = false; victim.ped.chatT = 0; victim.ped.target = null; }
+    this.people.gather(...this._victimPos());               // người đi bộ gần đó tới đứng xem
     this.hooks.toast('💥 Va chạm! Đang gọi cảnh sát và xe cấp cứu…', true);
   }
 
@@ -145,6 +146,7 @@ export class CityIncident {
     if (this.victim?.ped) P.remove(this.victim.ped);
     for (const c of [this.police, this.amb]) if (c) { c.script = null; if (c.crashed) c.crashed = false; T.remove(c); }
     for (const p of [this.officer, this.driver, ...(this.medics || [])]) if (p) P.remove(p);
+    P.disperse();
     this.active = false; this.fading = null; this.ambDone = false; this.tMed = null; this.medics = [];
     this.hooks.siren?.('police', 0); this.hooks.siren?.('ambulance', 0);
     if (this.exited) this.hooks.endStop();

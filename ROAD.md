@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -177,7 +177,13 @@
   sau xe, xuống cửa trái, đi thẳng ở ngoài mép trái 2 xe tới đứng trước mặt chú (cách 1.1 m), toast lời cảnh sát, 2.5 s sau
   `endStop` (`stop.release`: người về ghế, bị ẩn; camera trả về quay quanh xe, lướt từ chỗ đang đứng) => hình người lái dựng
   + cảnh sát đi cạnh nhau theo `cityPeople.goPath` về cửa xe cảnh sát. Hook main: `carPos/exitCar/personPos/endStop`.
-  Camera cảnh dừng xe ở phố cũng `city.collide` (không xuyên nhà). Thử Low: không điểm nào của cảnh sát / người lái lọt vào thân xe.
+  Camera cảnh dừng xe ở phố cũng `city.collide` (không xuyên nhà). Người đi bộ trong 45 m (tối đa 9) đi tới đứng quanh hiện
+  trường trên vỉa hè phía mình, nhìn về chỗ tai nạn, ~30% giơ điện thoại (`cityPeople.gather/disperse`).
+  **Người đi bộ thêm**: ~16% bấm điện thoại (tay phải đưa ra trước 0.75 rad trong shader, điện thoại nằm dưới bàn tay; thỉnh
+  thoảng đứng lại 3–9 s), ~14% đeo tai nghe trắng (đỉnh `aAcc` ẩn khi không dùng; `aWalk.z` = đồ dùng). Hai người ngược chiều
+  gặp nhau cùng vỉa hè (≤ 1.6 m) => 35% dừng nói chuyện 6–16 s, quay mặt vào nhau (hồi 25 s). Tiếng nói không chữ:
+  `audio.setChatter` (răng cưa + 2 formant đổi nguyên âm mỗi âm tiết, 2 giọng thay lượt; đám đông nói chồng) — main `chatter()`
+  lấy 3 nguồn gần camera ≤ 22 m (`cityPeople.voices`). Thử Low: không điểm nào của cảnh sát / người lái lọt vào thân xe.
   Thử Low: ~50 xe + ~38 người quanh xe, xe máy/người qua ngã tư theo đèn, cảnh tai nạn chạy trọn ~30 s. Chưa xem trên máy thật.
 - **Giao diện (HUD)**: bên trái là cột lối tắt hộp chữ thưa (`#quick .qbox`, cùng cỡ 80×58 — điện thoại 62×36, chữ mảnh weight 200, hoa chữ đầu + thường, giãn .16em, phím
   trong ngoặc bên phải): Speed (F; hiện "50 km/h"/"180 km/h" khi đang ở cấp đó) · Pause (P; "Resume" khi đang đỗ) · Car (C/V) ·
@@ -221,3 +227,4 @@
 - **#3 — Đèn giao thông rõ màu, bớt chói, quầng rộng hơn (09/10/2026)**.
 - **#4 — Bảng 🚦: nút Bật/Tắt + tự dừng đèn đỏ (09/10/2026)**.
 - **#5 — Cài đặt chế độ P (thời gian dừng, zoom, quay quanh xe/người) (09/10/2026)**.
+- **#6 — Người đi bộ: tụ lại xem tai nạn, nói chuyện có tiếng, điện thoại / tai nghe (09/10/2026)**. Âm thanh chưa nghe được trên máy ảo.

@@ -117,6 +117,22 @@ const crashFx = new CrashFx(scene, cars.softTex);   // va chạm: rung mạnh + 
 const _hood = new THREE.Vector3();
 const hoodPos = (out) => cars.root.localToWorld(out.set(0, cars.dim.height * 0.62, -cars.dim.length / 2 + 0.75));
 // cú va chạm vật lý: xe mình khựng + chúi đầu + nảy ngang, rung camera, đâm mạnh (> ~20 km/h tương đối) thì khói bốc từ capo
+// tiếng người đi bộ nói chuyện (map Phố): 3 nguồn gần camera nhất trong 22 m; tắt hết khi rời phố
+const _voices = [], _camR = new THREE.Vector3(), _vd = new THREE.Vector3();
+function chatter(off = false) {
+  if (!audio.chat && off) return;
+  const list = off ? [] : cityPeople.voices(_voices);
+  const cp = camera.position;
+  for (const v of list) v.d = Math.hypot(v.x - cp.x, v.z - cp.z);
+  list.sort((a, b) => a.d - b.d);
+  _camR.set(1, 0, 0).applyQuaternion(camera.quaternion);
+  for (let i = 0; i < 3; i++) {
+    const v = list[i];
+    if (!v || v.d > 22) { audio.setChatter(i, 0); continue; }
+    _vd.set(v.x - cp.x, 0, v.z - cp.z).normalize();
+    audio.setChatter(i, (1 - v.d / 22) ** 2 * (v.crowd ? 1.3 : 1), _vd.dot(_camR) * 0.8, v.crowd);
+  }
+}
 function impact(rel, latSign) {
   const power = Math.min(1, rel / 14);
   drive.pitch -= 0.05 * power + 0.015;
@@ -1173,6 +1189,7 @@ function frame(now) {
       if (trafficTune.models && !traffic.pool.length && !traffic.loading) traffic._load(cars.current.def.id);
       cityTraffic.update(dt, drive.s, drive.d, drive.v, st.lamps, cars.dim.length);
       cityPeople.update(dt, drive.s);
+      chatter();
       // xe mình đứng yên > 7 s (không phải đang chờ đèn đỏ ngay trước mặt) => xe kẹt phía sau bấm còi + nháy đèn
       const redAhead = city.stopAhead(drive.s + cars.dim.length / 2, 1, 0) < 25;
       stillT = drive.v < 0.3 && !incident.active && !redAhead ? stillT + dt : 0;
@@ -1210,6 +1227,7 @@ function frame(now) {
       }
       traffic.ctrl.lane = null; traffic.ctrl.maxV = maxV;
     } else {
+      chatter(true);
       traffic.update(dt, drive.s, drive.d, road, st.lamps, cars.current.def.id, obstacles, audio);
       // các map khác: đụng xe NPC => khựng lại, rung, khói (không có cảnh sát)
       hitCool = Math.max(0, hitCool - dt);

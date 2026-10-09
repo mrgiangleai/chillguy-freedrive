@@ -337,6 +337,53 @@ export class ChillAudio {
     v.p.pan.setTargetAtTime(Math.max(-1, Math.min(1, pan)), t, 0.1);
   }
 
+  // tiếng người nói chuyện (map Phố, không chữ): giọng giả lập — sóng răng cưa (thanh quản) qua 2 bộ lọc formant đổi theo
+  // nguyên âm mỗi âm tiết (0.09–0.25 s), lên xuống giọng, 2 người thay lượt nói, có lúc ngừng. slot 0..2 (mỗi nguồn 1 slot);
+  // gọi mỗi khung: level 0..1 (theo khoảng cách), pan -1..1, crowd 0..1 (đám đông: nói chồng lên nhau). level 0 => tắt dần.
+  setChatter(slot, level, pan = 0, crowd = 0) {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    this.chat ||= [];
+    let c = this.chat[slot];
+    if (!c) {
+      if (level <= 0) return;
+      const out = ctx.createGain(); out.gain.value = 0;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2800;
+      const p = ctx.createStereoPanner();
+      out.connect(lp).connect(p).connect(this.outGain);
+      const voices = [0, 1].map(() => {
+        const o = ctx.createOscillator(); o.type = 'sawtooth';
+        const f1 = ctx.createBiquadFilter(); f1.type = 'bandpass'; f1.Q.value = 5;
+        const f2 = ctx.createBiquadFilter(); f2.type = 'bandpass'; f2.Q.value = 8;
+        const g = ctx.createGain(); g.gain.value = 0;
+        const g2 = ctx.createGain(); g2.gain.value = 0.45;
+        o.connect(f1).connect(g); o.connect(f2).connect(g2).connect(g); g.connect(out); o.start();
+        return { o, f1, f2, g, base: (Math.random() < 0.5 ? 118 : 200) * (0.9 + Math.random() * 0.2), next: 0 };
+      });
+      c = this.chat[slot] = { out, p, voices, turn: 0, turnEnd: 0 };
+    }
+    const lv = Math.max(0, Math.min(1, level));
+    c.out.gain.setTargetAtTime(0.55 * lv, t, 0.2);
+    c.p.pan.setTargetAtTime(Math.max(-1, Math.min(1, pan)), t, 0.1);
+    if (lv < 0.002) return;
+    if (t > c.turnEnd) { c.turn = 1 - c.turn; c.turnEnd = t + 1.2 + Math.random() * 3.2; }
+    const VOW = [[730, 1090], [270, 2290], [530, 1840], [300, 870], [660, 1720], [490, 1350], [400, 2000]];
+    c.voices.forEach((v, i) => {
+      if (v.next > t + 0.12) return;
+      const st = Math.max(v.next, t + 0.01);
+      const speaking = i === c.turn || Math.random() < crowd * 0.8;
+      if (!speaking || Math.random() < 0.1) { v.g.gain.setTargetAtTime(0, st, 0.03); v.next = st + 0.2 + Math.random() * 0.35; return; }
+      const dur = 0.09 + Math.random() * 0.16, [F1, F2] = VOW[Math.floor(Math.random() * VOW.length)];
+      const end = (t > c.turnEnd - 0.4 ? 0.85 : 1);                    // cuối câu hạ giọng
+      v.o.frequency.setTargetAtTime(v.base * (0.9 + Math.random() * 0.25) * end, st, 0.03);
+      v.f1.frequency.setTargetAtTime(F1 * (v.base > 160 ? 1.15 : 1), st, 0.025);
+      v.f2.frequency.setTargetAtTime(F2 * (v.base > 160 ? 1.12 : 1), st, 0.025);
+      v.g.gain.setTargetAtTime(0.32, st, 0.02);
+      v.g.gain.setTargetAtTime(0, st + dur * 0.7, 0.03);
+      v.next = st + dur + Math.random() * 0.05;
+    });
+  }
+
   // tiếng suối/thác: vòng lặp 4 s gồm rào rào (nhiễu nâu + trắng) và tiếng "lục bục" (bọt khí: sin tắt nhanh, cao dần).
   // Tạo khi cần lần đầu. level 0..1, pan -1 trái .. +1 phải
   setWater(level, pan = 0) {
