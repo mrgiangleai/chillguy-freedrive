@@ -272,7 +272,7 @@ const QUICK_OPENING = true;          // TẠM: đầu game rút còn 0.5 s (đ�
 const TUNE_KEY = 'chilldrive.tuning.v1';
 let savedTuning = null;
 // bảng 🚦 Giao thông (map Phố): chú tự chỉnh để thử
-const TRAFFIC_DEFAULTS = Object.freeze({ avoid: 1, redStop: 0, density: 1, speed: 1, walkers: 38, signal: 1, models: 0 });
+const TRAFFIC_DEFAULTS = Object.freeze({ avoid: 1, redStop: 0, auto: 1, density: 1, speed: 1, walkers: 38, signal: 1, models: 0 });
 // bảng Lighting: hệ số các loại đèn (ngoài đèn pha xe chú / đèn đường đã có thông số riêng)
 const LIGHT_DEFAULTS = Object.freeze({ signal: 1, signalSize: 1, windows: 1, signs: 1, npc: 1, emergency: 1 });
 const lightTune = { ...LIGHT_DEFAULTS };
@@ -283,15 +283,41 @@ function applyLightTune() {
   cityTraffic.emK = lightTune.emergency;
 }
 const trafficTune = { ...TRAFFIC_DEFAULTS };
+// mức giao thông đang chạy (ghi đè mật độ / tốc độ xe khác / số người của bảng 🚦; null = dùng số chú chỉnh tay):
+// vào map Phố luôn thấp (0.4 / 0.4 / 20) 5 s, rồi nếu bật "ngẫu nhiên" thì đổi giữa 3 mức mỗi 60–120 s
+const TRAFFIC_START = { name: 'Khởi động', density: 0.4, speed: 0.4, walkers: 20 };
+const TRAFFIC_LEVELS = [
+  { name: 'Thưa', density: 0.4, speed: 0.75, walkers: 20 },
+  { name: 'Vừa', density: 1, speed: 1, walkers: 38 },
+  { name: 'Đông', density: 1.8, speed: 1.15, walkers: 60 },
+];
+let trafficLevel = null, trafficStartT = 0, trafficLevelT = 0;
+function pickTrafficLevel(announce = true) {
+  const others = TRAFFIC_LEVELS.filter((l) => l !== trafficLevel);
+  trafficLevel = others[Math.floor(Math.random() * others.length)];
+  trafficLevelT = 60 + Math.random() * 60;
+  applyTrafficTune();
+  if (announce) say('Giao thông · ' + trafficLevel.name);
+  if (tuneKind === 'traffic') renderTune();
+}
+function updateTrafficLevel(dt) {
+  if (trafficStartT > 0) {
+    if ((trafficStartT -= dt) > 0) return;
+    if (trafficTune.auto) pickTrafficLevel(); else { trafficLevel = null; applyTrafficTune(); }
+    return;
+  }
+  if (trafficTune.auto && trafficLevel && (trafficLevelT -= dt) <= 0) pickTrafficLevel();
+}
 function applyTrafficTune() {
-  if (trafficTune.density < cityTraffic.density) {          // giảm mật độ: bớt ngay một phần xe đang chạy (không bỏ xe cảnh sát / cấp cứu / xe bị đâm)
-    const keep = trafficTune.density / cityTraffic.density;
+  const T = trafficLevel || trafficTune;
+  if (T.density < cityTraffic.density) {          // giảm mật độ: bớt ngay một phần xe đang chạy (không bỏ xe cảnh sát / cấp cứu / xe bị đâm)
+    const keep = T.density / cityTraffic.density;
     cityTraffic.cars = cityTraffic.cars.filter((c) => c.script || c.crashed || Math.random() < keep);
   }
-  cityTraffic.density = trafficTune.density;
-  for (const c of cityTraffic.cars) if (!c.script && c.type !== 'police' && c.type !== 'ambulance') c.vMax *= trafficTune.speed / (cityTraffic.speedK || 1);
-  cityTraffic.speedK = trafficTune.speed;
-  cityPeople.walkers = Math.round(trafficTune.walkers);
+  cityTraffic.density = T.density;
+  for (const c of cityTraffic.cars) if (!c.script && c.type !== 'police' && c.type !== 'ambulance') c.vMax *= T.speed / (cityTraffic.speedK || 1);
+  cityTraffic.speedK = T.speed;
+  cityPeople.walkers = Math.round(T.walkers);
   city.clockRate = 1 / trafficTune.signal;
   cityTraffic.useModels = !!trafficTune.models;
   if (!trafficTune.models) cityTraffic.releaseModels();
@@ -336,6 +362,8 @@ function refreshUI() {
   $('b-traffic').classList.toggle('on', tuneKind === 'traffic');
   $('b-lighting').classList.toggle('on', tuneKind === 'lighting');
   $('b-park').classList.toggle('on', tuneKind === 'park');
+  $('b-mode').querySelector('span').textContent = state.mode === 'drive' ? 'Drive' : 'Chill';
+  $('b-mode').title = state.mode === 'drive' ? 'Đang ở chế độ Drive — bấm để đổi sang Chill' : 'Đang ở chế độ Chill — bấm để đổi sang Drive';
   el.full.hidden = !(CAN_FS && IS_PHONE);          // nút toàn màn hình chỉ có trên điện thoại (máy tính: phím U)
   setBtn(el.full, isFS() ? '🗗' : '⛶', isFS() ? 'Thoát toàn màn hình' : 'Toàn màn hình');
   // lối tắt bên trái
@@ -441,8 +469,10 @@ env.onCarEnv = (tex) => cars.setEnvMap(tex);
 if (env.carEnvRT) cars.setEnvMap(env.carEnvRT.texture);
 cars.prepare = (group) => compileFor(post.sceneRT, camera, group);
 cows.onBuild = (group) => { compileFor(post.sceneRT, camera, group).catch(() => {}); };
+let skipWarm = false;           // màn hình chờ đổi cảnh liên tục: không biên dịch trước (vật liệu bị huỷ giữa chừng => lỗi trong three)
 function warmShaders(delay = 500) {
   clearTimeout(warmTimer);
+  if (skipWarm) return;
   warmTimer = setTimeout(() => {
     compileFor(post.sceneRT, camera).catch((e) => console.warn('warmup', e));
   }, delay);
@@ -475,7 +505,7 @@ const applyMap = () => {
   if (incident.active) incident.finish();
   cityTraffic.visible = isCity;
   cityPeople.visible = isCity;
-  if (isCity) traffic.clearAll();
+  if (isCity) { traffic.clearAll(); trafficLevel = TRAFFIC_START; trafficStartT = 5; }   // vào phố: giao thông thấp 5 s đầu
   $('brake').hidden = !isCity;
   $('b-traffic').hidden = !isCity;
   if (!isCity && tuneKind === 'traffic') closeTune();
@@ -503,6 +533,23 @@ const applyMap = () => {
 };
 // chế độ chọn ở màn hình vào game: Chill = các map ngắm cảnh (không có Phố), Drive = chỉ map Phố
 const CITY_MAP = MAPS.findIndex((m) => m.id === 'city');
+let lastChillMap = MAPS.findIndex((m) => m.id === 'meadow');
+// tên chế độ hiện giữa màn hình 1 giây rồi mờ dần
+let modeNameT = 0;
+function showModeName(mode) {
+  const e = $('modename');
+  e.textContent = mode === 'drive' ? 'Drive' : 'Chill';
+  e.classList.add('show');
+  clearTimeout(modeNameT); modeNameT = setTimeout(() => e.classList.remove('show'), 1000);
+}
+// đổi chế độ trong game (nút 🔀 trong Setting): Drive => map Phố; Chill => map ngắm cảnh lần trước
+function setGameMode(mode) {
+  if (state.mode === mode) return;
+  if (state.mode === 'chill') lastChillMap = state.map;
+  state.mode = mode;
+  state.map = mode === 'drive' ? CITY_MAP : lastChillMap;
+  applyMap(); refreshUI(); showModeName(mode);
+}
 const nextMap = () => {
   if (state.mode === 'drive') { say('Drive · chỉ có map Phố'); return; }
   do state.map = (state.map + 1) % MAPS.length; while (state.mode === 'chill' && state.map === CITY_MAP);
@@ -521,6 +568,7 @@ const scopes = { world: null, city: null };
 try { scopes.city = JSON.parse(localStorage.getItem('chilldrive.city')); } catch { /* bỏ qua */ }
 const cityDefaults = () => ({ weather: WEATHERS.findIndex((w) => w.id === 'auto'), time: TIMES.findIndex((t) => t.id === 'auto'), cam: CAMERAS.findIndex((c) => c.id === 'chase') });
 function saveScope(name) {
+  if (!state.started) return;                    // màn hình chờ tự đổi cảnh: không ghi đè cài đặt của chú
   scopes[name] = { weather: state.weather, time: state.time, cam: state.cam };
   if (name === 'city') try { localStorage.setItem('chilldrive.city', JSON.stringify(scopes.city)); } catch { /* chế độ riêng tư */ }
 }
@@ -701,9 +749,16 @@ renderTune = () => {
     addToggle({ label: 'Tự động dừng xe khi đèn đỏ', get: () => trafficTune.redStop, set: (v) => { trafficTune.redStop = v; toast(v ? 'Đã bật tự dừng đèn đỏ' : 'Đã tắt tự dừng đèn đỏ — chú tự phanh (Space)'); } });
     addToggle({ label: 'Thêm xe của chú (Mustang, Mazda) vào giao thông', get: () => trafficTune.models, set: (v) => { trafficTune.models = v; applyTrafficTune(); } });
     addHeading('Xe và người');
-    addNumber({ label: 'Mật độ xe (×)', min: 0.05, max: 2.5, step: 0.05, get: () => trafficTune.density, set: (v) => { trafficTune.density = v; applyTrafficTune(); } });
-    addNumber({ label: 'Tốc độ xe khác (×)', min: 0.4, max: 2, step: 0.05, get: () => trafficTune.speed, set: (v) => { trafficTune.speed = v; applyTrafficTune(); } });
-    addNumber({ label: 'Số người đi bộ', min: 0, max: 80, step: 1, get: () => trafficTune.walkers, set: (v) => { trafficTune.walkers = v; applyTrafficTune(); } });
+    addToggle({ label: 'Giao thông ngẫu nhiên (xe + người)' + (trafficTune.auto && trafficLevel ? ' — đang: ' + trafficLevel.name : ''), get: () => trafficTune.auto, set: (v) => {
+      trafficTune.auto = v;
+      if (trafficStartT <= 0) { if (v) pickTrafficLevel(); else { trafficLevel = null; applyTrafficTune(); say('Giao thông · chỉnh tay'); } }
+      renderTune();
+    } });
+    // chỉnh tay mật độ / tốc độ / số người => tắt chế độ ngẫu nhiên
+    const manual = (key) => (v) => { trafficTune[key] = v; if (trafficTune.auto || trafficLevel) { trafficTune.auto = 0; trafficLevel = null; trafficStartT = 0; } applyTrafficTune(); };
+    addNumber({ label: 'Mật độ xe (×)', min: 0.05, max: 2.5, step: 0.05, get: () => trafficLevel?.density ?? trafficTune.density, set: manual('density') });
+    addNumber({ label: 'Tốc độ xe khác (×)', min: 0.4, max: 2, step: 0.05, get: () => trafficLevel?.speed ?? trafficTune.speed, set: manual('speed') });
+    addNumber({ label: 'Số người đi bộ', min: 0, max: 80, step: 1, get: () => trafficLevel?.walkers ?? trafficTune.walkers, set: manual('walkers') });
     addHeading('Đèn giao thông');
     addNumber({ label: 'Độ dài pha đèn (×)', min: 0.3, max: 3, step: 0.1, get: () => trafficTune.signal, set: (v) => { trafficTune.signal = v; applyTrafficTune(); } });
     return;
@@ -796,7 +851,7 @@ $('tune-reset').onclick = () => {
   else if (tuneKind === 'weather') { const w = WEATHERS[state.weather].id === 'auto' ? env.weather : WEATHERS[state.weather].id; env.resetWeather(w); env.resetTune(); env.snapWeather(w); }
   else if (tuneKind === 'time') { env.resetTune(); env.setTime(TIMES[state.time].hour); }
   else if (tuneKind === 'carLight') Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS);
-  else if (tuneKind === 'traffic') { Object.assign(trafficTune, TRAFFIC_DEFAULTS); applyTrafficTune(); }
+  else if (tuneKind === 'traffic') { Object.assign(trafficTune, TRAFFIC_DEFAULTS); if (trafficStartT <= 0 && !trafficLevel) pickTrafficLevel(false); else applyTrafficTune(); }
   else if (tuneKind === 'park') Object.assign(stop.tune, PARK_DEFAULTS);
   else if (tuneKind === 'lighting') { Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS); Object.assign(scenery.lampTune, STREETLIGHT_DEFAULTS); Object.assign(lightTune, LIGHT_DEFAULTS); applyLightTune(); }
   else Object.assign(scenery.lampTune, STREETLIGHT_DEFAULTS);
@@ -809,6 +864,7 @@ el.weather.onclick = () => openTune('weather');
 el.time.onclick = () => openTune('time');
 $('b-traffic').onclick = () => (tuneKind === 'traffic' ? closeTune() : openTune('traffic'));
 $('b-lighting').onclick = () => (tuneKind === 'lighting' ? closeTune() : openTune('lighting'));
+$('b-mode').onclick = () => { if (state.started) setGameMode(state.mode === 'drive' ? 'chill' : 'drive'); };
 $('b-park').onclick = () => (tuneKind === 'park' ? closeTune() : openTune('park'));
 el.music.onclick = nextMusic;
 const toggleSettings = () => { $('bar').hidden = !$('bar').hidden; refreshUI(); };
@@ -1196,6 +1252,7 @@ function frame(now) {
       cityTraffic.update(dt, drive.s, drive.d, drive.v, st.lamps, cars.dim.length);
       cityPeople.update(dt, drive.s);
       chatter();
+      if (state.started) updateTrafficLevel(dt);
       // xe mình đứng yên > 7 s (không phải đang chờ đèn đỏ ngay trước mặt) => xe kẹt phía sau bấm còi + nháy đèn
       const redAhead = city.stopAhead(drive.s + cars.dim.length / 2, 1, 0) < 25;
       stillT = drive.v < 0.3 && !incident.active && !redAhead ? stillT + dt : 0;
@@ -1361,6 +1418,23 @@ async function init() {
   const start = $('start');
   $('hint').textContent = 'Chọn chế độ';
   $('modes').hidden = false;
+  // màn hình chờ: cảnh nền tự đổi ngẫu nhiên mỗi 3 s (map, đoạn đường, giờ), camera ngẫu nhiên Quay quanh / Trong xe mỗi 5 s.
+  // Không ghi vào cài đặt của chú (saveScope bỏ qua khi chưa vào game); vào game thì trả lại như cũ.
+  const snap = { map: state.map, weather: state.weather, time: state.time, cam: state.cam };
+  const PREVIEW_CAMS = ['orbit', 'cockpit'].map((id) => CAMERAS.findIndex((c) => c.id === id));
+  const pick = (n, not) => { let i; do i = Math.floor(Math.random() * n); while (n > 1 && i === not); return i; };
+  const sceneT = setInterval(() => {
+    if (state.started) return;
+    drive.s += 300 + Math.random() * 2500;
+    state.map = pick(MAPS.length, state.map); skipWarm = true; applyMap(); skipWarm = false;
+    const ts = TIMES.filter((t) => t.hour !== null);
+    env.setTime(ts[Math.floor(Math.random() * ts.length)].hour);
+  }, 3000);
+  const camT = setInterval(() => {
+    if (state.started) return;
+    const inCar = cars.current && cars.dim?.eye && Math.random() < 0.5;   // trong xe: chỉ khi xe đã tải xong
+    state.cam = PREVIEW_CAMS[inCar ? 1 : 0]; rig.setMode(state.cam); onCamChange();
+  }, 5000);
   cars.onProgress = (f) => setBtn(el.car, '🚗', 'Đang tải… ' + Math.round(f * 100) + '%');
   // cây / bụi / đá chi tiết: tải song song; xong thì dựng lại địa hình để cụm đá dùng model đá thật
   nature.load('assets/models/nature.glb').then(() => {
@@ -1378,10 +1452,16 @@ async function init() {
   }).catch((e) => console.warn('Không tải được người lái', e));
   const go = (mode) => {
     if (state.started) return;
+    clearInterval(sceneT); clearInterval(camT);
     state.mode = mode;
-    if (mode === 'drive' ? state.map !== CITY_MAP : state.map === CITY_MAP) { state.map = mode === 'drive' ? CITY_MAP : MAPS.findIndex((m) => m.id === 'meadow'); applyMap(); }
+    // trả lại cảnh như trước màn hình chờ, rồi vào map của chế độ (Drive: Phố với bộ cài đặt riêng của phố)
+    state.map = mode === 'drive' ? CITY_MAP : snap.map; curMapId = null;
+    scopes.world = { weather: snap.weather, time: snap.time, cam: snap.cam };
+    restoreScope(snap);
+    applyMap();
     start.classList.add('gone');
     state.started = true;
+    showModeName(mode);
     wakeFrom = performance.now() + 1200; document.body.classList.add('playing');
     applyCine();
     if (mode === 'drive') { drive.v = CHILL_DEFAULT; setGear(0); openingCameraPending = true; }   // vào phố: không chạy đoạn 180 km/h

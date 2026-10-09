@@ -12,8 +12,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Chill Drive</title>
-  <link rel="stylesheet" href="style.css?v=02635fba">
-  <link rel="modulepreload" href="app.js?v=5c8763b1">
+  <link rel="stylesheet" href="style.css?v=9b934e54">
+  <link rel="modulepreload" href="app.js?v=a969ea8c">
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -55,6 +55,7 @@
       <button id="b-mist" hidden><b>🌫️</b><span></span></button>
       <button id="b-lens" hidden><b>📷</b><span></span></button>
       <button id="b-quality"><b>⚙️</b><span></span></button>
+      <button id="b-mode" title="Đổi chế độ Chill / Drive"><b>🔀</b><span>Chill</span></button>
       <button id="b-park" title="Cài đặt chế độ dừng xe (P)"><b>🅿️</b><span>Dừng xe</span></button>
       <button id="b-lighting" title="Chỉnh các loại đèn"><b>💡</b><span>Lighting</span></button>
       <button id="b-traffic" hidden title="Cài đặt giao thông (map Phố)"><b>🚦</b><span>Giao thông</span></button>
@@ -109,6 +110,7 @@
 
   <div id="toast" aria-live="polite"></div>
   <div id="fade"></div>
-  <script type="module" src="app.js?v=5c8763b1"></script>
+  <div id="modename"></div>
+  <script type="module" src="app.js?v=a969ea8c"></script>
 </body>
 </html>

@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 
-const common = { bundle: true, minify: true, legalComments: 'none', logLevel: 'warning', charset: 'utf8' };
+const common = { bundle: true, minify: !process.env.NOMIN, legalComments: 'none', logLevel: 'warning', charset: 'utf8' };
 
 await build({
   ...common,

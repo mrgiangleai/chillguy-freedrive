@@ -3,11 +3,11 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
-  (`node build.mjs`) ra `docs/app.js` + `docs/style.css`; build tự gắn `?v=<hash>` vào `docs/index.html` (chống cache).
+  (`node build.mjs`; `NOMIN=1` để không nén khi cần đọc lỗi) ra `docs/app.js` + `docs/style.css`; build tự gắn `?v=<hash>` vào `docs/index.html` (chống cache).
 - Chạy trên GitHub Pages từ thư mục `/docs` của nhánh **`claude/focused-gates-gcpbj9`** (repo `mrgiangleai/chillguy-freedrive`).
   Sau khi push, Pages tự triển khai (~30 s); người chơi bấm Ctrl+F5.
 - Thử cục bộ: `npx http-server docs -p 8080 -c-1`; Playwright + Chromium SwiftShader (`--use-angle=swiftshader`), rất chậm
@@ -155,7 +155,9 @@
   cảnh tai nạn), tự động dừng xe khi đèn đỏ (`trafficTune.redStop`, mặc định tắt: giới hạn tốc độ √(2·3.5·(khoảng cách vạch − 1.2)),
   vàng chỉ dừng khi kịp phanh êm), thêm xe của chú; mật độ xe × (0.05–2.5;
   giảm thì bớt ngay xe đang chạy, xe đường ngang thưa theo), tốc độ xe khác ×,
-  số người đi bộ, độ dài pha đèn × (`city.clockRate`).
+  số người đi bộ, độ dài pha đèn × (`city.clockRate`). **Giao thông ngẫu nhiên** (`trafficTune.auto`, mặc định bật): vào phố
+  luôn thấp 5 s (mật độ 0.4, tốc độ 0.4, 20 người — `TRAFFIC_START`), rồi đổi ngẫu nhiên 3 mức Thưa / Vừa / Đông mỗi 60–120 s
+  (`trafficLevel` ghi đè số chỉnh tay, toast "Giao thông · …"); kéo thanh mật độ / tốc độ / số người => tắt ngẫu nhiên.
   Xe mình đứng yên > 7 s (không phải chờ đèn đỏ trong 25 m) => xe kẹt sau cùng làn (≤ 30 m, `stuckBehind`) bấm còi
   (`audio.horn`, 2 tiếng bíp 415/498 Hz, mỗi 2–3.5 s) + nháy đèn pha (`aHonk` theo từng xe) + toast. Vào map Phố / bắt đầu lại sau
   khi bị bắt: camera Sau xe; bị bắt xong xe về làn ngoài phải 5.25, dọn xe/người chồng chỗ, 3 s không tính va chạm.
@@ -198,7 +200,11 @@
   🚦 giao thông (map Phố), ⛶ (điện thoại). Nút cũ fast/stop/car/character/map còn trong DOM nhưng ẩn (JS cũ vẫn cập nhật).
   **Màn hình vào game**: tiêu đề + 2 hộp chọn chế độ `#m-chill` "Chill" (map ngắm cảnh, `nextMap` bỏ qua Phố; đang ở Phố thì
   về Đồi cỏ; có đoạn mở đầu) / `#m-drive` "Drive" (vào thẳng map Phố, không đoạn 180 km/h, phím M chỉ báo "chỉ có map Phố");
-  phím Enter/1 = Chill, 2 = Drive (`state.mode`). Không còn "chạm bất kỳ để bắt đầu".
+  phím Enter/1 = Chill, 2 = Drive (`state.mode`). Không còn "chạm bất kỳ để bắt đầu". Nền mờ blur 3.5 px. Màn hình chờ: cảnh nền
+  tự đổi ngẫu nhiên mỗi 3 s (map + nhảy đoạn đường + giờ; không biên dịch trước `skipWarm`), camera ngẫu nhiên Quay quanh /
+  Trong xe mỗi 5 s; `saveScope` bỏ qua khi chưa vào game; vào game trả lại map / thời tiết / giờ / camera đã chụp (`snap`).
+  Mỗi lần vào chế độ: tên "Chill" / "Drive" hiện giữa màn hình 1 s rồi mờ dần (`#modename`). Setting có nút 🔀 đổi chế độ
+  (`setGameMode`; Chill quay về map ngắm cảnh lần trước).
   Vào game luôn ẩn (`body.idle` từ đầu; bỏ qua cú bấm Start 1.2 s); chỉ rê chuột / chạm / kéo xoay mới hiện (mờ dần 0.7 s),
   phím tắt không làm hiện; tự ẩn sau 2 s. Đồng hồ tốc độ `#stats` nằm ngoài HUD (luôn hiện, góc trên phải trong khung hình,
   dưới viền đen cine), Times New Roman: số 46 px, "km/h" nhỏ nghiêng, giờ nhỏ bên dưới. Nút phanh = hộp "Space" giữa đáy (trong HUD, ẩn theo; giữ để phanh). ⓘ ở góc trên trái. Nhạc mặc định tên "Music + fx".
@@ -221,18 +227,11 @@
 - Vài tảng đá terrain trông lơ lửng trên vách núi gần đường (s≈250) — chưa sửa.
 - `scripts/check-traffic-policy.mjs` và `check-traffic.mjs` đang lỗi sẵn (lỗi cả trước khi thêm map Phố) — chưa xem nguyên nhân.
 - Map Phố: camera Từ trên cao hay bị nhà chắn nên kéo sát xe; Mustang/Mazda NPC không chạy trong phố (thay bằng xe dựng code).
+- Chưa nghe trên máy thật: tiếng người nói chuyện (`setChatter`), còi hụ, tiếng va chạm. Chưa chụp cận đèn đi bộ.
+- `QUICK_OPENING = true` (TẠM, đầu game 0.5 s) — bật lại khi chú bảo. Kiểm thử Playwright: vào game bằng `#m-chill` / `#m-drive`.
 
 ## 6. Nhật ký cập nhật
-- Đã tóm tắt tới commit này (sau `f627432`): tiếng động cơ hộp số ảo, bảng 🚦, HUD mới (lối tắt trái + Setting + Space, chữ mảnh,
-  ẩn 2 s), còi xe kẹt sau, camera/thời tiết/giờ riêng cho phố, đèn xe ưu tiên, ngã tư (đèn góc, quầng đèn tín hiệu, biển báo),
-  toast khi chuyển, đồng hồ tốc độ Times New Roman, chân chạm đất, mật độ xe tối thiểu 0.05, bảng 💡 Lighting, xe của chú trong
-  phố, khu chung cư có công viên.
-
-- **#1 — Va chạm vật lý: rung, khói, tiếng (09/10/2026)**: xem mục Map Phố. Thử Low: đâm xe van đỗ => xe van trôi, 48 hạt khói.
-- **#2 — Tai nạn: chú bước ra, cảnh sát tới trước mặt, không xuyên xe (09/10/2026)**: xem mục Map Phố.
-- **#3 — Đèn giao thông rõ màu, bớt chói, quầng rộng hơn (09/10/2026)**.
-- **#4 — Bảng 🚦: nút Bật/Tắt + tự dừng đèn đỏ (09/10/2026)**.
-- **#5 — Cài đặt chế độ P (thời gian dừng, zoom, quay quanh xe/người) (09/10/2026)**.
-- **#6 — Người đi bộ: tụ lại xem tai nạn, nói chuyện có tiếng, điện thoại / tai nghe (09/10/2026)**. Âm thanh chưa nghe được trên máy ảo.
-- **#7 — Đèn giao thông đặt kiểu Việt Nam (phía xe tới) + đèn đi bộ nhỏ cạnh (09/10/2026)**.
-- **#8 — Màn hình vào game: chọn Chill / Drive (09/10/2026)**. Kiểm thử cũ bấm giữa màn hình để vào: nay phải bấm `#m-chill`/`#m-drive`.
+- Đã tóm tắt tới commit này (sau `52e209a`): va chạm vật lý (rung, khói, tiếng), cảnh tai nạn mới (chú bước ra, cảnh sát đi
+  vòng ngoài xe tới trước mặt), đèn giao thông rõ màu + đặt kiểu Việt Nam + đèn đi bộ, bảng 🚦 nút Bật/Tắt + tự dừng đèn đỏ +
+  giao thông ngẫu nhiên 3 mức, cài đặt chế độ P, người đi bộ (xem tai nạn, nói chuyện có tiếng, điện thoại / tai nghe),
+  màn hình chọn Chill / Drive (cảnh nền tự đổi, nút đổi chế độ, tên chế độ giữa màn hình).
