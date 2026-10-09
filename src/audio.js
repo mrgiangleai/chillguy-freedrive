@@ -308,6 +308,18 @@ export class ChillAudio {
     }
   }
 
+  // "bíp" ngắn của trạm thu phí tự động (2 tiếng 1.2 kHz)
+  beep() {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t0 = ctx.currentTime;
+    for (const st of [0, 0.16]) {
+      const o = ctx.createOscillator(), g = ctx.createGain(), t = t0 + st;
+      o.type = 'sine'; o.frequency.value = 1200;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.08, t + 0.01); g.gain.setValueAtTime(0.08, t + 0.08); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
+      o.connect(g).connect(this.outGain); o.start(t); o.stop(t + 0.13);
+    }
+  }
+
   // còi hụ xe ưu tiên (map Phố): 'police' rú lên xuống 650 ↔ 1350 Hz chu kỳ 4 s; 'ambulance' "pi–po" 960 / 770 Hz mỗi 0.65 s.
   // Gọi mỗi khung: level 0..1 (theo khoảng cách), pan -1..1. level 0 => tắt dần (giữ nguồn để bật lại nhanh)
   setSiren(kind, level, pan = 0) {

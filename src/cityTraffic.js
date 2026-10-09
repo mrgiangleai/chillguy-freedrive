@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CITY, AVENUE, IC, icS, icIndex, rampU } from './road.js';
+import { CITY, AVENUE, IC, icS, icIndex, rampU, TOLL, tollDist } from './road.js';
 import { withMist } from './mist.js';
 import { createHeadlights, placeHeadlights, updateHeadlights } from './headlights.js';
 
@@ -414,6 +414,10 @@ export class CityTraffic {
       if (c.ramp != null) {
         const t = (c.s - icS(c.ramp)) * c.dir;
         if (Math.abs(t) < 400) want = Math.min(want, 14);
+      }
+      if (this.avenue && !cfg.cross && c.ramp == null) {          // trạm thu phí: giảm còn ~20 km/h tới vạch barie, qua rồi mới tăng tốc
+        const dl = tollDist(c.s + c.dir * c.len / 2, c.dir);
+        if (dl < TOLL.zone && dl > -14) want = Math.min(want, TOLL.slow + Math.sqrt(2 * 1.6 * Math.max(0, dl - 2)));
       }
       const f = ahead(c, c.d);
       if (f) {

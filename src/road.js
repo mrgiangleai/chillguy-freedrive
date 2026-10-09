@@ -20,6 +20,16 @@ const HA0 = HA(0);
 // leo lại nhập làn ngoài sau cầu. rampU(t) = độ lệch ngang theo khung cao tốc (t = s − icS), chiều +s; chiều ngược: u = −rampU(−t).
 export const IC = { period: 3000, first: 1500, hump: 7.5, flat: 40, rise: 260, rampU: 45, rampLen: 480, crossHW: 4.6, crossLen: 420 };
 export const icS = (k) => IC.first + k * IC.period;
+// trạm thu phí (đại lộ): giữa 2 nút giao, mỗi TOLL.period m; mọi xe giảm còn ~20 km/h trước vạch barie, barie tự nâng (ETC)
+export const TOLL = { period: 6000, first: 3000, slow: 20 / 3.6, zone: 160 };
+export const tollS = (k) => TOLL.first + k * TOLL.period;
+// khoảng cách (theo chiều dir) từ s tới vạch barie trạm kế tiếp (đã qua quá 18 m thì tính trạm sau)
+export function tollDist(s, dir) {
+  let k = Math.round((s - TOLL.first) / TOLL.period);
+  let d = (tollS(k) - s) * dir;
+  if (d < -18) d += TOLL.period;
+  return d;
+}
 export const icIndex = (s) => Math.max(0, Math.round((s - IC.first) / IC.period));
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 export function avHump(s) {

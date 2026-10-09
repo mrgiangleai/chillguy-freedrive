@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { AVENUE, IC, icS, icIndex, rampU } from './road.js';
+import { AVENUE, IC, icS, icIndex, rampU, TOLL, tollS } from './road.js';
 import { hLow } from './terrain-noise.js';
 import { withMist } from './mist.js';
 
@@ -38,6 +38,14 @@ function signTexture() {
     g.fillText(txt, cx, cy + 6);
   };
   round(4, '120'); round(5, '100'); round(6, '60'); round(7, '60', true);
+  green(8, [['TRẠM THU PHÍ', 54, 80], ['Thu phí tự động ETC', 38, 145, 40, false], ['1 km', 58, 205]]);
+  green(9, [['TRẠM THU PHÍ', 54, 80], ['Thu phí tự động ETC', 38, 145, 40, false], ['500 m', 58, 205]]);
+  { // 10: dải chữ trên mái trạm: nền xanh dương đậm
+    const [x, y] = cell(10);
+    g.fillStyle = '#123c7a'; g.fillRect(x, y, 512, 256); g.fillStyle = '#fff'; g.font = `bold 70px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('TRẠM THU PHÍ', x + 256, y + 95); g.font = `38px ${FONT}`; g.fillStyle = '#ffd34a'; g.fillText('ETC · THU PHÍ TỰ ĐỘNG', x + 256, y + 180);
+  }
+  round(11, '40');
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   return t;
 }
@@ -65,6 +73,7 @@ export class Avenue {
     this.signMat = new THREE.MeshStandardMaterial({ map: st, emissiveMap: st, emissive: 0xffffff, emissiveIntensity: 0.05, roughness: 0.45, side: THREE.DoubleSide });
     this.metalMat = new THREE.MeshStandardMaterial({ color: 0x8d9296, roughness: 0.45, metalness: 0.5 });
     this.houseMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+    this.armMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5 });
     for (const m of [this.asphalt, this.signMat, this.metalMat, this.houseMat]) withMist(m);
     this.group = new THREE.Group();
     this.group.visible = false;
@@ -86,6 +95,8 @@ export class Avenue {
     this.chunks.clear();
     for (const g of this.icGroups.values()) this._dispose(g);
     this.icGroups.clear();
+    for (const T of (this.tolls || new Map()).values()) this._dispose(T.group);
+    this.tolls?.clear();
     this.ics.clear();
     this.excl.length = 0;
   }
@@ -208,6 +219,12 @@ export class Avenue {
       if (d > -700 && d < 1900 && !this.icGroups.has(k)) this.icGroups.set(k, this._buildIC(this.ic(k)));
     }
     for (const [k, g] of this.icGroups) { const d = icS(k) - s; if (d < -800 || d > 2000) { this._dispose(g); this.icGroups.delete(k); } }
+    this.tolls ||= new Map();
+    for (let k = Math.max(0, Math.round((s - TOLL.first) / TOLL.period) - 1); k <= Math.round((s - TOLL.first) / TOLL.period) + 1; k++) {
+      const d = tollS(k) - s;
+      if (d > -600 && d < 1900 && !this.tolls.has(k)) this.tolls.set(k, this._buildToll(k));
+    }
+    for (const [k, T] of this.tolls) { const d = tollS(k) - s; if (d < -700 || d > 2000) { this._dispose(T.group); this.tolls.delete(k); } }
     this._exclusions(s);
     const k0 = Math.max(0, Math.floor((s - BEHIND) / CHUNK)), k1 = Math.floor((s + AHEAD) / CHUNK);
     const want = [];
@@ -405,6 +422,98 @@ export class Avenue {
     mk(S, this.signMat); mk(Mt, this.metalMat, { cast: true }); mk(Hs, this.houseMat, { cast: true });
     this.group.add(group);
     return group;
+  }
+
+  // barie trạm thu phí: nâng khi có xe trong làn sắp tới vạch (≤ 16 m) hoặc vừa qua (≤ 4 m), hạ khi trống. vehicles: [{s, d, dir}]
+  updateToll(dt, vehicles) {
+    if (!this.tolls) return;
+    for (const T of this.tolls.values()) for (const A of T.arms) {
+      const busy = vehicles.some((v) => v.dir === A.dir && Math.abs(v.d - A.lane) < 1.7 && (T.s - v.s) * v.dir < 16 && (T.s - v.s) * v.dir > -4);
+      A.k += ((busy ? 1 : 0) - A.k) * Math.min(1, dt * (busy ? 4 : 1.5));
+      A.pivot.rotation.z = -A.dir * A.k * Math.PI * 0.47;
+    }
+  }
+
+  // trạm thu phí: đảo phân làn (bê tông, mũi vàng) trên các vạch chia làn + mép, cabin thu phí, mái che 2 chiều có dải chữ,
+  // barie sọc đỏ trắng mỗi làn (tự nâng), biển báo trước trạm 1 km / 500 m + biển tốc độ 40
+  _buildToll(k) {
+    const road = this.road, group = new THREE.Group(), s0 = tollS(k);
+    const C = { pos: [], nor: [], idx: [] }, Hs = { pos: [], nor: [], col: [], idx: [] }, S = { pos: [], nor: [], uv: [], idx: [] }, Mt = { pos: [], nor: [], idx: [] };
+    const push = (B, P, n, extra) => {
+      const b = B.pos.length / 3;
+      P.forEach((q, i) => { B.pos.push(q[0], q[1], q[2]); B.nor.push(n[0], n[1], n[2]); if (B.uv) B.uv.push(...extra[i]); if (B.col) B.col.push(...extra); });
+      const ax = P[1][0] - P[0][0], ay = P[1][1] - P[0][1], az = P[1][2] - P[0][2], bx = P[2][0] - P[0][0], by = P[2][1] - P[0][1], bz = P[2][2] - P[0][2];
+      const c = [ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx];
+      if (c[0] * n[0] + c[1] * n[1] + c[2] * n[2] >= 0) B.idx.push(b, b + 1, b + 2, b, b + 2, b + 3); else B.idx.push(b, b + 2, b + 1, b, b + 3, b + 2);
+    };
+    const P3 = (t, u, h) => { const q = road.at(s0 + t, {}); return [q.x + Math.cos(q.th) * u, q.y + h, q.z - Math.sin(q.th) * u]; };
+    const q0 = road.at(s0, {}), rx = Math.cos(q0.th), rz = -Math.sin(q0.th), fx = -Math.sin(q0.th), fz = -Math.cos(q0.th);
+    // hộp theo khung trạm: t0..t1 dọc đường, u0..u1 ngang, h0..h1 cao (so với mặt đường tại t)
+    const box = (B, t0, t1, u0, u1, h0, h1, col) => {
+      const V = (t, u, h) => P3(t, u, h);
+      const F = [[[t0, u0, h1], [t1, u0, h1], [t1, u1, h1], [t0, u1, h1], [0, 1, 0]], [[t0, u0, h0], [t1, u0, h0], [t1, u1, h0], [t0, u1, h0], [0, -1, 0]],
+        [[t0, u0, h0], [t1, u0, h0], [t1, u0, h1], [t0, u0, h1], [-rx, 0, -rz]], [[t0, u1, h0], [t1, u1, h0], [t1, u1, h1], [t0, u1, h1], [rx, 0, rz]],
+        [[t0, u0, h0], [t0, u1, h0], [t0, u1, h1], [t0, u0, h1], [-fx, 0, -fz]], [[t1, u0, h0], [t1, u1, h0], [t1, u1, h1], [t1, u0, h1], [fx, 0, fz]]];
+      for (const f of F) push(B, f.slice(0, 4).map((p) => V(...p)), f[4], col);
+    };
+    const ISL = [-11.45, -7.5, -4.0, 4.0, 7.5, 11.45], YEL = [0.95, 0.75, 0.1], GREY = [0.62, 0.62, 0.6];
+    for (const u of ISL) {
+      box(Hs, -15, 15, u - 0.45, u + 0.45, 0, 0.25, GREY);                 // đảo
+      box(Hs, -16.2, -15, u - 0.45, u + 0.45, 0, 0.6, YEL); box(Hs, 15, 16.2, u - 0.45, u + 0.45, 0, 0.6, YEL);   // mũi đảo vàng
+      // cabin thu phí (trắng, cửa kính tối) phía người lái của làn bên trái đảo theo từng chiều
+      const t0 = u > 0 ? -3.2 : 0.4;
+      box(Hs, t0, t0 + 2.8, u - 0.55, u + 0.55, 0.25, 2.7, [0.93, 0.93, 0.9]);
+      box(Hs, t0 + 0.4, t0 + 2.4, u - 0.57, u + 0.57, 1.2, 2.2, [0.12, 0.16, 0.2]);
+      box(Hs, t0 - 0.1, t0 + 2.9, u - 0.65, u + 0.65, 2.7, 2.85, [0.2, 0.42, 0.75]);
+      for (const t of [-8, 8]) box(C, t - 0.25, t + 0.25, u - 0.25, u + 0.25, 0.25, 5.7, null);   // cột mái
+    }
+    for (const t of [-8, 8]) box(C, t - 0.25, t + 0.25, -0.25, 0.25, 0.85, 5.7, null);
+    box(C, -12, 12, -14.6, 14.6, 5.7, 6.5, null);                         // mái
+    for (const e of [-1, 1]) {                                            // dải chữ 2 mặt mái (mỗi mặt quay về 1 chiều xe)
+      const t = e * 12.02, [u0, v0, u1, v1] = signUV(10);
+      for (const [a, b] of [[-14, -0.5], [0.5, 14]]) {
+        const L = e < 0 ? [a, b] : [b, a];
+        push(S, [P3(t, L[0], 5.72), P3(t, L[1], 5.72), P3(t, L[1], 6.48), P3(t, L[0], 6.48)], [fx * e, 0, fz * e], [[u0, v0 + 0.06], [u1, v0 + 0.06], [u1, v1 - 0.06], [u0, v1 - 0.06]]);
+      }
+    }
+    // biển trước trạm (mỗi chiều): 1 km, 500 m (cột đôi bên phải), tốc độ 40 ở 250 m và 120 m
+    const sign = (t, u, dir, w, hh, h0, cell, round) => {
+      const [u0, v0, u1, v1] = signUV(cell, round), q = road.at(s0 + t, {}), n = [Math.sin(q.th) * dir, 0, Math.cos(q.th) * dir];
+      const a = u - dir * w / 2, b = u + dir * w / 2;
+      push(S, [P3(t, a, h0), P3(t, b, h0), P3(t, b, h0 + hh), P3(t, a, h0 + hh)], n, [[u0, v0], [u1, v0], [u1, v1], [u0, v1]]);
+    };
+    const post = (t, u, h, w) => box(Mt, t - w, t + w, u - w, u + w, 0, h, null);
+    for (const dir of [1, -1]) {
+      for (const [tt, cell] of [[-1000, 8], [-500, 9]]) { const t = tt * dir; post(t, dir * 14.4, 3.8, 0.07); post(t, dir * 17.4, 3.8, 0.07); sign(t - dir * 0.1, dir * 15.9, dir, 3.4, 1.7, 2.0, cell); }
+      for (const tt of [-250, -120]) { const t = tt * dir; post(t, dir * 14.4, 3.2, 0.05); sign(t - dir * 0.08, dir * 14.4, dir, 1.0, 1.0, 2.2, 11, true); }
+    }
+    // barie mỗi làn ở vạch t = 0 (theo chiều xe): bản lề ở đảo bên phải làn, cần sọc đỏ trắng vươn sang trái
+    const arms = [];
+    const armGeo = new THREE.BoxGeometry(3.0, 0.1, 0.1);
+    const pos = armGeo.attributes.position, colA = [];
+    for (let i = 0; i < pos.count; i++) { const x = pos.getX(i) + 1.5; const red = Math.floor(x / 0.5) % 2 === 0; colA.push(...(red ? [0.85, 0.1, 0.1] : [0.95, 0.95, 0.95])); }
+    armGeo.setAttribute('color', new THREE.Float32BufferAttribute(colA, 3));
+    for (const dir of [1, -1]) for (const l of AVENUE.lanes) {
+      const g = new THREE.Group(), pivot = new THREE.Group(), lane = dir * l;
+      const p = P3(0, dir * (l + 1.75 - 0.45), 1.0);
+      g.position.set(...p); g.rotation.set(0, q0.th, 0);
+      const m = new THREE.Mesh(armGeo, this.armMat); m.position.x = -dir * 1.5; m.castShadow = true;
+      pivot.add(m); g.add(pivot); group.add(g);
+      arms.push({ dir, lane, pivot, k: 0 });
+    }
+    const mk = (B, mat) => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(B.pos, 3));
+      g.setAttribute('normal', new THREE.Float32BufferAttribute(B.nor, 3));
+      if (B.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(B.uv, 2));
+      if (B.col) g.setAttribute('color', new THREE.Float32BufferAttribute(B.col, 3));
+      g.setIndex(B.idx);
+      const m = new THREE.Mesh(g, mat); m.castShadow = m.receiveShadow = true; group.add(m);
+    };
+    mk(C, this.barrierMat); mk(Hs, this.houseMat); mk(S, this.signMat); mk(Mt, this.metalMat);
+    group.userData.armGeo = armGeo;
+    this.group.add(group);
+    return { k, s: s0, group, arms };
   }
 
   _build(k) {

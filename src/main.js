@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ROAD, ROAD_HW, CITY, AVENUE, IC, icS, icIndex, rampU, avHump, Road } from './road.js';
+import { ROAD, ROAD_HW, CITY, AVENUE, IC, icS, icIndex, rampU, avHump, TOLL, tollDist, Road } from './road.js';
 import { Avenue } from './avenue.js';
 import { City, SIGNAL } from './city.js';
 import { CityTraffic } from './cityTraffic.js';
@@ -151,7 +151,7 @@ function impact(rel, latSign) {
   audio.crash(power);
 }
 cityTraffic.pool = () => traffic.pool;          // xe model của chú (Mustang / Mazda) dùng chung kho xe NPC
-let driverHidden = false, crashCam = null, crashGrace = 0, hitCool = 0;
+let driverHidden = false, crashCam = null, crashGrace = 0, hitCool = 0, tollWarn = null, tollPaid = null;
 const incident = new CityIncident(cityTraffic, cityPeople, {   // map Phố: đâm xe / người => cảnh sát + cấp cứu
   toast: (t, bad) => toast(t, bad),
   fade: (on, text) => { const f = $('fade'); if (text) f.textContent = text; f.classList.toggle('show', on); },
@@ -1328,6 +1328,15 @@ function frame(now) {
       if (trafficTune.redStop && !stop.active && !incident.active) {        // tự dừng trước vạch khi đèn đỏ (vàng: chỉ khi còn kịp phanh êm)
         const dl = city.stopAhead(drive.s + cars.dim.length / 2, 1, drive.v);
         if (dl < Infinity) maxV = Math.min(maxV, Math.sqrt(2 * 3.5 * Math.max(0, dl - 1.2)));
+      }
+      // đại lộ: trạm thu phí — xe mình cũng tự giảm còn ~20 km/h tới vạch barie, trừ phí tự động (ETC) rồi đi tiếp
+      if (onAvenue() && !stop.active && drive.ramp == null) {
+        const front = drive.s + cars.dim.length / 2, dl = tollDist(front, 1);
+        if (dl < TOLL.zone && dl > -14) maxV = Math.min(maxV, TOLL.slow + Math.sqrt(2 * 1.6 * Math.max(0, dl - 2)));
+        const tk = Math.round((front + dl - TOLL.first) / TOLL.period);
+        if (dl < 300 && dl > 150 && tollWarn !== tk) { tollWarn = tk; toast('🛂 Sắp tới trạm thu phí — tự giảm tốc, thu phí tự động'); }
+        if (dl < 0 && dl > -14 && tollPaid !== tk) { tollPaid = tk; audio.beep(); toast('💳 Đã trừ phí tự động (ETC): 35.000đ'); }
+        avenue.updateToll(dt, [{ s: front, d: drive.d, dir: 1 }, ...cityTraffic.cars.filter((c) => !c.xr && !c.cross && c.ramp == null).map((c) => ({ s: c.s + c.dir * c.len / 2, d: c.d, dir: c.dir }))]);
       }
       traffic.ctrl.lane = null; traffic.ctrl.maxV = maxV;
     } else {
