@@ -175,7 +175,8 @@
   **Map Đại lộ** (`avenue`, 🛣️, nhóm Drive cùng Phố; M trong Drive: Phố ↔ Đại lộ): cao tốc 6 làn (`AVENUE`: tâm làn ±2.25 / ±5.75 /
   ±9.25, dải phân cách ±0.5, mép làn ±11, lề khẩn cấp tới ±13), đường cong rất thoải (bán kính ≥ ~2 km), địa hình `avenue` (đồi cỏ
   thấp, cỏ cao `meadow` hai bên), hộ lan thép 2 bên, đèn đường 2 bên xen kẽ. Xe: `cityTraffic` chế độ avenue (3 làn mỗi chiều, tốc
-  độ ×2, làn trong nhanh ×1.12 / làn ngoài ×0.84, không xe máy, không ngã tư; vượt sang làn bên cạnh ưu tiên làn trong). Xe mình
+  độ ×2, làn trong nhanh ×1.12 / làn ngoài ×0.84, không xe máy, có xe tải thùng 8.2 m + đầu kéo container 15.5 m (`heavy`: không vào làn
+  trong cùng, không chạy đường ngang nút giao 2 làn), không ngã tư; vượt sang làn bên cạnh ưu tiên làn trong). Xe mình
   làn giữa 5.75, không qua dải phân cách; cấp tốc độ `AV_GEARS` 80 / 100 / 180 km/h, chỉnh tay tới 120. Bộ cài đặt riêng
   `chilldrive.avenue` (lần đầu lấy bộ của Phố, `SCOPED`); dùng chung bảng 🚦 + giao thông ngẫu nhiên. Cảnh tai nạn dùng
   `cityTraffic.lanes`. Vào Đại lộ luôn bắt đầu ở s = 150 (để gặp ngay cầu cao ở 700 m, cầu sông ở 2.2 km). **Nút giao** (`IC` trong
@@ -284,4 +285,4 @@
   trạm thu phí), màn hình chờ chạy Low, bản đồ tròn (Drive), nút lái trái / phải trên điện thoại, cầu vượt cao qua quốc lộ 4 làn,
   cầu dây văng qua sông, bảng chỉ đường lớn kiểu Việt Nam, đèn cầu ban đêm + cây bờ sông + thuyền.
 - **#1 — Đại lộ: dời cầu cao (700 m) + cầu sông (2.2 km) về gần đầu đường, vào Đại lộ bắt đầu ở 150 m (09/10/2026)**.
-- **#2 — Cải thiện dần (09/10/2026)**: bản đồ phóng to ẩn HUD bị đè; đệm chống va + dải bê tông ở mũi nhánh Đại lộ.
+- **#2 — Cải thiện dần (09/10/2026)**: bản đồ phóng to ẩn HUD bị đè; đệm chống va + dải bê tông ở mũi nhánh Đại lộ; xe tải / container.

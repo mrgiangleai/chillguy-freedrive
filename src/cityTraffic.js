@@ -130,6 +130,33 @@ function scooter(o) {
   boxAt(o, 0, 1.62, 0.02, 0.28, 0.26, 0.3, HELM, G);
 }
 
+// xe tải thùng (8.2 m): cabin sơn theo màu xe (tint), thùng hàng trắng, 6 bánh
+function truck(o) {
+  const len = 8.2, hw = 1.2, z0 = -len / 2, z1 = len / 2, BOX = [0.9, 0.9, 0.88];
+  hexa(o, [hw, z0, z0 + 2.2, 0.45], [hw, z0 + 0.05, z0 + 2.2, 1.45], PAINT, T);                            // cabin dưới
+  hexa(o, [hw - 0.02, z0 + 0.05, z0 + 2.2, 1.45], [hw - 0.08, z0 + 0.35, z0 + 2.2, 2.55], GLASS, G);      // kính cabin
+  hexa(o, [hw - 0.08, z0 + 0.35, z0 + 2.2, 2.55], [hw - 0.1, z0 + 0.4, z0 + 2.2, 2.75], PAINT, T);
+  boxAt(o, 0, 0.75, (z0 + 2.3 + z1) / 2, 1.4, 0.3, z1 - z0 - 2.3, DARK);                                  // khung gầm
+  boxAt(o, 0, 2.15, (z0 + 2.35 + z1) / 2, hw * 2 + 0.06, 2.6, z1 - z0 - 2.35, BOX);                       // thùng
+  boxAt(o, 0, 0.5, z0 + 0.01, 2.3, 0.25, 0.1, TRIM);
+  lamps(o, hw, 0.85, z0, z1, 0.32);
+  for (const z of [z0 + 1.3, z1 - 2.0, z1 - 0.9]) for (const x of [-1, 1]) wheel(o, x * (hw - 0.2), 0.48, z, 0.48, 0.34);
+}
+// xe đầu kéo + container 40 ft (15.5 m): đầu kéo trắng, container sơn theo màu xe (tint) có gân dọc, 10 bánh
+function container(o) {
+  const len = 15.5, hw = 1.25, z0 = -len / 2, z1 = len / 2, CAB = [0.92, 0.92, 0.9], RIB = [0, 0, 0];
+  hexa(o, [hw, z0, z0 + 2.4, 0.5], [hw, z0 + 0.05, z0 + 2.4, 1.6], CAB, {});
+  hexa(o, [hw - 0.02, z0 + 0.05, z0 + 2.4, 1.6], [hw - 0.06, z0 + 0.3, z0 + 2.4, 2.75], GLASS, G);
+  hexa(o, [hw - 0.06, z0 + 0.3, z0 + 2.4, 2.75], [hw - 0.1, z0 + 0.4, z0 + 2.4, 3.1], CAB, {});
+  boxAt(o, 0, 0.85, 0, 1.3, 0.35, len - 0.4, DARK);                                                       // khung + rơ moóc
+  const c0 = z0 + 2.7, cl = z1 - c0;
+  boxAt(o, 0, 2.6, c0 + cl / 2, hw * 2 + 0.1, 2.6, cl, PAINT, T);                                          // container
+  for (let k = 1; k < 12; k++) for (const x of [-1, 1]) boxAt(o, x * (hw + 0.06), 2.6, c0 + cl * k / 12, 0.03, 2.4, 0.1, RIB, T);   // gân
+  boxAt(o, 0, 0.55, z0 + 0.01, 2.4, 0.25, 0.1, TRIM);
+  lamps(o, hw, 0.9, z0, z1, 0.32);
+  for (const z of [z0 + 1.2, z0 + 3.4, z0 + 4.6, z1 - 2.3, z1 - 1.1]) for (const x of [-1, 1]) wheel(o, x * (hw - 0.2), 0.5, z, 0.5, 0.36);
+}
+
 // xe cảnh sát Nhật: thân dưới đen, nửa trên trắng, đèn ưu tiên đỏ trên nóc (nhấp nháy trái/phải)
 function police(o) {
   const len = 4.6, W = 1.78, H = 1.45, hw = W / 2, z0 = -len / 2, z1 = len / 2, BLACK = [0.04, 0.04, 0.045], WHITE = [0.92, 0.92, 0.9];
@@ -163,6 +190,8 @@ const TYPES = {
   van: { build: van, len: 4.7, wid: 1.7, v: [34, 46], max: 18 },
   bus: { build: bus, len: 10.5, wid: 2.5, v: [30, 40], max: 8 },
   scooter: { build: scooter, len: 1.6, wid: 0.7, v: [30, 44], max: 24 },
+  truck: { build: truck, len: 8.2, wid: 2.4, v: [32, 40], max: 10, heavy: true },
+  container: { build: container, len: 15.5, wid: 2.5, v: [30, 37], max: 8, heavy: true },
 };
 // tỉ lệ sinh + màu sơn (sRGB)
 const MIX = [['sedan', 0.3], ['kei', 0.24], ['taxi', 0.1], ['van', 0.12], ['bus', 0.06], ['scooter', 0.18]];
@@ -171,7 +200,7 @@ const MODES = {
   city: { lanes: CITY.lanes, vK: 1, laneK: [1, 1], ahead: AHEAD, behind: BEHIND, gap: MAIN_GAP, cross: true,
     mix: MIX },
   avenue: { lanes: AVENUE.lanes, vK: 2.0, laneK: [1.12, 1, 0.84], ahead: 900, behind: 300, gap: [50, 120], cross: false,
-    mix: [['sedan', 0.42], ['kei', 0.14], ['taxi', 0.1], ['van', 0.2], ['bus', 0.14]] },
+    mix: [['sedan', 0.36], ['kei', 0.1], ['taxi', 0.08], ['van', 0.16], ['bus', 0.1], ['truck', 0.12], ['container', 0.08]] },
 };
 const COLORS = {
   police: ['#ffffff'], ambulance: ['#ffffff'],
@@ -181,6 +210,8 @@ const COLORS = {
   van: ['#ededea', '#b8bcc0', '#1c1d20', '#3d5a80'],
   bus: ['#1f6fb2', '#2b9a4a', '#d4382c', '#e39b17'],
   scooter: ['#d8d8d4', '#1c1d20', '#b0302c', '#2d6db5', '#e1c35a'],
+  truck: ['#e8e8e6', '#2a5fa8', '#c0392b', '#f1c232', '#2e7d4f'],
+  container: ['#b03a2e', '#1f5fa6', '#d4772c', '#2e7d4f', '#7a7d80', '#c9a227'],
 };
 
 export class CityTraffic {
@@ -290,6 +321,8 @@ export class CityTraffic {
     return t;
   }
   _new(type, extra) {
+    // xe tải / container không chạy làn trong cùng của cao tốc (đổi thành xe con)
+    if (TYPES[type].heavy && extra.home !== undefined && this.cfg.lanes.indexOf(Math.abs(extra.home)) === 0) type = 'sedan';
     const def = TYPES[type], cols = COLORS[type];
     const em = type === 'police' || type === 'ambulance';
     const li = extra.home !== undefined ? this.cfg.lanes.indexOf(Math.abs(extra.home)) : -1;
@@ -369,7 +402,7 @@ export class CityTraffic {
           tm = (4 + Math.random() * 7) / Math.max(0.05, this.density);
           const u0 = -du * I.crossLen, busy = this.cars.some((c) => c.xr && c.xr.I === I && c.xr.a === a && Math.abs(c.xr.u - u0) < 16);
           const t = this._pick();
-          if (!busy && t && (t !== 'bus' || I.kind === 'fly')) { const c = this._new(t, { xr: { I, u: u0, a, du } }); c.vMax /= cfg.vK; if (I.kind === 'fly') c.vMax *= 1.4; c.v = c.vMax; this.cars.push(c); }
+          if (!busy && t && (I.kind === 'fly' || (t !== 'bus' && !TYPES[t].heavy))) { const c = this._new(t, { xr: { I, u: u0, a, du } }); c.vMax /= cfg.vK; if (I.kind === 'fly') c.vMax *= 1.4; c.v = c.vMax; this.cars.push(c); }
         }
         this.crossTimers.set(key, tm);
       }
@@ -426,7 +459,7 @@ export class CityTraffic {
           // làn cùng chiều bên cạnh: ưu tiên làn trong (vượt bên trái), không có thì làn ngoài
           const li = lanes.indexOf(Math.abs(c.home));
           for (const oi of [li - 1, li + 1]) {
-            if (oi < 0 || oi >= lanes.length) continue;
+            if (oi < 0 || oi >= lanes.length || (TYPES[c.type]?.heavy && oi === 0)) continue;   // xe nặng không vào làn trong
             const other = c.dir * lanes[oi];
             const clear = !main.concat([player]).some((e) => e !== c && Math.abs(e.d - other) < 2.2 && (e.s - c.s) * c.dir > -18 - (e.len + c.len) / 2 && (e.s - c.s) * c.dir < 25);
             if (clear) { c.home = other; c.changing = true; break; }
