@@ -359,7 +359,10 @@ export class CityTraffic {
     };
     const follow = (vl, gap) => Math.max(0, vl + 0.6 * (gap - (4 + 1.0 * vl)));
     for (const c of main) {
-      if (c.crashed) { c.v = 0; c.lat = 0; continue; }
+      if (c.crashed) {                                       // bị đâm: trôi theo lực đẩy rồi đứng yên
+        if (c.slide > 0) { c.s += (c.slideDir || 1) * c.slide * dt; c.d += (c.slideLat || 0) * c.slide * dt * 0.15; c.slide = Math.max(0, c.slide - 7 * dt); }
+        c.v = 0; c.lat = 0; continue;
+      }
       if (c.script) {
         const dist = (c.script.to - c.s) * c.dir;
         const w = dist <= 0.2 ? 0 : Math.min(c.script.v, Math.sqrt(2 * 3.5 * dist));

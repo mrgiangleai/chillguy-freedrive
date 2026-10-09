@@ -272,6 +272,26 @@ export class ChillAudio {
     o.start(t); o.stop(t + dur + 0.05);
   }
 
+  // tiếng va chạm: "rầm" (nhiễu trầm tắt nhanh) + tiếng kim loại móp (vài tông lệch nhau tắt nhanh) + kính lách cách khi mạnh
+  crash(power = 1) {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t = ctx.currentTime, P = Math.max(0.2, Math.min(1, power));
+    const s = this._src(this.noise, true);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(1800, t); lp.frequency.exponentialRampToValueAtTime(160, t + 0.5);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5 * P, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+    s.connect(lp).connect(g).connect(this.outGain); s.start(t); s.stop(t + 0.75);
+    for (const f of [180, 263, 417, 611]) {
+      const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.setValueAtTime(f * (0.9 + Math.random() * 0.2), t); o.frequency.exponentialRampToValueAtTime(f * 0.7, t + 0.4);
+      const og = ctx.createGain(); og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.06 * P, t + 0.008); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.35 + Math.random() * 0.2);
+      o.connect(og).connect(this.outGain); o.start(t); o.stop(t + 0.6);
+    }
+    if (P > 0.45) {
+      const hs = this._src(this.noise, true), hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 3500;
+      const hg = ctx.createGain(); hg.gain.setValueAtTime(0.0001, t + 0.05); hg.gain.exponentialRampToValueAtTime(0.12 * P, t + 0.07); hg.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+      hs.connect(hp).connect(hg).connect(this.outGain); hs.start(t + 0.04); hs.stop(t + 0.55);
+    }
+  }
+
   // còi xe "bíp bíp": 2 tiếng ngắn, 2 tông lệch nhau (còi điện đôi)
   horn(pan = 0, vol = 1) {
     if (!this.ctx) return;

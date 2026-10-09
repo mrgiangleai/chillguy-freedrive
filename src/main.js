@@ -4,6 +4,7 @@ import { City, SIGNAL } from './city.js';
 import { CityTraffic } from './cityTraffic.js';
 import { CityPeople } from './cityPeople.js';
 import { CityIncident } from './cityIncident.js';
+import { CrashFx } from './crashfx.js';
 import { Scenery, STREETLIGHT_DEFAULTS } from './scenery.js';
 import { Terrain } from './terrain.js';
 import { setTerrainMap, TP } from './terrain-noise.js';
@@ -112,8 +113,19 @@ traffic.stopFor = (s, dir, v) => city.stopAhead(s, dir, v);   // xe NPC dừng �
 const cityTraffic = new CityTraffic(scene, road, city);      // map Phố: xe dựng bằng code, 4 làn + đường ngang
 const cityPeople = new CityPeople(scene, road, city);        // map Phố: người đi bộ
 cityTraffic.setup(scene, cars.softTex, camera);
+const crashFx = new CrashFx(scene, cars.softTex);   // va chạm: rung mạnh + khói đầu xe
+const _hood = new THREE.Vector3();
+const hoodPos = (out) => cars.root.localToWorld(out.set(0, cars.dim.height * 0.62, -cars.dim.length / 2 + 0.75));
+// cú va chạm vật lý: xe mình khựng + chúi đầu + nảy ngang, rung camera, đâm mạnh (> ~20 km/h tương đối) thì khói bốc từ capo
+function impact(rel, latSign) {
+  const power = Math.min(1, rel / 14);
+  drive.pitch -= 0.05 * power + 0.015;
+  drive.latVel += latSign * (0.6 + 2.2 * power);
+  crashFx.hit(power, hoodPos, rel > 5.5);
+  audio.crash(power);
+}
 cityTraffic.pool = () => traffic.pool;          // xe model của chú (Mustang / Mazda) dùng chung kho xe NPC
-let driverHidden = false, crashCam = null, crashGrace = 0;
+let driverHidden = false, crashCam = null, crashGrace = 0, hitCool = 0;
 const incident = new CityIncident(cityTraffic, cityPeople, {   // map Phố: đâm xe / người => cảnh sát + cấp cứu
   toast: (t, bad) => toast(t, bad),
   fade: (on, text) => { const f = $('fade'); if (text) f.textContent = text; f.classList.toggle('show', on); },
@@ -127,6 +139,7 @@ const incident = new CityIncident(cityTraffic, cityPeople, {   // map Phố: đ�
     for (const p of cityPeople.peds.slice()) if (Math.abs(p.u - drive.d) < 2.5 && Math.abs(p.s - drive.s) < 6) cityPeople.remove(p);
     crashGrace = 3;
     state.cam = CAMERAS.findIndex((c) => c.id === 'chase'); rig.setMode(state.cam); onCamChange(); refreshUI(); crashCam = null;   // bắt đầu lại: luôn camera Sau xe
+    crashFx.clear();
     toast('Lái cẩn thận nhé! Nhớ dừng đèn đỏ và nhường người đi bộ.');
   },
 });
@@ -1136,13 +1149,36 @@ function frame(now) {
         const car = cityTraffic.hitTest(drive.s, drive.d, L, W), ped = car ? null : cityPeople.hitTest(drive.s, drive.d, L, W);
         if ((car && (drive.v > 1.2 || car.v > 1.2)) || (ped && drive.v > 0.8)) {
           violations++;
+          if (car) {
+            const along = car.cross ? 0 : car.v * car.dir, rel = car.cross ? Math.hypot(drive.v, car.v) : Math.abs(drive.v - along);
+            impact(rel, drive.d >= (car.cross ? drive.d : car.d) ? 1 : -1);
+            if (!car.cross) { car.slide = Math.min(9, Math.max(0, drive.v - along) * 0.7); car.slideDir = 1; car.slideLat = car.d - drive.d; }
+          } else impact(drive.v * 0.4, 0);
           crashCam = state.cam;
           state.cam = CAMERAS.findIndex((c) => c.id === 'orbit'); rig.setMode(state.cam); onCamChange(); refreshUI();
           incident.start(drive.s, drive.d, cars.dim, car ? { car } : { ped });
         }
       }
       traffic.ctrl.lane = null; traffic.ctrl.maxV = stop.active || !trafficTune.avoid ? Infinity : cityTraffic.ctrl.maxV;
-    } else traffic.update(dt, drive.s, drive.d, road, st.lamps, cars.current.def.id, obstacles, audio);
+    } else {
+      traffic.update(dt, drive.s, drive.d, road, st.lamps, cars.current.def.id, obstacles, audio);
+      // các map khác: đụng xe NPC => khựng lại, rung, khói (không có cảnh sát)
+      hitCool = Math.max(0, hitCool - dt);
+      if (!stop.active && hitCool <= 0) {
+        const L = cars.dim.length, W = cars.dim.width;
+        for (const v of traffic.active) {
+          if (Math.abs(v.s - drive.s) < (L + v.dim.length) / 2 - 0.3 && Math.abs(v.d - drive.d) < (W + v.dim.width) / 2 - 0.2) {
+            const along = v.v * (v.direction ?? -1), rel = Math.abs(drive.v - along);
+            if (rel < 1) continue;
+            impact(rel, drive.d >= v.d ? 1 : -1);
+            if (v.s > drive.s && along >= 0) v.v += Math.max(0, drive.v - along) * 0.5; else v.v *= 0.3;
+            drive.v *= 0.25;
+            hitCool = 2.5;
+            break;
+          }
+        }
+      }
+    }
   }
   city.update(drive.s, st.lamps, dt, 1, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   // map Phố: vượt vạch dừng khi đèn đỏ => báo lỗi
@@ -1180,6 +1216,7 @@ function frame(now) {
     camera.position.y += (Math.sin(t * 13.7) + Math.sin(t * 23.1) * 0.5) * shake * 0.7;
   }
 
+  crashFx.update(dt, camera);
   // cinematic: camera hơi "thở" và nghiêng nhẹ như quay cầm tay
   const hand = cineAmt * calm;
   if (hand > 0.01) {
@@ -1281,4 +1318,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { get crashFx() { return crashFx; }, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

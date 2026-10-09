@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -166,6 +166,9 @@
   tròn `broadleafGeometry`, ghế), bậc thang lên sân sảnh (sàn tầng trệt = sân), ban công 3D từng tầng (sàn + lan can); mẫu A 10–13
   tầng bậc hẹp 4 cây, mẫu B 6–8 tầng bậc rộng + ghế; nhà bên trong khối chừa chỗ. Bảng 🚦 có "Thêm xe của chú": xe model
   Mustang/Mazda từ kho `traffic.pool` chạy như xe phố (`cityTraffic.pool/useModels/releaseModels`).
+  **Va chạm vật lý** (`crashfx.js` + `impact()` trong main): xe mình chúi đầu + nảy ngang, rung camera mạnh tắt dần ~0.6 s,
+  tiếng "rầm" + kim loại (`audio.crash`), đâm > ~20 km/h tương đối thì khói bốc từ capo 4–10 s (48 sprite dùng lại); xe bị đâm
+  trôi theo lực (`slide` ≤ 9 m/s, giảm 7 m/s²). Map khác: đụng xe NPC cũng khựng + rung + khói (không cảnh sát), hồi 2.5 s.
   Thử Low: ~50 xe + ~38 người quanh xe, xe máy/người qua ngã tư theo đèn, cảnh tai nạn chạy trọn ~30 s. Chưa xem trên máy thật;
   chưa có ảnh rõ cảnh sát/cấp cứu; người lái bị bắt là hình dựng (không phải model nhân vật).
 - **Giao diện (HUD)**: bên trái là cột lối tắt hộp chữ thưa (`#quick .qbox`, cùng cỡ 80×58 — điện thoại 62×36, chữ mảnh weight 200, hoa chữ đầu + thường, giãn .16em, phím
@@ -202,3 +205,5 @@
   ẩn 2 s), còi xe kẹt sau, camera/thời tiết/giờ riêng cho phố, đèn xe ưu tiên, ngã tư (đèn góc, quầng đèn tín hiệu, biển báo),
   toast khi chuyển, đồng hồ tốc độ Times New Roman, chân chạm đất, mật độ xe tối thiểu 0.05, bảng 💡 Lighting, xe của chú trong
   phố, khu chung cư có công viên.
+
+- **#1 — Va chạm vật lý: rung, khói, tiếng (09/10/2026)**: xem mục Map Phố. Thử Low: đâm xe van đỗ => xe van trôi, 48 hạt khói.
