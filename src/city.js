@@ -3,6 +3,7 @@ import { CITY } from './road.js';
 import { withMist } from './mist.js';
 import { hLow } from './terrain-noise.js';
 import { houseGeometry } from './town.js';
+import { broadleafGeometry } from './scenery.js';
 
 // Map Phố (kiểu phố Nhật): dựng theo từng "khối phố" n = đoạn đường giữa ngã tư n và n+1 (road.junction).
 // Mỗi khối: đường ngang + vỉa hè + vạch kẻ của ngã tư n, vạch kẻ đường chính trong khối, vỉa hè hai bên, nhà (dãy mặt tiền,
@@ -201,7 +202,7 @@ const FACADE_VERT = `#include <begin_vertex>
 vSize = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));
 vWall = position * vSize; vNL = normal; vRoof = aRoof; vInfo = aInfo;`;
 const FACADE_FRAG_PARS = `#include <common>
-uniform float uLit; uniform sampler2D uSignTex;
+uniform float uLit, uWin, uSignK; uniform sampler2D uSignTex;
 varying vec3 vWall, vNL, vSize; varying float vRoof; varying vec4 vInfo;
 float hh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }`;
 // aInfo: x = kiểu (0 nhà phố hỗn hợp, 1 chung cư, 2 văn phòng, 3 nhà ở), y = số ngẫu nhiên, z = có cửa hàng tầng trệt, w = hàng biển hiệu
@@ -230,14 +231,14 @@ vec3 cEmis = vec3(0.0); float cGlass = 0.0;
       vec2 suv = vec2((u + halfW - 0.2) / (2.0 * halfW - 0.4), (y - 2.78) / 0.64);
       vec3 sc = texture2D(uSignTex, vec2(suv.x, 1.0 - (row + 1.0 - suv.y) / 16.0)).rgb;
       diffuseColor.rgb = sc;
-      cEmis = sc * (0.12 + 1.4 * uLit);
+      cEmis = sc * (0.12 + 1.4 * uLit) * uSignK;
     } else if (y > 0.1 && y < 2.62 && abs(u) < halfW - 0.35) {
       float fx = fract(u / 1.7 + 0.5);
       float g = step(0.035, fx) * step(fx, 0.965) * step(y, 2.52) * step(0.16, y);
       diffuseColor.rgb = mix(wallC * 0.3, vec3(0.04, 0.05, 0.055), g);
       cGlass = g;
       vec3 inside = mix(vec3(1.0, 0.85, 0.62), vec3(0.9, 0.96, 1.0), step(0.5, fract(seed * 7.0)));
-      cEmis = inside * g * (0.15 + 2.4 * uLit) * (1.0 - 0.35 * smoothstep(1.4, 2.5, y));
+      cEmis = inside * g * (0.15 + 2.4 * uLit) * (1.0 - 0.35 * smoothstep(1.4, 2.5, y)) * uWin;
     } else diffuseColor.rgb = wallC * 0.5;
   } else if (wall > 0.5) {
     float yy = y - gf;
@@ -276,7 +277,7 @@ vec3 cEmis = vec3(0.0); float cGlass = 0.0;
     diffuseColor.rgb = mix(diffuseColor.rgb, glassC, win);
     cGlass = win * (1.0 - far);
     vec3 warm = mix(vec3(1.0, 0.66, 0.36), vec3(0.85, 0.92, 1.0), step(0.7, hh(id + 3.1)));
-    cEmis += warm * 3.2 * uLit * win * lit;
+    cEmis += warm * 3.2 * uLit * win * lit * uWin;
   }
 }`;
 
@@ -290,11 +291,11 @@ export class City {
     this.group.visible = false;
     scene.add(this.group);
     this.blocks = new Map();
-    this.uLit = { value: 0 };
+    this.uLit = { value: 0 }; this.uWin = { value: 1 }; this.uSignK = { value: 1 };
     this.uSignTex = { value: shopSignTexture() };
     this.facade = new THREE.MeshStandardMaterial({ roughness: 0.82, metalness: 0 });
     this.facade.onBeforeCompile = (sh) => {
-      sh.uniforms.uLit = this.uLit; sh.uniforms.uSignTex = this.uSignTex;
+      sh.uniforms.uLit = this.uLit; sh.uniforms.uSignTex = this.uSignTex; sh.uniforms.uWin = this.uWin; sh.uniforms.uSignK = this.uSignK;
       sh.vertexShader = sh.vertexShader.replace('#include <common>', FACADE_VERT_PARS).replace('#include <begin_vertex>', FACADE_VERT);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', FACADE_FRAG_PARS)
@@ -305,6 +306,17 @@ export class City {
     this.facade.customProgramCacheKey = () => 'city-facade';
     this.walkMat = new THREE.MeshStandardMaterial({ map: pavingTexture(), roughness: 0.92 });
     this.lotMat = new THREE.MeshStandardMaterial({ map: gravelTexture(), roughness: 1 });
+    // khu chung cư có công viên: cỏ, hàng rào cây, cây tán tròn, ghế, ban công (sàn + lan can)
+    this.lawnMat = new THREE.MeshStandardMaterial({ map: gravelTexture(), color: 0x6f9a4a, roughness: 1 });
+    this.propMats = {
+      slab: new THREE.MeshStandardMaterial({ color: 0xd9d8d2, roughness: 0.8 }),
+      rail: new THREE.MeshStandardMaterial({ color: 0xbfc4c7, roughness: 0.4, metalness: 0.2 }),
+      hedge: new THREE.MeshStandardMaterial({ color: 0x2f5a2a, roughness: 0.95 }),
+      bench: new THREE.MeshStandardMaterial({ color: 0x7a5233, roughness: 0.8 }),
+      tree: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }),
+    };
+    this.unitBox = new THREE.BoxGeometry(1, 1, 1);
+    this.treeGeo = broadleafGeometry();
     this.markMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
     this.poleMat = new THREE.MeshStandardMaterial({ color: 0x8e8d87, roughness: 0.85 });
     this.wireMat = new THREE.LineBasicMaterial({ color: 0x1b1b1d });
@@ -323,7 +335,7 @@ export class City {
     const vend = vendingTexture();
     this.vendBody = new THREE.MeshStandardMaterial({ color: 0xe9e9e6, roughness: 0.45, metalness: 0.15 });
     this.vendFront = new THREE.MeshStandardMaterial({ map: vend, emissiveMap: vend, emissive: 0xffffff, emissiveIntensity: 0.3, roughness: 0.25 });
-    for (const m of [this.facade, this.lotMat, this.walkMat, this.markMat, this.poleMat, this.wireMat, this.signMat, this.vendBody, this.vendFront]) withMist(m);
+    for (const m of [this.facade, this.lotMat, this.lawnMat, ...Object.values(this.propMats), this.walkMat, this.markMat, this.poleMat, this.wireMat, this.signMat, this.vendBody, this.vendFront]) withMist(m);
     this.boxGeo = boxGeometry();
     this.houseGeo = houseGeometry();
     this.poleGeo = poleGeometry();
@@ -358,16 +370,16 @@ export class City {
     this.signPlate = new THREE.PlaneGeometry(0.75, 0.75);
     this.signPost = new THREE.CylinderGeometry(0.035, 0.035, 1, 6).translate(0, 0.5, 0);
     // quầng sáng đèn giao thông (như đèn hậu xe mình): điểm vẽ to dần theo khoảng cách để nhìn rõ từ xa, chỉ thấy từ phía trước mặt đèn
-    this.uSig = { uScale: { value: 500 }, uFogD: { value: 0 }, uDay: { value: 1 } };
+    this.uSig = { uScale: { value: 500 }, uFogD: { value: 0 }, uDay: { value: 1 }, uGain: { value: 1 }, uSize: { value: 1 } };
     this.sigGlowMat = new THREE.ShaderMaterial({
       uniforms: this.uSig, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
-      vertexShader: `attribute vec3 aCol; attribute vec3 aDir; uniform float uScale, uFogD; varying vec3 vCol;
+      vertexShader: `attribute vec3 aCol; attribute vec3 aDir; uniform float uScale, uFogD, uGain, uSize; varying vec3 vCol;
         void main() {
           vec4 wp = modelMatrix * vec4(position, 1.0); vec4 mv = viewMatrix * wp;
           float face = smoothstep(-0.1, 0.45, dot(normalize(cameraPosition - wp.xyz), aDir));
           float fd = uFogD * -mv.z;
-          vCol = aCol * face * exp(-fd * fd * 0.5);
-          gl_PointSize = clamp(1.9 * uScale / -mv.z, 11.0, 90.0);
+          vCol = aCol * face * exp(-fd * fd * 0.5) * uGain;
+          gl_PointSize = clamp(1.9 * uScale / -mv.z, 11.0, 90.0) * uSize;
           gl_Position = projectionMatrix * mv;
         }`,
       fragmentShader: `uniform float uDay; varying vec3 vCol;
@@ -469,7 +481,7 @@ export class City {
     }
     this.lastS = s;
     this.uLit.value = lamps;
-    this.uGlow.value = 0.15 + 1.6 * lamps;
+    this.uGlow.value = (0.15 + 1.6 * lamps) * this.uSignK.value;
     this.vendFront.emissiveIntensity = 0.25 + 1.1 * lamps;
     const road = this.road;
     const n0 = road.junctionIndex(s - BEHIND) - 1, n1 = road.junctionIndex(s + AHEAD);
@@ -640,13 +652,14 @@ export class City {
     // phía trong khúc cua: bỏ nhà ở quá xa (vượt qua tâm cong => chồng lên nhà của đoạn khác)
     const inner = (s, u) => { const k = road.curvature(s); return k * u < 0 && Math.abs(u) > 0.55 / Math.max(Math.abs(k), 1e-6); };
     // nhà tâm (x, z), mặt tiền hướng yaw; g0 = cao độ mặt đất phía trước nhà (tầng trệt bắt đầu từ đây)
-    const add = (x, z, yaw, w, d, type, shop, far, g0) => {
+    const add = (x, z, yaw, w, d, type, shop, far, g0, flSet) => {
       const cs = Math.cos(yaw), sn = Math.sin(yaw);
       let lo = g0;
       for (const [lx, lz] of [[-w / 2, -d / 2], [w / 2, -d / 2], [-w / 2, d / 2], [w / 2, d / 2]]) lo = Math.min(lo, hLow(x + cs * lx + sn * lz, z - sn * lx + cs * lz));
       const base = lo - 0.4, plinth = Math.round((g0 - base) * 50) / 50;
-      const fl = floors(type, far), seed = r();
+      const fl = flSet || floors(type, far), seed = r();
       const h = (shop ? 3.6 : 0) + fl * (type === 2 ? 3.6 : type === 3 ? 2.9 : 3.0) + (type === 3 ? 0 : 0.6);
+      add.last = fl;
       const wc = WALLS[type === 2 ? (r() < 0.5 ? 2 : 5) : Math.floor(r() * WALLS.length)];
       B.push([x, z, yaw, w, h, d, type, seed, shop ? 1 : 0, Math.floor(r() * 16), wc, type === 3, base, plinth]);
       obb.push(x, z, cs, sn, w / 2, d / 2, g0 + h * (type === 3 ? 1.45 : 1));
@@ -654,6 +667,58 @@ export class City {
     };
     const pickType = (front) => { const k = r(); return front ? (k < 0.58 ? 0 : k < 0.83 ? 1 : k < 0.96 ? 2 : 3) : (k < 0.3 ? 3 : k < 0.6 ? 1 : k < 0.8 ? 0 : 2); };
     const iA = sJ + CW + SWK + 18, iB = sK - CW - SWK - 18;
+    const props = { slab: [], rail: [], hedge: [], bench: [], tree: [] };   // [x, y, z, yaw, sx, sy, sz] (tâm hộp)
+    const lawn = { pos: [], nor: [], uv: [], idx: [] };
+    // khu chung cư: tòa nhà lùi vào 11 m, phía trước là công viên nhỏ (cỏ, hàng rào cây, cây, ghế) + bậc thang lên sân sảnh,
+    // tòa nhà có ban công từng tầng. Mẫu A: cao 10–13 tầng, bậc hẹp, 4 cây; mẫu B: 6–8 tầng, bậc rộng, quảng trường + ghế.
+    const apts = [];
+    const apartment = (s0, W, su, kind) => {
+      apts.push([su, s0, s0 + W]);
+      const Fa = this._frame(s0 + W / 2), cs = Math.cos(Fa.th), sn = Math.sin(Fa.th);
+      const X = (a, u) => Fa.x + Fa.fx * a + Fa.rx * su * u, Z = (a, u) => Fa.z + Fa.fz * a + Fa.rz * su * u;
+      const P3 = (a, u, y) => [X(a, u), y, Z(a, u)];
+      const yS = Fa.y + WALK_Y, hT = kind ? 0.75 : 1.05, half = kind ? 4.2 : 2.3, yaw = Fa.th + (su > 0 ? -Math.PI / 2 : Math.PI / 2);
+      const toRoad = [-Fa.rx * su, 0, -Fa.rz * su], UPn = [0, 1, 0];
+      const uSt = FRONT + 3.8, uTer = FRONT + 7.6, uB = FRONT + 11, bd = 14, bw = W - (kind ? 2 : 3.5);
+      // tòa nhà (sàn tầng trệt = sân sảnh)
+      add(X(0, uB + bd / 2), Z(0, uB + bd / 2), yaw, bw, bd, 1, false, false, yS + hT, kind ? 6 + Math.floor(r() * 3) : 10 + Math.floor(r() * 4));
+      const fl = add.last;
+      // lối vào + bậc thang + sân sảnh
+      this._q4(walk, [P3(-half, FRONT - 0.1, yS + 0.005), P3(half, FRONT - 0.1, yS + 0.005), P3(half, uSt, yS + 0.005), P3(-half, uSt, yS + 0.005)], UPn,
+        [[0, 0], [half, 0], [half, 2], [0, 2]]);
+      const n = Math.round(hT / 0.15), run = (uTer - uSt) / n, h = hT / n;
+      for (let i = 0; i < n; i++) {
+        const u0 = uSt + i * run, u1 = u0 + run, yb = yS + i * h, yt = yb + h;
+        this._q4(walk, [P3(-half, u0, yb), P3(half, u0, yb), P3(half, u0, yt), P3(-half, u0, yt)], toRoad, [[0, 0], [half, 0], [half, .1], [0, .1]]);
+        this._q4(walk, [P3(-half, u0, yt), P3(half, u0, yt), P3(half, u1, yt), P3(-half, u1, yt)], UPn, [[0, u0 / 2], [half, u0 / 2], [half, u1 / 2], [0, u1 / 2]]);
+      }
+      const tw = kind ? 8 : 5.5, yt = yS + hT;
+      this._q4(walk, [P3(-tw, uTer, yt), P3(tw, uTer, yt), P3(tw, uB + 0.4, yt), P3(-tw, uB + 0.4, yt)], UPn, [[0, 0], [tw, 0], [tw, 2], [0, 2]]);
+      for (const sa of [-1, 1]) {                                   // thành sân sảnh hai bên bậc + mặt trước
+        this._q4(walk, [P3(sa * half, uTer, yS), P3(sa * tw, uTer, yS), P3(sa * tw, uTer, yt), P3(sa * half, uTer, yt)], toRoad, [[0, 0], [1, 0], [1, .2], [0, .2]]);
+        this._q4(walk, [P3(sa * tw, uTer, yS), P3(sa * tw, uB + 0.4, yS), P3(sa * tw, uB + 0.4, yt), P3(sa * tw, uTer, yt)], [Fa.fx * sa, 0, Fa.fz * sa], [[0, 0], [1, 0], [1, .2], [0, .2]]);
+      }
+      // cỏ hai bên + hàng rào cây sát vỉa hè + cây + ghế
+      for (const sa of [-1, 1]) {
+        const a0 = sa * (half + 0.4), a1 = sa * (W / 2 - 0.4);
+        this._q4(lawn, [P3(a0, FRONT + 0.2, yS + 0.02), P3(a1, FRONT + 0.2, yS + 0.02), P3(a1, uB + 0.4, yS + 0.02), P3(a0, uB + 0.4, yS + 0.02)], UPn,
+          [[0, 0], [W / 6, 0], [W / 6, 4], [0, 4]]);
+        const hl = Math.abs(a1 - a0), ha = (a0 + a1) / 2;
+        props.hedge.push([X(ha, FRONT + 0.55), yS + 0.35, Z(ha, FRONT + 0.55), yaw, hl, 0.7, 0.6]);
+        const trees = kind ? [[0.5, 5.5]] : [[0.3, 3.2], [0.72, 8.2]];
+        for (const [t, u] of trees) props.tree.push([X(a0 + (a1 - a0) * t, FRONT + u), yS, Z(a0 + (a1 - a0) * t, FRONT + u), r() * 6.28, 0.75 + r() * 0.3, 0.75 + r() * 0.3, 0.75 + r() * 0.3]);
+        if (kind) for (const u of [3.2, 7.4]) props.bench.push([X(sa * (half + 1.8), FRONT + u), yS + 0.25, Z(sa * (half + 1.8), FRONT + u), yaw + Math.PI / 2, 1.6, 0.45, 0.5]);
+      }
+      // ban công: sàn + lan can đặc mỗi tầng (trừ tầng trệt)
+      const zf = bd / 2;
+      for (let k = 1; k < fl; k++) {
+        const y = yt + k * 3.0;
+        const cx = X(0, uB - 0.6), cz = Z(0, uB - 0.6), rx = X(0, uB - 1.15), rz = Z(0, uB - 1.15);
+        props.slab.push([cx, y + 0.07, cz, yaw, bw - 1.2, 0.14, 1.2]);
+        props.rail.push([rx, y + 0.6, rz, yaw, bw - 1.2, 0.95, 0.08]);
+      }
+      return s0 + W;
+    };
     for (const su of [-1, 1]) {
       // dãy mặt tiền nhìn ra đường chính; thỉnh thoảng có hẻm bậc thang / bãi đất trống
       let s = sJ + CW + SWK + 0.4;
@@ -663,6 +728,7 @@ export class City {
         const k = r(), canGap = s > iA && s < iB - 20 && s - lastGap > 25;
         if (canGap && k < 0.13) { s = this._alley(s, 2.6 + 1.3 * r(), su, walk, wires, ground, FRONT); lastGap = s; continue; }
         if (canGap && k < 0.21) { s = this._lot(s, 10 + 8 * r(), su, lot, wires, ground, FRONT); lastGap = s; continue; }
+        if (canGap && k < 0.3 && iB - s > 40) { s = apartment(s, 28 + 6 * r(), su, r() < 0.5 ? 0 : 1); lastGap = s; continue; }
         const w = Math.min(sEnd - s, 5 + 9 * r() * r() + 2 * r()), d = 10 + 8 * r();
         const p = road.at(s + w / 2, this._p);
         const u = su * (FRONT + d / 2);
@@ -705,6 +771,7 @@ export class City {
         for (let u = uIn; u < DEPTH - 10; u += 17) {
           const skip = r() < 0.15, w = 8 + 5 * r(), d = 9 + 5 * r(), uc = su * (u + 8.5), a = (r() - 0.5) * 2;
           if (skip || inner(s2 + 7.5, uc)) continue;
+          if (u < FRONT + 27 && apts.some(([sa, a0, a1]) => sa === su && s2 < a1 && s2 + 15 > a0)) continue;   // chừa chỗ khu chung cư
           const x = Fi.x + Fi.fx * a + Fi.rx * uc, z = Fi.z + Fi.fz * a + Fi.rz * uc;
           const far = u > 90, type = far && r() < 0.12 ? 2 : pickType(false);
           add(x, z, Fi.th + (r() < 0.5 ? 0 : Math.PI) + (r() < 0.5 ? Math.PI / 2 : 0), w, d, type, false, far, hLow(x, z));
@@ -731,9 +798,17 @@ export class City {
     if (cm) { cm.geometry.setAttribute('aDirt', new THREE.BufferAttribute(new Float32Array(cross.pos.length / 3), 1)); cm.layers.set(3); }
     mkMesh(walk, this.walkMat, true, false);
     mkMesh(lot, this.lotMat, true, false);
+    mkMesh(lawn, this.lawnMat, true, false);
     mkMesh(mark, this.markMat, false, true);
 
     const m = this._m, q = this._qt, v = this._v, sc = this._s, c = this._c;
+    for (const [k, list] of Object.entries(props)) {
+      if (!list.length) continue;
+      const im = new THREE.InstancedMesh(k === 'tree' ? this.treeGeo : this.unitBox, this.propMats[k], list.length);
+      list.forEach(([x, y, z, yw, a, b, d], i) => { q.setFromAxisAngle(this._up, yw); m.compose(v.set(x, y, z), q, sc.set(a, b, d)); im.setMatrixAt(i, m); });
+      im.castShadow = true; im.receiveShadow = k !== 'tree'; im.frustumCulled = false;
+      group.add(im);
+    }
     for (const house of [false, true]) {
       const list = B.filter((b) => b[11] === house);
       if (!list.length) continue;

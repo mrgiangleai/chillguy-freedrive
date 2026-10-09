@@ -112,6 +112,7 @@ traffic.stopFor = (s, dir, v) => city.stopAhead(s, dir, v);   // xe NPC dừng �
 const cityTraffic = new CityTraffic(scene, road, city);      // map Phố: xe dựng bằng code, 4 làn + đường ngang
 const cityPeople = new CityPeople(scene, road, city);        // map Phố: người đi bộ
 cityTraffic.setup(scene, cars.softTex, camera);
+cityTraffic.pool = () => traffic.pool;          // xe model của chú (Mustang / Mazda) dùng chung kho xe NPC
 let driverHidden = false, crashCam = null, crashGrace = 0;
 const incident = new CityIncident(cityTraffic, cityPeople, {   // map Phố: đâm xe / người => cảnh sát + cấp cứu
   toast: (t, bad) => toast(t, bad),
@@ -222,7 +223,16 @@ const QUICK_OPENING = true;          // TẠM: đầu game rút còn 0.5 s (đ�
 const TUNE_KEY = 'chilldrive.tuning.v1';
 let savedTuning = null;
 // bảng 🚦 Giao thông (map Phố): chú tự chỉnh để thử
-const TRAFFIC_DEFAULTS = Object.freeze({ avoid: 1, density: 1, speed: 1, walkers: 38, signal: 1 });
+const TRAFFIC_DEFAULTS = Object.freeze({ avoid: 1, density: 1, speed: 1, walkers: 38, signal: 1, models: 0 });
+// bảng Lighting: hệ số các loại đèn (ngoài đèn pha xe chú / đèn đường đã có thông số riêng)
+const LIGHT_DEFAULTS = Object.freeze({ signal: 1, signalSize: 1, windows: 1, signs: 1, npc: 1, emergency: 1 });
+const lightTune = { ...LIGHT_DEFAULTS };
+function applyLightTune() {
+  city.uSig.uGain.value = lightTune.signal; city.uSig.uSize.value = lightTune.signalSize;
+  city.uWin.value = lightTune.windows; city.uSignK.value = lightTune.signs;
+  cityTraffic.uNpc.value = lightTune.npc; traffic.lampK = lightTune.npc;
+  cityTraffic.emK = lightTune.emergency;
+}
 const trafficTune = { ...TRAFFIC_DEFAULTS };
 function applyTrafficTune() {
   if (trafficTune.density < cityTraffic.density) {          // giảm mật độ: bớt ngay một phần xe đang chạy (không bỏ xe cảnh sát / cấp cứu / xe bị đâm)
@@ -234,6 +244,8 @@ function applyTrafficTune() {
   cityTraffic.speedK = trafficTune.speed;
   cityPeople.walkers = Math.round(trafficTune.walkers);
   city.clockRate = 1 / trafficTune.signal;
+  cityTraffic.useModels = !!trafficTune.models;
+  if (!trafficTune.models) cityTraffic.releaseModels();
 }
 try {
   savedTuning = JSON.parse(localStorage.getItem(TUNE_KEY));
@@ -241,6 +253,7 @@ try {
   if (savedTuning?.weather) for (const [id, values] of Object.entries(savedTuning.weather)) if (env.weatherProfiles[id]) Object.assign(env.weatherProfiles[id], values);
   if (savedTuning?.environment) Object.assign(env.tune, savedTuning.environment);
   if (savedTuning?.traffic) Object.assign(trafficTune, savedTuning.traffic);
+  if (savedTuning?.lighting) Object.assign(lightTune, savedTuning.lighting);
   if (savedTuning?.carLights) Object.assign(cars.headlights.tune, savedTuning.carLights);
   if (savedTuning?.streetLights) Object.assign(scenery.lampTune, savedTuning.streetLights);
 } catch { /* thông số cũ/hỏng: dùng mặc định trong code */ }
@@ -271,6 +284,7 @@ function refreshUI() {
   el.weather.classList.toggle('on', tuneKind === 'weather');
   el.time.classList.toggle('on', tuneKind === 'time');
   $('b-traffic').classList.toggle('on', tuneKind === 'traffic');
+  $('b-lighting').classList.toggle('on', tuneKind === 'lighting');
   el.full.hidden = !(CAN_FS && IS_PHONE);          // nút toàn màn hình chỉ có trên điện thoại (máy tính: phím U)
   setBtn(el.full, isFS() ? '🗗' : '⛶', isFS() ? 'Thoát toàn màn hình' : 'Toàn màn hình');
   // lối tắt bên trái
@@ -414,7 +428,7 @@ const applyMap = () => {
   $('brake').hidden = !isCity;
   $('b-traffic').hidden = !isCity;
   if (!isCity && tuneKind === 'traffic') closeTune();
-  applyTrafficTune();
+  applyTrafficTune(); applyLightTune();
   if (isCity && state.started) toast('Map Phố: tự phanh khi gặp đèn đỏ — giữ phím Space hoặc nút Space');
   cityFront = null;
   // cài đặt (thời tiết / giờ / camera) của map Phố tách riêng: vào phố => lấy bộ của phố (mặc định Tự động / Tự động / Sau xe,
@@ -581,7 +595,7 @@ const ENV_FIELDS = [
 ];
 const tunePanel = $('tunepanel'), tuneMode = $('tune-mode'), tuneFields = $('tune-fields');
 const saveTuning = () => {
-  try { localStorage.setItem(TUNE_KEY, JSON.stringify({ camera: rig.tune, weather: env.weatherProfiles, environment: env.tune, carLights: cars.headlights.tune, streetLights: scenery.lampTune, traffic: trafficTune })); } catch { /* chế độ riêng tư */ }
+  try { localStorage.setItem(TUNE_KEY, JSON.stringify({ camera: rig.tune, weather: env.weatherProfiles, environment: env.tune, carLights: cars.headlights.tune, streetLights: scenery.lampTune, traffic: trafficTune, lighting: lightTune })); } catch { /* chế độ riêng tư */ }
 };
 const addHeading = (text) => { const h = document.createElement('h4'); h.textContent = text; tuneFields.append(h); };
 const addNumber = ({ label, min, max, step, get, set }) => {
@@ -619,12 +633,32 @@ renderTune = () => {
     $('tune-title').textContent = 'Giao thông (map Phố)';
     addHeading('Xe của chú');
     addChoice({ label: 'Tự giữ khoảng cách (tránh đâm xe trước)', options: ['Tắt — tự phanh, có thể đâm', 'Bật'], get: () => trafficTune.avoid, set: (v) => { trafficTune.avoid = v; toast(v ? 'Đã bật tự giữ khoảng cách' : 'Đã tắt tự giữ khoảng cách — chú tự phanh, đâm là có cảnh sát tới', !v); } });
+    addChoice({ label: 'Thêm xe của chú (Mustang, Mazda) vào giao thông', options: ['Không', 'Có'], get: () => trafficTune.models, set: (v) => { trafficTune.models = v; applyTrafficTune(); } });
     addHeading('Xe và người');
     addNumber({ label: 'Mật độ xe (×)', min: 0.05, max: 2.5, step: 0.05, get: () => trafficTune.density, set: (v) => { trafficTune.density = v; applyTrafficTune(); } });
     addNumber({ label: 'Tốc độ xe khác (×)', min: 0.4, max: 2, step: 0.05, get: () => trafficTune.speed, set: (v) => { trafficTune.speed = v; applyTrafficTune(); } });
     addNumber({ label: 'Số người đi bộ', min: 0, max: 80, step: 1, get: () => trafficTune.walkers, set: (v) => { trafficTune.walkers = v; applyTrafficTune(); } });
     addHeading('Đèn giao thông');
     addNumber({ label: 'Độ dài pha đèn (×)', min: 0.3, max: 3, step: 0.1, get: () => trafficTune.signal, set: (v) => { trafficTune.signal = v; applyTrafficTune(); } });
+    return;
+  }
+  if (tuneKind === 'lighting') {
+    tuneMode.hidden = true;
+    $('tune-title').textContent = 'Lighting';
+    const H = cars.headlights.tune, Lp = scenery.lampTune;
+    addHeading('Đèn pha xe chú');
+    [['intensity','Cường độ',0,300,1],['distance','Tầm chiếu (m)',10,250,1],['angle','Góc mở (rad)',.1,1.55,.01],['penumbra','Độ mềm viền',0,1,.01],
+      ['glowOpacity','Độ sáng quầng',0,2,.01],['glowSize','Kích thước quầng',.2,8,.05]]
+      .forEach(([key,label,min,max,step]) => addNumber({ label,min,max,step,get:()=>H[key],set:(v)=>{ H[key]=v; } }));
+    addColor({ label: 'Màu đèn pha', get: () => H.color, set: (v) => { H.color = v; } });
+    addHeading('Đèn đường');
+    [['intensity','Cường độ',0,500,1],['distance','Tầm phủ (m)',10,250,1],['angle','Góc mở (rad)',.1,1.55,.01],['glowOpacity','Độ sáng quầng',0,2,.01],['glowSize','Kích thước quầng',1,24,.1]]
+      .forEach(([key,label,min,max,step]) => addNumber({ label,min,max,step,get:()=>Lp[key],set:(v)=>{ Lp[key]=v; } }));
+    addColor({ label: 'Màu đèn đường', get: () => Lp.color, set: (v) => { Lp.color = v; } });
+    addHeading('Map Phố');
+    const L = [['signal','Đèn giao thông: độ sáng (×)',0,3,.05],['signalSize','Đèn giao thông: cỡ quầng (×)',.3,3,.05],['windows','Cửa sổ + cửa hàng ban đêm (×)',0,3,.05],
+      ['signs','Biển hiệu (×)',0,3,.05],['npc','Đèn xe khác (×)',0,3,.05],['emergency','Đèn cảnh sát / cấp cứu (×)',0,3,.05]];
+    L.forEach(([key,label,min,max,step]) => addNumber({ label,min,max,step,get:()=>lightTune[key],set:(v)=>{ lightTune[key]=v; applyLightTune(); } }));
     return;
   }
   if (tuneKind === 'carLight' || tuneKind === 'streetLight') {
@@ -687,6 +721,7 @@ $('tune-reset').onclick = () => {
   else if (tuneKind === 'time') { env.resetTune(); env.setTime(TIMES[state.time].hour); }
   else if (tuneKind === 'carLight') Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS);
   else if (tuneKind === 'traffic') { Object.assign(trafficTune, TRAFFIC_DEFAULTS); applyTrafficTune(); }
+  else if (tuneKind === 'lighting') { Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS); Object.assign(scenery.lampTune, STREETLIGHT_DEFAULTS); Object.assign(lightTune, LIGHT_DEFAULTS); applyLightTune(); }
   else Object.assign(scenery.lampTune, STREETLIGHT_DEFAULTS);
   saveTuning(); refreshUI(); renderTune();
 };
@@ -696,6 +731,7 @@ el.cam.onclick = () => openTune('camera');
 el.weather.onclick = () => openTune('weather');
 el.time.onclick = () => openTune('time');
 $('b-traffic').onclick = () => (tuneKind === 'traffic' ? closeTune() : openTune('traffic'));
+$('b-lighting').onclick = () => (tuneKind === 'lighting' ? closeTune() : openTune('lighting'));
 el.music.onclick = nextMusic;
 const toggleSettings = () => { $('bar').hidden = !$('bar').hidden; refreshUI(); };
 for (const [id, fn] of [['q-speed', () => toggleFast()], ['q-pause', () => toggleStop()], ['q-car', () => nextCar()], ['q-cam', () => nextCam()],
@@ -1077,6 +1113,7 @@ function frame(now) {
     }
     traffic.playerHome = drive.home; traffic.playerGoal = stop.active ? 0 : drive.goal;
     if (cityTraffic.visible) {
+      if (trafficTune.models && !traffic.pool.length && !traffic.loading) traffic._load(cars.current.def.id);
       cityTraffic.update(dt, drive.s, drive.d, drive.v, st.lamps, cars.dim.length);
       cityPeople.update(dt, drive.s);
       // xe mình đứng yên > 7 s (không phải đang chờ đèn đỏ ngay trước mặt) => xe kẹt phía sau bấm còi + nháy đèn

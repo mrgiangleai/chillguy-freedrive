@@ -180,7 +180,7 @@ export class Traffic {
       const steer = clamp(-direction * v.yaw * 1.8, -0.4, 0.4);      // bánh trước đánh lái cùng chiều xoay thân xe
       for (const w of v.wheels) { w.pivot.rotation.x += direction * (v.v * dt) / w.radius; if (w.front) w.pivot.rotation.y = steer; }
       if (v.mixer) { v.mixer.timeScale = v.v / CARRIAGE.gallop; v.mixer.update(dt); }   // ngựa phi theo tốc độ (dừng thì đứng)
-      updateHeadlights(v.headlights, v.root, this.cars.viewer, lamps * NPC_LAMP);
+      updateHeadlights(v.headlights, v.root, this.cars.viewer, lamps * NPC_LAMP * (this.lampK ?? 1));
       for (const t of v.tails) t.material.opacity = (0.25 + 0.6 * lamps) * 0.6;
     }
     this._beam(s, lamps);

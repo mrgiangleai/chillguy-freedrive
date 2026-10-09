@@ -183,10 +183,11 @@ export class CityTraffic {
     this.group = new THREE.Group();
     this.group.visible = false;
     scene.add(this.group);
-    this.uLamp = { value: 0 }; this.uTime = { value: 0 };
+    this.uLamp = { value: 0 }; this.uTime = { value: 0 }; this.uNpc = { value: 1 };
+    this.emK = 1;                // hệ số đèn xe ưu tiên (bảng Lighting)
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.1 });
     mat.onBeforeCompile = (sh) => {
-      sh.uniforms.uLamp = this.uLamp; sh.uniforms.uTime = this.uTime;
+      sh.uniforms.uLamp = this.uLamp; sh.uniforms.uTime = this.uTime; sh.uniforms.uNpc = this.uNpc;
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', '#include <common>\nattribute float aTint, aGlow, aGloss, aFlash, aHonk;\nuniform float uTime;\nvarying float vGlow, vGloss;')
         .replace('#include <color_vertex>', `vColor = vec3(1.0);
@@ -200,9 +201,9 @@ export class CityTraffic {
           // đèn ưu tiên: nửa trái / phải nhấp nháy xen kẽ
           if (aFlash > 0.5) vGlow = 3.0 * step(0.5, fract(uTime * 2.2 + (aFlash > 1.5 ? 0.5 : 0.0)));`);
       sh.fragmentShader = sh.fragmentShader
-        .replace('#include <common>', '#include <common>\nuniform float uLamp;\nvarying float vGlow, vGloss;')
+        .replace('#include <common>', '#include <common>\nuniform float uLamp, uNpc;\nvarying float vGlow, vGloss;')
         .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.08, vGloss);')
-        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vColor * vGlow * (0.6 + 5.0 * uLamp);');
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vColor * vGlow * (0.6 + 5.0 * uLamp) * uNpc;');
     };
     mat.customProgramCacheKey = () => 'city-vehicle';
     withMist(mat);
@@ -236,7 +237,7 @@ export class CityTraffic {
     this.speedK = 1;           // hệ số tốc độ xe khác
   }
 
-  set visible(v) { this.group.visible = v; if (v) this._emSetup(); if (!v) { this.cars.length = 0; this.filled = false; this.crossTimers.clear(); } }
+  set visible(v) { this.group.visible = v; if (v) this._emSetup(); if (!v) { this.releaseModels(); this.cars.length = 0; this.filled = false; this.crossTimers.clear(); } }
   get visible() { return this.group.visible; }
 
   // xe kịch bản (cảnh sát / cấp cứu): chạy tới quãng `to` rồi dừng, bỏ qua đèn; script = null => chạy tiếp như xe thường
@@ -251,7 +252,12 @@ export class CityTraffic {
   stuckBehind(s, d) {
     return this.cars.filter((c) => !c.cross && !c.script && !c.crashed && c.dir > 0 && Math.abs(c.d - d) < 1.8 && c.s < s && s - c.s < 30 && c.v < 0.6);
   }
-    remove(c) { const i = this.cars.indexOf(c); if (i >= 0) this.cars.splice(i, 1); }
+    // bỏ hết xe model của chú khỏi phố (tắt tuỳ chọn / rời phố)
+  releaseModels() {
+    this.cars = this.cars.filter((c) => !c.model || c.crashed);
+    if (this.pool) for (const v of this.pool()) if (v.cityBusy) { v.cityBusy = false; v.busy = false; v.root.visible = false; }
+  }
+  remove(c) { const i = this.cars.indexOf(c); if (i >= 0) this.cars.splice(i, 1); }
   // xe (đường chính hoặc đường ngang) chồng lên hình chữ nhật [s ± len/2] × [d ± wid/2] (toạ độ đường chính)
   hitTest(s, d, len, wid) {
     for (const c of this.cars) {
@@ -284,7 +290,12 @@ export class CityTraffic {
   // dt; s, d, v: xe mình; lamps 0..1
   update(dt, s, d, v, lamps, playerLen = 4.6) {
     if (!this.group.visible) return;
-    this.uLamp.value = lamps; this.uTime.value += dt;
+    this.uLamp.value = lamps; this.uTime.value += dt; this._dt = dt;
+    // xe model của chú: thả lại xe không còn chạy trong phố
+    if (this.pool) {
+      const used = new Set(this.cars.filter((c) => c.model).map((c) => c.model));
+      for (const v of this.pool()) if (v.cityBusy && !used.has(v)) { v.cityBusy = false; v.busy = false; v.root.visible = false; }
+    }
     const road = this.road, lanes = CITY.lanes;
     // ---- sinh xe đường chính ----
     if (!this.filled) {
@@ -303,8 +314,15 @@ export class CityTraffic {
       // xe ngược chiều: vào từ xa phía trước; cùng chiều: vào từ phía sau (xe mình chậm) hoặc phía trước (xe mình nhanh)
       const at = dir < 0 ? s + AHEAD - 10 : v < 10 ? s - BEHIND + 10 : s + AHEAD - 10;
       if (Math.random() < dt * 0.35 * Math.min(1, this.density) && this._free(at, dd, MAIN_GAP[0] / this.density + 10) && Math.abs(at - s) > 30) {
-        const t = this._pick();
-        if (t) { const c = this._new(t, { s: at, d: dd, home: dd, dir }); if (dir > 0 && at > s) c.vMax = Math.min(c.vMax, Math.max(4, v - 2)); this.cars.push(c); }
+        const free = this.useModels && this.pool && Math.random() < 0.35 ? this.pool().find((x) => !x.busy && !x.carriage) : null;
+        if (free) {                                          // thỉnh thoảng là xe model của chú
+          free.busy = free.cityBusy = true;
+          const vm = (36 + Math.random() * 14) * KMH * this.speedK;
+          this.cars.push({ type: 'model', model: free, s: at, d: dd, home: dd, dir, len: free.dim.length, wid: free.dim.width, vMax: dir > 0 && at > s ? Math.min(vm, Math.max(4, v - 2)) : vm, v: vm, lat: 0, color: '#ffffff' });
+        } else {
+          const t = this._pick();
+          if (t) { const c = this._new(t, { s: at, d: dd, home: dd, dir }); if (dir > 0 && at > s) c.vMax = Math.min(c.vMax, Math.max(4, v - 2)); this.cars.push(c); }
+        }
       }
     }
     // ---- xe đường ngang ở các ngã tư gần ----
@@ -406,6 +424,17 @@ export class CityTraffic {
     for (const k in this.meshes) counts[k] = 0;
     const m = this._m, q = this._q, vv = this._v, p = this._p;
     for (const c of this.cars) {
+      if (c.model) {                                         // xe model của chú (Mustang / Mazda) chạy trong phố
+        const v = c.model;
+        road.at(c.s, p);
+        v.root.position.set(p.x + Math.cos(p.th) * c.d, p.y, p.z - Math.sin(p.th) * c.d);
+        v.root.rotation.set(0, p.th + (c.dir < 0 ? Math.PI : 0) - c.dir * Math.atan2(c.lat, Math.max(3, c.v)), 0, 'YXZ');
+        v.root.visible = true;
+        for (const w of v.wheels) w.pivot.rotation.x += c.dir * (c.v * this._dt) / w.radius;
+        updateHeadlights(v.headlights, v.root, this.camera, Math.max(0.15, lamps) * 0.24 * this.uNpc.value);
+        for (const t of v.tails) t.material.opacity = (0.25 + 0.6 * lamps) * 0.6;
+        continue;
+      }
       const im = this.meshes[c.type], i = counts[c.type]++;
       if (i >= TYPES[c.type].max) continue;
       let yaw;
@@ -448,7 +477,7 @@ export class CityTraffic {
       const bars = [-1, 1].map((s) => {
         const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.softTex, color: 0xff2010, transparent: true, opacity: 0,
           depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
-        sp.position.set(s * bar[0], bar[1], bar[2]); sp.scale.set(1.5, 1.1, 1); sp.renderOrder = 6;
+        sp.position.set(s * bar[0], bar[1], bar[2]); sp.scale.set(2.6, 1.8, 1); sp.renderOrder = 6;
         root.add(sp);
         return sp;
       });
@@ -460,7 +489,7 @@ export class CityTraffic {
       police: mk('police', true, { width: 1.78, length: 4.6, height: 1.45 }, [0.36, 1.6, -0.1]),
       ambulance: mk('ambulance', false, { width: 1.9, length: 5.4, height: 2.25 }, [0.42, 2.45, -2.1]),
     };
-    this.emPoint = new THREE.PointLight(0xff2010, 0, 30, 1.6);
+    this.emPoint = new THREE.PointLight(0xff2010, 0, 48, 1.3);
     this.scene.add(this.emPoint);
   }
   _emUpdate(lamps) {
@@ -472,18 +501,19 @@ export class CityTraffic {
       R.root.visible = !!c;
       if (!c) { updateHeadlights(R.head, R.root, null, 0); continue; }
       R.root.position.copy(c._pos); R.root.rotation.set(0, c._yaw, 0);
-      updateHeadlights(R.head, R.root, this.camera, Math.max(0.6, lamps));
+      updateHeadlights(R.head, R.root, this.camera, Math.max(0.75, lamps) * 1.25 * this.emK);
+      R.bars.forEach((sp) => sp.scale.set(2.6 * Math.sqrt(this.emK), 1.8 * Math.sqrt(this.emK), 1));
       const colA = kind === 'police' ? 0xff1a0c : 0xff1a0c, colB = kind === 'police' ? 0x1f4dff : 0xffffff;
       R.bars.forEach((sp, i) => {
         const lit = (i === on);
         sp.material.color.setHex(i === 0 ? colA : colB);
-        sp.material.opacity = lit ? 1 : 0.06;
+        sp.material.opacity = lit ? Math.min(1, this.emK) : 0.06;
       });
       if (!pointSet) {                                     // ánh đèn hiệu hắt ra (ưu tiên xe cảnh sát)
         pointSet = true;
         this.emPoint.position.set(c._pos.x, c._pos.y + 2.2, c._pos.z);
         this.emPoint.color.setHex(on === 0 ? colA : colB);
-        this.emPoint.intensity = 9;
+        this.emPoint.intensity = 15 * this.emK;
       }
     }
     if (!pointSet) this.emPoint.intensity = 0;

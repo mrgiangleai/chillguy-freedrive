@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -162,12 +162,17 @@
   (vạch qua đường xanh, "止まれ" trên đường ngang, tốc độ 40, cấm đỗ). Cài đặt thời tiết / giờ / camera của phố tách riêng
   (`scopes`, lưu `chilldrive.city`; mặc định Tự động / Tự động / Sau xe); ra khỏi phố trả lại bộ của map khác.
   Mỗi lần chuyển đổi (camera, xe, map, thời tiết, giờ, nhân vật, tốc độ, nhạc, chất lượng, dừng) có toast ngắn 1.6 s (`say`).
+  Khu chung cư (~9% lô mặt tiền, `apartment` trong `_build`): tòa nhà lùi 11 m, công viên nhỏ (cỏ `lawnMat`, hàng rào cây, cây tán
+  tròn `broadleafGeometry`, ghế), bậc thang lên sân sảnh (sàn tầng trệt = sân), ban công 3D từng tầng (sàn + lan can); mẫu A 10–13
+  tầng bậc hẹp 4 cây, mẫu B 6–8 tầng bậc rộng + ghế; nhà bên trong khối chừa chỗ. Bảng 🚦 có "Thêm xe của chú": xe model
+  Mustang/Mazda từ kho `traffic.pool` chạy như xe phố (`cityTraffic.pool/useModels/releaseModels`).
   Thử Low: ~50 xe + ~38 người quanh xe, xe máy/người qua ngã tư theo đèn, cảnh tai nạn chạy trọn ~30 s. Chưa xem trên máy thật;
   chưa có ảnh rõ cảnh sát/cấp cứu; người lái bị bắt là hình dựng (không phải model nhân vật).
 - **Giao diện (HUD)**: bên trái là cột lối tắt hộp chữ thưa (`#quick .qbox`, cùng cỡ 80×58 — điện thoại 62×36, chữ mảnh weight 200, hoa chữ đầu + thường, giãn .16em, phím
   trong ngoặc bên phải): Speed (F; hiện "50 km/h"/"180 km/h" khi đang ở cấp đó) · Pause (P; "Resume" khi đang đỗ) · Car (C/V) ·
   Camera (Q) · Driver (X) · Map (M) · Weather (R) · Time (T). Góc phải dưới: biểu tượng máy ảnh nét sáng (chụp ảnh, phím O) +
   hộp Setting (K) mở thanh nút cũ `#bar` thành cột dọc: camera/thời tiết/thời gian (mở bảng chỉnh), nhạc (N), chất lượng,
+  💡 Lighting (đèn pha xe chú, đèn đường, hệ số `lightTune`: quầng + cỡ đèn giao thông, cửa sổ, biển hiệu, đèn xe khác, đèn ưu tiên),
   🚦 giao thông (map Phố), ⛶ (điện thoại). Nút cũ fast/stop/car/character/map còn trong DOM nhưng ẩn (JS cũ vẫn cập nhật).
   Vào game luôn ẩn (`body.idle` từ đầu; bỏ qua cú bấm Start 1.2 s); chỉ rê chuột / chạm / kéo xoay mới hiện (mờ dần 0.7 s),
   phím tắt không làm hiện; tự ẩn sau 2 s. Đồng hồ tốc độ `#stats` nằm ngoài HUD (luôn hiện, góc trên phải trong khung hình,
@@ -193,33 +198,7 @@
 - Map Phố: camera Từ trên cao hay bị nhà chắn nên kéo sát xe; Mustang/Mazda NPC không chạy trong phố (thay bằng xe dựng code).
 
 ## 6. Nhật ký cập nhật
-- Đã tóm tắt tới commit `8ce878f` + còi hụ (nút chụp ảnh, đom đóm nhỏ/sáng/thưa, đầu game Bên hông + rút 0.5 s, map Phố 4 bước:
-  đường/nhà/hẻm/bãi trống/dốc/cua, camera không xuyên nhà, đèn giao thông + phanh + báo lỗi, xe dựng code, người đi bộ, tai nạn +
-  cảnh sát/cấp cứu + còi hụ).
-
-- **#1 — Tiếng xe to dần khi tăng tốc / chạy nhanh (09/10/2026)**: viết lại tiếng động cơ (xem dòng `audio.js`): 25 km/h êm
-  (~1700 rpm), đạp ga gầm to, 180 km/h gầm + ống xả rào (to gấp ~4 lần trước).
-
-- **#2 — Bảng cài đặt giao thông 🚦 (09/10/2026)**: xem mục Map Phố. Thử Low: bảng mở được, tắt "tự giữ khoảng cách" thì xe đâm
-  xe đỗ phía trước và cảnh tai nạn bắt đầu.
-
-- **#3 — Giao diện mới: cột lối tắt bên trái + Setting (09/10/2026)**: xem mục Giao diện. Đổi phím: C đổi xe, Q camera,
-  X nhân vật, M map, N nhạc, K Setting, O chụp ảnh (README cập nhật). Thử Low máy tính 1280×720 + điện thoại ngang 844×390.
-
-- **#4 — Hộp lối tắt gần vuông, chữ thường (09/10/2026)**: 136×38 → 104×54 (điện thoại 86×34), bỏ in hoa ("Speed", "Pause"…);
-  điện thoại: ⓘ dời sang phải để khỏi đè hộp Speed.
-
-- **#5 — Chữ mảnh, hộp hẹp hơn, giao diện ẩn lúc vào game (09/10/2026)**: xem mục Giao diện.
-
-- **#6 — Nút Space, còi xe kẹt sau, camera Sau xe ở phố, menu 3 s, reset sau khi bị bắt (09/10/2026)**: xem mục Map Phố / Giao diện.
-  Thử Low: map Phố vào là Sau xe, hộp Space ẩn/hiện theo HUD; cảnh bị bắt xong xe ở làn 5.25, camera Sau xe. Chưa thử trọn 7 s
-  đứng yên trên máy ảo (quá chậm) — mới kiểm `stuckBehind` + `horn` chạy không lỗi.
-
-- **#7 — Đèn xe cảnh sát/cấp cứu, thời tiết/giờ tự động ở phố, căn hộp Space (09/10/2026)**: hộp Space cùng cỡ cao + cùng hàng với
-  Setting (cả cine/điện thoại); bấm nút xong bỏ focus để phím Space không bấm lại nút. Thử Low: quầng đèn pha, đèn hiệu nháy, spot 36.
-
-- **#8 — Ngã tư sáng hơn, đèn tín hiệu phát sáng, biển báo, cài đặt riêng cho phố, toast khi chuyển (09/10/2026)**: xem mục Map Phố.
-  Thử Low: vào phố = Tự động/Tự động/Sau xe, đổi camera trong phố lưu `chilldrive.city`, ra phố trả lại cài đặt cũ; toast hiện đúng.
-
-- **#9 — Đồng hồ tốc độ luôn hiện, HUD 2 s, chân không lún, mật độ xe thấp hơn (09/10/2026)**: xem mục Giao diện / Dừng xe / Map Phố.
-  Thử Low (map đồi cỏ, mô phỏng cảnh dừng xe 21 s): khe chân–mặt đất 0.000, nâng ~7 cm. Bộ đếm 9/10: lần sau gộp nhật ký.
+- Đã tóm tắt tới commit này (sau `f627432`): tiếng động cơ hộp số ảo, bảng 🚦, HUD mới (lối tắt trái + Setting + Space, chữ mảnh,
+  ẩn 2 s), còi xe kẹt sau, camera/thời tiết/giờ riêng cho phố, đèn xe ưu tiên, ngã tư (đèn góc, quầng đèn tín hiệu, biển báo),
+  toast khi chuyển, đồng hồ tốc độ Times New Roman, chân chạm đất, mật độ xe tối thiểu 0.05, bảng 💡 Lighting, xe của chú trong
+  phố, khu chung cư có công viên.
