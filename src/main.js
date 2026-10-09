@@ -395,7 +395,7 @@ function loadQuality() {
   return QUALITY_DEFAULT;
 }
 // áp dụng mức chất lượng người chơi chọn (Low / Mid / Good / Ultra)
-function applyQuality() {
+function applyQuality(save = true) {
   const q = QUALITY[state.quality];
   pixelRatio = q.id === 'low' ? q.ratio : Math.min(q.ratio, Math.max(1, window.devicePixelRatio || 1));
   if (IS_PHONE && q.id === 'good') pixelRatio = Math.min(pixelRatio, 1.25);   // màn hình điện thoại nhỏ: đủ nét, nhẹ GPU hơn
@@ -407,7 +407,7 @@ function applyQuality() {
   env.setShadowSize(q.shadow);
   refl.enabled = q.refl;
   nature.setRadius(q.trees);
-  try { localStorage.setItem('chilldrive.quality', q.id); } catch { /* bỏ qua */ }
+  if (save) try { localStorage.setItem('chilldrive.quality', q.id); } catch { /* bỏ qua */ }
 }
 const nextQuality = () => { state.quality = (state.quality + 1) % QUALITY.length; applyQuality(); refreshUI(); say('Chất lượng · ' + QUALITY[state.quality].name); };
 // thông báo ngắn trên đỉnh màn hình mỗi khi chuyển đổi
@@ -1471,7 +1471,10 @@ async function init() {
   $('modes').hidden = false;
   // màn hình chờ: cảnh nền tự đổi ngẫu nhiên mỗi 3 s (map, đoạn đường, giờ), camera ngẫu nhiên Quay quanh / Trong xe mỗi 5 s.
   // Không ghi vào cài đặt của chú (saveScope bỏ qua khi chưa vào game); vào game thì trả lại như cũ.
-  const snap = { map: state.map, weather: state.weather, time: state.time, cam: state.cam };
+  const snap = { map: state.map, weather: state.weather, time: state.time, cam: state.cam, quality: state.quality };
+  // màn hình chờ luôn chạy chất lượng Low (đỡ giật); vào game trả lại mức chú đã chọn (không ghi đè lựa chọn đã lưu)
+  const LOW_Q = QUALITY.findIndex((q) => q.id === 'low');
+  if (state.quality !== LOW_Q) { state.quality = LOW_Q; applyQuality(false); }
   const PREVIEW_CAMS = ['orbit', 'cockpit'].map((id) => CAMERAS.findIndex((c) => c.id === id));
   const pick = (n, not) => { let i; do i = Math.floor(Math.random() * n); while (n > 1 && i === not); return i; };
   const sceneT = setInterval(() => {
@@ -1509,6 +1512,7 @@ async function init() {
     state.map = mode === 'drive' ? CITY_MAP : snap.map; curMapId = null;
     scopes.world = { weather: snap.weather, time: snap.time, cam: snap.cam };
     restoreScope(snap);
+    if (state.quality !== snap.quality) { state.quality = snap.quality; applyQuality(false); }
     applyMap();
     start.classList.add('gone');
     state.started = true;

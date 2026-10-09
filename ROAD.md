@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -229,7 +229,8 @@
   về Đồi cỏ; có đoạn mở đầu) / `#m-drive` "Drive" (vào thẳng map Phố, không đoạn 180 km/h, phím M chỉ báo "chỉ có map Phố");
   phím Enter/1 = Chill, 2 = Drive (`state.mode`). Không còn "chạm bất kỳ để bắt đầu". Nền mờ blur 3.5 px. Màn hình chờ: cảnh nền
   tự đổi ngẫu nhiên mỗi 3 s (map + nhảy đoạn đường + giờ; không biên dịch trước `skipWarm`), camera ngẫu nhiên Quay quanh /
-  Trong xe mỗi 5 s; `saveScope` bỏ qua khi chưa vào game; vào game trả lại map / thời tiết / giờ / camera đã chụp (`snap`).
+  Trong xe mỗi 5 s; màn hình chờ luôn chạy chất lượng Low (`applyQuality(false)` không ghi đè lựa chọn đã lưu), vào game trả lại
+  mức chú chọn; `saveScope` bỏ qua khi chưa vào game; vào game trả lại map / thời tiết / giờ / camera đã chụp (`snap`).
   Mỗi lần vào chế độ: tên "Chill" / "Drive" hiện giữa màn hình 1 s rồi mờ dần (`#modename`). Setting có nút 🔀 đổi chế độ
   (`setGameMode`; Chill quay về map ngắm cảnh lần trước).
   Vào game luôn ẩn (`body.idle` từ đầu; bỏ qua cú bấm Start 1.2 s); chỉ rê chuột / chạm / kéo xoay mới hiện (mờ dần 0.7 s),
@@ -267,3 +268,4 @@
 - **#2 — Map Đại lộ bước 2: nút giao, cầu vượt, đường ngang có xe, nhánh ra / vào đi thử được (09/10/2026)**.
 - **#3 — Map Đại lộ bước 3: biển báo, giàn biển lối ra, mũi tên làn, đường gom + nhà (09/10/2026)**.
 - **#4 — Map Đại lộ bước 4: trạm thu phí tự động, mọi xe chậm lại (09/10/2026)**.
+- **#5 — Màn hình chờ chạy chất lượng Low (09/10/2026)**.
