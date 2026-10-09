@@ -152,6 +152,34 @@ export class StopScene {
 
   // dt: giây; carRoot: Object3D của xe (để đổi toạ độ xe -> thế giới); speed: tốc độ xe hiện tại
   update(dt, carRoot, speed) {
+    const r = this._update(dt, carRoot, speed);
+    this._ground();
+    return r;
+  }
+
+  // chân chạm mặt đất thật (mặt đường / vỉa hè / đất) khi đứng hoặc đi: lấy bàn chân thấp hơn (đang chạm đất) so với
+  // mặt đất dưới người (hook groundAt(x, z) từ main), nâng / hạ cả người cho khít. Không áp dụng khi đang ngồi trong xe.
+  _ground() {
+    const p = this.person, root = p.root;
+    // y gốc do logic cảnh đặt khung này (đi lanh quanh giữ nguyên y khung trước => bỏ phần đã nâng lần trước)
+    if (this._lastY !== undefined && Math.abs(root.position.y - this._lastY) < 1e-7) root.position.y -= this._applied || 0;
+    this._applied = 0;
+    if (!this.groundAt || !p.ready || this.state === 'off' || this.state === 'stopping' || root.position.y > 0.3) { this.lift = 0; this._lastY = undefined; return; }
+    if (!this._feet) { this._feet = []; root.traverse((o) => { if (o.isBone && /^ball_(l|r)$/.test(o.name)) this._feet.push(o); }); }
+    if (!this._feet.length) return;
+    root.position.y += this.lift || 0;
+    root.updateMatrixWorld(true);
+    let sole = Infinity;
+    for (const b of this._feet) sole = Math.min(sole, b.getWorldPosition(this._t2).y - 0.027);
+    root.getWorldPosition(this._t1);
+    const err = this.groundAt(this._t1.x, this._t1.z) - sole;      // còn lệch bao nhiêu so với mặt đất
+    root.position.y -= this.lift || 0;
+    this.lift = Math.max(-0.3, Math.min(0.5, (this.lift || 0) + Math.max(-0.04, Math.min(0.04, err))));
+    root.position.y += this.lift;
+    this._applied = this.lift; this._lastY = root.position.y;
+  }
+
+  _update(dt, carRoot, speed) {
     this.t += dt;
     const dim = this.cars.dim;
     const cam = this.cam;

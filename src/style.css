@@ -202,3 +202,15 @@ body.cine #corner { bottom: max(14px, calc(var(--bar) / 2 - 19px)); }
   #bar { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 42px) !important; }
 }
 #bar button { font-weight: 300; }
+
+/* đồng hồ tốc độ: luôn hiện, góc trên phải trong khung hình (dưới viền đen điện ảnh), chữ Times New Roman */
+#stats { position: fixed !important; z-index: 6; top: max(14px, env(safe-area-inset-top)) !important; right: max(20px, env(safe-area-inset-right)) !important;
+  text-align: right; opacity: .92; pointer-events: none; font-family: "Times New Roman", Times, serif; letter-spacing: 0; text-shadow: 0 1px 8px rgba(0, 0, 0, .55); }
+body.cine #stats { top: calc(var(--bar) + 12px) !important; }
+#stats .spd { display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; line-height: 1; }
+#speed { font-size: 46px !important; font-weight: 400 !important; font-variant-numeric: tabular-nums; }
+#stats small { font-size: 15px; opacity: .8; font-style: italic; }
+#clock { margin-top: 4px; font-size: 13px; opacity: .65; letter-spacing: .05em; }
+body.intro #stats { opacity: 0; }
+@media (max-height: 500px), (max-width: 640px) { #speed { font-size: 34px !important; } #stats small { font-size: 12px; } }
+body:not(.playing) #stats { opacity: 0; }

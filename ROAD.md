@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -128,7 +128,8 @@
 - **Xe ngựa cổ tích** (`carriage.js`, model nén `assets/models/carriage.glb` 1.6 MB từ file gốc 11 MB): chạy trên đường như NPC
   (15–30 s/chiếc, tối đa 2, 25–40 km/h, ngựa phi theo tốc độ; phần lớn ngược chiều; không đèn/tiếng lướt). Mây bụi dưới vó là
   một phần model.
-- **Dừng xe**: xem `stopscene.js`; người áo đen; bước ra khỏi xe là camera quay quanh người + tự zoom ra xa hết cỡ trong 5 s
+- **Dừng xe**: chân chạm đất thật (`stop._ground`: bàn chân thấp hơn so với `stop.groundAt` từ main — mặt đường +5 cm, vỉa hè
+  phố +20 cm, còn lại địa hình; nâng/hạ cả người ≤ 4 cm/khung; trước đây lún ~7 cm). Xem `stopscene.js`; người áo đen; bước ra khỏi xe là camera quay quanh người + tự zoom ra xa hết cỡ trong 5 s
   (16 mm + lùi 20 m). Rê/zoom dừng tự quay 2 s; zoom tay (wheel / pinch / phím ±) tiến sát tới 1 m. Khi đi về xe,
   camera bám người và tiến từ khoảng cách hiện tại tới 1 m đúng lúc tới cửa. Nhịp hút 8 s → 12 s → ngẫu nhiên 12–24 s;
   đi lanh quanh trong 10 m, chỉ trong làn mình + lề phải.
@@ -147,7 +148,8 @@
   `terrain.js`/`scenery.js` đọc bề rộng đường lúc reset/setMap. Xe mình chạy làn ngoài phải (5.25), buông tay về làn gần nhất;
   vượt xe sang làn cùng chiều bên cạnh (`TrafficPolicy._other`). Camera bên hông 13 m, quay quanh 10 m. Không đom đóm.
   **Bảng 🚦 Giao thông** (nút `b-traffic`, chỉ hiện ở map Phố; `trafficTune` lưu trong `chilldrive.tuning.v1` mục `traffic`):
-  tự giữ khoảng cách bật/tắt (tắt => xe mình không bám xe trước, đâm được để thử cảnh tai nạn), mật độ xe ×, tốc độ xe khác ×,
+  tự giữ khoảng cách bật/tắt (tắt => xe mình không bám xe trước, đâm được để thử cảnh tai nạn), mật độ xe × (0.05–2.5;
+  giảm thì bớt ngay xe đang chạy, xe đường ngang thưa theo), tốc độ xe khác ×,
   số người đi bộ, độ dài pha đèn × (`city.clockRate`).
   Xe mình đứng yên > 7 s (không phải chờ đèn đỏ trong 25 m) => xe kẹt sau cùng làn (≤ 30 m, `stuckBehind`) bấm còi
   (`audio.horn`, 2 tiếng bíp 415/498 Hz, mỗi 2–3.5 s) + nháy đèn pha (`aHonk` theo từng xe) + toast. Vào map Phố / bắt đầu lại sau
@@ -168,7 +170,8 @@
   hộp Setting (K) mở thanh nút cũ `#bar` thành cột dọc: camera/thời tiết/thời gian (mở bảng chỉnh), nhạc (N), chất lượng,
   🚦 giao thông (map Phố), ⛶ (điện thoại). Nút cũ fast/stop/car/character/map còn trong DOM nhưng ẩn (JS cũ vẫn cập nhật).
   Vào game luôn ẩn (`body.idle` từ đầu; bỏ qua cú bấm Start 1.2 s); chỉ rê chuột / chạm / kéo xoay mới hiện (mờ dần 0.7 s),
-  phím tắt không làm hiện; tự ẩn sau 3 s. Nút phanh = hộp "Space" giữa đáy (trong HUD, ẩn theo; giữ để phanh). ⓘ ở góc trên trái. Nhạc mặc định tên "Music + fx".
+  phím tắt không làm hiện; tự ẩn sau 2 s. Đồng hồ tốc độ `#stats` nằm ngoài HUD (luôn hiện, góc trên phải trong khung hình,
+  dưới viền đen cine), Times New Roman: số 46 px, "km/h" nhỏ nghiêng, giờ nhỏ bên dưới. Nút phanh = hộp "Space" giữa đáy (trong HUD, ẩn theo; giữ để phanh). ⓘ ở góc trên trái. Nhạc mặc định tên "Music + fx".
 - **Chụp ảnh**: biểu tượng máy ảnh / phím O — chụp canvas ngay sau `post.render` (không cần preserveDrawingBuffer), tải PNG
   `chill-drive-<thời gian>.png`; điện thoại dùng bảng chia sẻ nếu có (lưu vào Ảnh).
 - **Đom đóm** (không có ở map Phố): đoạn có đom đóm ~2/3 chiều dài đường (nhiễu `sst(0.38, 0.58)`), 90% ô 5 m có, 1–3 con/ô, ra tới ~16 m hai bên,
@@ -217,3 +220,6 @@
 
 - **#8 — Ngã tư sáng hơn, đèn tín hiệu phát sáng, biển báo, cài đặt riêng cho phố, toast khi chuyển (09/10/2026)**: xem mục Map Phố.
   Thử Low: vào phố = Tự động/Tự động/Sau xe, đổi camera trong phố lưu `chilldrive.city`, ra phố trả lại cài đặt cũ; toast hiện đúng.
+
+- **#9 — Đồng hồ tốc độ luôn hiện, HUD 2 s, chân không lún, mật độ xe thấp hơn (09/10/2026)**: xem mục Giao diện / Dừng xe / Map Phố.
+  Thử Low (map đồi cỏ, mô phỏng cảnh dừng xe 21 s): khe chân–mặt đất 0.000, nâng ~7 cm. Bộ đếm 9/10: lần sau gộp nhật ký.

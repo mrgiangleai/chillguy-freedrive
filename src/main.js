@@ -84,6 +84,16 @@ const post = new Post(renderer, QUALITY[QUALITY_DEFAULT].msaa);
 const refl = new WetReflection(renderer);
 const person = new Person();
 const stop = new StopScene(cars, person);
+// mặt đất dưới người khi xuống xe: mặt đường (+5 cm), vỉa hè map Phố (+20 cm), còn lại địa hình
+stop.groundAt = (x, z) => {
+  const rp = roadPosition({ x, z }, road, drive.s), p = road.at(rp.s, {}), a = Math.abs(rp.d);
+  if (a <= ROAD.halfWidth) return p.y + 0.05;
+  if (MAPS[state.map].id === 'city' && a <= CITY.hw + CITY.walk + 0.4) {
+    const j = road.nearJunction(rp.s);
+    return p.y + (Math.abs(rp.s - j) < CITY.side ? 0.05 : 0.2);
+  }
+  return Math.max(terrain.heightAt(x, z), p.y - 0.02);
+};
 cars.viewer = camera;
 const smoke = new Smoke(scene, person);       // điếu thuốc + khói (cảnh dừng xe)
 const nature = new Nature(scene);
@@ -215,6 +225,10 @@ let savedTuning = null;
 const TRAFFIC_DEFAULTS = Object.freeze({ avoid: 1, density: 1, speed: 1, walkers: 38, signal: 1 });
 const trafficTune = { ...TRAFFIC_DEFAULTS };
 function applyTrafficTune() {
+  if (trafficTune.density < cityTraffic.density) {          // giảm mật độ: bớt ngay một phần xe đang chạy (không bỏ xe cảnh sát / cấp cứu / xe bị đâm)
+    const keep = trafficTune.density / cityTraffic.density;
+    cityTraffic.cars = cityTraffic.cars.filter((c) => c.script || c.crashed || Math.random() < keep);
+  }
   cityTraffic.density = trafficTune.density;
   for (const c of cityTraffic.cars) if (!c.script && c.type !== 'police' && c.type !== 'ambulance') c.vMax *= trafficTune.speed / (cityTraffic.speedK || 1);
   cityTraffic.speedK = trafficTune.speed;
@@ -606,7 +620,7 @@ renderTune = () => {
     addHeading('Xe của chú');
     addChoice({ label: 'Tự giữ khoảng cách (tránh đâm xe trước)', options: ['Tắt — tự phanh, có thể đâm', 'Bật'], get: () => trafficTune.avoid, set: (v) => { trafficTune.avoid = v; toast(v ? 'Đã bật tự giữ khoảng cách' : 'Đã tắt tự giữ khoảng cách — chú tự phanh, đâm là có cảnh sát tới', !v); } });
     addHeading('Xe và người');
-    addNumber({ label: 'Mật độ xe (×)', min: 0.2, max: 2.5, step: 0.1, get: () => trafficTune.density, set: (v) => { trafficTune.density = v; applyTrafficTune(); } });
+    addNumber({ label: 'Mật độ xe (×)', min: 0.05, max: 2.5, step: 0.05, get: () => trafficTune.density, set: (v) => { trafficTune.density = v; applyTrafficTune(); } });
     addNumber({ label: 'Tốc độ xe khác (×)', min: 0.4, max: 2, step: 0.05, get: () => trafficTune.speed, set: (v) => { trafficTune.speed = v; applyTrafficTune(); } });
     addNumber({ label: 'Số người đi bộ', min: 0, max: 80, step: 1, get: () => trafficTune.walkers, set: (v) => { trafficTune.walkers = v; applyTrafficTune(); } });
     addHeading('Đèn giao thông');
@@ -788,7 +802,7 @@ const wake = () => {
   if (performance.now() < wakeFrom) return;
   document.body.classList.remove('idle');
   clearTimeout(idleTimer);
-  idleTimer = setTimeout(() => document.body.classList.add('idle'), 3000);
+  idleTimer = setTimeout(() => document.body.classList.add('idle'), 2000);
 };
 ['pointermove', 'pointerdown', 'touchstart'].forEach((ev) => window.addEventListener(ev, wake, { passive: true }));
 // bấm nút xong thì bỏ focus (không thì phím Space bấm lại nút đó thay vì phanh)

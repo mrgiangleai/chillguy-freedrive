@@ -302,7 +302,7 @@ export class CityTraffic {
       const dd = dir * l;
       // xe ngược chiều: vào từ xa phía trước; cùng chiều: vào từ phía sau (xe mình chậm) hoặc phía trước (xe mình nhanh)
       const at = dir < 0 ? s + AHEAD - 10 : v < 10 ? s - BEHIND + 10 : s + AHEAD - 10;
-      if (Math.random() < dt * 0.35 && this._free(at, dd, MAIN_GAP[0] / this.density + 10) && Math.abs(at - s) > 30) {
+      if (Math.random() < dt * 0.35 * Math.min(1, this.density) && this._free(at, dd, MAIN_GAP[0] / this.density + 10) && Math.abs(at - s) > 30) {
         const t = this._pick();
         if (t) { const c = this._new(t, { s: at, d: dd, home: dd, dir }); if (dir > 0 && at > s) c.vMax = Math.min(c.vMax, Math.max(4, v - 2)); this.cars.push(c); }
       }
@@ -316,7 +316,7 @@ export class CityTraffic {
         if (tm === undefined) tm = Math.random() * 4;
         tm -= dt;
         if (tm <= 0) {
-          tm = 3 + Math.random() * 6;
+          tm = (3 + Math.random() * 6) / Math.max(0.05, this.density);   // mật độ thấp => xe đường ngang thưa
           const u0 = -du * CROSS_R, a = du > 0 ? -1.75 : 1.75;
           const busy = this.cars.some((c) => c.cross && c.cross.n === n && c.cross.du === du && Math.abs(c.cross.u - u0) < 14);
           const t = this._pick();
