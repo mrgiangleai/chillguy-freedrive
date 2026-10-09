@@ -734,14 +734,17 @@ canvas.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 // ẩn giao diện khi không thao tác
-let idleTimer = 0;
+let idleTimer = 0, wakeFrom = Infinity;
+// giao diện luôn ẩn khi vào game; chỉ hiện (mờ dần lên) khi rê chuột / chạm / kéo xoay màn hình, tự ẩn lại sau 5 s.
+// Phím tắt không làm hiện giao diện. Cú bấm Start không tính (chỉ nhận sau khi vào game 1.2 s)
 const wake = () => {
+  if (performance.now() < wakeFrom) return;
   document.body.classList.remove('idle');
   clearTimeout(idleTimer);
-  idleTimer = setTimeout(() => document.body.classList.add('idle'), 5000);   // lối tắt / nút tự ẩn sau 5 s, rê chuột / chạm để hiện lại
+  idleTimer = setTimeout(() => document.body.classList.add('idle'), 5000);
 };
-['pointermove', 'pointerdown', 'keydown', 'touchstart'].forEach((ev) => window.addEventListener(ev, wake, { passive: true }));
-wake();
+['pointermove', 'pointerdown', 'touchstart'].forEach((ev) => window.addEventListener(ev, wake, { passive: true }));
+document.body.classList.add('idle');
 
 // ---------- vòng lặp ----------
 const _right = new THREE.Vector3();
@@ -1151,6 +1154,7 @@ async function init() {
   const go = (e) => {
     start.classList.add('gone');
     state.started = true;
+    wakeFrom = performance.now() + 1200; document.body.classList.add('playing');
     applyCine();
     openingElapsed = 0;
     audio.start().catch((e) => console.warn('Audio:', e));

@@ -78,7 +78,7 @@ export const CAMERAS = [
 ];
 
 export const MUSIC_MODES = [
-  { id: 'all', name: 'Nhạc + âm thanh', icon: '🎵' },
+  { id: 'all', name: 'Music + fx', icon: '🎵' },
   { id: 'music', name: 'Chỉ nhạc', icon: '🎶' },
   { id: 'off', name: 'Tắt tiếng', icon: '🔇' },
 ];
