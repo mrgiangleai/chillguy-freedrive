@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -178,7 +178,8 @@
   độ ×2, làn trong nhanh ×1.12 / làn ngoài ×0.84, không xe máy, không ngã tư; vượt sang làn bên cạnh ưu tiên làn trong). Xe mình
   làn giữa 5.75, không qua dải phân cách; cấp tốc độ `AV_GEARS` 80 / 100 / 180 km/h, chỉnh tay tới 120. Bộ cài đặt riêng
   `chilldrive.avenue` (lần đầu lấy bộ của Phố, `SCOPED`); dùng chung bảng 🚦 + giao thông ngẫu nhiên. Cảnh tai nạn dùng
-  `cityTraffic.lanes`. **Nút giao** (`IC` trong road.js: mỗi 3 km, nút đầu ở s = 1500): cao tốc nhô lên 7.5 m (`avHump`, đỉnh
+  `cityTraffic.lanes`. Vào Đại lộ luôn bắt đầu ở s = 150 (để gặp ngay cầu cao ở 700 m, cầu sông ở 2.2 km). **Nút giao** (`IC` trong
+  road.js: mỗi 3 km, nút đầu ở s = 4000): cao tốc nhô lên 7.5 m (`avHump`, đỉnh
   phẳng ±40 m, dốc tới ±260 m) thành cầu vượt (bản mặt cầu + thành bê tông ±21 m, 2 hàng 3 trụ + xà mũ) qua đường ngang 2 làn
   (±4.6 m, vạch vàng đôi, ±420 m, bằng nền ±60 m rồi theo địa hình) chui dưới cầu. Mỗi chiều 1 cặp nhánh kiểu kim cương
   (`rampU(t)`: làn giảm tốc từ làn ngoài t = −480…−400, lệch dần ra |u| = 45 ở đường ngang, nhánh vào đối xứng sau cầu), đi ở cao
@@ -197,16 +198,16 @@
   DOWN" vàng trên làn ngoài; biển hình mũi tên 2 cột ở mũi tách nhánh (∓285, alphaTest). Mũi tên sơn trên làn ở t = ∓760 / 680 / 600 (làn ngoài
   thẳng + rẽ phải), vạch chéo vùng tách / nhập nhánh. **Đường gom + nhà**: mỗi nút giao 1–2 đường nhỏ 1 làn rẽ từ đường ngang ở
   |u| = 78, chạy song song cao tốc 280–500 m (theo địa hình), nhà 1–2 tầng hai bên (tường sơn, mái dốc đỏ / xanh / xám, cửa +
-  cửa sổ phía đường), nền nhà / đường được đào phẳng (`I.lines`), loại cỏ (32 đoạn). **Trạm thu phí** (`TOLL`: s = 3000 + 6000k,
+  cửa sổ phía đường), nền nhà / đường được đào phẳng (`I.lines`), loại cỏ (32 đoạn). **Trạm thu phí** (`TOLL`: s = 5500 + 6000k,
   giữa 2 nút giao; `tollDist(s, dir)`): đảo bê tông mũi vàng trên các vạch chia làn + mép (±4 / ±7.5 / ±11.45, dài 30 m), cabin trắng
   kính tối mái xanh, mái che 24 m có dải chữ "TRẠM THU PHÍ · ETC" 2 mặt, barie sọc đỏ trắng mỗi làn (`updateToll`: nâng khi có xe
   ≤ 16 m trước vạch, hạ khi trống), biển 1 km / 500 m + tốc độ 40. Mọi xe (NPC + xe mình, kể cả khi tắt tự giữ khoảng cách) giảm
   còn ~20 km/h tới vạch (v = 5.55 + √(3.2·(d − 2)), vùng 160 m) rồi tăng tốc; xe mình: toast báo trước ~300 m, qua vạch "bíp" 2 tiếng
-  (`audio.beep`) + toast "Đã trừ phí tự động (ETC): 35.000đ". **Cầu vượt cao** (`FLY` trong road.js, s = 6000 + 12000k): cao tốc nhô
+  (`audio.beep`) + toast "Đã trừ phí tự động (ETC): 35.000đ". **Cầu vượt cao** (`FLY` trong road.js, s = 700 rồi 8500 + 12000k): cao tốc nhô
   12 m (đỉnh ±70, dốc tới ±400) thành **cầu cạn** |t| < 230 (bản mặt cầu dày 1.6 m rộng ±14.8, gờ lan can, trụ đôi mỗi 28 m + xà mũ,
   tường mố 2 đầu; dưới cầu mặt đất giữ tự nhiên — `avenue.carve` nhận `h0` + `ns/nd` từ terrain) qua **quốc lộ 4 làn** (±8.2 m, vàng
   đôi, đứt ±3.5, ±520 m) nằm trong hào 3 m; xe 2 chiều mỗi chiều 2 làn (`c.xr.I` = khung đường ngang chung cho nút giao / cầu cao,
-  `avenue.crossings`). **Cầu sông** (`RIVER`, s = 12000 + 12000k): cao tốc nhô 8 m, cầu cạn |t| < 330 qua thung lũng sông rộng 240 m
+  `avenue.crossings`). **Cầu sông** (`RIVER`, s = 2200 rồi 14500 + 12000k): cao tốc nhô 8 m, cầu cạn |t| < 330 qua thung lũng sông rộng 240 m
   (mặt nước thấp hơn nền 14 m, sâu 5 m, bờ thoải; sông uốn `meander(u) = 40·sin(u/300)`), trụ xuống lòng sông, 2 tháp dây văng cao 42 m
   trên dải phân cách ở t = ±70 (dây thép `cableMat`). Mặt nước: shader Ocean chế độ sông (`ocean.setRiver`: cắt theo dải sông, sóng
   ×0.35, màu sẫm, nhám hơn, không bọt bờ), bật khi xe trong 3.5 km quanh cầu sông. Cỏ: loại dọc cầu cạn ±30 m + dải sông. Biển tốc độ
@@ -281,3 +282,4 @@
 - Đã tóm tắt tới commit này (sau `603bcbe`): map Đại lộ đủ 4 bước (cao tốc 6 làn, nút giao + nhánh, biển báo + đường gom + nhà,
   trạm thu phí), màn hình chờ chạy Low, bản đồ tròn (Drive), nút lái trái / phải trên điện thoại, cầu vượt cao qua quốc lộ 4 làn,
   cầu dây văng qua sông, bảng chỉ đường lớn kiểu Việt Nam, đèn cầu ban đêm + cây bờ sông + thuyền.
+- **#1 — Đại lộ: dời cầu cao (700 m) + cầu sông (2.2 km) về gần đầu đường, vào Đại lộ bắt đầu ở 150 m (09/10/2026)**.

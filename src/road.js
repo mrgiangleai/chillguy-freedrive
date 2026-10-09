@@ -18,10 +18,10 @@ const HA0 = HA(0);
 // phẳng ±40 m) bắc qua đường ngang (vuông góc, ở cao độ nền). Mỗi chiều có 1 cặp nhánh (kiểu kim cương): nhánh ra tách khỏi làn
 // ngoài trước cầu, đi ở cao độ nền (cao tốc lên cầu, nhánh "xuống" dần so với cầu), cắt đường ngang ở |u| = IC.rampU, rồi nhánh vào
 // leo lại nhập làn ngoài sau cầu. rampU(t) = độ lệch ngang theo khung cao tốc (t = s − icS), chiều +s; chiều ngược: u = −rampU(−t).
-export const IC = { period: 3000, first: 1500, hump: 7.5, flat: 40, rise: 260, rampU: 45, rampLen: 480, crossHW: 4.6, crossLen: 420 };
+export const IC = { period: 3000, first: 4000, hump: 7.5, flat: 40, rise: 260, rampU: 45, rampLen: 480, crossHW: 4.6, crossLen: 420 };
 export const icS = (k) => IC.first + k * IC.period;
 // trạm thu phí (đại lộ): giữa 2 nút giao, mỗi TOLL.period m; mọi xe giảm còn ~20 km/h trước vạch barie, barie tự nâng (ETC)
-export const TOLL = { period: 6000, first: 3000, slow: 20 / 3.6, zone: 160 };
+export const TOLL = { period: 6000, first: 5500, slow: 20 / 3.6, zone: 160 };
 export const tollS = (k) => TOLL.first + k * TOLL.period;
 // khoảng cách (theo chiều dir) từ s tới vạch barie trạm kế tiếp (đã qua quá 18 m thì tính trạm sau)
 export function tollDist(s, dir) {
@@ -32,15 +32,17 @@ export function tollDist(s, dir) {
 }
 export const icIndex = (s) => Math.max(0, Math.round((s - IC.first) / IC.period));
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-// Cầu vượt cao (FLY): mỗi 12 km tại 6000 + 12000k, cao tốc nhô lên 12 m thành cầu cạn trên trụ, bắc qua quốc lộ 4 làn nằm trong
-// hào sâu 3 m (tĩnh không ~13 m). Cầu qua sông (RIVER): tại 12000 + 12000k, cao tốc nhô 8 m thành cầu cạn dài qua thung lũng sông
+// Cầu vượt cao (FLY): mỗi 12 km (cái đầu ở 700 m), cao tốc nhô lên 12 m thành cầu cạn trên trụ, bắc qua quốc lộ 4 làn nằm trong
+// hào sâu 3 m (tĩnh không ~13 m). Cầu qua sông (RIVER): mỗi 12 km (cái đầu ở 2200 m), cao tốc nhô 8 m thành cầu cạn dài qua thung lũng sông
 // rộng 2·hw (mặt nước thấp hơn nền drop m). `viaduct` = |t| mà ở trong đó mặt đất dưới cầu giữ tự nhiên (không đắp nền).
-export const FLY = { period: 12000, first: 6000, hump: 12, flat: 70, rise: 400, cut: 3, crossLen: 520, crossHW: 8.2, lanes: [1.75, 5.25], viaduct: 230 };
-export const RIVER = { period: 12000, first: 12000, hump: 8, flat: 200, rise: 430, hw: 120, drop: 14, depth: 5, viaduct: 330 };
-export const flyS = (k) => FLY.first + k * FLY.period;
-export const flyIndex = (s) => Math.max(0, Math.round((s - FLY.first) / FLY.period));
-export const riverS = (k) => RIVER.first + k * RIVER.period;
-export const riverIndex = (s) => Math.max(0, Math.round((s - RIVER.first) / RIVER.period));
+export const FLY = { period: 12000, first0: 700, first: 8500, hump: 12, flat: 70, rise: 400, cut: 3, crossLen: 520, crossHW: 8.2, lanes: [1.75, 5.25], viaduct: 230 };
+export const RIVER = { period: 12000, first0: 2200, first: 14500, hump: 8, flat: 200, rise: 430, hw: 120, drop: 14, depth: 5, viaduct: 330 };
+// cầu đầu tiên đặt gần đầu đường (để thử ngay): cầu cao ở 700 m, cầu sông ở 2200 m; các cầu sau nằm giữa 2 nút giao,
+// không trùng trạm thu phí: cầu cao 8500 + 12000k, cầu sông 14500 + 12000k
+export const flyS = (k) => (k <= 0 ? FLY.first0 : FLY.first + (k - 1) * FLY.period);
+export const flyIndex = (s) => (s < (FLY.first0 + FLY.first) / 2 ? 0 : 1 + Math.max(0, Math.round((s - FLY.first) / FLY.period)));
+export const riverS = (k) => (k <= 0 ? RIVER.first0 : RIVER.first + (k - 1) * RIVER.period);
+export const riverIndex = (s) => (s < (RIVER.first0 + RIVER.first) / 2 ? 0 : 1 + Math.max(0, Math.round((s - RIVER.first) / RIVER.period)));
 export function avHump(s) {
   const a = Math.abs(s - icS(icIndex(s))), b = Math.abs(s - flyS(flyIndex(s))), c = Math.abs(s - riverS(riverIndex(s)));
   return IC.hump * (1 - sm(IC.flat, IC.rise, a)) + FLY.hump * (1 - sm(FLY.flat, FLY.rise, b)) + RIVER.hump * (1 - sm(RIVER.flat, RIVER.rise, c));
