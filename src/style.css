@@ -157,3 +157,6 @@ body.intro #brake { display: none; }
   opacity: 0; pointer-events: none; transition: opacity .3s ease, transform .3s ease; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 #toast.bad { background: rgba(170, 20, 20, .88); font-weight: 600; }
+#fade { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; padding: 24px; background: #000; color: #fff;
+  font-size: 18px; text-align: center; opacity: 0; pointer-events: none; transition: opacity 1.2s ease; }
+#fade.show { opacity: .92; }

@@ -29,6 +29,7 @@ function hexa(out, b, t, col, flags) {
     for (const p of [a, bq, c, a, c, d]) {
       out.pos.push(...p); out.nor.push(n.x, n.y, n.z); out.col.push(...col);
       out.tint.push(flags.tint ? 1 : 0); out.glow.push(flags.glow ? 1 : 0); out.gloss.push(flags.gloss ? 1 : 0);
+      out.flash.push(flags.flash ? (p[0] > 0 ? 2 : 1) : 0);
     }
   }
 }
@@ -41,10 +42,10 @@ function wheel(o, x, y, z, r, w, col = [0.05, 0.05, 0.055]) {
   for (let i = 0; i < p.length / 3; i++) {
     o.pos.push(p[i * 3], p[i * 3 + 1], p[i * 3 + 2]); o.nor.push(n[i * 3], n[i * 3 + 1], n[i * 3 + 2]);
     const hub = Math.abs(n[i * 3]) > 0.9 ? 0.55 : 1;           // mặt bên: mâm xám
-    o.col.push(...(hub < 1 ? [0.42, 0.43, 0.45] : col)); o.tint.push(0); o.glow.push(0); o.gloss.push(0);
+    o.col.push(...(hub < 1 ? [0.42, 0.43, 0.45] : col)); o.tint.push(0); o.glow.push(0); o.gloss.push(0); o.flash.push(0);
   }
 }
-const mk = () => ({ pos: [], nor: [], col: [], tint: [], glow: [], gloss: [] });
+const mk = () => ({ pos: [], nor: [], col: [], tint: [], glow: [], gloss: [], flash: [] });
 const PAINT = [1, 1, 1], GLASS = [0.05, 0.07, 0.09], DARK = [0.08, 0.08, 0.09], TRIM = [0.25, 0.25, 0.27];
 const HEAD = [1.0, 0.95, 0.85], TAIL = [0.9, 0.05, 0.03];
 const T = { tint: true }, G = { gloss: true }, L = { glow: true };
@@ -128,7 +129,33 @@ function scooter(o) {
   boxAt(o, 0, 1.62, 0.02, 0.28, 0.26, 0.3, HELM, G);
 }
 
+// xe cảnh sát Nhật: thân dưới đen, nửa trên trắng, đèn ưu tiên đỏ trên nóc (nhấp nháy trái/phải)
+function police(o) {
+  const len = 4.6, W = 1.78, H = 1.45, hw = W / 2, z0 = -len / 2, z1 = len / 2, BLACK = [0.04, 0.04, 0.045], WHITE = [0.92, 0.92, 0.9];
+  hexa(o, [hw, z0 + 0.1, z1 - 0.05, 0.32], [hw, z0, z1, 0.66], BLACK, {});
+  hexa(o, [hw, z0, z1, 0.66], [hw, z0, z1, 0.92], WHITE, {});
+  hexa(o, [hw - 0.06, z0 + 1.05, z1 - 0.55, 0.92], [hw - 0.2, z0 + 1.65, z1 - 1.05, H - 0.05], GLASS, G);
+  hexa(o, [hw - 0.2, z0 + 1.66, z1 - 1.06, H - 0.06], [hw - 0.22, z0 + 1.7, z1 - 1.1, H], WHITE, {});
+  boxAt(o, 0, H + 0.08, z0 + 2.2, 1.1, 0.14, 0.26, [1.0, 0.06, 0.04], { flash: true });
+  boxAt(o, 0, 0.42, z0 + 0.02, W - 0.1, 0.18, 0.12, TRIM);
+  lamps(o, hw, 0.78, z0, z1);
+  for (const [x, z] of [[-1, z0 + 0.85], [1, z0 + 0.85], [-1, z1 - 0.8], [1, z1 - 0.8]]) wheel(o, x * (hw - 0.1), 0.32, z, 0.32, 0.24);
+}
+// xe cứu thương: van trắng cao, sọc đỏ, đèn ưu tiên đỏ
+function ambulance(o) {
+  const len = 5.4, hw = 0.95, z0 = -len / 2, z1 = len / 2, WHITE = [0.95, 0.95, 0.93], RED = [0.85, 0.08, 0.06];
+  hexa(o, [hw, z0 + 0.05, z1, 0.35], [hw, z0, z1, 2.25], WHITE, {});
+  hexa(o, [hw + 0.005, z0 + 0.1, z1 - 0.05, 0.95], [hw + 0.005, z0 + 0.1, z1 - 0.05, 1.12], RED, {});
+  hexa(o, [hw + 0.006, z0 - 0.005, z0 + 1.4, 1.3], [hw - 0.1, z0 + 0.45, z0 + 1.4, 2.0], GLASS, G);         // kính lái
+  boxAt(o, 0, 2.33, z0 + 0.6, 1.3, 0.16, 0.3, RED, { flash: true });
+  boxAt(o, 0, 0.45, z0 + 0.01, 1.8, 0.2, 0.1, TRIM);
+  lamps(o, hw, 0.85, z0, z1);
+  for (const [x, z] of [[-1, z0 + 0.9], [1, z0 + 0.9], [-1, z1 - 0.9], [1, z1 - 0.9]]) wheel(o, x * (hw - 0.1), 0.35, z, 0.35, 0.26);
+}
+
 const TYPES = {
+  police: { build: police, len: 4.6, wid: 1.78, v: [40, 40], max: 2 },
+  ambulance: { build: ambulance, len: 5.4, wid: 1.9, v: [40, 40], max: 2 },
   sedan: { build: (o) => sedan(o), len: 4.5, wid: 1.75, v: [38, 52], max: 40 },
   taxi: { build: (o) => sedan(o, { taxi: true }), len: 4.5, wid: 1.75, v: [36, 50], max: 14 },
   kei: { build: kei, len: 3.4, wid: 1.48, v: [34, 48], max: 30 },
@@ -139,6 +166,7 @@ const TYPES = {
 // tỉ lệ sinh + màu sơn (sRGB)
 const MIX = [['sedan', 0.3], ['kei', 0.24], ['taxi', 0.1], ['van', 0.12], ['bus', 0.06], ['scooter', 0.18]];
 const COLORS = {
+  police: ['#ffffff'], ambulance: ['#ffffff'],
   sedan: ['#e8e8e6', '#1c1d20', '#8d9196', '#2a3550', '#6b0f14', '#c9c3b6'],
   taxi: ['#121314', '#1d5a3c', '#f1c232', '#e8e8e6'],
   kei: ['#f2f0ea', '#e7d9b8', '#9cc6d8', '#e6a8b4', '#4a4f55', '#c8d77a'],
@@ -154,18 +182,20 @@ export class CityTraffic {
     this.group = new THREE.Group();
     this.group.visible = false;
     scene.add(this.group);
-    this.uLamp = { value: 0 };
+    this.uLamp = { value: 0 }; this.uTime = { value: 0 };
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.1 });
     mat.onBeforeCompile = (sh) => {
-      sh.uniforms.uLamp = this.uLamp;
+      sh.uniforms.uLamp = this.uLamp; sh.uniforms.uTime = this.uTime;
       sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nattribute float aTint, aGlow, aGloss;\nvarying float vGlow, vGloss;')
+        .replace('#include <common>', '#include <common>\nattribute float aTint, aGlow, aGloss, aFlash;\nuniform float uTime;\nvarying float vGlow, vGloss;')
         .replace('#include <color_vertex>', `vColor = vec3(1.0);
           vColor *= color;
           #ifdef USE_INSTANCING_COLOR
             vColor = mix(vColor, vColor * instanceColor.xyz, aTint);
           #endif
-          vGlow = aGlow; vGloss = aGloss;`);
+          vGlow = aGlow; vGloss = aGloss;
+          // đèn ưu tiên: nửa trái / phải nhấp nháy xen kẽ
+          if (aFlash > 0.5) vGlow = 3.0 * step(0.5, fract(uTime * 2.2 + (aFlash > 1.5 ? 0.5 : 0.0)));`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', '#include <common>\nuniform float uLamp;\nvarying float vGlow, vGloss;')
         .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.08, vGloss);')
@@ -184,6 +214,7 @@ export class CityTraffic {
       g.setAttribute('aTint', new THREE.Float32BufferAttribute(o.tint, 1));
       g.setAttribute('aGlow', new THREE.Float32BufferAttribute(o.glow, 1));
       g.setAttribute('aGloss', new THREE.Float32BufferAttribute(o.gloss, 1));
+      g.setAttribute('aFlash', new THREE.Float32BufferAttribute(o.flash, 1));
       const im = new THREE.InstancedMesh(g, mat, def.max);
       im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(def.max * 3), 3);
       im.count = 0; im.castShadow = true; im.frustumCulled = false;
@@ -200,6 +231,26 @@ export class CityTraffic {
 
   set visible(v) { this.group.visible = v; if (!v) { this.cars.length = 0; this.filled = false; this.crossTimers.clear(); } }
   get visible() { return this.group.visible; }
+
+  // xe kịch bản (cảnh sát / cấp cứu): chạy tới quãng `to` rồi dừng, bỏ qua đèn; script = null => chạy tiếp như xe thường
+  spawnScripted(type, s, d, dir, to, v = 15) {
+    const c = this._new(type, { s, d, home: d, dir, color: '#ffffff' });
+    c.color = '#ffffff'; c.vMax = 12; c.v = v;
+    c.script = { to, v, arrived: false };
+    this.cars.push(c);
+    return c;
+  }
+  remove(c) { const i = this.cars.indexOf(c); if (i >= 0) this.cars.splice(i, 1); }
+  // xe (đường chính hoặc đường ngang) chồng lên hình chữ nhật [s ± len/2] × [d ± wid/2] (toạ độ đường chính)
+  hitTest(s, d, len, wid) {
+    for (const c of this.cars) {
+      let cs, cd, cl, cw;
+      if (c.cross) { cs = this.road.junction(c.cross.n) + c.cross.a; cd = c.cross.u; cl = c.wid; cw = c.len; }
+      else { cs = c.s; cd = c.d; cl = c.len; cw = c.wid; }
+      if (Math.abs(cs - s) < (len + cl) / 2 - 0.25 && Math.abs(cd - d) < (wid + cw) / 2 - 0.15) return c;
+    }
+    return null;
+  }
 
   _pick() {
     let k = Math.random(), t = 'sedan';
@@ -222,7 +273,7 @@ export class CityTraffic {
   // dt; s, d, v: xe mình; lamps 0..1
   update(dt, s, d, v, lamps, playerLen = 4.6) {
     if (!this.group.visible) return;
-    this.uLamp.value = lamps;
+    this.uLamp.value = lamps; this.uTime.value += dt;
     const road = this.road, lanes = CITY.lanes;
     // ---- sinh xe đường chính ----
     if (!this.filled) {
@@ -279,6 +330,16 @@ export class CityTraffic {
     };
     const follow = (vl, gap) => Math.max(0, vl + 0.6 * (gap - (4 + 1.0 * vl)));
     for (const c of main) {
+      if (c.crashed) { c.v = 0; c.lat = 0; continue; }
+      if (c.script) {
+        const dist = (c.script.to - c.s) * c.dir;
+        const w = dist <= 0.2 ? 0 : Math.min(c.script.v, Math.sqrt(2 * 3.5 * dist));
+        c.v += Math.max(-8 * dt, Math.min(3 * dt, w - c.v));
+        if (dist <= 0.2) { c.v = 0; c.script.arrived = true; }
+        c.s += c.dir * Math.max(0, c.v) * dt;
+        const err = c.home - c.d; c.lat = Math.sign(err) * Math.min(1.3, Math.abs(err) * 2); c.d += c.lat * dt;
+        continue;
+      }
       let want = c.vMax;
       const f = ahead(c, c.d);
       if (f) {
@@ -305,6 +366,7 @@ export class CityTraffic {
     const HW = CITY.hw;
     for (const c of this.cars) {
       if (!c.cross) continue;
+      if (c.crashed) { c.v = 0; continue; }
       const X = c.cross;
       let want = c.vMax;
       for (const e of this.cars) {
@@ -322,7 +384,7 @@ export class CityTraffic {
       X.u += X.du * c.v * dt;
     }
     // bỏ xe ra khỏi vùng
-    this.cars = this.cars.filter((c) => c.cross ? Math.abs(c.cross.u) <= CROSS_R + 2 && c.cross.n >= n0 - 1 : c.s > s - BEHIND - 20 && c.s < s + AHEAD + 40);
+    this.cars = this.cars.filter((c) => (c.crashed || c.script) ? true : c.cross ? Math.abs(c.cross.u) <= CROSS_R + 2 && c.cross.n >= n0 - 1 : c.s > s - BEHIND - 20 && c.s < s + AHEAD + 40);
 
     // ---- xe mình bám xe trước cùng làn ----
     const fp = ahead(player, d);
