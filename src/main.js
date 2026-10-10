@@ -328,6 +328,18 @@ function applyLightTune() {
   cityTraffic.emK = lightTune.emergency;
 }
 const trafficTune = { ...TRAFFIC_DEFAULTS };
+// sương sát đất (lớp MIST): lưu riêng cho nhóm Chill / Drive; mỗi kiểu thời tiết có độ phủ + độ dày (0..1), mỗi giờ có hệ số độ dày
+// (giờ lẻ / Tự động: nội suy giữa 4 mốc theo giờ). Chỉnh trong bảng Thời tiết / Thời gian (và bảng 🌫️ phím G), tự lưu mục `mist`.
+const MIST_HOURS = { sunrise: 6.4, noon: 12.5, sunset: 17.6, night: 22.5 };
+const MIST_DEFAULTS = {
+  chill: { w: { clear: [0.9, 0.4], cloudy: [0.9, 0.4], windy: [0.6, 0.25], rain: [0.9, 0.45], storm: [0.9, 0.5], snow: [0.9, 0.45], fog: [1, 0.75] },
+    t: { sunrise: 1.25, noon: 0.8, sunset: 1, night: 1.5 } },
+  drive: { w: { clear: [0.6, 0], cloudy: [0.6, 0], windy: [0.6, 0], rain: [0.7, 0.15], storm: [0.8, 0.25], snow: [0.8, 0.2], fog: [1, 0.5] },
+    t: { sunrise: 1.25, noon: 0.8, sunset: 1, night: 1.5 } },
+};
+const mistDefaultsOf = (g) => ({ w: Object.fromEntries(Object.entries(MIST_DEFAULTS[g].w).map(([k, [cover, dens]]) => [k, { cover, dens }])), t: { ...MIST_DEFAULTS[g].t } });
+const mistTune = { chill: mistDefaultsOf('chill'), drive: mistDefaultsOf('drive') };
+const mistNow = { cover: 0.9, dens: 0.4 };                         // giá trị đang dùng (đổi mượt khi đổi thời tiết / map)
 // mức giao thông đang chạy (ghi đè mật độ / tốc độ xe khác / số người của bảng 🚦; null = dùng số chú chỉnh tay):
 // vào map Phố luôn thấp (0.4 / 0.4 / 20) 5 s, rồi nếu bật "ngẫu nhiên" thì đổi giữa 3 mức mỗi 60–120 s
 const TRAFFIC_START = { name: 'Khởi động', density: 0.4, speed: 0.4, walkers: 20 };
@@ -375,6 +387,11 @@ try {
   if (savedTuning?.traffic) Object.assign(trafficTune, savedTuning.traffic);
   if (savedTuning?.lighting) Object.assign(lightTune, savedTuning.lighting);
   if (savedTuning?.park) Object.assign(stop.tune, savedTuning.park);
+  for (const g of ['chill', 'drive']) {
+    const sv = savedTuning?.mist?.[g]; if (!sv) continue;
+    for (const [k, v] of Object.entries(sv.w || {})) if (mistTune[g].w[k]) Object.assign(mistTune[g].w[k], v);
+    Object.assign(mistTune[g].t, sv.t || {});
+  }
   if (savedTuning?.carLights) Object.assign(cars.headlights.tune, savedTuning.carLights);
   if (savedTuning?.streetLights) Object.assign(scenery.lampTune, savedTuning.streetLights);
 } catch { /* thông số cũ/hỏng: dùng mặc định trong code */ }
@@ -395,7 +412,7 @@ function refreshUI() {
   setBtn(el.music, MUSIC_MODES[state.music].icon, MUSIC_MODES[state.music].name);
   setBtn(el.fast, '⚡', Math.round(gears()[drive.gear] * 3.6) + ' km/h');
   el.fast.classList.toggle('on', drive.gear > 0);
-  setBtn(el.mist, '🌫️', 'Sương ' + Math.round(state.mistDens * 100) + '%');
+  setBtn(el.mist, '🌫️', 'Sương ' + Math.round(mistWeather().dens * 100) + '%');
   el.mist.classList.toggle('on', !$('mistpanel').hidden);
   setBtn(el.lens, '📷', lensLabel());
   setBtn(el.quality, '⚙️', QUALITY[state.quality].name);
@@ -660,17 +677,30 @@ const nextWeather = () => { setWeatherIdx((state.weather + 1) % WEATHERS.length,
 const nextTime = () => {
   state.time = (state.time + 1) % TIMES.length;
   env.setTime(TIMES[state.time].hour);
-  if (TIMES[state.time].id === 'night') setMist(0.6, 0.6);     // ban đêm: sương phủ + dày 60%
   refreshUI();
   if (tuneKind === 'time') renderTune();  say('Thời gian · ' + TIMES[state.time].name);
 };
-// đặt độ phủ / độ dày sương (0..1) và cập nhật thanh trượt
-function setMist(cover, dens) {
-  state.mistCover = cover; state.mistDens = dens;
-  for (const [id, key] of [['mist-cover', 'mistCover'], ['mist-dens', 'mistDens']]) {
-    $(id).value = Math.round(state[key] * 100);
-    $(id + '-v').textContent = $(id).value;
+// sương sát đất theo nhóm (Chill / Drive), thời tiết đang có và giờ hiện tại
+const mistGroup = () => mistTune[isDriveMap(state.map) ? 'drive' : 'chill'];
+const mistWeather = () => { const g = mistGroup(); return g.w[env.weather] || g.w.cloudy; };
+function mistTimeK(t, hour) {                                       // nội suy vòng 24 h giữa 4 mốc giờ
+  const P = Object.entries(MIST_HOURS).map(([k, h]) => [h, t[k] ?? 1]).sort((a, b) => a[0] - b[0]);
+  for (let i = 0; i < P.length; i++) {
+    const [h0, k0] = P[i], [h1r, k1] = P[(i + 1) % P.length], h1 = h1r <= h0 ? h1r + 24 : h1r, hh = hour < h0 ? hour + 24 : hour;
+    if (hh >= h0 && hh <= h1) return k0 + (k1 - k0) * (hh - h0) / (h1 - h0);
   }
+  return 1;
+}
+function updateMist(dt) {
+  const W = mistWeather(), cover = W.cover, dens = Math.min(1, W.dens * mistTimeK(mistGroup().t, env.hour ?? 12));
+  const k = mistNow.map !== state.map ? 1 : Math.min(1, dt * 0.8);   // đổi map: đặt ngay; đổi thời tiết / giờ: chuyển mượt
+  mistNow.map = state.map;
+  mistNow.cover += (cover - mistNow.cover) * k; mistNow.dens += (dens - mistNow.dens) * k;
+}
+// thanh trượt bảng 🌫️ (phím G): chỉnh sương của thời tiết đang có (nhóm hiện tại)
+function syncMistPanel() {
+  const W = mistWeather();
+  for (const [id, key] of [['mist-cover', 'cover'], ['mist-dens', 'dens']]) { $(id).value = Math.round(W[key] * 100); $(id + '-v').textContent = $(id).value; }
 }
 // Cinematic luôn bật (letterbox, xoá phông, bloom, chỉnh màu...) — không còn nút tắt
 const applyCine = () => document.body.classList.toggle('cine', state.cine && state.started);
@@ -685,7 +715,7 @@ const nextMusic = () => { state.music = (state.music + 1) % MUSIC_MODES.length; 
 el.fast.onclick = toggleFast;
 // bảng chỉnh sương mù: độ phủ + độ dày
 const closeTune = () => { tuneKind = null; $('tunepanel').hidden = true; refreshUI(); };
-const toggleMistPanel = () => { closeTune(); $('mistpanel').hidden = !$('mistpanel').hidden; $('lenspanel').hidden = true; refreshUI(); };
+const toggleMistPanel = () => { closeTune(); $('mistpanel').hidden = !$('mistpanel').hidden; $('lenspanel').hidden = true; syncMistPanel(); refreshUI(); };
 el.mist.onclick = toggleMistPanel;
 // bảng chỉnh ống kính: tiêu cự (= zoom) + khẩu độ (độ xoá phông)
 const toggleLensPanel = () => { closeTune(); $('lenspanel').hidden = !$('lenspanel').hidden; $('mistpanel').hidden = true; refreshUI(); };
@@ -848,11 +878,9 @@ focalIn.addEventListener('input', () => { const t = rig.tune[CAMERAS[state.cam].
 fstopIn.addEventListener('input', () => { const t = rig.tune[CAMERAS[state.cam].id]; state.fstop = Number(fstopIn.value); t.aperture = rig.aperture = FSTOPS[state.fstop]; syncLens(); refreshUI(); });
 for (const i of [focalIn, fstopIn]) i.addEventListener('change', () => i.blur());
 syncLens();
-for (const [id, key] of [['mist-cover', 'mistCover'], ['mist-dens', 'mistDens']]) {
+for (const [id, key] of [['mist-cover', 'cover'], ['mist-dens', 'dens']]) {
   const input = $(id);
-  input.value = Math.round(state[key] * 100);
-  $(id + '-v').textContent = input.value;
-  input.addEventListener('input', () => { state[key] = input.value / 100; $(id + '-v').textContent = input.value; refreshUI(); });
+  input.addEventListener('input', () => { mistWeather()[key] = input.value / 100; $(id + '-v').textContent = input.value; saveTuning(); refreshUI(); });
   input.addEventListener('change', () => input.blur());   // trả phím mũi tên lại cho việc lái xe
 }
 
@@ -876,7 +904,7 @@ const ENV_FIELDS = [
 ];
 const tunePanel = $('tunepanel'), tuneMode = $('tune-mode'), tuneFields = $('tune-fields');
 const saveTuning = () => {
-  try { localStorage.setItem(TUNE_KEY, JSON.stringify({ camera: rig.tune, weather: env.weatherProfiles, environment: env.tune, carLights: cars.headlights.tune, streetLights: scenery.lampTune, traffic: trafficTune, lighting: lightTune, park: stop.tune })); } catch { /* chế độ riêng tư */ }
+  try { localStorage.setItem(TUNE_KEY, JSON.stringify({ camera: rig.tune, weather: env.weatherProfiles, environment: env.tune, carLights: cars.headlights.tune, streetLights: scenery.lampTune, traffic: trafficTune, lighting: lightTune, park: stop.tune, mist: mistTune })); } catch { /* chế độ riêng tư */ }
 };
 const addHeading = (text) => { const h = document.createElement('h4'); h.textContent = text; tuneFields.append(h); };
 const addNumber = ({ label, min, max, step, get, set }) => {
@@ -1005,6 +1033,10 @@ renderTune = () => {
     addHeading('Preset ' + WEATHERS[state.weather].name);
     WEATHER_FIELDS.map(([key,label,min,max,step]) => ({ label,min,max,step,get:()=>profile[key],set:(v)=>{ profile[key]=v; env.w[key]=v; } })).forEach(addNumber);
     addColor({ label: 'Màu khí quyển', get: () => profile.tint, set: (v) => { profile.tint = v; env.tint.set(v); env.envKey = ''; } });
+    const MW = mistGroup().w[id] || mistWeather();
+    addHeading('Sương sát đất · ' + WEATHERS.find((w) => w.id === id)?.name + (isDriveMap(state.map) ? ' (Drive)' : ' (Chill)'));
+    addNumber({ label: 'Độ phủ sương (%)', min: 0, max: 100, step: 1, get: () => Math.round(MW.cover * 100), set: (v) => { MW.cover = v / 100; } });
+    addNumber({ label: 'Độ dày sương (%)', min: 0, max: 100, step: 1, get: () => Math.round(MW.dens * 100), set: (v) => { MW.dens = v / 100; } });
     addHeading('Ánh sáng chung'); environmentSpecs().forEach(addNumber);
   } else {
     addHeading('Chu kỳ ngày đêm');
@@ -1012,6 +1044,10 @@ renderTune = () => {
     addNumber({ label: 'Tốc độ tự chạy', min: 0, max: 1, step: .005, get: () => env.tune.autoSpeed, set: (v) => { env.tune.autoSpeed = v; } });
     addNumber({ label: 'Hướng mặt trời', min: -3.142, max: 3.142, step: .01, get: () => env.tune.sunAzimuth, set: (v) => { env.tune.sunAzimuth = v; env.envKey = ''; } });
     addNumber({ label: 'Hướng mặt trăng', min: -3.142, max: 3.142, step: .01, get: () => env.tune.moonAzimuth, set: (v) => { env.tune.moonAzimuth = v; env.envKey = ''; } });
+    const MT = mistGroup().t;
+    addHeading('Sương theo giờ (× độ dày)' + (isDriveMap(state.map) ? ' · Drive' : ' · Chill'));
+    for (const [k, label] of [['sunrise', 'Bình minh'], ['noon', 'Ban ngày'], ['sunset', 'Hoàng hôn'], ['night', 'Ban đêm']])
+      addNumber({ label: 'Sương ' + label, min: 0, max: 3, step: 0.05, get: () => MT[k], set: (v) => { MT[k] = v; } });
     addHeading('Ánh sáng chung'); environmentSpecs().forEach(addNumber);
   }
 };
@@ -1028,8 +1064,11 @@ tuneMode.onchange = () => {
 $('tune-close').onclick = closeTune;
 $('tune-reset').onclick = () => {
   if (tuneKind === 'camera') { rig.resetTune(CAMERAS[state.cam].id); onCamChange(); }
-  else if (tuneKind === 'weather') { const w = WEATHERS[state.weather].id === 'auto' ? env.weather : WEATHERS[state.weather].id; env.resetWeather(w); env.resetTune(); env.snapWeather(w); }
-  else if (tuneKind === 'time') { env.resetTune(); env.setTime(TIMES[state.time].hour); }
+  else if (tuneKind === 'weather') {
+    const w = WEATHERS[state.weather].id === 'auto' ? env.weather : WEATHERS[state.weather].id; env.resetWeather(w); env.resetTune(); env.snapWeather(w);
+    const g = isDriveMap(state.map) ? 'drive' : 'chill', d = MIST_DEFAULTS[g].w[w]; if (d) Object.assign(mistTune[g].w[w], { cover: d[0], dens: d[1] });
+  }
+  else if (tuneKind === 'time') { env.resetTune(); env.setTime(TIMES[state.time].hour); const g = isDriveMap(state.map) ? 'drive' : 'chill'; Object.assign(mistTune[g].t, MIST_DEFAULTS[g].t); }
   else if (tuneKind === 'carLight') Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS);
   else if (tuneKind === 'traffic') { Object.assign(trafficTune, TRAFFIC_DEFAULTS); $('b-score').hidden = !cityTraffic.visible; if (trafficStartT <= 0 && !trafficLevel) pickTrafficLevel(false); else applyTrafficTune(); }
   else if (tuneKind === 'park') Object.assign(stop.tune, PARK_DEFAULTS);
@@ -1597,17 +1636,18 @@ function frame(now) {
     uiTimer = 0.25;
   }
 
-  // sương mù tầng thấp: theo thanh trượt, gốc theo độ cao mặt đường chỗ xe, trôi theo gió.
-  // Map Drive (Phố / Đại lộ, tập lái): tắt — đồng phẳng nhìn xa thì lớp sương loang thành mảng trắng loá như sương mù
-  const mistDens = isDriveMap(state.map) ? 0 : state.mistDens;
+  // sương mù tầng thấp: theo nhóm Chill / Drive + thời tiết + giờ (mistTune), gốc theo độ cao mặt đường chỗ xe, trôi theo gió.
+  // Drive mặc định gần như không sương (đồng phẳng nhìn xa thì lớp sương loang thành mảng trắng loá)
+  updateMist(dt);
+  const mistDens = mistNow.dens, mistCover = mistNow.cover;
   MIST.uMistD.value = 0.05 * mistDens * mistDens;
-  MIST.uMistH.value = 3 + 70 * Math.pow(state.mistCover, 1.4);
-  MIST.uMistCover.value = state.mistCover;
+  MIST.uMistH.value = 3 + 70 * Math.pow(mistCover, 1.4);
+  MIST.uMistCover.value = mistCover;
   MIST.uMistBase.value = drive.pos.y - 1.5;
   MIST.uMistT.value = now / 1000;
   MIST.uMistWind.value.copy(st.windDir).multiplyScalar(0.0012 + 0.006 * st.wind);
   MIST.uMistColor.value.copy(st.mistColor);
-  env.mistCover = state.mistCover; env.mistDens = mistDens;          // sương phủ cả bầu trời
+  env.mistCover = mistCover; env.mistDens = mistDens;                // sương phủ cả bầu trời
 
   // đường ướt: vẽ ảnh phản chiếu cho vũng nước (chỉ khi mưa)
   if (st.wet > 0.001) refl.render(scene, camera, drive.pos.y + 0.05);

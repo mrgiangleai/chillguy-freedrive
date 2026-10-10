@@ -149,7 +149,9 @@ function oceanMaterial(u) {
         vec3 deep = mix(vec3(0.010, 0.050, 0.065), vec3(0.008, 0.026, 0.024), uRiv), turq = mix(vec3(0.05, 0.30, 0.30), vec3(0.03, 0.10, 0.08), uRiv);   // sông: sẫm hơn biển
         diffuseColor.rgb = mix(mix(deep, turq, shallow), vec3(0.75, 0.80, 0.82), oFoam);
         diffuseColor.a = mix(mix(1.0, 0.55, shallow), 0.95, oFoam);`)
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor + smoothstep(150.0, 1500.0, camD) * 0.12 + uRiv * 0.16, 0.85, oFoam);')
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor + smoothstep(150.0, 1500.0, camD) * 0.12 + uRiv * 0.24, 0.85, oFoam);')
+      // sông: bớt soi trời (trước như tấm gương trắng bạc, sáng hơn cả cỏ) + bớt vệt nắng chói
+      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nif (uRiv > 0.5) { reflectedLight.indirectSpecular *= 0.4; reflectedLight.directSpecular *= 0.45; }')
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         {
           vec2 sl = wv.yz / (1.0 + camD / 400.0) * (1.0 - 0.55 * uRiv);   // xa: dịu pháp tuyến (đỡ lấp lánh răng cưa); sông êm hơn

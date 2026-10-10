@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -311,6 +311,11 @@
   trạm thu phí), màn hình chờ chạy Low, bản đồ tròn (Drive), nút lái trái / phải trên điện thoại, cầu vượt cao qua quốc lộ 4 làn,
   cầu dây văng qua sông, bảng chỉ đường lớn kiểu Việt Nam, đèn cầu ban đêm + cây bờ sông + thuyền.
 - **#1 — Đại lộ: dời cầu cao (700 m) + cầu sông (2.2 km) về gần đầu đường, vào Đại lộ bắt đầu ở 150 m (09/10/2026)**.
+- **#9 — Tuỳ chỉnh sương theo thời tiết / giờ + sông bớt loá (10/10/2026)**: `mistTune` (lưu mục `mist`, riêng nhóm Chill / Drive):
+  mỗi thời tiết có độ phủ + độ dày (bảng Thời tiết, mục "Sương sát đất"; bảng 🌫️ phím G chỉnh thời tiết đang có), mỗi mốc giờ có hệ số
+  độ dày (bảng Thời gian, "Sương theo giờ"; giờ lẻ nội suy vòng 24 h, `mistTimeK`); đổi thời tiết / giờ chuyển mượt, đổi map đặt ngay;
+  nút Mặc định của bảng trả sương nhóm hiện tại. Drive mặc định gần như không sương (trời trong / mây 0, mưa 15%, sương mù 50%).
+  Bỏ `state.mistCover / mistDens` + setMist ban đêm. Sông (ocean `uRiv`): phản chiếu trời × 0.4, vệt nắng × 0.45, nhám +0.24.
 - **#8 — Đại lộ trắng mờ như sương dù tắt sương mù (10/10/2026)**: do lớp sương sát đất `MIST` (mặc định dày 40%, phủ 90%; nút
   🌫️ đang ẩn, chỉ còn phím G — khác thời tiết "Sương mù") loang thành mảng trên đồng phẳng. Map Drive (Phố / Đại lộ) nay không dùng
   lớp này (`mistDens` hiệu lực = 0, cả `env.mistDens`); map Chill giữ nguyên.
