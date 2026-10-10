@@ -1597,15 +1597,17 @@ function frame(now) {
     uiTimer = 0.25;
   }
 
-  // sương mù tầng thấp: theo thanh trượt, gốc theo độ cao mặt đường chỗ xe, trôi theo gió
-  MIST.uMistD.value = 0.05 * state.mistDens * state.mistDens;
+  // sương mù tầng thấp: theo thanh trượt, gốc theo độ cao mặt đường chỗ xe, trôi theo gió.
+  // Map Drive (Phố / Đại lộ, tập lái): tắt — đồng phẳng nhìn xa thì lớp sương loang thành mảng trắng loá như sương mù
+  const mistDens = isDriveMap(state.map) ? 0 : state.mistDens;
+  MIST.uMistD.value = 0.05 * mistDens * mistDens;
   MIST.uMistH.value = 3 + 70 * Math.pow(state.mistCover, 1.4);
   MIST.uMistCover.value = state.mistCover;
   MIST.uMistBase.value = drive.pos.y - 1.5;
   MIST.uMistT.value = now / 1000;
   MIST.uMistWind.value.copy(st.windDir).multiplyScalar(0.0012 + 0.006 * st.wind);
   MIST.uMistColor.value.copy(st.mistColor);
-  env.mistCover = state.mistCover; env.mistDens = state.mistDens;   // sương phủ cả bầu trời
+  env.mistCover = state.mistCover; env.mistDens = mistDens;          // sương phủ cả bầu trời
 
   // đường ướt: vẽ ảnh phản chiếu cho vũng nước (chỉ khi mưa)
   if (st.wet > 0.001) refl.render(scene, camera, drive.pos.y + 0.05);
