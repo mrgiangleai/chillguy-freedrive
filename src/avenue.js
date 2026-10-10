@@ -198,11 +198,18 @@ export class Avenue {
     this.trussMat = new THREE.LineBasicMaterial({ color: 0xa9adb0 });
     // ban đêm trên cầu: đèn dọc lan can (vàng ấm), đèn hắt lên tháp (trắng), đèn đỏ đỉnh tháp nhấp nháy; thuyền: đèn trắng
     const gt = glowTex();
-    const glow = (color, size) => withMist(new THREE.PointsMaterial({ map: gt, color, size, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true }));
-    this.railGlow = glow(0xffc27a, 3.4);
-    this.towerGlow = glow(0xdfe8ff, 4.5);
-    this.redGlow = glow(0xff2a1a, 7);
-    this.boatGlow = glow(0xfff1d0, 3);
+    // quầng đèn to theo khoảng cách nhưng kẹp tối đa maxPx điểm ảnh (quy về màn cao 1080): không kẹp thì đèn lan can sát xe
+    // phình hàng trăm điểm ảnh, cộng sáng (additive) thành mảng loá khi chạy trên cầu ban đêm
+    const glow = (color, size, maxPx) => {
+      const m = new THREE.PointsMaterial({ map: gt, color, size, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true });
+      m.onBeforeCompile = (sh) => { sh.vertexShader = sh.vertexShader.replace('#include <logdepthbuf_vertex>', `gl_PointSize = min(gl_PointSize, ${maxPx.toFixed(1)} * scale / 540.0);\n#include <logdepthbuf_vertex>`); };
+      m.customProgramCacheKey = () => 'av-glow-' + maxPx;
+      return withMist(m);
+    };
+    this.railGlow = glow(0xffc27a, 3.4, 22);
+    this.towerGlow = glow(0xdfe8ff, 4.5, 36);
+    this.redGlow = glow(0xff2a1a, 7, 40);
+    this.boatGlow = glow(0xfff1d0, 3, 22);
     this.treeMat = withMist(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }));
     this.treeGeo = broadleafGeometry();
     this.boatMat = withMist(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 }));

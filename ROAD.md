@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -213,7 +213,7 @@
   (mặt nước thấp hơn nền 14 m, sâu 5 m, bờ thoải; sông uốn `meander(u) = 40·sin(u/300)`), trụ xuống lòng sông, 2 tháp dây văng cao 42 m
   trên dải phân cách ở t = ±70 (dây thép `cableMat`). Mặt nước: shader Ocean chế độ sông (`ocean.setRiver`: cắt theo dải sông, sóng
   ×0.35, màu sẫm, nhám hơn, không bọt bờ), bật khi xe trong 3.5 km quanh cầu sông. Cỏ: loại dọc cầu cạn ±30 m + dải sông. Biển tốc độ
-  của nút giao dời từ ±1300 về ±1150 (không rơi vào cầu cạn). Ban đêm: đèn vàng dọc 2 lan can cầu cạn mỗi 12 m (`railGlow`), cầu sông
+  của nút giao dời từ ±1300 về ±1150 (không rơi vào cầu cạn). Ban đêm: đèn vàng dọc 2 lan can cầu cạn mỗi 12 m (`railGlow`; mọi quầng Points của Đại lộ kẹp cỡ tối đa ~22–40 px quy về màn 1080 trong shader — trước không kẹp nên đèn sát xe phình hàng trăm px, cộng sáng thành mảng loá trên cầu ban đêm / khi mưa), cầu sông
   có đèn hắt dọc tháp (`towerGlow`), đèn đỏ đỉnh tháp nhấp nháy cả ngày (`redGlow`), dây văng sáng ấm lên theo `setLamps`. Bờ sông:
   hàng cây tán tròn (`broadleafGeometry`, instancing) 2 bờ trong ±1400 m (bỏ đoạn gần cao tốc), cao độ theo `avenue.groundAt` =
   `terrain.heightAt`; 6 thuyền (2 sà lan chở cát 30 m, 4 thuyền nhỏ 9 m, `boatGeometry`) chạy dọc sông theo độ uốn, nhấp nhô, có đèn
@@ -311,6 +311,8 @@
   trạm thu phí), màn hình chờ chạy Low, bản đồ tròn (Drive), nút lái trái / phải trên điện thoại, cầu vượt cao qua quốc lộ 4 làn,
   cầu dây văng qua sông, bảng chỉ đường lớn kiểu Việt Nam, đèn cầu ban đêm + cây bờ sông + thuyền.
 - **#1 — Đại lộ: dời cầu cao (700 m) + cầu sông (2.2 km) về gần đầu đường, vào Đại lộ bắt đầu ở 150 m (09/10/2026)**.
+- **#7 — Sửa loá sáng bất thường ở Đại lộ (10/10/2026)**: thủ phạm là quầng đèn lan can cầu cạn (Points phóng to theo khoảng cách,
+  không giới hạn) — không liên quan sương mù / chỉnh đèn. Kẹp cỡ quầng; cầu cạn ban đêm: điểm ảnh cháy trắng 1.26% → 0.43%.
 - **#6 — Màn hình chờ mới (10/10/2026)**: tốc độ vòng 50–180–50, camera Quay quanh → Bên hông → màn đen → Trong xe, map ngẫu nhiên
   mỗi 10 s, thời tiết Nhiều mây / Mưa, giờ Hoàng hôn. Thử logic (tắt vẽ) trên máy ảo: đúng thứ tự + thời gian.
 - **#5 — Mở Setting không bị bản đồ che (09/10/2026)**: máy tính trượt bản đồ sang trái; điện thoại ẩn bản đồ + Setting 2 cột.
