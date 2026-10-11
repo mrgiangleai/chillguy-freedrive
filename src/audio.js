@@ -173,11 +173,14 @@ export class ChillAudio {
     const subG = ctx.createGain(); subG.gain.value = 0.35;
     this.eng[0].connect(this.engLp); this.eng[1].connect(this.engLp); this.eng[2].connect(subG).connect(this.engLp);
     this.eng.forEach((o) => { o.frequency.value = 40; o.start(); });
-    this.engLp.connect(this.engG).connect(this.ambGain);
+    // âm lượng chung tiếng xe (máy + ống xả): ngoài xe 60%, trong xe 30% (setAmbient)
+    this.engBus = ctx.createGain(); this.engBus.gain.value = 0.6;
+    this.engBus.connect(this.ambGain);
+    this.engLp.connect(this.engG).connect(this.engBus);
     const ex = this._src(this.noise);
     this.exBp = ctx.createBiquadFilter(); this.exBp.type = 'bandpass'; this.exBp.Q.value = 2.2; this.exBp.frequency.value = 150;
     this.exG = ctx.createGain(); this.exG.gain.value = 0;
-    ex.connect(this.exBp).connect(this.exG).connect(this.ambGain);
+    ex.connect(this.exBp).connect(this.exG).connect(this.engBus);
     ex.start();
     this.rpm = 900; this.load = 0; this._lastV = 0; this._lastT = 0;
 
@@ -212,6 +215,7 @@ export class ChillAudio {
     this.ambGain.gain.setTargetAtTime(on, t, 0.4);
     this.outGain.gain.setTargetAtTime(inCar ? 0.4 : 1, t, 0.3);
     this.outLp.frequency.setTargetAtTime(inCar ? 1600 : 20000, t, 0.3);
+    this.engBus.gain.setTargetAtTime(inCar ? 0.3 : 0.6, t, 0.3);                // tiếng xe: ngoài 60%, trong xe 30%
     this.glassG.gain.setTargetAtTime(inCar ? rain * 0.08 * (1 + 0.6 * dark) : 0, t, 0.3);   // mưa lộp độp trên kính (đã giảm 2 lần × 60%)
     this.roofG.gain.setTargetAtTime(inCar ? rain * 0.02 * (1 + dark) : 0, t, 0.3);   // rào rào trên mui (đã giảm 60%)
     this.rainG.gain.setTargetAtTime(rain * 0.08 * (1 + 0.6 * dark), t, k);   // tiếng mưa bên ngoài (đã giảm 60%)

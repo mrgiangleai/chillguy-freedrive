@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -284,8 +284,9 @@
   tự kiểm `isReady`, bỏ qua vật liệu đã huỷ, tối đa 6 s) → vẽ 2 khung → ảnh cũ mờ dần 1.2 s. Nạp trước: 2.5 s sau khi vào màn hình
   chờ, `warmUp` gom vật liệu chưa dịch của các phần cảnh (city, avenue, town, ocean, …) gắn vào vật giả (Mesh / InstancedMesh có-không
   màu / Points / Sprite / Line) dịch từng đợt 8 cái (thử máy ảo: 126 → 236 chương trình trong cảnh 1, các lần đổi sau không phải dịch
-  thêm). Hẹn giờ trong `timers`, xoá hết khi vào game; vào game trả lại thời tiết / giờ / camera của chú. Vẽ ở pixelRatio 0.5 (nền đã blur); màn hình chờ luôn chạy chất lượng Low (`applyQuality(false)` không ghi đè lựa chọn đã lưu), vào game trả lại
-  mức chú chọn; `saveScope` bỏ qua khi chưa vào game; vào game trả lại map / thời tiết / giờ / camera đã chụp (`snap`).
+  thêm). Hẹn giờ trong `timers`, xoá hết khi vào game; vào game trả lại thời tiết / giờ / camera của chú. Chất lượng màn hình chờ `PREVIEW.quality` (đang Good cho chú thử) + trần pixelRatio `PREVIEW.ratio` (2 = không giảm, 0.5 = nhẹ)
+  (`applyQuality(false)` không ghi đè lựa chọn đã lưu), vào game trả lại mức chú chọn; âm thanh (nhạc nền + tiếng xe, gió…) bật ngay khi vào
+  màn hình chờ, trình duyệt chặn thì mở ở lần chạm / bấm phím đầu (`kickAudio`); `saveScope` bỏ qua khi chưa vào game; vào game trả lại map / thời tiết / giờ / camera đã chụp (`snap`).
   Mỗi lần vào chế độ: tên "Chill" / "Drive" hiện giữa màn hình 1 s rồi mờ dần (`#modename`). Setting có nút 🔀 đổi chế độ
   (`setGameMode`; Chill quay về map ngắm cảnh lần trước).
   Vào game luôn ẩn (`body.idle` từ đầu; bỏ qua cú bấm Start 1.2 s); chỉ rê chuột / chạm / kéo xoay mới hiện (mờ dần 0.7 s),
@@ -318,3 +319,5 @@
 - Đã tóm tắt tới commit này (sau `be75c64`): xi nhan, giới hạn tốc độ + camera bắn tốc độ, bảng chấm điểm (+ nút bật / tắt), tai nạn
   ở Đại lộ (nhánh rẽ / cầu cạn), sửa 2 script kiểm thử, Setting không bị bản đồ che, quầng đèn cầu kẹp cỡ, sương tuỳ chỉnh theo thời
   tiết / giờ, sông bớt loá, màn hình chờ ngẫu nhiên 12 s + hoà tan + dịch sẵn shader.
+- **#1 — Tiếng xe nhỏ lại + intro có tiếng + intro chất lượng Good (11/10/2026)**: `audio.engBus` (máy + ống xả) 60% ngoài xe, 30% trong
+  xe; màn hình chờ phát nhạc + âm thanh; `PREVIEW.quality = 'good'`, `ratio = 2`.

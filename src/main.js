@@ -309,8 +309,9 @@ let openingElapsed = null; // tính thời gian chạy sau khi bấm Start
 // màn hình chờ: mỗi cảnh ~12 s, ngẫu nhiên map / đoạn đường / camera / tốc độ / thời tiết, giờ Hoàng hôn hoặc Đêm.
 // Chuyển cảnh: hoà tan (ảnh cảnh cũ chụp vào #xfade rồi mờ dần 1.2 s); trong lúc đổi, cảnh mới dựng + dịch shader song song
 // (compile + chờ KHR_parallel_shader_compile) phía sau ảnh cũ. Trong lúc phát cảnh 1: dịch sẵn shader các map khác theo từng đợt.
-// Vẽ ở 0.5 điểm ảnh (nền đã làm mờ).
-const PREVIEW = { scene: 12000, fade: 1200, ratio: 0.5, lo: 50 * KMH, hi: 180 * KMH, acc: 5,
+// Chất lượng màn hình chờ: `quality` (đang để Good cho chú thử); `ratio` = trần pixelRatio (2 = không giảm; 0.5 khi muốn nhẹ).
+// Âm thanh (nhạc nền + tiếng xe / gió…) bật ngay khi vào màn hình chờ; trình duyệt chặn tự phát => mở tiếng ở lần chạm / bấm đầu.
+const PREVIEW = { scene: 12000, fade: 1200, quality: 'good', ratio: 2, lo: 50 * KMH, hi: 180 * KMH, acc: 5,
   cams: ['orbit', 'chase', 'side', 'low', 'drone', 'cockpit'], times: ['sunset', 'night'] };
 let previewTarget = 80 * KMH, previewHold = false, xfadeGrab = null;
 let openingCameraPending = false;
@@ -1698,9 +1699,12 @@ async function init() {
   $('modes').hidden = false;
   // màn hình chờ (xem PREVIEW). Không ghi vào cài đặt của chú; vào game thì trả lại như cũ.
   const snap = { map: state.map, weather: state.weather, time: state.time, cam: state.cam, quality: state.quality };
-  // màn hình chờ luôn chạy chất lượng Low (đỡ giật); vào game trả lại mức chú đã chọn (không ghi đè lựa chọn đã lưu)
-  const LOW_Q = QUALITY.findIndex((q) => q.id === 'low');
-  state.quality = LOW_Q; applyQuality(false);
+  // màn hình chờ chạy mức PREVIEW.quality; vào game trả lại mức chú đã chọn (không ghi đè lựa chọn đã lưu)
+  state.quality = Math.max(0, QUALITY.findIndex((q) => q.id === PREVIEW.quality)); applyQuality(false);
+  // âm thanh: thử bật ngay; nếu trình duyệt chặn thì mở ở lần chạm / bấm phím đầu tiên
+  const kickAudio = () => { audio.start().catch((e) => console.warn('Audio:', e)); };
+  kickAudio();
+  for (const ev of ['pointerdown', 'keydown', 'touchstart']) window.addEventListener(ev, kickAudio, { once: true, capture: true });
   const camIdx = (id) => CAMERAS.findIndex((c) => c.id === id);
   const rnd = (arr) => arr[Math.floor(Math.random() * arr.length)];
   const pick = (n, not) => { let i; do i = Math.floor(Math.random() * n); while (n > 1 && i === not); return i; };
