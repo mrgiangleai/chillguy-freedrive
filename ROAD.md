@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -16,7 +16,7 @@
   terrain, toggleStop, nextMap…). Sau khi dời xe (`drive.s`) phải `terrain.prime(pos)`, không thì ô địa hình gần còn là ô thô.
   Máy chủ thử chạy nền tự tắt sau 2 giờ => bật lại. Script chụp tạm để ở scratchpad, không đưa file preview vào `docs/`.
   Máy chậm => môi trường (env map) chưa kịp chụp lại khi đổi giờ: gọi `__app.env.update(0.016, drive.pos); env._captureEnv()`.
-- **Kiểm tra tự động** (node, không cần trình duyệt): `scripts/check-traffic.mjs`, `check-traffic-policy.mjs`, `check-steering.mjs`,
+- **Kiểm tra tự động** (node, không cần trình duyệt; đều PASS): `scripts/check-traffic.mjs`, `check-traffic-policy.mjs`, `check-steering.mjs`,
   `check-stopscene.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
   `check-waterfalls.mjs`, `check-rear-glass.mjs [model.glb]`. Model tải lên nặng: nén bằng `npx @gltf-transform/cli@4 webp … --quality 82`
   rồi `meshopt` (giữ file gốc); sóng biển bake bằng `node scripts/bake-ocean.mjs`. **Fixture GUI** `scripts/*-preview.js` (giữ cảnh cố định để chụp):
@@ -110,8 +110,12 @@
   và quầng sáng sàn. Mưa: giọt nước/vệt chảy trên kính trước + gạt mưa; kính sau dùng mask từ mesh kính thật (không phủ
   ghế/khung). Hạt mưa ngoài trời bị loại trong thể tích xe; âm thanh ngoài −60% + mưa lộp độp trên kính.
 - **Thời tiết / giờ**: "Trời trong" (đổi tên từ "Trời nắng"); đã bỏ mốc "Giờ vàng".
-- **Ánh sáng**: nắng gắt cân bằng kiểu máy ảnh: nắng ×2.3, ánh trời ×0.5, phơi sáng ×0.7. Đêm có trăng (đổ bóng), sương tự
-  60% khi chọn Ban đêm. Bão/gió lớn: không rung lắc (chỉ 180 km/h rung nhẹ).
+- **Ánh sáng**: nắng gắt cân bằng kiểu máy ảnh: nắng ×2.3, ánh trời ×0.5, phơi sáng ×0.7. Đêm có trăng (đổ bóng).
+- **Sương sát đất** (lớp `MIST`, khác thời tiết "Sương mù"): `mistTune` lưu mục `mist`, riêng nhóm Chill / Drive; mỗi thời tiết có
+  độ phủ + độ dày (bảng Thời tiết, mục "Sương sát đất"; bảng 🌫️ phím G chỉnh thời tiết đang có), mỗi mốc giờ có hệ số độ dày (bảng
+  Thời gian, "Sương theo giờ"; giờ lẻ nội suy vòng 24 h, `mistTimeK`); đổi thời tiết / giờ chuyển mượt, đổi map đặt ngay; nút Mặc
+  định trả sương nhóm hiện tại. Drive mặc định gần như không sương (trời trong / mây 0, mưa 15%, sương mù 50%) — sương loang thành
+  mảng trắng loá trên đồng phẳng Đại lộ. Bão/gió lớn: không rung lắc (chỉ 180 km/h rung nhẹ).
 - **Map Biển** (`sea`, model `docs/assets/models/ocean_scene_animated.glb` chỉ dùng để bake): địa hình `TP.sea` — đáy biển =
   `TP.seaLevel − 7` (+gợn), đảo ở xa (> 400 m) từ đỉnh sống núi; đường `low 7`; `TP.seaLevel` = (đường thấp nhất trong 120 km
   tính từ chỗ xe) − 3 m, tính khi đổi map. Camera không xuống dưới mặt nước. Chống giật: xem dòng `ocean.js` ở bảng trên.
@@ -212,7 +216,7 @@
   `avenue.crossings`). **Cầu sông** (`RIVER`, s = 2200 rồi 14500 + 12000k): cao tốc nhô 8 m, cầu cạn |t| < 330 qua thung lũng sông rộng 240 m
   (mặt nước thấp hơn nền 14 m, sâu 5 m, bờ thoải; sông uốn `meander(u) = 40·sin(u/300)`), trụ xuống lòng sông, 2 tháp dây văng cao 42 m
   trên dải phân cách ở t = ±70 (dây thép `cableMat`). Mặt nước: shader Ocean chế độ sông (`ocean.setRiver`: cắt theo dải sông, sóng
-  ×0.35, màu sẫm, nhám hơn, không bọt bờ), bật khi xe trong 3.5 km quanh cầu sông. Cỏ: loại dọc cầu cạn ±30 m + dải sông. Biển tốc độ
+  ×0.35, màu sẫm, nhám hơn, không bọt bờ; phản chiếu trời × 0.4, vệt nắng × 0.45, nhám +0.24 — trước sáng bạc như gương), bật khi xe trong 3.5 km quanh cầu sông. Cỏ: loại dọc cầu cạn ±30 m + dải sông. Biển tốc độ
   của nút giao dời từ ±1300 về ±1150 (không rơi vào cầu cạn). Ban đêm: đèn vàng dọc 2 lan can cầu cạn mỗi 12 m (`railGlow`; mọi quầng Points của Đại lộ kẹp cỡ tối đa ~22–40 px quy về màn 1080 trong shader — trước không kẹp nên đèn sát xe phình hàng trăm px, cộng sáng thành mảng loá trên cầu ban đêm / khi mưa), cầu sông
   có đèn hắt dọc tháp (`towerGlow`), đèn đỏ đỉnh tháp nhấp nháy cả ngày (`redGlow`), dây văng sáng ấm lên theo `setLamps`. Bờ sông:
   hàng cây tán tròn (`broadleafGeometry`, instancing) 2 bờ trong ±1400 m (bỏ đoạn gần cao tốc), cao độ theo `avenue.groundAt` =
@@ -273,11 +277,14 @@
   **Màn hình vào game**: tiêu đề + 2 hộp chọn chế độ `#m-chill` "Chill" (map ngắm cảnh, `nextMap` bỏ qua Phố; đang ở Phố thì
   về Đồi cỏ; có đoạn mở đầu) / `#m-drive` "Drive" (vào thẳng map Phố, không đoạn 180 km/h, phím M chỉ báo "chỉ có map Phố");
   phím Enter/1 = Chill, 2 = Drive (`state.mode`). Không còn "chạm bất kỳ để bắt đầu". Nền mờ blur 3.5 px. Màn hình chờ (`PREVIEW` trong main): mỗi
-  cảnh 10 s, map ngẫu nhiên (đổi qua màn đen `#veil`: tối dần 0.5 s → đổi + khung nặng đầu tiên sau màn đen → sáng lại): camera Quay
-  quanh → Bên hông (3.5 s) → màn đen → Trong xe (6.5 s; xe chưa tải thì Bên hông) → màn đen → cảnh sau (`runScene`, `throughBlack`,
-  hẹn giờ trong `timers`, xoá hết khi vào game). Tốc độ chạy vòng 50 → 180 → 50 km/h (±6 m/s², tới đủ tốc độ là đổi chiều,
-  `previewAcc`). Thời tiết ngẫu nhiên Nhiều mây / Mưa (`snapWeather`), giờ Hoàng hôn; vào game trả lại thời tiết (snap) / giờ / camera
-  của chú. Vẽ ở pixelRatio 0.5 (nền đã blur); màn hình chờ luôn chạy chất lượng Low (`applyQuality(false)` không ghi đè lựa chọn đã lưu), vào game trả lại
+  cảnh ~12 s, ngẫu nhiên map (khác map đang chiếu) + nhảy đoạn đường + camera (Quay quanh / Sau xe / Bên hông / Sát đường / Từ trên
+  cao / Trong xe — chỉ khi xe đã tải) + thời tiết (mọi kiểu) + giờ Hoàng hôn hoặc Đêm + tốc độ (50–180 km/h, tới mức đích thì chọn mức
+  khác, ±5 m/s², `previewTarget`). Chuyển cảnh hoà tan (`crossTo`): chụp khung vừa vẽ vào canvas `#xfade` (cùng tác vụ với
+  `post.render`, `xfadeGrab`), `previewHold` = không vẽ trong lúc dựng map mới + `renderer.compile` + chờ shader xong (`waitPrograms`,
+  tự kiểm `isReady`, bỏ qua vật liệu đã huỷ, tối đa 6 s) → vẽ 2 khung → ảnh cũ mờ dần 1.2 s. Nạp trước: 2.5 s sau khi vào màn hình
+  chờ, `warmUp` gom vật liệu chưa dịch của các phần cảnh (city, avenue, town, ocean, …) gắn vào vật giả (Mesh / InstancedMesh có-không
+  màu / Points / Sprite / Line) dịch từng đợt 8 cái (thử máy ảo: 126 → 236 chương trình trong cảnh 1, các lần đổi sau không phải dịch
+  thêm). Hẹn giờ trong `timers`, xoá hết khi vào game; vào game trả lại thời tiết / giờ / camera của chú. Vẽ ở pixelRatio 0.5 (nền đã blur); màn hình chờ luôn chạy chất lượng Low (`applyQuality(false)` không ghi đè lựa chọn đã lưu), vào game trả lại
   mức chú chọn; `saveScope` bỏ qua khi chưa vào game; vào game trả lại map / thời tiết / giờ / camera đã chụp (`snap`).
   Mỗi lần vào chế độ: tên "Chill" / "Drive" hiện giữa màn hình 1 s rồi mờ dần (`#modename`). Setting có nút 🔀 đổi chế độ
   (`setGameMode`; Chill quay về map ngắm cảnh lần trước).
@@ -304,28 +311,10 @@
 - Vài tảng đá terrain trông lơ lửng trên vách núi gần đường (s≈250) — chưa sửa.
 - Map Phố: camera Từ trên cao hay bị nhà chắn nên kéo sát xe; Mustang/Mazda NPC không chạy trong phố (thay bằng xe dựng code).
 - Chưa nghe trên máy thật: tiếng người nói chuyện (`setChatter`), còi hụ, tiếng va chạm. Chưa chụp cận đèn đi bộ.
+- Màn hình chờ mới (hoà tan + dịch sẵn shader `warmUp`) chưa thử trên máy thật — nhất là Safari iPhone (KHR_parallel_shader_compile).
 - `QUICK_OPENING = true` (TẠM, đầu game 0.5 s) — bật lại khi chú bảo. Kiểm thử Playwright: vào game bằng `#m-chill` / `#m-drive`.
 
 ## 6. Nhật ký cập nhật
-- Đã tóm tắt tới commit này (sau `603bcbe`): map Đại lộ đủ 4 bước (cao tốc 6 làn, nút giao + nhánh, biển báo + đường gom + nhà,
-  trạm thu phí), màn hình chờ chạy Low, bản đồ tròn (Drive), nút lái trái / phải trên điện thoại, cầu vượt cao qua quốc lộ 4 làn,
-  cầu dây văng qua sông, bảng chỉ đường lớn kiểu Việt Nam, đèn cầu ban đêm + cây bờ sông + thuyền.
-- **#1 — Đại lộ: dời cầu cao (700 m) + cầu sông (2.2 km) về gần đầu đường, vào Đại lộ bắt đầu ở 150 m (09/10/2026)**.
-- **#9 — Tuỳ chỉnh sương theo thời tiết / giờ + sông bớt loá (10/10/2026)**: `mistTune` (lưu mục `mist`, riêng nhóm Chill / Drive):
-  mỗi thời tiết có độ phủ + độ dày (bảng Thời tiết, mục "Sương sát đất"; bảng 🌫️ phím G chỉnh thời tiết đang có), mỗi mốc giờ có hệ số
-  độ dày (bảng Thời gian, "Sương theo giờ"; giờ lẻ nội suy vòng 24 h, `mistTimeK`); đổi thời tiết / giờ chuyển mượt, đổi map đặt ngay;
-  nút Mặc định của bảng trả sương nhóm hiện tại. Drive mặc định gần như không sương (trời trong / mây 0, mưa 15%, sương mù 50%).
-  Bỏ `state.mistCover / mistDens` + setMist ban đêm. Sông (ocean `uRiv`): phản chiếu trời × 0.4, vệt nắng × 0.45, nhám +0.24.
-- **#8 — Đại lộ trắng mờ như sương dù tắt sương mù (10/10/2026)**: do lớp sương sát đất `MIST` (mặc định dày 40%, phủ 90%; nút
-  🌫️ đang ẩn, chỉ còn phím G — khác thời tiết "Sương mù") loang thành mảng trên đồng phẳng. Map Drive (Phố / Đại lộ) nay không dùng
-  lớp này (`mistDens` hiệu lực = 0, cả `env.mistDens`); map Chill giữ nguyên.
-- **#7 — Sửa loá sáng bất thường ở Đại lộ (10/10/2026)**: thủ phạm là quầng đèn lan can cầu cạn (Points phóng to theo khoảng cách,
-  không giới hạn) — không liên quan sương mù / chỉnh đèn. Kẹp cỡ quầng; cầu cạn ban đêm: điểm ảnh cháy trắng 1.26% → 0.43%.
-- **#6 — Màn hình chờ mới (10/10/2026)**: tốc độ vòng 50–180–50, camera Quay quanh → Bên hông → màn đen → Trong xe, map ngẫu nhiên
-  mỗi 10 s, thời tiết Nhiều mây / Mưa, giờ Hoàng hôn. Thử logic (tắt vẽ) trên máy ảo: đúng thứ tự + thời gian.
-- **#5 — Mở Setting không bị bản đồ che (09/10/2026)**: máy tính trượt bản đồ sang trái; điện thoại ẩn bản đồ + Setting 2 cột.
-- **#4 — Màn hình chờ nhẹ hơn (09/10/2026)**: đo trên máy ảo — đổi cảnh mỗi 3 s + 180 km/h làm khung đầu sau mỗi lần đổi map
-  rất nặng (biên dịch 15–25 shader / map mới, dựng địa hình); nay 9 s / cảnh qua màn đen, 25 km/h, 0.5 điểm ảnh: p50 khung 1417 → 967 ms,
-  p90 6750 → 2817 ms (máy ảo vẽ bằng CPU, chỉ so tương đối).
-- **#3 — Bảng 🚦: nút bật / tắt chấm điểm, bật lại thì tính lại từ đầu (09/10/2026)**.
-- **#2 — Cải thiện dần (09/10/2026)**: bản đồ phóng to ẩn HUD bị đè; đệm chống va + dải bê tông ở mũi nhánh Đại lộ; xe tải / container; xi nhan (xe mình + NPC, lỗi đổi làn / vào nhánh không xi nhan); biển giới hạn tốc độ trên HUD + camera bắn tốc độ Đại lộ; bảng chấm điểm buổi lái (J); sửa cảnh tai nạn Đại lộ (kẹt) + trên nhánh rẽ / cầu cạn; `check-traffic*.mjs` PASS lại (test còn so đèn pha 85, nay so `HEADLIGHT_DEFAULTS.intensity` × 0.24).
+- Đã tóm tắt tới commit này (sau `be75c64`): xi nhan, giới hạn tốc độ + camera bắn tốc độ, bảng chấm điểm (+ nút bật / tắt), tai nạn
+  ở Đại lộ (nhánh rẽ / cầu cạn), sửa 2 script kiểm thử, Setting không bị bản đồ che, quầng đèn cầu kẹp cỡ, sương tuỳ chỉnh theo thời
+  tiết / giờ, sông bớt loá, màn hình chờ ngẫu nhiên 12 s + hoà tan + dịch sẵn shader.
