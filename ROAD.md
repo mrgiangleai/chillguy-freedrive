@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -111,6 +111,9 @@
   ghế/khung). Hạt mưa ngoài trời bị loại trong thể tích xe; âm thanh ngoài −60% + mưa lộp độp trên kính.
 - **Thời tiết / giờ**: "Trời trong" (đổi tên từ "Trời nắng"); đã bỏ mốc "Giờ vàng".
 - **Ánh sáng**: nắng gắt cân bằng kiểu máy ảnh: nắng ×2.3, ánh trời ×0.5, phơi sáng ×0.7. Đêm có trăng (đổ bóng).
+- **Lưu thông số chỉnh tay** (`chilldrive.tuning.v1`, `v: 2`): bảng camera / thời tiết / thời gian (ánh sáng chung) / Lighting /
+  dừng xe lưu RIÊNG nhóm Chill và Drive (`tuneSets`, `switchTuneGroup` gọi trong applyMap; bản lưu cũ chung => khởi đầu cho cả 2).
+  Giao thông (`traffic`, chỉ Drive) và sương (`mist`, đã chia nhóm) lưu chung tệp. Chất lượng (Low / Good / Ultra) vẫn dùng chung.
 - **Sương sát đất** (lớp `MIST`, khác thời tiết "Sương mù"): `mistTune` lưu mục `mist`, riêng nhóm Chill / Drive; mỗi thời tiết có
   độ phủ + độ dày (bảng Thời tiết, mục "Sương sát đất"; bảng 🌫️ phím G chỉnh thời tiết đang có), mỗi mốc giờ có hệ số độ dày (bảng
   Thời gian, "Sương theo giờ"; giờ lẻ nội suy vòng 24 h, `mistTimeK`); đổi thời tiết / giờ chuyển mượt, đổi map đặt ngay; nút Mặc
@@ -321,3 +324,5 @@
   tiết / giờ, sông bớt loá, màn hình chờ ngẫu nhiên 12 s + hoà tan + dịch sẵn shader.
 - **#1 — Tiếng xe nhỏ lại + intro có tiếng + intro chất lượng Good (11/10/2026)**: `audio.engBus` (máy + ống xả) 60% ngoài xe, 30% trong
   xe; màn hình chờ phát nhạc + âm thanh; `PREVIEW.quality = 'good'`, `ratio = 2`.
+- **#2 — Cài đặt Chill / Drive không lưu chung (11/10/2026)**: tách bộ thông số chỉnh tay theo nhóm; thử: Phơi sáng 1.6 ở Drive, Chill
+  vẫn 1.0, tải lại vẫn đúng từng bên.

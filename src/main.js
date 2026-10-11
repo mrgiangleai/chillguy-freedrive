@@ -381,14 +381,38 @@ function applyTrafficTune() {
   cityTraffic.useModels = !!trafficTune.models;
   if (!trafficTune.models) cityTraffic.releaseModels();
 }
+// thông số chỉnh tay (bảng camera / thời tiết / thời gian / Lighting / dừng xe) lưu RIÊNG cho Chill và Drive: đổi nhóm map
+// (applyMap) => cất bộ đang dùng, nạp bộ của nhóm kia. Giao thông chỉ có ở Drive; sương có bộ riêng trong mistTune.
+const tuneParts = () => ({ camera: rig.tune, weather: env.weatherProfiles, environment: env.tune, carLights: cars.headlights.tune,
+  streetLights: scenery.lampTune, lighting: lightTune, park: stop.tune });
+const cloneJ = (o) => JSON.parse(JSON.stringify(o));
+const TUNE_BASE = cloneJ(tuneParts());                              // mặc định trong code (trước khi đọc bản lưu)
+const tuneSets = { chill: null, drive: null };
+let tuneGroup = ['city', 'avenue'].includes(MAPS[state.map].id) ? 'drive' : 'chill';
+function loadTuneSet(src) {
+  if (!src) return;
+  const P = tuneParts();
+  for (const [id, v] of Object.entries(src.camera || {})) if (rig.tune[id]) Object.assign(rig.tune[id], v);
+  for (const [id, v] of Object.entries(src.weather || {})) if (env.weatherProfiles[id]) Object.assign(env.weatherProfiles[id], v);
+  for (const k of ['environment', 'carLights', 'streetLights', 'lighting', 'park']) if (src[k]) Object.assign(P[k], src[k]);
+}
+function switchTuneGroup(g) {
+  if (g === tuneGroup) return;
+  tuneSets[tuneGroup] = cloneJ(tuneParts());
+  loadTuneSet(TUNE_BASE); loadTuneSet(tuneSets[g]);
+  tuneGroup = g;
+  env.envKey = ''; applyLightTune();
+  if (tuneKind) renderTune();
+}
 try {
   savedTuning = JSON.parse(localStorage.getItem(TUNE_KEY));
-  if (savedTuning?.camera) for (const [id, values] of Object.entries(savedTuning.camera)) if (rig.tune[id]) Object.assign(rig.tune[id], values);
-  if (savedTuning?.weather) for (const [id, values] of Object.entries(savedTuning.weather)) if (env.weatherProfiles[id]) Object.assign(env.weatherProfiles[id], values);
-  if (savedTuning?.environment) Object.assign(env.tune, savedTuning.environment);
+  if (savedTuning?.v === 2) { tuneSets.chill = savedTuning.chill || null; tuneSets.drive = savedTuning.drive || null; }
+  else if (savedTuning) {                                           // bản lưu cũ (chung): làm điểm khởi đầu cho cả 2 nhóm
+    const legacy = {}; for (const k of Object.keys(TUNE_BASE)) if (savedTuning[k]) legacy[k] = savedTuning[k];
+    tuneSets.chill = cloneJ(legacy); tuneSets.drive = cloneJ(legacy);
+  }
+  loadTuneSet(tuneSets[tuneGroup]);
   if (savedTuning?.traffic) Object.assign(trafficTune, savedTuning.traffic);
-  if (savedTuning?.lighting) Object.assign(lightTune, savedTuning.lighting);
-  if (savedTuning?.park) Object.assign(stop.tune, savedTuning.park);
   for (const g of ['chill', 'drive']) {
     const sv = savedTuning?.mist?.[g]; if (!sv) continue;
     for (const [k, v] of Object.entries(sv.w || {})) if (mistTune[g].w[k]) Object.assign(mistTune[g].w[k], v);
@@ -591,6 +615,7 @@ const applyMap = () => {
   // lưu trên trình duyệt), ra khỏi phố => trả lại bộ của các map khác
   // đại lộ cũng có bộ riêng (lần đầu lấy theo bộ hiện tại của Phố)
   const prevMap = curMapId; curMapId = id;
+  switchTuneGroup(isTraffic ? 'drive' : 'chill');               // thông số chỉnh tay riêng Chill / Drive (trước khi trả cài đặt map)
   if (prevMap !== id) {
     if (SCOPED[prevMap]) saveScope(prevMap);
     else if (prevMap !== null && SCOPED[id]) saveScope('world');
@@ -906,7 +931,8 @@ const ENV_FIELDS = [
 ];
 const tunePanel = $('tunepanel'), tuneMode = $('tune-mode'), tuneFields = $('tune-fields');
 const saveTuning = () => {
-  try { localStorage.setItem(TUNE_KEY, JSON.stringify({ camera: rig.tune, weather: env.weatherProfiles, environment: env.tune, carLights: cars.headlights.tune, streetLights: scenery.lampTune, traffic: trafficTune, lighting: lightTune, park: stop.tune, mist: mistTune })); } catch { /* chế độ riêng tư */ }
+  tuneSets[tuneGroup] = cloneJ(tuneParts());
+  try { localStorage.setItem(TUNE_KEY, JSON.stringify({ v: 2, chill: tuneSets.chill, drive: tuneSets.drive, traffic: trafficTune, mist: mistTune })); } catch { /* chế độ riêng tư */ }
 };
 const addHeading = (text) => { const h = document.createElement('h4'); h.textContent = text; tuneFields.append(h); };
 const addNumber = ({ label, min, max, step, get, set }) => {
