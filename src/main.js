@@ -306,14 +306,10 @@ const pointer = { active: false, id: -1, x: 0, y: 0 };
 // cảnh chờ Start: đồi cỏ, camera quay quanh, nhiều mây, ban đêm
 const state = { car: 0, character: 0, map: MAPS.findIndex((m) => m.id === 'meadow'), cam: CAMERAS.findIndex((c) => c.id === 'orbit'), weather: WEATHERS.findIndex((w) => w.id === 'cloudy'), time: TIMES.findIndex((t) => t.id === 'night'), music: 0, cine: true, started: false, mistCover: 0.9, mistDens: 0.4, fstop: FSTOP_DEFAULT, quality: loadQuality() };
 let openingElapsed = null; // tính thời gian chạy sau khi bấm Start
-// màn hình chờ: mỗi cảnh ~12 s, ngẫu nhiên map / đoạn đường / camera / tốc độ / thời tiết, giờ Hoàng hôn hoặc Đêm.
-// Chuyển cảnh: hoà tan (ảnh cảnh cũ chụp vào #xfade rồi mờ dần 1.2 s); trong lúc đổi, cảnh mới dựng + dịch shader song song
-// (compile + chờ KHR_parallel_shader_compile) phía sau ảnh cũ. Trong lúc phát cảnh 1: dịch sẵn shader các map khác theo từng đợt.
-// Chất lượng màn hình chờ: `quality` (đang để Good cho chú thử); `ratio` = trần pixelRatio (2 = không giảm; 0.5 khi muốn nhẹ).
-// Âm thanh (nhạc nền + tiếng xe / gió…) bật ngay khi vào màn hình chờ; trình duyệt chặn tự phát => mở tiếng ở lần chạm / bấm đầu.
-const PREVIEW = { scene: 12000, fade: 1200, quality: 'good', ratio: 2, lo: 50 * KMH, hi: 180 * KMH, acc: 5,
-  cams: ['orbit', 'chase', 'side', 'low', 'drone', 'cockpit'], times: ['sunset', 'night'] };
-let previewTarget = 80 * KMH, previewHold = false, xfadeGrab = null;
+// màn hình chờ: 1 cảnh cố định nhẹ — map Đồi cỏ, ban đêm, nhiều mây (sương của Chill), camera Quay quanh, xe chạy 25 km/h.
+// Chất lượng Good, không giảm điểm ảnh (ratio 2 = không giới hạn; 0.5 khi muốn nhẹ). Nhạc nền + âm thanh bật ngay (trình duyệt chặn => mở ở lần chạm / bấm đầu).
+// (Sau này chú sẽ thay bằng video cắt ghép.)
+const PREVIEW = { map: 'meadow', time: 'night', weather: 'cloudy', cam: 'orbit', speed: 25 * KMH, quality: 'good', ratio: 2 };
 let openingCameraPending = false;
 const QUICK_OPENING = true;          // TẠM: đầu game rút còn 0.5 s (đặt false để có lại đoạn 3 s ở 180 km/h rồi giảm tốc)
 const TUNE_KEY = 'chilldrive.tuning.v1';
@@ -1393,10 +1389,7 @@ function frame(now) {
   drive.target = clamp(drive.target, CHILL_MIN, onAvenue() ? AV_MAX : CHILL_MAX);
   drive.goal = drive.fast ? FAST_SPEED : drive.target;
   const goal = opening && state.started ? FAST_SPEED : Math.min(drive.goal, traffic.ctrl.maxV);
-  if (!state.started) {                                       // màn hình chờ: tốc độ ngẫu nhiên 50–180 km/h, tới nơi thì chọn mức khác
-    drive.v += clamp(previewTarget - drive.v, -PREVIEW.acc * dt, PREVIEW.acc * dt);
-    if (Math.abs(previewTarget - drive.v) < 0.3) previewTarget = PREVIEW.lo + Math.random() * (PREVIEW.hi - PREVIEW.lo);
-  }
+  if (!state.started) drive.v = PREVIEW.speed;                // màn hình chờ: chạy đều 25 km/h
   else if (opening) drive.v = FAST_SPEED;
   else if (stop.active) drive.v = stop.speed(drive.v, dt);    // cảnh dừng xe: giảm tốc đều tới khi dừng hẳn
   else if (incident.active) drive.v = Math.max(0, drive.v - 25 * dt);          // vừa va chạm: dừng khựng
@@ -1677,8 +1670,6 @@ function frame(now) {
   MIST.uMistColor.value.copy(st.mistColor);
   env.mistCover = mistCover; env.mistDens = mistDens;                // sương phủ cả bầu trời
 
-  // màn hình chờ đang dựng cảnh mới phía sau ảnh cảnh cũ: không vẽ (vẽ lúc shader chưa dịch xong => khựng)
-  if (previewHold) { requestAnimationFrame(frame); return; }
   // đường ướt: vẽ ảnh phản chiếu cho vũng nước (chỉ khi mưa)
   if (st.wet > 0.001) refl.render(scene, camera, drive.pos.y + 0.05);
   else refl.active = false;
@@ -1701,7 +1692,6 @@ function frame(now) {
   post.renderGlassMask(camera, cars.tilt, cars.rearShield);
   post.render(now / 1000, cineAmt, drive.fx, dofParams(dt));
   if (shotPending) saveShot();
-  if (xfadeGrab) { const g = xfadeGrab; xfadeGrab = null; g(); }   // chụp khung vừa vẽ (cùng tác vụ => còn ảnh trên canvas)
   requestAnimationFrame(frame);
 }
 
@@ -1725,99 +1715,16 @@ async function init() {
   $('modes').hidden = false;
   // màn hình chờ (xem PREVIEW). Không ghi vào cài đặt của chú; vào game thì trả lại như cũ.
   const snap = { map: state.map, weather: state.weather, time: state.time, cam: state.cam, quality: state.quality };
-  // màn hình chờ chạy mức PREVIEW.quality; vào game trả lại mức chú đã chọn (không ghi đè lựa chọn đã lưu)
   state.quality = Math.max(0, QUALITY.findIndex((q) => q.id === PREVIEW.quality)); applyQuality(false);
+  state.map = MAPS.findIndex((m) => m.id === PREVIEW.map); applyMap();
+  state.weather = WEATHERS.findIndex((w) => w.id === PREVIEW.weather); env.snapWeather(PREVIEW.weather);
+  state.time = TIMES.findIndex((t) => t.id === PREVIEW.time); env.setTime(TIMES[state.time].hour); env.hour = TIMES[state.time].hour; env.tween = null;
+  state.cam = CAMERAS.findIndex((c) => c.id === PREVIEW.cam); rig.setMode(state.cam); onCamChange();
+  drive.v = PREVIEW.speed;
   // âm thanh: thử bật ngay; nếu trình duyệt chặn thì mở ở lần chạm / bấm phím đầu tiên
   const kickAudio = () => { audio.start().catch((e) => console.warn('Audio:', e)); };
   kickAudio();
   for (const ev of ['pointerdown', 'keydown', 'touchstart']) window.addEventListener(ev, kickAudio, { once: true, capture: true });
-  const camIdx = (id) => CAMERAS.findIndex((c) => c.id === id);
-  const rnd = (arr) => arr[Math.floor(Math.random() * arr.length)];
-  const pick = (n, not) => { let i; do i = Math.floor(Math.random() * n); while (n > 1 && i === not); return i; };
-  const timers = [];
-  const later = (ms, fn) => timers.push(setTimeout(() => { if (!state.started) fn(); }, ms));
-  const frames = (n) => new Promise((r) => { const f = () => (n-- <= 0 ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); });
-  // cảnh: thông số ngẫu nhiên (camera trong xe chỉ khi xe đã tải)
-  const planScene = (first) => ({
-    map: first ? state.map : pick(MAPS.length, state.map), ds: first ? 0 : 300 + Math.random() * 2500,
-    cam: (() => { let c; do c = rnd(PREVIEW.cams); while (c === 'cockpit' && !(cars.current && cars.dim?.eye)); return c; })(),
-    weather: rnd(WEATHERS.filter((w) => w.id !== 'auto')).id, time: rnd(PREVIEW.times),
-    v0: PREVIEW.lo + Math.random() * (PREVIEW.hi - PREVIEW.lo),
-  });
-  const applyLook = (P) => {
-    state.weather = WEATHERS.findIndex((x) => x.id === P.weather); env.snapWeather(P.weather);
-    state.time = TIMES.findIndex((t) => t.id === P.time); env.setTime(TIMES[state.time].hour); env.hour = TIMES[state.time].hour; env.tween = null;
-    state.cam = camIdx(P.cam); rig.setMode(state.cam); onCamChange();
-    drive.v = P.v0; previewTarget = PREVIEW.lo + Math.random() * (PREVIEW.hi - PREVIEW.lo);
-  };
-  // chờ shader dịch xong (không chặn khung hình nếu có KHR_parallel_shader_compile); tự kiểm tra, bỏ qua vật liệu đã bị huỷ
-  const waitPrograms = (mats, ms = 6000) => new Promise((res) => {
-    const t0 = performance.now();
-    const tick = () => {
-      let busy = 0;
-      for (const m of mats) { const p = renderer.properties.get(m)?.currentProgram; if (p?.isReady && !p.isReady()) busy++; }
-      if (!busy || performance.now() - t0 > ms || state.started) res(); else setTimeout(tick, 30);
-    };
-    tick();
-  });
-  const compileNow = (obj) => { try { return renderer.compile(obj, camera, scene); } catch (e) { console.warn('compile', e); return new Set(); } };
-  // dịch sẵn shader các map khác trong lúc phát cảnh: gom vật liệu của từng phần cảnh, gắn vào vật giả (Mesh / InstancedMesh /
-  // Points / Sprite / Line) rồi compile theo từng đợt nhỏ => lúc đổi sang map đó không còn khựng vì dịch shader
-  const warmMats = () => {
-    const out = new Set(), seen = new Set();
-    const scanVal = (v, depth) => {
-      if (!v || typeof v !== 'object' || seen.has(v) || ArrayBuffer.isView(v)) return; seen.add(v);
-      if (v.isMaterial) { out.add(v); return; }
-      if (v.isObject3D) { v.traverse((o) => { const m = o.material; if (Array.isArray(m)) m.forEach((x) => out.add(x)); else if (m) out.add(m); }); return; }
-      if (v.isTexture || v.isBufferGeometry || depth <= 0) return;
-      const vals = v instanceof Map || v instanceof Set ? [...v.values()] : Array.isArray(v) ? v : Object.values(v);
-      for (const x of vals) scanVal(x, depth - 1);
-    };
-    for (const mod of [city, avenue, town, ocean, waterfalls, cows, reeds, grass, meadow, nature, cityTraffic, cityPeople, scenery, fireflies, traffic, terrain]) scanVal(mod, 2);
-    return [...out].filter((m) => !renderer.properties.get(m)?.currentProgram);
-  };
-  const warmGeo = new THREE.BufferGeometry();
-  for (const [k, n] of [['position', 3], ['normal', 3], ['uv', 2], ['color', 3]]) warmGeo.setAttribute(k, new THREE.BufferAttribute(new Float32Array(3 * n), n));
-  const warmUp = async () => {
-    const mats = warmMats();
-    for (let i = 0; i < mats.length && !state.started; i += 8) {
-      const g = new THREE.Group();
-      for (const m of mats.slice(i, i + 8)) {
-        if (m.isSpriteMaterial) g.add(new THREE.Sprite(m));
-        else if (m.isPointsMaterial) g.add(new THREE.Points(warmGeo, m));
-        else if (m.isLineBasicMaterial) g.add(new THREE.LineSegments(warmGeo, m));
-        else { g.add(new THREE.Mesh(warmGeo, m)); if (!m.isShaderMaterial) { const im = new THREE.InstancedMesh(warmGeo, m, 1); g.add(im); const ic = new THREE.InstancedMesh(warmGeo, m, 1); ic.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(3), 3); g.add(ic); } }
-      }
-      g.traverse((o) => o.updateMatrixWorld());
-      await waitPrograms(compileNow(g), 3000);
-      await new Promise((r) => setTimeout(r, 250));
-    }
-  };
-  // chuyển cảnh: chụp khung hiện tại vào #xfade (hiện tức thì) → dựng cảnh mới phía sau (không vẽ) → dịch shader xong → vẽ 2 khung → ảnh cũ mờ dần
-  const xf = $('xfade'), xg = xf.getContext('2d');
-  const crossTo = async (P) => {
-    await new Promise((r) => { xfadeGrab = () => { xf.width = canvas.width; xf.height = canvas.height; xg.drawImage(canvas, 0, 0); r(); }; });
-    if (state.started) return;
-    xf.style.transition = 'none'; xf.style.opacity = '1';
-    previewHold = true;
-    await frames(1);                                             // để ảnh chụp hiện lên trước khi dựng cảnh (việc nặng)
-    if (state.started) { previewHold = false; return; }
-    drive.s += P.ds; state.map = P.map;
-    skipWarm = true; applyMap(); skipWarm = false;
-    applyLook(P);
-    await waitPrograms(compileNow(scene));
-    previewHold = false;
-    await frames(2);
-    xf.style.transition = `opacity ${PREVIEW.fade}ms ease`; xf.style.opacity = '0';
-  };
-  const loop = async () => {
-    if (state.started) return;
-    await crossTo(planScene(false));
-    later(PREVIEW.scene, loop);
-  };
-  applyLook(planScene(true));
-  later(PREVIEW.scene, loop);
-  later(2500, () => { warmUp().catch((e) => console.warn('warmUp', e)); });   // cảnh 1 đang phát: dịch sẵn shader các map khác
   cars.onProgress = (f) => setBtn(el.car, '🚗', 'Đang tải… ' + Math.round(f * 100) + '%');
   // cây / bụi / đá chi tiết: tải song song; xong thì dựng lại địa hình để cụm đá dùng model đá thật
   nature.load('assets/models/nature.glb').then(() => {
@@ -1835,7 +1742,6 @@ async function init() {
   }).catch((e) => console.warn('Không tải được người lái', e));
   const go = (mode) => {
     if (state.started) return;
-    timers.forEach(clearTimeout); previewHold = false; $('xfade').style.opacity = '0';
     state.mode = mode;
     // trả lại cảnh như trước màn hình chờ, rồi vào map của chế độ (Drive: Phố với bộ cài đặt riêng của phố)
     state.map = mode === 'drive' ? CITY_MAP : snap.map; curMapId = null;
@@ -1850,7 +1756,10 @@ async function init() {
     wakeFrom = performance.now() + 1200; document.body.classList.add('playing');
     applyCine();
     if (mode === 'drive') { drive.v = CHILL_DEFAULT; setGear(0); openingCameraPending = true; }   // vào phố: không chạy đoạn 180 km/h
-    else openingElapsed = 0;
+    else {                                                        // vào Chill: chạy luôn 25 km/h, camera Sau xe (không đoạn 180 km/h)
+      drive.v = CHILL_DEFAULT; setGear(0);
+      state.cam = CAMERAS.findIndex((c) => c.id === 'chase'); rig.setMode(state.cam); onCamChange();
+    }
     audio.start().catch((e) => console.warn('Audio:', e));
     window.removeEventListener('keydown', onKey);
     refreshUI();

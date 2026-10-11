@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -279,17 +279,11 @@
   cột; màn thấp / hẹp (điện thoại) thì bản đồ mờ ẩn và cột Setting xếp 2 cột (`grid`, cao tối đa 100vh − 150px, cuộn nếu dài). Nút cũ fast/stop/car/character/map còn trong DOM nhưng ẩn (JS cũ vẫn cập nhật).
   **Màn hình vào game**: tiêu đề + 2 hộp chọn chế độ `#m-chill` "Chill" (map ngắm cảnh, `nextMap` bỏ qua Phố; đang ở Phố thì
   về Đồi cỏ; có đoạn mở đầu) / `#m-drive` "Drive" (vào thẳng map Phố, không đoạn 180 km/h, phím M chỉ báo "chỉ có map Phố");
-  phím Enter/1 = Chill, 2 = Drive (`state.mode`). Không còn "chạm bất kỳ để bắt đầu". Nền mờ blur 3.5 px. Màn hình chờ (`PREVIEW` trong main): mỗi
-  cảnh ~12 s, ngẫu nhiên map (khác map đang chiếu) + nhảy đoạn đường + camera (Quay quanh / Sau xe / Bên hông / Sát đường / Từ trên
-  cao / Trong xe — chỉ khi xe đã tải) + thời tiết (mọi kiểu) + giờ Hoàng hôn hoặc Đêm + tốc độ (50–180 km/h, tới mức đích thì chọn mức
-  khác, ±5 m/s², `previewTarget`). Chuyển cảnh hoà tan (`crossTo`): chụp khung vừa vẽ vào canvas `#xfade` (cùng tác vụ với
-  `post.render`, `xfadeGrab`), `previewHold` = không vẽ trong lúc dựng map mới + `renderer.compile` + chờ shader xong (`waitPrograms`,
-  tự kiểm `isReady`, bỏ qua vật liệu đã huỷ, tối đa 6 s) → vẽ 2 khung → ảnh cũ mờ dần 1.2 s. Nạp trước: 2.5 s sau khi vào màn hình
-  chờ, `warmUp` gom vật liệu chưa dịch của các phần cảnh (city, avenue, town, ocean, …) gắn vào vật giả (Mesh / InstancedMesh có-không
-  màu / Points / Sprite / Line) dịch từng đợt 8 cái (thử máy ảo: 126 → 236 chương trình trong cảnh 1, các lần đổi sau không phải dịch
-  thêm). Hẹn giờ trong `timers`, xoá hết khi vào game; vào game trả lại thời tiết / giờ / camera của chú. Chất lượng màn hình chờ `PREVIEW.quality` (đang Good cho chú thử) + trần pixelRatio `PREVIEW.ratio` (2 = không giảm, 0.5 = nhẹ)
-  (`applyQuality(false)` không ghi đè lựa chọn đã lưu), vào game trả lại mức chú chọn; âm thanh (nhạc nền + tiếng xe, gió…) bật ngay khi vào
-  màn hình chờ, trình duyệt chặn thì mở ở lần chạm / bấm phím đầu (`kickAudio`); `saveScope` bỏ qua khi chưa vào game; vào game trả lại map / thời tiết / giờ / camera đã chụp (`snap`).
+  phím Enter/1 = Chill, 2 = Drive (`state.mode`). Không còn "chạm bất kỳ để bắt đầu". Nền mờ blur 3.5 px. Màn hình chờ (`PREVIEW` trong main): 1 cảnh cố
+  định nhẹ — map Đồi cỏ, ban đêm, nhiều mây (sương theo bộ Chill), camera Quay quanh, xe chạy đều 25 km/h; chất lượng Good, không
+  giảm điểm ảnh (`PREVIEW.quality` / `ratio`, 0.5 khi muốn nhẹ); nhạc nền + âm thanh bật ngay, trình duyệt chặn thì mở ở lần chạm /
+  bấm đầu (`kickAudio`). (Bản nhiều cảnh ngẫu nhiên + hoà tan + dịch sẵn shader đã bỏ vì nặng — chú sẽ thay bằng video cắt ghép.)
+  Vào Chill: chạy luôn 25 km/h (cấp 0), camera Sau xe, không đoạn 180 km/h; vào Drive như cũ. `saveScope` bỏ qua khi chưa vào game; vào game trả lại map / thời tiết / giờ / camera đã chụp (`snap`).
   Mỗi lần vào chế độ: tên "Chill" / "Drive" hiện giữa màn hình 1 s rồi mờ dần (`#modename`). Setting có nút 🔀 đổi chế độ
   (`setGameMode`; Chill quay về map ngắm cảnh lần trước).
   Vào game luôn ẩn (`body.idle` từ đầu; bỏ qua cú bấm Start 1.2 s); chỉ rê chuột / chạm / kéo xoay mới hiện (mờ dần 0.7 s),
@@ -315,7 +309,6 @@
 - Vài tảng đá terrain trông lơ lửng trên vách núi gần đường (s≈250) — chưa sửa.
 - Map Phố: camera Từ trên cao hay bị nhà chắn nên kéo sát xe; Mustang/Mazda NPC không chạy trong phố (thay bằng xe dựng code).
 - Chưa nghe trên máy thật: tiếng người nói chuyện (`setChatter`), còi hụ, tiếng va chạm. Chưa chụp cận đèn đi bộ.
-- Màn hình chờ mới (hoà tan + dịch sẵn shader `warmUp`) chưa thử trên máy thật — nhất là Safari iPhone (KHR_parallel_shader_compile).
 - `QUICK_OPENING = true` (TẠM, đầu game 0.5 s) — bật lại khi chú bảo. Kiểm thử Playwright: vào game bằng `#m-chill` / `#m-drive`.
 
 ## 6. Nhật ký cập nhật
@@ -326,3 +319,4 @@
   xe; màn hình chờ phát nhạc + âm thanh; `PREVIEW.quality = 'good'`, `ratio = 2`.
 - **#2 — Cài đặt Chill / Drive không lưu chung (11/10/2026)**: tách bộ thông số chỉnh tay theo nhóm; thử: Phơi sáng 1.6 ở Drive, Chill
   vẫn 1.0, tải lại vẫn đúng từng bên.
+- **#3 — Màn hình chờ về 1 cảnh Đồi cỏ đêm (Good), vào Chill 25 km/h + Sau xe (11/10/2026)**.
