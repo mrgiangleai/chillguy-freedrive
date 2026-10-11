@@ -5,7 +5,10 @@ import * as THREE from 'three';
 // có đom đóm hay không do nhiễu theo quãng đường (từng đoạn có, từng đoạn không). Nhấp nháy theo nhịp riêng từng con.
 const SLOT = 5;              // m
 const AHEAD = 200, BEHIND = 40;
-const MAX = 200;
+const MAX = 600;
+// thông số chỉnh trong bảng 🐾 Animal (main: animalTune). amount: × số con mỗi ô; cover: phần đường có đom đóm (0..1);
+// near: cách tim đường (m); spread: bề rộng vùng bay ra phía ngoài (m); height / rise: độ cao thấp nhất / thêm (m); glow: × độ sáng
+export const FIREFLY_DEFAULTS = Object.freeze({ amount: 1, cover: 0.65, near: 4.6, spread: 16, height: 0.7, rise: 2.6, glow: 1 });
 const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 const vnoise = (x) => { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return hash(i) * (1 - u) + hash(i + 1) * u; };
 const sst = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -52,12 +55,14 @@ export class Fireflies {
     this.points.visible = false;
     scene.add(this.points);
     this.ground = new Map();     // ô -> độ cao mặt đất ở mép đường (tính 1 lần)
+    this.tune = { ...FIREFLY_DEFAULTS };
     this._p = {};
   }
 
   // t: giây; s: quãng đường của xe; amt: 0..1 (đêm, không mưa); scalePx: chiều cao canvas / (2·tan(fov/2))
   update(t, s, road, terrain, amt, scalePx, fogD = 0) {
-    this.mat.uniforms.uAmt.value = amt;
+    const T = this.tune;
+    this.mat.uniforms.uAmt.value = amt * T.glow;
     this.mat.uniforms.uScale.value = scalePx;
     this.mat.uniforms.uFogD.value = fogD;
     this.points.visible = amt > 0.01;
@@ -67,15 +72,15 @@ export class Fireflies {
     const k0 = Math.floor((s - BEHIND) / SLOT), k1 = Math.floor((s + AHEAD) / SLOT);
     for (let k = k0; k <= k1 && n < MAX; k++) {
       // đoạn có đom đóm: nhiễu theo quãng đường (đám dài ~150–300 m, khoảng 2/3 chiều dài đường), trong đoạn đó mỗi ô 90% có
-      const zone = sst(0.38, 0.58, vnoise(k * SLOT / 140 + 3.7));
+      const a0 = 0.9 - 0.8 * T.cover, zone = T.cover >= 0.999 ? 1 : sst(a0, a0 + 0.2, vnoise(k * SLOT / 140 + 3.7));
       if (zone <= 0 || hash(k * 1.31) > zone * 0.9) continue;
-      const cnt = 1 + Math.floor(hash(k * 2.17) * 3);    // 1–3 con/ô
+      const cnt = Math.round((1 + Math.floor(hash(k * 2.17) * 3)) * T.amount);    // 1–3 con/ô × số lượng
       for (let j = 0; j < cnt && n < MAX; j++) {
-        const id = k * 8 + j;
+        const id = k * 32 + j;
         const h1 = hash(id * 3.1 + 0.5), h2 = hash(id * 5.7 + 1.3), h3 = hash(id * 7.3 + 2.9), h4 = hash(id * 9.1 + 4.4);
         const sk = k * SLOT + h1 * SLOT;
         road.at(sk, p);
-        const side = h2 < 0.5 ? -1 : 1, lat = side * (4.6 + 16 * h3 * h3);  // từ mép đường ra tới ~16 m (dày ở gần)
+        const side = h2 < 0.5 ? -1 : 1, lat = side * (T.near + T.spread * h3 * h3);  // từ mép đường ra ngoài (dày ở gần)
         const rx = Math.cos(p.th), rz = -Math.sin(p.th);
         const x = p.x + rx * lat, z = p.z + rz * lat;
         let gy = this.ground.get(id);
@@ -87,7 +92,7 @@ export class Fireflies {
         // bay lượn chậm quanh chỗ của nó
         const w1 = 0.35 + h4 * 0.3, w2 = 0.5 + h1 * 0.4;
         this.pos[n * 3] = x + Math.sin(t * w1 + h2 * 20) * 0.9 + Math.sin(t * w2 * 1.7 + h3 * 9) * 0.3;
-        this.pos[n * 3 + 1] = gy + 0.7 + 2.6 * h4 + Math.sin(t * w2 + h1 * 13) * 0.35;   // trên ngọn cỏ, có con bay cao
+        this.pos[n * 3 + 1] = gy + T.height + T.rise * h4 + Math.sin(t * w2 + h1 * 13) * 0.35;   // trên ngọn cỏ, có con bay cao
         this.pos[n * 3 + 2] = z + Math.cos(t * w2 + h3 * 17) * 0.9 + Math.cos(t * w1 * 1.9 + h4 * 7) * 0.3;
         // nhấp nháy: sáng lên chừng nửa giây rồi tắt, mỗi con một nhịp
         const ph = Math.sin(t * (0.9 + 0.8 * h3) + h1 * 40);
@@ -95,8 +100,8 @@ export class Fireflies {
         n++;
       }
     }
-    if (this.ground.size > 1500) {          // bỏ ô đã đi qua
-      for (const key of this.ground.keys()) if (key < k0 * 8) this.ground.delete(key);
+    if (this.ground.size > 6000) {          // bỏ ô đã đi qua
+      for (const key of this.ground.keys()) if (key < k0 * 32) this.ground.delete(key);
     }
     const g = this.points.geometry;
     g.setDrawRange(0, n);

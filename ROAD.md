@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -114,6 +114,11 @@
 - **Lưu thông số chỉnh tay** (`chilldrive.tuning.v1`, `v: 2`): bảng camera / thời tiết / thời gian (ánh sáng chung) / Lighting /
   dừng xe lưu RIÊNG nhóm Chill và Drive (`tuneSets`, `switchTuneGroup` gọi trong applyMap; bản lưu cũ chung => khởi đầu cho cả 2).
   Giao thông (`traffic`, chỉ Drive) và sương (`mist`, đã chia nhóm) lưu chung tệp. Chất lượng (Low / Good / Ultra) vẫn dùng chung.
+- **Bảng 🐾 Animal** (Setting, `tuneKind = 'animals'`, lưu theo nhóm Chill / Drive trong `tuneSets` mục `fireflies` / `cows`):
+  đom đóm (`fireflies.tune`, `FIREFLY_DEFAULTS`): số lượng × (0–5, tối đa 600 con), độ phủ dọc đường %, cách tim đường, bề rộng vùng
+  bay, độ cao thấp nhất / bay cao thêm, độ sáng ×. Bò (`cows.tune`, `COW_DEFAULTS`): số bò mỗi đàn (0–16), cách tim đường (16–90 m;
+  gần hơn 26 m thì bãi thu nhỏ + hàng rào sát mép đường, ≥ 6.2 m), khoảng cách giữa các đàn, bên đường (xen kẽ / trái / phải), hàng rào
+  ẩn / hiện. Đổi thông số => `cows.retune()` dựng lại đàn, `fireflies.ground.clear()`.
 - **Sương sát đất** (lớp `MIST`, khác thời tiết "Sương mù"): `mistTune` lưu mục `mist`, riêng nhóm Chill / Drive; mỗi thời tiết có
   độ phủ + độ dày (bảng Thời tiết, mục "Sương sát đất"; bảng 🌫️ phím G chỉnh thời tiết đang có), mỗi mốc giờ có hệ số độ dày (bảng
   Thời gian, "Sương theo giờ"; giờ lẻ nội suy vòng 24 h, `mistTimeK`); đổi thời tiết / giờ chuyển mượt, đổi map đặt ngay; nút Mặc
@@ -320,3 +325,4 @@
 - **#2 — Cài đặt Chill / Drive không lưu chung (11/10/2026)**: tách bộ thông số chỉnh tay theo nhóm; thử: Phơi sáng 1.6 ở Drive, Chill
   vẫn 1.0, tải lại vẫn đúng từng bên.
 - **#3 — Màn hình chờ về 1 cảnh Đồi cỏ đêm (Good), vào Chill 25 km/h + Sau xe (11/10/2026)**.
+- **#4 — Bảng 🐾 Animal: vị trí, số lượng đom đóm + bò (11/10/2026)**.

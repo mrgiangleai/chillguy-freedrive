@@ -5,9 +5,12 @@ import { withMist } from './mist.js';
 // Map đồi cỏ: đàn 5 con bò sữa (lông loang đen trắng kiểu Holstein) gặm cỏ bên đường, sau hàng rào gỗ.
 // Bò dựng từ khối cơ bản (thân, đầu, 4 chân, đuôi có khớp) => tự làm hoạt cảnh: gặm cỏ (cúi đầu, nhai),
 // ngẩng đầu nhìn quanh, thong thả đi vài bước, vẫy đuôi. Mảng lông đen trắng vẽ bằng nhiễu trong shader.
-// Đàn bò xuất hiện lần đầu ~270 m sau chỗ xuất phát, rồi cứ HERD_GAP mét lại có một đàn (lần lượt hai bên đường).
-const COUNT = 5;
-const HERD_GAP = 2400, HERD_S0 = 420, HERD_LAT = 26, HERD_R = 12;
+// Đàn bò xuất hiện lần đầu ~270 m sau chỗ xuất phát, rồi cứ tune.gap mét lại có một đàn (mặc định lần lượt hai bên đường).
+const MAX_COWS = 16;
+const HERD_S0 = 420, HERD_R = 12;
+// thông số chỉnh trong bảng 🐾 Animal (main: animalTune). count: số bò mỗi đàn; lat: tâm đàn cách tim đường (m);
+// gap: khoảng cách giữa các đàn dọc đường (m); side: 0 = hai bên xen kẽ, -1 = trái, 1 = phải; fence: có hàng rào
+export const COW_DEFAULTS = Object.freeze({ count: 5, lat: 26, gap: 2400, side: 0, fence: 1 });
 const FENCE_LAT = 12.5, FENCE_HALF = 33, POST_GAP = 3;
 const POSTS = Math.floor((FENCE_HALF * 2) / POST_GAP) + 1;
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -118,7 +121,8 @@ export class Cows {
     this.group.visible = false;
     scene.add(this.group);
     const geos = cowGeometries();
-    this.cows = Array.from({ length: COUNT }, (_, i) => { const c = new Cow(geos, i); this.group.add(c.root); return c; });
+    this.cows = Array.from({ length: MAX_COWS }, (_, i) => { const c = new Cow(geos, i); this.group.add(c.root); return c; });
+    this.tune = { ...COW_DEFAULTS };
     // hàng rào gỗ (cột + 2 thanh ngang)
     const wood = withMist(new THREE.MeshStandardMaterial({ color: 0x5a3e27, roughness: 0.92 }));
     this.posts = new THREE.InstancedMesh(new THREE.BoxGeometry(0.13, 1.25, 0.13).translate(0, 0.62, 0), wood, POSTS);
@@ -136,13 +140,21 @@ export class Cows {
   get visible() { return this.enabled; }
   reset() { this.herd = null; }
 
+  // đổi thông số => dựng lại đàn ở khung sau
+  retune() { this.herd = null; }
+
   _place(k, road, terrain) {
-    const sk = HERD_S0 + k * HERD_GAP, side = k % 2 ? -1 : 1;
+    const T = this.tune, n = Math.max(0, Math.min(MAX_COWS, Math.round(T.count)));
+    const sk = HERD_S0 + k * T.gap, side = T.side ? Math.sign(T.side) : (k % 2 ? -1 : 1);
+    // đàn gần đường hơn 26 m: thu nhỏ bãi gặm cỏ + hàng rào sát mép đường hơn (không lấn vào đường)
+    this.R = Math.max(4, Math.min(HERD_R, T.lat - 9));
+    this.fenceLat = Math.max(6.2, Math.min(FENCE_LAT, T.lat - this.R - 1.5));
     const p = road.at(sk, this._p);
-    const rx = Math.cos(p.th), rz = -Math.sin(p.th), fx = -Math.sin(p.th), fz = -Math.cos(p.th);
-    this.cx = p.x + rx * side * HERD_LAT; this.cz = p.z + rz * side * HERD_LAT;
+    const rx = Math.cos(p.th), rz = -Math.sin(p.th);
+    this.cx = p.x + rx * side * T.lat; this.cz = p.z + rz * side * T.lat;
     this.cows.forEach((c, i) => {
-      const a = (i / COUNT) * Math.PI * 2 + rnd(-0.4, 0.4), r = rnd(2, HERD_R * 0.7);
+      c.root.visible = i < n; c.on = i < n;
+      const a = (i / Math.max(1, n)) * Math.PI * 2 + rnd(-0.4, 0.4), r = rnd(2, this.R * 0.7);
       c.x = this.cx + Math.cos(a) * r; c.z = this.cz + Math.sin(a) * r;
       c.yaw = rnd(0, Math.PI * 2); c.hx = 1e9;
       c.mode = 'graze'; c.timer = rnd(1, 8);
@@ -151,7 +163,7 @@ export class Cows {
     const m = this._m, q = this._q, v = this._v, s = this._s, pts = [];
     for (let i = 0; i < POSTS; i++) {
       const pp = road.at(sk - FENCE_HALF + i * POST_GAP, this._p);
-      const x = pp.x + Math.cos(pp.th) * side * FENCE_LAT, z = pp.z - Math.sin(pp.th) * side * FENCE_LAT;
+      const x = pp.x + Math.cos(pp.th) * side * this.fenceLat, z = pp.z - Math.sin(pp.th) * side * this.fenceLat;
       const y = terrain.heightAt(x, z);
       pts.push([x, y, z]);
       m.compose(v.set(x, y - 0.05, z), q.setFromAxisAngle(this._up, pp.th), s.set(1, 1, 1));
@@ -168,19 +180,21 @@ export class Cows {
     }
     this.posts.instanceMatrix.needsUpdate = true;
     this.rails.instanceMatrix.needsUpdate = true;
+    this.posts.visible = this.rails.visible = !!T.fence;
     if (this.onBuild) { this.onBuild(this.group); this.onBuild = null; }
   }
 
   update(dt, s, road, terrain) {
     if (!this.enabled) return;
     // đàn gần nhất phía trước / vừa đi qua
-    const k = Math.round((s + 150 - HERD_S0) / HERD_GAP);
-    const sk = HERD_S0 + k * HERD_GAP;
+    const gap = Math.max(300, this.tune.gap);
+    const k = Math.round((s + 150 - HERD_S0) / gap);
+    const sk = HERD_S0 + k * gap;
     if (k < 0 || sk < s - 250 || sk > s + 750) { this.group.visible = false; this.herd = null; return; }
     if (this.herd !== k) { this._place(k, road, terrain); this.herd = k; }
     this.group.visible = true;
     const t = performance.now() / 1000;
-    for (const c of this.cows) this._cow(c, dt, t, terrain);
+    for (const c of this.cows) if (c.on) this._cow(c, dt, t, terrain);
   }
 
   _cow(c, dt, t, terrain) {
@@ -197,14 +211,14 @@ export class Cows {
       head = 0.35; speed = 0.55;
       // ra xa giữa đàn quá thì quay về
       const dx = this.cx - c.x, dz = this.cz - c.z;
-      if (dx * dx + dz * dz > HERD_R * HERD_R) {
+      if (dx * dx + dz * dz > this.R * this.R) {
         const want = Math.atan2(dx, dz);
         c.yaw += Math.atan2(Math.sin(want - c.yaw), Math.cos(want - c.yaw)) * Math.min(1, dt * 1.5);
       } else c.yaw += c.turn * dt;
     }
     // không đứng chồng lên nhau
     for (const o of this.cows) {
-      if (o === c) continue;
+      if (o === c || !o.on) continue;
       const dx = c.x - o.x, dz = c.z - o.z, d2 = dx * dx + dz * dz;
       if (d2 < 6.25 && d2 > 1e-6) { const d = Math.sqrt(d2), push = (2.5 - d) * dt; c.x += (dx / d) * push; c.z += (dz / d) * push; }
     }

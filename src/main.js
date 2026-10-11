@@ -24,13 +24,13 @@ import { Nature } from './nature.js';
 import { RearMirror } from './mirror.js';
 import { WingMirrors } from './wingmirrors.js';
 import { Wipers } from './wipers.js';
-import { Fireflies } from './fireflies.js';
+import { Fireflies, FIREFLY_DEFAULTS } from './fireflies.js';
 import { ValleyTown } from './town.js';
 import { DashScreen } from './dashscreen.js';
 import { Traffic } from './traffic.js';
 import { Ocean } from './ocean.js';
 import { roadPosition } from './traffic-ai.js';
-import { Cows } from './cows.js';
+import { Cows, COW_DEFAULTS } from './cows.js';
 import { Waterfalls } from './waterfalls.js';
 import { Smoke } from './smoke.js';
 import { HEADLIGHT_DEFAULTS } from './headlights.js';
@@ -380,7 +380,8 @@ function applyTrafficTune() {
 // thông số chỉnh tay (bảng camera / thời tiết / thời gian / Lighting / dừng xe) lưu RIÊNG cho Chill và Drive: đổi nhóm map
 // (applyMap) => cất bộ đang dùng, nạp bộ của nhóm kia. Giao thông chỉ có ở Drive; sương có bộ riêng trong mistTune.
 const tuneParts = () => ({ camera: rig.tune, weather: env.weatherProfiles, environment: env.tune, carLights: cars.headlights.tune,
-  streetLights: scenery.lampTune, lighting: lightTune, park: stop.tune });
+  streetLights: scenery.lampTune, lighting: lightTune, park: stop.tune, fireflies: fireflies.tune, cows: cows.tune });
+const retuneAnimals = () => { fireflies.ground.clear(); cows.retune(); };
 const cloneJ = (o) => JSON.parse(JSON.stringify(o));
 const TUNE_BASE = cloneJ(tuneParts());                              // mặc định trong code (trước khi đọc bản lưu)
 const tuneSets = { chill: null, drive: null };
@@ -390,14 +391,14 @@ function loadTuneSet(src) {
   const P = tuneParts();
   for (const [id, v] of Object.entries(src.camera || {})) if (rig.tune[id]) Object.assign(rig.tune[id], v);
   for (const [id, v] of Object.entries(src.weather || {})) if (env.weatherProfiles[id]) Object.assign(env.weatherProfiles[id], v);
-  for (const k of ['environment', 'carLights', 'streetLights', 'lighting', 'park']) if (src[k]) Object.assign(P[k], src[k]);
+  for (const k of ['environment', 'carLights', 'streetLights', 'lighting', 'park', 'fireflies', 'cows']) if (src[k]) Object.assign(P[k], src[k]);
 }
 function switchTuneGroup(g) {
   if (g === tuneGroup) return;
   tuneSets[tuneGroup] = cloneJ(tuneParts());
   loadTuneSet(TUNE_BASE); loadTuneSet(tuneSets[g]);
   tuneGroup = g;
-  env.envKey = ''; applyLightTune();
+  env.envKey = ''; applyLightTune(); retuneAnimals();
   if (tuneKind) renderTune();
 }
 try {
@@ -445,6 +446,7 @@ function refreshUI() {
   el.time.classList.toggle('on', tuneKind === 'time');
   $('b-traffic').classList.toggle('on', tuneKind === 'traffic');
   $('b-lighting').classList.toggle('on', tuneKind === 'lighting');
+  $('b-animals').classList.toggle('on', tuneKind === 'animals');
   $('b-park').classList.toggle('on', tuneKind === 'park');
   $('b-mode').querySelector('span').textContent = state.mode === 'drive' ? 'Drive' : 'Chill';
   $('b-mode').title = state.mode === 'drive' ? 'Đang ở chế độ Drive — bấm để đổi sang Chill' : 'Đang ở chế độ Chill — bấm để đổi sang Drive';
@@ -995,6 +997,27 @@ renderTune = () => {
     addNumber({ label: 'Độ dài pha đèn (×)', min: 0.3, max: 3, step: 0.1, get: () => trafficTune.signal, set: (v) => { trafficTune.signal = v; applyTrafficTune(); } });
     return;
   }
+  if (tuneKind === 'animals') {
+    tuneMode.hidden = true;
+    $('tune-title').textContent = 'Animal · động vật';
+    const F = fireflies.tune, C = cows.tune;
+    const ff = (v) => { fireflies.ground.clear(); return v; };
+    addHeading('Đom đóm (ban đêm, mọi map trừ Phố / Đại lộ)');
+    addNumber({ label: 'Số lượng (× mỗi chỗ)', min: 0, max: 5, step: 0.1, get: () => F.amount, set: (v) => { F.amount = v; } });
+    addNumber({ label: 'Độ phủ dọc đường (%)', min: 0, max: 100, step: 1, get: () => Math.round(F.cover * 100), set: (v) => { F.cover = v / 100; } });
+    addNumber({ label: 'Cách tim đường (m)', min: 2, max: 40, step: 0.5, get: () => F.near, set: (v) => { F.near = ff(v); } });
+    addNumber({ label: 'Bề rộng vùng bay (m)', min: 1, max: 60, step: 0.5, get: () => F.spread, set: (v) => { F.spread = ff(v); } });
+    addNumber({ label: 'Độ cao thấp nhất (m)', min: 0, max: 6, step: 0.1, get: () => F.height, set: (v) => { F.height = v; } });
+    addNumber({ label: 'Bay cao thêm (m)', min: 0, max: 10, step: 0.1, get: () => F.rise, set: (v) => { F.rise = v; } });
+    addNumber({ label: 'Độ sáng (×)', min: 0, max: 3, step: 0.05, get: () => F.glow, set: (v) => { F.glow = v; } });
+    addHeading('Bò (map Đồi cỏ)');
+    addNumber({ label: 'Số bò mỗi đàn', min: 0, max: 16, step: 1, get: () => C.count, set: (v) => { C.count = v; cows.retune(); } });
+    addNumber({ label: 'Cách tim đường (m)', min: 16, max: 90, step: 1, get: () => C.lat, set: (v) => { C.lat = v; cows.retune(); } });
+    addNumber({ label: 'Khoảng cách giữa các đàn (m)', min: 400, max: 6000, step: 50, get: () => C.gap, set: (v) => { C.gap = v; cows.retune(); } });
+    addChoice({ label: 'Bên đường', options: ['Hai bên xen kẽ', 'Bên trái', 'Bên phải'], get: () => (C.side < 0 ? 1 : C.side > 0 ? 2 : 0), set: (v) => { C.side = [0, -1, 1][v]; cows.retune(); } });
+    addToggle({ label: 'Hàng rào gỗ', names: ['Ẩn', 'Hiện'], get: () => C.fence, set: (v) => { C.fence = v; cows.retune(); } });
+    return;
+  }
   if (tuneKind === 'park') {
     tuneMode.hidden = true;
     $('tune-title').textContent = 'Chế độ dừng xe (P)';
@@ -1096,6 +1119,7 @@ $('tune-reset').onclick = () => {
   else if (tuneKind === 'carLight') Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS);
   else if (tuneKind === 'traffic') { Object.assign(trafficTune, TRAFFIC_DEFAULTS); $('b-score').hidden = !cityTraffic.visible; if (trafficStartT <= 0 && !trafficLevel) pickTrafficLevel(false); else applyTrafficTune(); }
   else if (tuneKind === 'park') Object.assign(stop.tune, PARK_DEFAULTS);
+  else if (tuneKind === 'animals') { Object.assign(fireflies.tune, FIREFLY_DEFAULTS); Object.assign(cows.tune, COW_DEFAULTS); retuneAnimals(); }
   else if (tuneKind === 'lighting') { Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS); Object.assign(scenery.lampTune, STREETLIGHT_DEFAULTS); Object.assign(lightTune, LIGHT_DEFAULTS); applyLightTune(); }
   else Object.assign(scenery.lampTune, STREETLIGHT_DEFAULTS);
   saveTuning(); refreshUI(); renderTune();
@@ -1107,6 +1131,7 @@ el.weather.onclick = () => openTune('weather');
 el.time.onclick = () => openTune('time');
 $('b-traffic').onclick = () => (tuneKind === 'traffic' ? closeTune() : openTune('traffic'));
 $('b-lighting').onclick = () => (tuneKind === 'lighting' ? closeTune() : openTune('lighting'));
+$('b-animals').onclick = () => (tuneKind === 'animals' ? closeTune() : openTune('animals'));
 $('b-mode').onclick = () => { if (state.started) setGameMode(state.mode === 'drive' ? 'chill' : 'drive'); };
 $('b-park').onclick = () => (tuneKind === 'park' ? closeTune() : openTune('park'));
 el.music.onclick = nextMusic;
