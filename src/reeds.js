@@ -12,6 +12,10 @@ import { withMist } from './mist.js';
 export const ROAD_PTS = 27;
 export const ROAD_PT_GAP = 12;
 const VIEW_MAX = 2;          // phạm vi hiển thị tối đa (Ultra)
+// thông số chỉnh tay (bảng 🌿 Nature, hiện chỉ dùng cho cỏ đồi `meadow`): near = cỏ dày tới (m), far = cỏ xa tới (m, × phạm vi của
+// chất lượng), density / farDensity = × số khóm gần / xa, height = × độ cao, opacity = độ đục lá, edge = trong suốt viền lá (0..1)
+export const NATURE_DEFAULTS = Object.freeze({ near: 36, far: 135, density: 1, farDensity: 1, height: 1, opacity: 1, edge: 0 });
+const NEAR_MAX = 80, FAR_MAX = 320, DENS_MAX = 2;
 
 function rng(seed) {
   let a = seed >>> 0;
@@ -87,7 +91,8 @@ function meadowGeometry() {
   const r = rng(29);
   const pos = [], nor = [], col = [], idx = [];
   const cBase = new THREE.Color(0x46623a), cMid = new THREE.Color(0x7aa05c), cTip = new THREE.Color(0xb7d08f);
-  const push = (x, y, z, c, n) => { pos.push(x, y, z); col.push(c.r, c.g, c.b); nor.push(n[0], n[1], n[2]); };
+  const edge = [];                                                  // -1 / +1 hai mép lá (độ trong suốt viền lá)
+  const push = (x, y, z, c, n, e) => { pos.push(x, y, z); col.push(c.r, c.g, c.b); nor.push(n[0], n[1], n[2]); edge.push(e); };
   const BL = 7;
   for (let b = 0; b < BL; b++) {
     const a = (b / BL) * Math.PI * 2 + (r() - 0.5) * 0.8;
@@ -99,8 +104,8 @@ function meadowGeometry() {
     const rows = [[0, W, cBase], [0.45, W * 0.85, cMid], [0.8, W * 0.5, cMid.clone().lerp(cTip, 0.5)], [1, 0.002, cTip]];
     for (const [t, w, c] of rows) {
       const bx = ox + dx * L * t * t, bz = oz + dz * L * t * t, y = H * t;
-      push(bx - px * w, y, bz - pz * w, c, n);
-      push(bx + px * w, y, bz + pz * w, c, n);
+      push(bx - px * w, y, bz - pz * w, c, n, -1);
+      push(bx + px * w, y, bz + pz * w, c, n, 1);
     }
     for (let k = 0; k < rows.length - 1; k++) { const a0 = v0 + k * 2; idx.push(a0, a0 + 1, a0 + 2, a0 + 1, a0 + 3, a0 + 2); }
   }
@@ -108,6 +113,7 @@ function meadowGeometry() {
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('aEdge', new THREE.Float32BufferAttribute(edge, 1));
   g.setIndex(idx);
   return g;
 }
@@ -143,7 +149,9 @@ uniform vec3 uCam;
 uniform float uTime, uWind, uCell, uScale, uIn0, uIn1, uOut0, uOut1, uCorr;
 uniform vec2 uWindDir;
 uniform vec3 uRoad[${ROAD_PTS}];     // (x, y, z) của tim đường
-uniform float uCarve0, uCarve1, uTipH, uPatch;
+uniform float uCarve0, uCarve1, uTipH, uPatch, uHK;
+attribute float aEdge;
+varying float vEdge;
 uniform vec4 uExcl[32];               // đoạn loại cỏ (x0, z0, x1, z1) — đại lộ: đường ngang + nhánh rẽ
 uniform float uExclW[32];
 uniform int uExclN;
@@ -179,7 +187,8 @@ for (int i = 0; i < 32; i++) {
 // độ cao mặt đất (cùng công thức với lưới địa hình trên CPU, không gồm núi xa)
 float gy = tLow(wp) + tDetail(wp);
 gy = mix(ry - 0.02, gy, smoothstep(uCarve0, uCarve1, rd));
-float h = (0.72 + 0.6 * aSeed.w) * uScale * vis;
+float h = (0.72 + 0.6 * aSeed.w) * uScale * vis * uHK;
+vEdge = aEdge;
 // đồi cỏ: cao thấp theo từng mảng lớn (sóng cỏ chập chùng)
 h *= mix(1.0, 0.72 + 0.5 * (0.5 + 0.5 * sin(wp.x * 0.041 + 1.7 * sin(wp.y * 0.023))) * (0.6 + 0.4 * sin(wp.y * 0.057 + wp.x * 0.013)), uPatch);
 float ang = aSeed.z * 6.2831853;
@@ -218,6 +227,7 @@ export class ReedField {
       uCorr: { value: ROAD.halfWidth + (meadow ? 0.7 : grass ? 0.3 : 1.0) },
       uTipH: { value: meadow ? 1.4 : grass ? 0.8 : 1.95 },
       uPatch: { value: meadow ? 1 : 0 },
+      uHK: { value: 1 }, uOpacity: { value: 1 }, uEdge: { value: 0 },
       uCarve0: { value: ROAD.halfWidth + 1.2 }, uCarve1: { value: ROAD.halfWidth + 16 },
       uTLow: { value: TP.low }, uTDet: { value: TP.det }, uTFine: { value: TP.fine },
       uExcl: { value: Array.from({ length: 32 }, () => new THREE.Vector4()) }, uExclW: { value: new Array(32).fill(0) }, uExclN: { value: 0 },
@@ -240,9 +250,13 @@ export class ReedField {
       { cell: 340, count: 11000, scale: 1.55, in0: 27, in1: 46, out0: 118, out1: 165, seed: 2 },
     ];
     // lớp xa nhất: chừa sẵn chỗ cho phạm vi hiển thị ×VIEW_MAX (ô lưới, khoảng cách ×k => số khóm ×k²)
+    this.tune = { ...NATURE_DEFAULTS, near: layers[0].out1, far: layers[layers.length - 1].out1 };
+    this.tunable = meadow;
     this.layers = layers.map((L, li) => {
       const far = li === layers.length - 1;
-      const alloc = far ? L.count * VIEW_MAX * VIEW_MAX : L.count;
+      // chừa chỗ: lớp gần tới NEAR_MAX m, lớp xa tới FAR_MAX m × VIEW_MAX, độ dày tới ×DENS_MAX (chỉ cỏ đồi chỉnh được)
+      const grow = (m) => (m / (far ? L.out1 : L.out1)) ** 2 * DENS_MAX;
+      const alloc = Math.ceil(far ? L.count * (meadow ? grow(FAR_MAX * VIEW_MAX) : VIEW_MAX * VIEW_MAX) : L.count * (meadow ? grow(NEAR_MAX) : 1));
       const r = rng(L.seed * 977);
       const seeds = new Float32Array(alloc * 4);
       for (let i = 0; i < seeds.length; i++) seeds[i] = r();
@@ -252,13 +266,13 @@ export class ReedField {
         uIn0: { value: L.in0 }, uIn1: { value: L.in1 }, uOut0: { value: L.out0 }, uOut1: { value: L.out1 },
       };
       const leaves = this._mesh(this.leafGeo, attr, L.count, uni, new THREE.MeshLambertMaterial({
-        vertexColors: true, side: THREE.DoubleSide,
+        vertexColors: true, side: THREE.DoubleSide, alphaHash: meadow,   // cỏ đồi: trong suốt kiểu hạt (không cần sắp xếp)
       }), true);
-      if (grass) return { max: L.count, far, L, uni, meshes: [leaves] };
+      if (grass) return { max: L.count, alloc, far, L, uni, meshes: [leaves] };
       const plumes = this._mesh(this.plumeGeo, attr, L.count, uni, new THREE.MeshLambertMaterial({
         map: plumeMap, side: THREE.DoubleSide, alphaTest: 0.2, alphaToCoverage: true,
       }), false);
-      return { max: L.count, far, L, uni, meshes: [leaves, plumes] };
+      return { max: L.count, alloc, far, L, uni, meshes: [leaves, plumes] };
     });
     this.mats = this.layers.flatMap((l) => l.meshes.map((m) => m.material));
     this.group.visible = true;
@@ -283,6 +297,8 @@ export class ReedField {
       }
       // lá/bông là mặt phẳng mỏng: bỏ đảo pháp tuyến mặt sau để sáng đều 2 mặt
       shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform float uOpacity, uEdge;\nvarying float vEdge;')
+        .replace('#include <alphamap_fragment>', '#include <alphamap_fragment>\ndiffuseColor.a *= uOpacity * (1.0 - uEdge * smoothstep(0.3, 1.0, abs(vEdge)));')
         .replace('#include <normal_fragment_begin>', THREE.ShaderChunk.normal_fragment_begin.replace('normal *= faceDirection;', ''))
         // phát sáng nhẹ theo albedo (giả lập xuyên sáng ngược nắng)
         .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance = emissive * diffuseColor.rgb;');
@@ -298,22 +314,41 @@ export class ReedField {
   set visible(v) { this.group.visible = v; }
   get visible() { return this.group.visible; }
 
-  setDensity(f) {
-    this.density = f;
-    const k = this.view || 1;
-    for (const l of this.layers) for (const m of l.meshes) m.geometry.instanceCount = Math.floor(l.max * f * (l.far ? k * k : 1));
-  }
+  setDensity(f) { this.density = f; this._layout(); }
 
   // phạm vi hiển thị (1..VIEW_MAX): lớp xa trải rộng ×k, số khóm ×k² để giữ nguyên độ dày
-  setView(k) {
-    this.view = Math.min(Math.max(k, 1), VIEW_MAX);
+  setView(k) { this.view = Math.min(Math.max(k, 1), VIEW_MAX); this._layout(); }
+
+  // đặt lại ô lưới / vùng mờ / số khóm từ chất lượng (density, view) + thông số chỉnh tay (tune, chỉ cỏ đồi)
+  applyTune() {
+    const T = this.tune, sh = this.shared;
+    sh.uHK.value = this.tunable ? T.height : 1;
+    sh.uOpacity.value = this.tunable ? T.opacity : 1;
+    sh.uEdge.value = this.tunable ? T.edge : 0;
+    this._layout();
+  }
+
+  _layout() {
+    const f = this.density ?? 1, k = this.view || 1, T = this.tune;
+    const near = this.layers[0], farL = this.layers[this.layers.length - 1];
+    const nearOut = this.tunable ? Math.min(NEAR_MAX, T.near) : near.L.out1;
     for (const l of this.layers) {
-      if (!l.far) continue;
-      l.uni.uCell.value = l.L.cell * this.view;
-      l.uni.uOut0.value = l.L.out0 * this.view;
-      l.uni.uOut1.value = l.L.out1 * this.view;
+      const L = l.L;
+      let out1 = L.out1, dens = 1;
+      if (l === near && l !== farL) { out1 = nearOut; dens = this.tunable ? T.density : 1; }
+      if (l.far) {
+        out1 = (this.tunable ? Math.min(FAR_MAX, T.far) : L.out1) * k; dens = this.tunable ? T.farDensity : 1;
+        // lớp xa hiện dần từ chỗ lớp gần hết (không có khoảng hở / chồng dày)
+        l.uni.uIn0.value = this.tunable ? Math.max(0, nearOut * (L.in0 / near.L.out1)) : L.in0;
+        l.uni.uIn1.value = this.tunable ? nearOut * (L.in1 / near.L.out1) : L.in1;
+      }
+      const g = out1 / L.out1;                                       // ô lưới + vùng mờ giãn theo khoảng cách
+      l.uni.uCell.value = L.cell * g;
+      l.uni.uOut0.value = L.out0 * g;
+      l.uni.uOut1.value = out1;
+      const n = Math.floor(L.count * f * g * g * Math.min(DENS_MAX, dens));
+      for (const m of l.meshes) m.geometry.instanceCount = Math.min(l.alloc, n);
     }
-    this.setDensity(this.density ?? 1);
   }
 
   // road: đối tượng Road, s: độ dài cung của xe

@@ -14,7 +14,7 @@ import { Environment } from './world.js';
 import { Cars } from './cars.js';
 import { CameraRig, FOCAL_MIN, FOCAL_MAX } from './camera.js';
 import { ChillAudio } from './audio.js';
-import { ReedField } from './reeds.js';
+import { ReedField, NATURE_DEFAULTS } from './reeds.js';
 import { Post } from './post.js';
 import { installMist, MIST } from './mist.js';
 import { WetReflection } from './reflection.js';
@@ -380,8 +380,8 @@ function applyTrafficTune() {
 // thông số chỉnh tay (bảng camera / thời tiết / thời gian / Lighting / dừng xe) lưu RIÊNG cho Chill và Drive: đổi nhóm map
 // (applyMap) => cất bộ đang dùng, nạp bộ của nhóm kia. Giao thông chỉ có ở Drive; sương có bộ riêng trong mistTune.
 const tuneParts = () => ({ camera: rig.tune, weather: env.weatherProfiles, environment: env.tune, carLights: cars.headlights.tune,
-  streetLights: scenery.lampTune, lighting: lightTune, park: stop.tune, fireflies: fireflies.tune, cows: cows.tune });
-const retuneAnimals = () => { fireflies.ground.clear(); cows.retune(); };
+  streetLights: scenery.lampTune, lighting: lightTune, park: stop.tune, fireflies: fireflies.tune, cows: cows.tune, nature: meadow.tune });
+const retuneAnimals = () => { fireflies.ground.clear(); cows.retune(); meadow.applyTune(); };
 const cloneJ = (o) => JSON.parse(JSON.stringify(o));
 const TUNE_BASE = cloneJ(tuneParts());                              // mặc định trong code (trước khi đọc bản lưu)
 const tuneSets = { chill: null, drive: null };
@@ -391,7 +391,7 @@ function loadTuneSet(src) {
   const P = tuneParts();
   for (const [id, v] of Object.entries(src.camera || {})) if (rig.tune[id]) Object.assign(rig.tune[id], v);
   for (const [id, v] of Object.entries(src.weather || {})) if (env.weatherProfiles[id]) Object.assign(env.weatherProfiles[id], v);
-  for (const k of ['environment', 'carLights', 'streetLights', 'lighting', 'park', 'fireflies', 'cows']) if (src[k]) Object.assign(P[k], src[k]);
+  for (const k of ['environment', 'carLights', 'streetLights', 'lighting', 'park', 'fireflies', 'cows', 'nature']) if (src[k]) Object.assign(P[k], src[k]);
 }
 function switchTuneGroup(g) {
   if (g === tuneGroup) return;
@@ -408,7 +408,7 @@ try {
     const legacy = {}; for (const k of Object.keys(TUNE_BASE)) if (savedTuning[k]) legacy[k] = savedTuning[k];
     tuneSets.chill = cloneJ(legacy); tuneSets.drive = cloneJ(legacy);
   }
-  loadTuneSet(tuneSets[tuneGroup]);
+  loadTuneSet(tuneSets[tuneGroup]); meadow.applyTune();
   if (savedTuning?.traffic) Object.assign(trafficTune, savedTuning.traffic);
   for (const g of ['chill', 'drive']) {
     const sv = savedTuning?.mist?.[g]; if (!sv) continue;
@@ -447,6 +447,7 @@ function refreshUI() {
   $('b-traffic').classList.toggle('on', tuneKind === 'traffic');
   $('b-lighting').classList.toggle('on', tuneKind === 'lighting');
   $('b-animals').classList.toggle('on', tuneKind === 'animals');
+  $('b-nature').classList.toggle('on', tuneKind === 'nature');
   $('b-park').classList.toggle('on', tuneKind === 'park');
   $('b-mode').querySelector('span').textContent = state.mode === 'drive' ? 'Drive' : 'Chill';
   $('b-mode').title = state.mode === 'drive' ? 'Đang ở chế độ Drive — bấm để đổi sang Chill' : 'Đang ở chế độ Chill — bấm để đổi sang Drive';
@@ -997,6 +998,20 @@ renderTune = () => {
     addNumber({ label: 'Độ dài pha đèn (×)', min: 0.3, max: 3, step: 0.1, get: () => trafficTune.signal, set: (v) => { trafficTune.signal = v; applyTrafficTune(); } });
     return;
   }
+  if (tuneKind === 'nature') {
+    tuneMode.hidden = true;
+    $('tune-title').textContent = 'Nature · cỏ cây';
+    const N = meadow.tune, ap = () => meadow.applyTune();
+    addHeading('Cỏ (map Đồi cỏ' + (isDriveMap(state.map) ? ', Đại lộ)' : ')'));
+    addNumber({ label: 'Cỏ dày tới (m)', min: 15, max: 80, step: 1, get: () => N.near, set: (v) => { N.near = v; ap(); } });
+    addNumber({ label: 'Hiển thị cỏ xa tới (m)', min: 60, max: 320, step: 5, get: () => N.far, set: (v) => { N.far = v; ap(); } });
+    addNumber({ label: 'Độ dày cỏ gần (×)', min: 0.2, max: 2, step: 0.05, get: () => N.density, set: (v) => { N.density = v; ap(); } });
+    addNumber({ label: 'Độ dày cỏ xa (×)', min: 0, max: 2, step: 0.05, get: () => N.farDensity, set: (v) => { N.farDensity = v; ap(); } });
+    addNumber({ label: 'Độ cao cỏ (×)', min: 0.3, max: 2.5, step: 0.05, get: () => N.height, set: (v) => { N.height = v; ap(); } });
+    addNumber({ label: 'Độ đục lá (%)', min: 20, max: 100, step: 1, get: () => Math.round(N.opacity * 100), set: (v) => { N.opacity = v / 100; ap(); } });
+    addNumber({ label: 'Trong suốt viền lá (%)', min: 0, max: 100, step: 1, get: () => Math.round(N.edge * 100), set: (v) => { N.edge = v / 100; ap(); } });
+    return;
+  }
   if (tuneKind === 'animals') {
     tuneMode.hidden = true;
     $('tune-title').textContent = 'Animal · động vật';
@@ -1120,6 +1135,7 @@ $('tune-reset').onclick = () => {
   else if (tuneKind === 'traffic') { Object.assign(trafficTune, TRAFFIC_DEFAULTS); $('b-score').hidden = !cityTraffic.visible; if (trafficStartT <= 0 && !trafficLevel) pickTrafficLevel(false); else applyTrafficTune(); }
   else if (tuneKind === 'park') Object.assign(stop.tune, PARK_DEFAULTS);
   else if (tuneKind === 'animals') { Object.assign(fireflies.tune, FIREFLY_DEFAULTS); Object.assign(cows.tune, COW_DEFAULTS); retuneAnimals(); }
+  else if (tuneKind === 'nature') { Object.assign(meadow.tune, NATURE_DEFAULTS); meadow.applyTune(); }
   else if (tuneKind === 'lighting') { Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS); Object.assign(scenery.lampTune, STREETLIGHT_DEFAULTS); Object.assign(lightTune, LIGHT_DEFAULTS); applyLightTune(); }
   else Object.assign(scenery.lampTune, STREETLIGHT_DEFAULTS);
   saveTuning(); refreshUI(); renderTune();
@@ -1132,6 +1148,7 @@ el.time.onclick = () => openTune('time');
 $('b-traffic').onclick = () => (tuneKind === 'traffic' ? closeTune() : openTune('traffic'));
 $('b-lighting').onclick = () => (tuneKind === 'lighting' ? closeTune() : openTune('lighting'));
 $('b-animals').onclick = () => (tuneKind === 'animals' ? closeTune() : openTune('animals'));
+$('b-nature').onclick = () => (tuneKind === 'nature' ? closeTune() : openTune('nature'));
 $('b-mode').onclick = () => { if (state.started) setGameMode(state.mode === 'drive' ? 'chill' : 'drive'); };
 $('b-park').onclick = () => (tuneKind === 'park' ? closeTune() : openTune('park'));
 el.music.onclick = nextMusic;
