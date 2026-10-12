@@ -14,7 +14,7 @@ import { Environment } from './world.js';
 import { Cars } from './cars.js';
 import { CameraRig, FOCAL_MIN, FOCAL_MAX } from './camera.js';
 import { ChillAudio } from './audio.js';
-import { ReedField, NATURE_DEFAULTS } from './reeds.js';
+import { ReedField } from './reeds.js';
 import { Post } from './post.js';
 import { installMist, MIST } from './mist.js';
 import { WetReflection } from './reflection.js';
@@ -380,8 +380,8 @@ function applyTrafficTune() {
 // thông số chỉnh tay (bảng camera / thời tiết / thời gian / Lighting / dừng xe) lưu RIÊNG cho Chill và Drive: đổi nhóm map
 // (applyMap) => cất bộ đang dùng, nạp bộ của nhóm kia. Giao thông chỉ có ở Drive; sương có bộ riêng trong mistTune.
 const tuneParts = () => ({ camera: rig.tune, weather: env.weatherProfiles, environment: env.tune, carLights: cars.headlights.tune,
-  streetLights: scenery.lampTune, lighting: lightTune, park: stop.tune, fireflies: fireflies.tune, cows: cows.tune, nature: meadow.tune });
-const retuneAnimals = () => { fireflies.ground.clear(); cows.retune(); meadow.applyTune(); };
+  streetLights: scenery.lampTune, lighting: lightTune, park: stop.tune, fireflies: fireflies.tune, cows: cows.tune, nature: meadow.tune, natureReed: reeds.tune });
+const retuneAnimals = () => { fireflies.ground.clear(); cows.retune(); meadow.applyTune(); reeds.applyTune(); };
 const cloneJ = (o) => JSON.parse(JSON.stringify(o));
 const TUNE_BASE = cloneJ(tuneParts());                              // mặc định trong code (trước khi đọc bản lưu)
 const tuneSets = { chill: null, drive: null };
@@ -391,7 +391,7 @@ function loadTuneSet(src) {
   const P = tuneParts();
   for (const [id, v] of Object.entries(src.camera || {})) if (rig.tune[id]) Object.assign(rig.tune[id], v);
   for (const [id, v] of Object.entries(src.weather || {})) if (env.weatherProfiles[id]) Object.assign(env.weatherProfiles[id], v);
-  for (const k of ['environment', 'carLights', 'streetLights', 'lighting', 'park', 'fireflies', 'cows', 'nature']) if (src[k]) Object.assign(P[k], src[k]);
+  for (const k of ['environment', 'carLights', 'streetLights', 'lighting', 'park', 'fireflies', 'cows', 'nature', 'natureReed']) if (src[k]) Object.assign(P[k], src[k]);
 }
 function switchTuneGroup(g) {
   if (g === tuneGroup) return;
@@ -408,7 +408,7 @@ try {
     const legacy = {}; for (const k of Object.keys(TUNE_BASE)) if (savedTuning[k]) legacy[k] = savedTuning[k];
     tuneSets.chill = cloneJ(legacy); tuneSets.drive = cloneJ(legacy);
   }
-  loadTuneSet(tuneSets[tuneGroup]); meadow.applyTune();
+  loadTuneSet(tuneSets[tuneGroup]); meadow.applyTune(); reeds.applyTune();
   if (savedTuning?.traffic) Object.assign(trafficTune, savedTuning.traffic);
   for (const g of ['chill', 'drive']) {
     const sv = savedTuning?.mist?.[g]; if (!sv) continue;
@@ -892,6 +892,79 @@ function saveShot() {
     document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   }, 'image/png');
 }
+// ---- quay màn hình (nút ⏺ cạnh nút chụp ảnh, phím Y): hình canvas game (không có nút / HUD) + tiếng game.
+// Lưu: Chrome / Edge máy tính chọn thư mục 1 lần (hộp chọn mở sẵn ở Desktop), nhớ trong IndexedDB rồi các lần sau ghi thẳng
+// vào đó; trình duyệt khác => tải về như ảnh chụp (Downloads; điện thoại: bảng chia sẻ). Giữ Shift khi bấm: chọn lại thư mục.
+const REC_MAX_MS = 10 * 60 * 1000;
+let rec = null;                                                   // { mr, chunks, t0, timer, type }
+const recIdb = (mode, fn) => new Promise((res, rej) => {
+  const open = indexedDB.open('chilldrive', 1);
+  open.onupgradeneeded = () => open.result.createObjectStore('kv');
+  open.onerror = () => rej(open.error);
+  open.onsuccess = () => { const tx = open.result.transaction('kv', mode), st = tx.objectStore('kv'), r = fn(st); tx.oncomplete = () => res(r?.result); tx.onerror = () => rej(tx.error); };
+});
+const recDir = { get: () => recIdb('readonly', (st) => st.get('recDir')).catch(() => null), set: (h) => recIdb('readwrite', (st) => st.put(h, 'recDir')).catch(() => {}) };
+async function pickRecDir(force) {
+  if (!window.showDirectoryPicker) return null;
+  let dir = force ? null : await recDir.get();
+  if (dir) {
+    const opt = { mode: 'readwrite' };
+    if ((await dir.queryPermission?.(opt)) !== 'granted' && (await dir.requestPermission?.(opt)) !== 'granted') dir = null;
+  }
+  if (!dir) {
+    try { dir = await window.showDirectoryPicker({ id: 'chilldrive-rec', mode: 'readwrite', startIn: 'desktop' }); } catch { return null; }   // huỷ => tải về
+    await recDir.set(dir);
+  }
+  return dir;
+}
+async function saveRecording(blob, ext) {
+  const name = 'chill-drive-' + new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-') + '.' + ext;
+  const dir = rec?.dir;
+  if (dir) {
+    try { const fh = await dir.getFileHandle(name, { create: true }); const w = await fh.createWritable(); await w.write(blob); await w.close(); toast('💾 Đã lưu video vào thư mục "' + dir.name + '": ' + name); return; }
+    catch (e) { console.warn('Lưu vào thư mục lỗi, tải về thay thế', e); }
+  }
+  const file = new File([blob], name, { type: blob.type });
+  if (IS_PHONE && navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file] }); return; } catch { /* huỷ => tải về */ } }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  toast('💾 Đã tải video về: ' + name);
+}
+// định dạng có bộ mã HÌNH rõ ràng trước: mp4 H.264 (Chrome / Edge / Safari, thường mã hoá bằng phần cứng), rồi webm VP8 (nhẹ hơn
+// VP9 khi vừa chơi vừa quay), VP9; 'video/mp4' trơn để cuối vì có trình duyệt nhận mp4 nhưng không có H.264 => file chỉ có tiếng
+const recFmt = () => [['video/mp4;codecs=avc1,mp4a.40.2', 'mp4'], ['video/mp4;codecs=avc1', 'mp4'], ['video/webm;codecs=vp8,opus', 'webm'],
+  ['video/webm;codecs=vp9,opus', 'webm'], ['video/webm', 'webm'], ['video/mp4', 'mp4']]
+  .find(([t]) => window.MediaRecorder?.isTypeSupported?.(t)) || null;
+async function toggleRecord(e) {
+  if (rec) { rec.mr.stop(); return; }
+  const fmt = recFmt();
+  if (!fmt || !canvas.captureStream) { toast('Trình duyệt này không hỗ trợ quay màn hình', true); return; }
+  const dir = window.showDirectoryPicker ? await pickRecDir(!!e?.shiftKey) : null;   // chọn thư mục trước khi quay (cần cú bấm của chú)
+  const stream = canvas.captureStream(30);
+  const at = audio.recordTrack(); if (at) stream.addTrack(at);
+  let mr;
+  try { mr = new MediaRecorder(stream, { mimeType: fmt[0], videoBitsPerSecond: 10e6, audioBitsPerSecond: 160e3 }); }
+  catch (err) { toast('Không quay được: ' + err.message, true); return; }
+  rec = { mr, chunks: [], t0: performance.now(), type: fmt[0], ext: fmt[1], dir };
+  mr.ondataavailable = (ev) => { if (ev.data?.size) rec?.chunks.push(ev.data); };
+  mr.onstop = async () => {
+    const r = rec; rec = null; clearInterval(r.timer);
+    stream.getVideoTracks().forEach((t) => t.stop());
+    $('b-rec').classList.remove('on'); $('rec-time').textContent = ''; document.body.classList.remove('recording');
+    const blob = new Blob(r.chunks, { type: r.type.split(';')[0] });
+    if (blob.size) await saveRecording(blob, r.ext); else toast('Video trống, không lưu', true);
+  };
+  mr.start(1000);
+  $('b-rec').classList.add('on'); document.body.classList.add('recording');
+  rec.timer = setInterval(() => {
+    const t = (performance.now() - rec.t0) / 1000;
+    $('rec-time').textContent = String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(Math.floor(t % 60)).padStart(2, '0');
+    if (t * 1000 > REC_MAX_MS) rec.mr.stop();
+  }, 250);
+  toast('⏺ Đang quay — bấm lại nút (hoặc phím Y) để dừng và lưu' + (dir ? ' vào "' + dir.name + '"' : ''));
+}
+$('b-rec').onclick = (e) => { toggleRecord(e); e.currentTarget.blur(); };
+
 const focalIn = $('lens-focal'), fstopIn = $('lens-fstop');
 focalIn.min = FOCAL_MIN; focalIn.max = FOCAL_MAX;
 fstopIn.max = FSTOPS.length - 1;
@@ -1001,8 +1074,11 @@ renderTune = () => {
   if (tuneKind === 'nature') {
     tuneMode.hidden = true;
     $('tune-title').textContent = 'Nature · cỏ cây';
-    const N = meadow.tune, ap = () => meadow.applyTune();
-    addHeading('Cỏ (map Đồi cỏ' + (isDriveMap(state.map) ? ', Đại lộ)' : ')'));
+    // mỗi loại cỏ một bộ riêng: map Cỏ lau => cỏ lau (`reeds`), map Đồi cỏ / Đại lộ => cỏ đồi (`meadow`)
+    const mid = MAPS[state.map].id, fld = mid === 'reed' ? reeds : mid === 'meadow' || mid === 'avenue' ? meadow : null;
+    if (!fld) { addHeading('Map này chưa có tuỳ chỉnh cỏ (có ở map Đồi cỏ, Cỏ lau, Đại lộ)'); return; }
+    const N = fld.tune, ap = () => fld.applyTune();
+    addHeading(fld === reeds ? 'Cỏ lau (map Cỏ lau)' : 'Cỏ (map Đồi cỏ' + (mid === 'avenue' ? ', Đại lộ)' : ')'));
     addNumber({ label: 'Cỏ dày tới (m)', min: 15, max: 80, step: 1, get: () => N.near, set: (v) => { N.near = v; ap(); } });
     addNumber({ label: 'Hiển thị cỏ xa tới (m)', min: 60, max: 320, step: 5, get: () => N.far, set: (v) => { N.far = v; ap(); } });
     addNumber({ label: 'Độ dày cỏ gần (×)', min: 0.2, max: 2, step: 0.05, get: () => N.density, set: (v) => { N.density = v; ap(); } });
@@ -1135,7 +1211,7 @@ $('tune-reset').onclick = () => {
   else if (tuneKind === 'traffic') { Object.assign(trafficTune, TRAFFIC_DEFAULTS); $('b-score').hidden = !cityTraffic.visible; if (trafficStartT <= 0 && !trafficLevel) pickTrafficLevel(false); else applyTrafficTune(); }
   else if (tuneKind === 'park') Object.assign(stop.tune, PARK_DEFAULTS);
   else if (tuneKind === 'animals') { Object.assign(fireflies.tune, FIREFLY_DEFAULTS); Object.assign(cows.tune, COW_DEFAULTS); retuneAnimals(); }
-  else if (tuneKind === 'nature') { Object.assign(meadow.tune, NATURE_DEFAULTS); meadow.applyTune(); }
+  else if (tuneKind === 'nature') { const f = MAPS[state.map].id === 'reed' ? reeds : meadow; Object.assign(f.tune, f.defaults); f.applyTune(); }
   else if (tuneKind === 'lighting') { Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS); Object.assign(scenery.lampTune, STREETLIGHT_DEFAULTS); Object.assign(lightTune, LIGHT_DEFAULTS); applyLightTune(); }
   else Object.assign(scenery.lampTune, STREETLIGHT_DEFAULTS);
   saveTuning(); refreshUI(); renderTune();
@@ -1186,6 +1262,7 @@ window.addEventListener('keydown', (e) => {
     case 'KeyU': toggleFS(); break;
     case 'KeyK': toggleSettings(); break;
     case 'KeyO': shotPending = true; break;
+    case 'KeyY': toggleRecord(e); break;
     case 'KeyJ': if (cityTraffic.visible && trafficTune.score) toggleScore(); break;
     case 'Escape': if (!$('score').hidden) toggleScore(false); break;
     case 'Comma': setBlinker(-1); break;         // xi nhan trái (<) / phải (>)

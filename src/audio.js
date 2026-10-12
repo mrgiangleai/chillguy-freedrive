@@ -37,6 +37,9 @@ export class ChillAudio {
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -16; comp.ratio.value = 3;
     this.master.connect(comp).connect(ctx.destination);
+    // nhánh song song cho quay màn hình (main: nút ⏺): cùng tiếng ra loa
+    this.recDest = ctx.createMediaStreamDestination();
+    comp.connect(this.recDest);
 
     // bus nhạc
     this.musicGain = ctx.createGain();
@@ -101,6 +104,9 @@ export class ChillAudio {
     });
     this.setMode(this.mode);
   }
+
+  // track âm thanh cho quay màn hình (null nếu chưa bật âm thanh)
+  recordTrack() { return this.recDest?.stream.getAudioTracks()[0] ?? null; }
 
   setMode(m) {
     this.mode = m;

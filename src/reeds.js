@@ -12,7 +12,7 @@ import { withMist } from './mist.js';
 export const ROAD_PTS = 27;
 export const ROAD_PT_GAP = 12;
 const VIEW_MAX = 2;          // phạm vi hiển thị tối đa (Ultra)
-// thông số chỉnh tay (bảng 🌿 Nature, hiện chỉ dùng cho cỏ đồi `meadow`): near = cỏ dày tới (m), far = cỏ xa tới (m, × phạm vi của
+// thông số chỉnh tay (bảng 🌿 Nature: cỏ đồi `meadow` + cỏ lau `reed`, mỗi loại một bộ riêng): near = cỏ dày tới (m), far = cỏ xa tới (m, × phạm vi của
 // chất lượng), density / farDensity = × số khóm gần / xa, height = × độ cao, opacity = độ đục lá, edge = trong suốt viền lá (0..1)
 export const NATURE_DEFAULTS = Object.freeze({ near: 36, far: 135, density: 1, farDensity: 1, height: 1, opacity: 1, edge: 0 });
 const NEAR_MAX = 80, FAR_MAX = 320, DENS_MAX = 2;
@@ -31,7 +31,8 @@ function leafGeometry() {
   const r = rng(3);
   const pos = [], nor = [], col = [], idx = [];
   const cBase = new THREE.Color(0x6a6030), cMid = new THREE.Color(0xa99a56), cTip = new THREE.Color(0xe0cf92);
-  const push = (x, y, z, c, n) => { pos.push(x, y, z); col.push(c.r, c.g, c.b); nor.push(n[0], n[1], n[2]); };
+  const edge = [];                                                  // -1 / +1 hai mép lá, 0 đầu lá (độ trong suốt viền lá)
+  const push = (x, y, z, c, n, e = 0) => { pos.push(x, y, z); col.push(c.r, c.g, c.b); nor.push(n[0], n[1], n[2]); edge.push(e); };
   const BL = 5;
   for (let b = 0; b < BL; b++) {
     const a = (b / BL) * Math.PI * 2 + (r() - 0.5) * 0.7;
@@ -44,8 +45,8 @@ function leafGeometry() {
     ];
     const v0 = pos.length / 3;
     for (const row of rows) {
-      push(row.c[0] - px * row.hw, row.c[1], row.c[2] - pz * row.hw, row.col, n);
-      push(row.c[0] + px * row.hw, row.c[1], row.c[2] + pz * row.hw, row.col, n);
+      push(row.c[0] - px * row.hw, row.c[1], row.c[2] - pz * row.hw, row.col, n, -1);
+      push(row.c[0] + px * row.hw, row.c[1], row.c[2] + pz * row.hw, row.col, n, 1);
     }
     push(dx * L, H * 0.92, dz * L, cTip, n);                 // đầu lá
     idx.push(v0, v0 + 1, v0 + 2, v0 + 1, v0 + 3, v0 + 2, v0 + 2, v0 + 3, v0 + 4);
@@ -54,6 +55,7 @@ function leafGeometry() {
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('aEdge', new THREE.Float32BufferAttribute(edge, 1));
   g.setIndex(idx);
   return g;
 }
@@ -250,13 +252,15 @@ export class ReedField {
       { cell: 340, count: 11000, scale: 1.55, in0: 27, in1: 46, out0: 118, out1: 165, seed: 2 },
     ];
     // lớp xa nhất: chừa sẵn chỗ cho phạm vi hiển thị ×VIEW_MAX (ô lưới, khoảng cách ×k => số khóm ×k²)
-    this.tune = { ...NATURE_DEFAULTS, near: layers[0].out1, far: layers[layers.length - 1].out1 };
-    this.tunable = meadow;
+    this.defaults = Object.freeze({ ...NATURE_DEFAULTS, near: layers[0].out1, far: layers[layers.length - 1].out1 });
+    this.tune = { ...this.defaults };
+    this.tunable = meadow || kind === 'reed';
+    const tunable = this.tunable;
     this.layers = layers.map((L, li) => {
       const far = li === layers.length - 1;
       // chừa chỗ: lớp gần tới NEAR_MAX m, lớp xa tới FAR_MAX m × VIEW_MAX, độ dày tới ×DENS_MAX (chỉ cỏ đồi chỉnh được)
       const grow = (m) => (m / (far ? L.out1 : L.out1)) ** 2 * DENS_MAX;
-      const alloc = Math.ceil(far ? L.count * (meadow ? grow(FAR_MAX * VIEW_MAX) : VIEW_MAX * VIEW_MAX) : L.count * (meadow ? grow(NEAR_MAX) : 1));
+      const alloc = Math.ceil(far ? L.count * (tunable ? grow(FAR_MAX * VIEW_MAX) : VIEW_MAX * VIEW_MAX) : L.count * (tunable ? grow(NEAR_MAX) : 1));
       const r = rng(L.seed * 977);
       const seeds = new Float32Array(alloc * 4);
       for (let i = 0; i < seeds.length; i++) seeds[i] = r();
@@ -266,7 +270,7 @@ export class ReedField {
         uIn0: { value: L.in0 }, uIn1: { value: L.in1 }, uOut0: { value: L.out0 }, uOut1: { value: L.out1 },
       };
       const leaves = this._mesh(this.leafGeo, attr, L.count, uni, new THREE.MeshLambertMaterial({
-        vertexColors: true, side: THREE.DoubleSide, alphaHash: meadow,   // cỏ đồi: trong suốt kiểu hạt (không cần sắp xếp)
+        vertexColors: true, side: THREE.DoubleSide, alphaHash: tunable,  // cỏ chỉnh được: trong suốt kiểu hạt (không cần sắp xếp)
       }), true);
       if (grass) return { max: L.count, alloc, far, L, uni, meshes: [leaves] };
       const plumes = this._mesh(this.plumeGeo, attr, L.count, uni, new THREE.MeshLambertMaterial({

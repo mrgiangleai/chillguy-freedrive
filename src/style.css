@@ -294,3 +294,12 @@ body.mapopen #quick, body.mapopen #corner, body.mapopen #brake, body.mapopen .st
 #score .btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
 #score button { padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .25); background: rgba(255, 255, 255, .08); color: #fff; font: inherit; font-size: 14px; cursor: pointer; }
 #score button:hover { background: rgba(255, 255, 255, .18); }
+/* quay màn hình: nút cạnh nút chụp ảnh; đang quay => đỏ, chấm nhấp nháy, đồng hồ */
+#b-rec { position: relative; width: auto; min-width: 44px; gap: 4px; grid-auto-flow: column; }
+#b-rec .dot { opacity: .0; }
+#b-rec.on { color: #ff4d4d; filter: drop-shadow(0 0 6px rgba(255, 60, 60, .7)); }
+#b-rec.on .dot { opacity: 1; animation: recblink 1s steps(2, start) infinite; }
+#rec-time { font: 300 12px/1 system-ui, sans-serif; letter-spacing: .05em; }
+#rec-time:empty { display: none; }
+@keyframes recblink { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { #b-rec.on .dot { animation: none; } }

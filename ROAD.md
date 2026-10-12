@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -114,8 +114,9 @@
 - **Lưu thông số chỉnh tay** (`chilldrive.tuning.v1`, `v: 2`): bảng camera / thời tiết / thời gian (ánh sáng chung) / Lighting /
   dừng xe lưu RIÊNG nhóm Chill và Drive (`tuneSets`, `switchTuneGroup` gọi trong applyMap; bản lưu cũ chung => khởi đầu cho cả 2).
   Giao thông (`traffic`, chỉ Drive) và sương (`mist`, đã chia nhóm) lưu chung tệp. Chất lượng (Low / Good / Ultra) vẫn dùng chung.
-- **Bảng 🌿 Nature** (Setting, `tuneKind = 'nature'`, lưu theo nhóm trong `tuneSets.nature` = `meadow.tune`, `NATURE_DEFAULTS` trong
-  reeds.js; hiện chỉ cỏ đồi `meadow` — map Đồi cỏ + Đại lộ): cỏ dày tới (lớp gần, 15–80 m, mặc định 36), hiển thị cỏ xa tới (60–320 m
+- **Bảng 🌿 Nature** (Setting, `tuneKind = 'nature'`, `NATURE_DEFAULTS` trong reeds.js; mỗi loại cỏ một bộ riêng theo map đang ở:
+  cỏ đồi `meadow` (map Đồi cỏ + Đại lộ, lưu `tuneSets.nature`) và cỏ lau `reeds` (map Cỏ lau, lưu `tuneSets.natureReed`, mặc định
+  gần 43 m / xa 165 m = `reeds.defaults`); map khác: báo chưa có tuỳ chỉnh): cỏ dày tới (lớp gần, 15–80 m, mặc định 36), hiển thị cỏ xa tới (60–320 m
   × phạm vi chất lượng, mặc định 135), độ dày gần / xa ×, độ cao ×, độ đục lá, trong suốt viền lá (`aEdge` ±1 hai mép lá, lá dùng
   `alphaHash`). `_layout()`: ô lưới + vùng mờ giãn theo khoảng cách, số khóm × (giãn)² × độ dày để giữ mật độ; lớp xa hiện dần từ chỗ
   lớp gần hết; chừa sẵn bộ đệm (gần tới 80 m, xa tới 320 m × 2, dày ×2). Lý do: trước đây lớp xa thưa hơn lớp gần ~25 lần => ngoài ~30 m
@@ -301,6 +302,12 @@
   phím tắt không làm hiện; tự ẩn sau 2 s. Đồng hồ tốc độ `#stats` nằm ngoài HUD (luôn hiện, góc trên phải trong khung hình,
   dưới viền đen cine), Times New Roman: số 46 px, "km/h" nhỏ nghiêng, giờ nhỏ bên dưới. Nút phanh = hộp "Space" giữa đáy (trong HUD, ẩn theo; giữ để phanh). Điện thoại (`body.phone`, `IS_PHONE`): thêm 2 hộp ◀ / ▶
   hai bên Space (giữ để lái như phím ← / →, `steerHeld`; hiện ở mọi map, ẩn theo HUD). ⓘ ở góc trên trái. Nhạc mặc định tên "Music + fx".
+- **Quay màn hình** (nút `#b-rec` cạnh nút chụp ảnh, phím Y; `toggleRecord` trong main): `canvas.captureStream(30)` (hình game sau
+  hậu kỳ, không có nút / HUD) + tiếng game (`audio.recordTrack()` = nhánh `MediaStreamDestination` sau compressor). Định dạng:
+  mp4 H.264 nếu có → webm VP8 → VP9 (`recFmt`; 'video/mp4' trơn để cuối vì Chromium không H.264 cho file chỉ có tiếng), 10 Mbps, tối đa
+  10 phút. Lưu: Chrome / Edge máy tính `showDirectoryPicker({ startIn: 'desktop' })` lần đầu, nhớ handle trong IndexedDB `chilldrive/kv`
+  (`recDir`), lần sau ghi thẳng vào thư mục đó (Shift + bấm: chọn lại); trình duyệt khác / huỷ chọn => tải về (điện thoại: chia sẻ).
+  Đang quay: nút đỏ, chấm nhấp nháy, đồng hồ `#rec-time`.
 - **Chụp ảnh**: biểu tượng máy ảnh / phím O — chụp canvas ngay sau `post.render` (không cần preserveDrawingBuffer), tải PNG
   `chill-drive-<thời gian>.png`; điện thoại dùng bảng chia sẻ nếu có (lưu vào Ảnh).
 - **Đom đóm** (không có ở map Phố): đoạn có đom đóm ~2/3 chiều dài đường (nhiễu `sst(0.38, 0.58)`), 90% ô 5 m có, 1–3 con/ô, ra tới ~16 m hai bên,
@@ -333,3 +340,4 @@
 - **#3 — Màn hình chờ về 1 cảnh Đồi cỏ đêm (Good), vào Chill 25 km/h + Sau xe (11/10/2026)**.
 - **#4 — Bảng 🐾 Animal: vị trí, số lượng đom đóm + bò (11/10/2026)**.
 - **#5 — Bảng 🌿 Nature: khoảng cách hiển thị + độ dày / cao / trong suốt cỏ đồi (12/10/2026)**.
+- **#6 — Nút quay màn hình (phím Y, lưu thư mục chọn sẵn Desktop) + Nature cho map Cỏ lau, lưu riêng (12/10/2026)**.

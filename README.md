@@ -48,6 +48,7 @@ Web app lái xe thư giãn trên con đường vô tận, dùng **three.js** (Ja
 | `K` | mở / đóng Setting (camera, thời tiết, thời gian, nhạc, chất lượng, giao thông) |
 | `P` | dừng xe (cảnh người bước ra) / đi tiếp |
 | `O` | chụp ảnh màn hình (biểu tượng máy ảnh góc phải dưới) |
+| `Y` | quay màn hình bật / tắt (nút máy quay cạnh nút chụp ảnh); Chrome / Edge: lần đầu chọn thư mục lưu (mở sẵn Desktop), Shift + bấm để chọn lại |
 | `Space` / `B` | phanh (giữ) — map Phố, nút PHANH trên điện thoại |
 | `H` | ẩn / hiện giao diện |
 | `U` | bật / tắt toàn màn hình (nút ⛶) |
