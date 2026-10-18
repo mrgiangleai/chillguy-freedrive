@@ -1,0 +1,23 @@
+{
+  "name": "webgpu",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "vite build",
+    "start": "node server.mjs",
+    "preview": "vite preview --port 4173",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "three": "^0.186.1",
+    "vite": "^8.3.3"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.19.3"
+  }
+}
