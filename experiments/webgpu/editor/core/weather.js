@@ -1,18 +1,22 @@
 // Weather presets + precipitation particles for the editor.
-// Preset numbers ported from the main game (src/world.js) so the moods match.
+// Preset numbers shared with the main game (shared/weather.js) so the moods match.
 // Rain uses LineSegments; snow uses several Points layers with different sizes
 // (classic materials the WebGPU renderer maps to node materials automatically).
 import * as THREE from 'three/webgpu';
+import {weatherPresets} from '../../../../shared/weather.js';
 
-export const WEATHER = {
-  clear:  {fog:0,      overcast:0.0,  sun:1.0,  rain:0,    snow:0,   wind:0.30, dark:0,    cover:0, fogBright:0.35, tint:'#b9d6ee'},
-  cloudy: {fog:0.0012, overcast:0.75, sun:0.30, rain:0,    snow:0,   wind:0.38, dark:0.12, cover:0, fogBright:0.35, tint:'#a6b1bb'},
-  windy:  {fog:0.0009, overcast:0.20, sun:0.85, rain:0,    snow:0,   wind:0.95, dark:0,    cover:0, fogBright:0.35, tint:'#b4c6d8'},
-  rain:   {fog:0.0022, overcast:1.0,  sun:0.10, rain:0.85, snow:0,   wind:0.50, dark:0.35, cover:0, fogBright:0.4, tint:'#7a858f'},
-  storm:  {fog:0.0032, overcast:1.0,  sun:0.05, rain:1.0,  snow:0,   wind:1.0,  dark:1.0,  cover:0, fogBright:0.5, tint:'#3f4852'},
-  snow:   {fog:0.0026, overcast:0.85, sun:0.35, rain:0,    snow:1.0, wind:0.32, dark:0.10, cover:1, fogBright:0.45, tint:'#d3dbe2'},
-  fog:    {fog:0.030,  overcast:0.55, sun:0.30, rain:0,    snow:0,   wind:0.08, dark:0.05, cover:0, fogBright:0.6, tint:'#c4c9cd'},
-};
+// Base numbers come from the shared table (shared/weather.js, same as the game); the editor keeps
+// its own fog densities (FogExp2), a slightly brighter storm sun and fogBright.
+const KEYS = ['fog', 'overcast', 'sun', 'rain', 'snow', 'wind', 'dark', 'cover', 'tint'];
+export const WEATHER = weatherPresets(KEYS, {
+  clear:  {fog:0,      fogBright:0.35},
+  cloudy: {fog:0.0012, fogBright:0.35},
+  windy:  {fog:0.0009, fogBright:0.35},
+  rain:   {fog:0.0022, fogBright:0.4},
+  storm:  {fog:0.0032, fogBright:0.5, sun:0.05},
+  snow:   {fog:0.0026, fogBright:0.45},
+  fog:    {fog:0.030,  fogBright:0.6},
+});
 export const WEATHER_IDS = Object.keys(WEATHER);
 
 const BOX = {x:70, y:42, z:70};

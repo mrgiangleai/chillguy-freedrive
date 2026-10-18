@@ -1,7 +1,7 @@
 // "Land": a camera-following ground mesh (effectively infinite) with GENTLE
 // profile hills — no surrounding mountains. Profiles give colour + small relief.
 import * as THREE from 'three/webgpu';
-import {TERRAIN_MAPS, setTerrainMap, hLow, hDetail, vnoise} from './TerrainNoise.js';
+import {TERRAIN_MAPS, setTerrainMap, hLow, hDetail, vnoise} from '../../../shared/terrain-noise.js';
 
 const PALETTE = {
   reed:     {low: '#8a9a52', mid: '#9aa85e', high: '#b6c07a', rock: '#8f846a'},

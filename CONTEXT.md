@@ -3,8 +3,9 @@
 ## Điểm bắt đầu
 - Dự án: `/Users/keinle/Desktop/VIBECODE NEW/GAME/Chill drive`
 - Remote: `https://github.com/mrgiangleai/chillguy-freedrive.git`
-- **Nhánh đang làm: `experiment/webgpu-vertical-slice`** (đã push lên `origin`; commit mới nhất `a998dbc`).
-- **Game chính (`src/`, `docs/`, `scripts/`) tạm khoá** — không can thiệp; chỉ mở khi có yêu cầu riêng.
+- **Nhánh: `claude/focused-gates-gcpbj9`** — từ 18/10/2026 editor đã gộp vào nhánh game (nhánh cũ `experiment/webgpu-vertical-slice` dừng ở `4a31607`; làm tiếp bên đó thì phải merge nhánh game về trước). Game chính: xem `ROAD.md`.
+- **Khi làm editor: không can thiệp game chính** (`src/`, `docs/`, `scripts/`) trừ khi có yêu cầu riêng.
+- **Module dùng chung `shared/`** (terrain-noise, weather, sky, traffic-curve): game và editor cùng import — sửa ở đây là đổi cả hai bên; editor giữ số riêng bằng overrides trong `editor/core/weather.js`. Dev server đọc được `shared/` nhờ `vite.config.mjs`.
 
 ## Dòng việc: experiment `experiments/webgpu/`
 Editor + runtime WebGPU/TSL + Rapier (Vite), tách khỏi game chính. Đang làm lại UI theo hướng **Lumion**.

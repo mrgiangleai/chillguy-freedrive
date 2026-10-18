@@ -1,37 +1,18 @@
 import * as THREE from 'three';
 import { Precip } from './particles.js';
+import { WEATHER } from '../shared/weather.js';
+import { skyKeys } from '../shared/sky.js';
 
 const DEG = Math.PI / 180;
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
-// Thông số từng loại thời tiết (giá trị số được nội suy mượt khi đổi)
-//  fog: mật độ sương | overcast: độ âm u | clouds: độ phủ mây | sun: cường độ nắng | rain/snow: lượng mưa/tuyết
-//  wet: đường ướt | cover: tuyết phủ | wind: sức gió 0..1 | dark: độ tối của bầu trời/cảnh (bão)
-const WEATHER = {
-  clear:  { fog: 0.00042, overcast: 0.0,  clouds: 0.52, sun: 1.0,  rain: 0, snow: 0, wet: 0,   cover: 0, wind: 0.3,  dark: 0,    tint: '#b9d6ee' },
-  cloudy: { fog: 0.0009,  overcast: 0.75, clouds: 0.86, sun: 0.3,  rain: 0, snow: 0, wet: 0,   cover: 0, wind: 0.38, dark: 0.12, tint: '#a6b1bb' },
-  windy:  { fog: 0.0006,  overcast: 0.2,  clouds: 0.62, sun: 0.85, rain: 0, snow: 0, wet: 0,   cover: 0, wind: 0.95, dark: 0,    tint: '#b4c6d8' },
-  rain:   { fog: 0.0016,  overcast: 1.0,  clouds: 1.0,  sun: 0.1,  rain: 0.85, snow: 0, wet: 1, cover: 0, wind: 0.5,  dark: 0.35, tint: '#7a858f' },
-  storm:  { fog: 0.0027,  overcast: 1.0,  clouds: 1.0,  sun: 0.03, rain: 1, snow: 0, wet: 1,   cover: 0, wind: 1.0,  dark: 1.0,  tint: '#3f4852' },
-  snow:   { fog: 0.0019,  overcast: 0.85, clouds: 1.0,  sun: 0.35, rain: 0, snow: 1, wet: 0,   cover: 1, wind: 0.32, dark: 0.1,  tint: '#d3dbe2' },
-  fog:    { fog: 0.0066,  overcast: 0.55, clouds: 0.5,  sun: 0.3,  rain: 0, snow: 0, wet: 0.2, cover: 0, wind: 0.08, dark: 0.05, tint: '#c4c9cd' },
-};
+// Thông số từng loại thời tiết (giá trị số được nội suy mượt khi đổi) — bảng ở module dùng chung shared/weather.js
 const WET_FADE = 1.5;
 const NUM_KEYS = ['fog', 'overcast', 'clouds', 'sun', 'rain', 'snow', 'wet', 'cover', 'wind', 'dark'];
 
-// Bầu trời gradient: các mốc màu theo độ cao mặt trời e (độ).
-//            e,    đỉnh trời,  giữa,      chân trời, dải ấm phía mặt trời, quầng mặt trời
-const SKY_KEYS = [
-  [-18, '#040a1a', '#08142c', '#122244', '#122244', '#000000'],
-  [-9, '#06102e', '#0e1d47', '#1f2d5a', '#363562', '#24182c'],
-  [-4, '#122052', '#2a3c79', '#67588d', '#d06e7a', '#a24a40'],
-  [0, '#1d3d80', '#4868ab', '#e3987c', '#ff8a48', '#ff7030'],
-  [4, '#2453a0', '#6286c4', '#f0bd92', '#ffb36c', '#ff9a52'],
-  [10, '#2a64b4', '#719fd9', '#f1d9bd', '#ffd59c', '#ffcf88'],
-  [22, '#2468c8', '#5b9be3', '#c6def3', '#e1edf5', '#fff1d6'],
-  [50, '#1e5fc4', '#4f92e0', '#b4d4f2', '#d2e5f3', '#fff7e6'],
-].map(([e, ...c]) => [e, ...c.map((h) => new THREE.Color(h))]);
+// Bầu trời gradient: các mốc màu theo độ cao mặt trời (bảng hex ở module dùng chung shared/sky.js)
+const SKY_KEYS = skyKeys(THREE.Color);
 const SKY_I = 2.15;   // hệ số HDR (tone mapping ACES sẽ nén lại)
 
 // tone mapping ACES của three.js (r160) + mã hoá sRGB => màu hiển thị thật trên màn hình.

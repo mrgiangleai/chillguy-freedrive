@@ -1,19 +1,11 @@
-// Sky dome + sun/moon, ported from the main game (src/world.js SKY_KEYS + SKY_FRAG).
+// Sky dome + sun/moon, ported from the main game (src/world.js SKY_FRAG; SKY_KEYS shared via shared/sky.js).
 // Engine-safe for WebGPU: the vertical gradient is baked into per-vertex colours
 // (no UV / flipY issues) and the sun/moon discs are billboarded sprites.
 import * as THREE from 'three/webgpu';
+import {skyKeys} from '../../../../shared/sky.js';
 
-// [sun elevation (deg), zenith, mid, horizon, warm band, sun glow]
-const SKY_KEYS = [
-  [-18, '#040a1a', '#08142c', '#122244', '#122244', '#000000'],
-  [-9, '#06102e', '#0e1d47', '#1f2d5a', '#363562', '#24182c'],
-  [-4, '#122052', '#2a3c79', '#67588d', '#d06e7a', '#a24a40'],
-  [0, '#1d3d80', '#4868ab', '#e3987c', '#ff8a48', '#ff7030'],
-  [4, '#2453a0', '#6286c4', '#f0bd92', '#ffb36c', '#ff9a52'],
-  [10, '#2a64b4', '#719fd9', '#f1d9bd', '#ffd59c', '#ffcf88'],
-  [22, '#2468c8', '#5b9be3', '#c6def3', '#e1edf5', '#fff1d6'],
-  [50, '#1e5fc4', '#4f92e0', '#b4d4f2', '#d2e5f3', '#fff7e6'],
-].map(([e, ...c]) => [e, ...c.map((h) => new THREE.Color(h))]);
+// [sun elevation (deg), zenith, mid, horizon, warm band, sun glow] — shared hex table (shared/sky.js)
+const SKY_KEYS = skyKeys(THREE.Color);
 
 const R = 1800;
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));

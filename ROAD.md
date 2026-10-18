@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -69,6 +69,19 @@
 | `traffic-ai.js` | `TRAFFIC` (mật độ), `stepTraffic`: né người/xe trong 30 m từ mép thân (+1.2 s × tốc độ xe lao tới), vận tốc ngang `latV` có gia tốc (3 m/s², né gấp 16) và trần 0.2 × v (né gấp 0.35 × v), giữ hướng né, phanh/dừng nếu bị chặn, chống xuyên vật cản; `trafficCurveSpeed` (vào cua 60%); `roadPosition` (chiếu người đi bộ về toạ độ đường) |
 | `audio.js` | Nhạc lo-fi tự sinh, gió/mưa/lốp/động cơ/sấm; bus `outGain` (trong xe ×0.4 + lowpass), mưa: ngoài `rainG` 0.08, kính `glassG` 0.08, mui `roofG` 0.02 (× lượng mưa); `passBy(rel, pan, lat)` + `passDur(rel)` tiếng xe lướt qua theo tốc độ tương đối; `setSiren(kind, level, pan)` còi hụ; động cơ: hộp số ảo 6 số (`R` rpm/(m/s), đi êm lên số ≤ ~2200 rpm, đạp ga giữ tới ~5800), tần số nổ rpm/15, gầm nền + ống xả rào to dần theo vòng tua / tăng tốc (`load` = gia tốc/4) / tốc độ; `setWater(level, pan)` tiếng suối (buffer bọt khí tạo lần đầu), `splash(power)` xe lội nước |
 | `particles.js`, `mist.js`, `reflection.js`, `textures.js`, `colorspace.js` | Mưa/tuyết, sương tầng thấp (`withMist`), phản chiếu vũng nước, texture tự sinh, đổi màu hiển thị → tuyến tính |
+
+**Module dùng chung `shared/`** (JS thuần, không import three; game `src/` và editor `experiments/webgpu/` cùng import — sửa ở đây là đổi cả hai bên):
+| File | Nội dung | Game dùng qua | Editor dùng qua |
+|---|---|---|---|
+| `terrain-noise.js` | `TERRAIN_MAPS`, `TP`, `setTerrainMap` (id lạ → reed), `hash2`, `vnoise`, `hLow`, `hDetail`, `mountains` | `src/terrain-noise.js` (re-export + giữ `TERRAIN_GLSL`) | `runtime/TerrainStreamer.js` |
+| `weather.js` | `WEATHER` (bảng thời tiết gốc), `WEATHER_IDS`, `weatherPresets(keys, overrides)` | `src/world.js` | `editor/core/weather.js` (giữ sương FogExp2, `fogBright`, nắng bão 0.05 bằng overrides) |
+| `sky.js` | `SKY_KEYS` (mã hex màu trời theo độ cao mặt trời), `skyKeys(Color)` | `src/world.js` | `editor/core/sky.js` |
+| `traffic-curve.js` | `trafficCurveSpeed(v, road)` (nhận `v.direction` hoặc `v.dir`) | `src/traffic-ai.js` (re-export) | `runtime/TrafficMath.js` (re-export) |
+
+**Editor WebGPU `experiments/webgpu/`** (gộp từ nhánh `experiment/webgpu-vertical-slice`): trình dựng cảnh kiểu Lumion, three r186 WebGPU + Rapier + Vite,
+tài liệu riêng trong `CONTEXT.md` + `experiments/webgpu/docs/`. Chạy: `cd experiments/webgpu && npm ci && npm run build && npm start` (cổng 4173);
+`vite.config.mjs` cho dev server đọc `shared/`. Chỉ chạy được khi trình duyệt có WebGPU (Chromium 141 trong máy ảo lỗi `swizzle`);
+model thử (~625 MB) không nằm trong git.
 
 ## 4. Trạng thái hiện tại (tóm tắt)
 - **Mặc định vào game**: map núi, camera Quay quanh, mưa, hoàng hôn (17.6 h), 16 mm f/1.4, chất lượng Good, xe Mustang '67 Đen,
@@ -327,6 +340,7 @@
 - Vài tảng đá terrain trông lơ lửng trên vách núi gần đường (s≈250) — chưa sửa.
 - Map Phố: camera Từ trên cao hay bị nhà chắn nên kéo sát xe; Mustang/Mazda NPC không chạy trong phố (thay bằng xe dựng code).
 - Chưa nghe trên máy thật: tiếng người nói chuyện (`setChatter`), còi hụ, tiếng va chạm. Chưa chụp cận đèn đi bộ.
+- `scripts/check-stopscene.mjs` đang lỗi sẵn ("Orbit must look at the player") — có từ trước khi tách module chung, chưa sửa.
 - `QUICK_OPENING = true` (TẠM, đầu game 0.5 s) — bật lại khi chú bảo. Kiểm thử Playwright: vào game bằng `#m-chill` / `#m-drive`.
 
 ## 6. Nhật ký cập nhật
@@ -341,3 +355,7 @@
 - **#4 — Bảng 🐾 Animal: vị trí, số lượng đom đóm + bò (11/10/2026)**.
 - **#5 — Bảng 🌿 Nature: khoảng cách hiển thị + độ dày / cao / trong suốt cỏ đồi (12/10/2026)**.
 - **#6 — Nút quay màn hình (phím Y, lưu thư mục chọn sẵn Desktop) + Nature cho map Cỏ lau, lưu riêng (12/10/2026)**.
+- **#7 — Gộp editor WebGPU vào nhánh + tách module dùng chung `shared/` (18/10/2026)**: merge `experiment/webgpu-vertical-slice`
+  (không xung đột); `shared/terrain-noise|weather|sky|traffic-curve.js`, game và editor cùng import (xoá `runtime/TerrainNoise.js` của editor).
+  Kiểm chứng: 192 000 giá trị địa hình, bảng thời tiết (game + editor), màu trời, 3000 lượt giảm tốc vào cua — trùng 100% bản cũ;
+  `node build.mjs` + `vite build` OK; check-traffic / traffic-policy / steering / waterfalls PASS.
