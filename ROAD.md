@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -340,7 +340,6 @@ model thử (~625 MB) không nằm trong git.
 - Vài tảng đá terrain trông lơ lửng trên vách núi gần đường (s≈250) — chưa sửa.
 - Map Phố: camera Từ trên cao hay bị nhà chắn nên kéo sát xe; Mustang/Mazda NPC không chạy trong phố (thay bằng xe dựng code).
 - Chưa nghe trên máy thật: tiếng người nói chuyện (`setChatter`), còi hụ, tiếng va chạm. Chưa chụp cận đèn đi bộ.
-- `scripts/check-stopscene.mjs` đang lỗi sẵn ("Orbit must look at the player") — có từ trước khi tách module chung, chưa sửa.
 - `QUICK_OPENING = true` (TẠM, đầu game 0.5 s) — bật lại khi chú bảo. Kiểm thử Playwright: vào game bằng `#m-chill` / `#m-drive`.
 
 ## 6. Nhật ký cập nhật
@@ -359,3 +358,6 @@ model thử (~625 MB) không nằm trong git.
   (không xung đột); `shared/terrain-noise|weather|sky|traffic-curve.js`, game và editor cùng import (xoá `runtime/TerrainNoise.js` của editor).
   Kiểm chứng: 192 000 giá trị địa hình, bảng thời tiết (game + editor), màu trời, 3000 lượt giảm tốc vào cua — trùng 100% bản cũ;
   `node build.mjs` + `vite build` OK; check-traffic / traffic-policy / steering / waterfalls PASS.
+- **#8 — Sửa check-stopscene: camera dừng xe bám người không trễ (18/10/2026)**: từ lần thêm `orbitCar`, tâm quay `_ctr` trượt dần
+  (exp 3/s) nên khi người đi camera trễ ~0.3 s (~0.4 m) và script báo "Orbit must look at the player". Nay chỉ trượt tỉ lệ người ↔ xe
+  (`_carK`), tâm = vị trí người từng khung (hoà về xe theo `_carK`). Đổi người ↔ xe vẫn mượt ~1.5 s. Mọi `check-*` chạy lại PASS.

@@ -59,6 +59,7 @@ export class StopScene {
     this.enterRadius = 10;
     this.tune = { ...PARK_DEFAULTS };
     this._ctr = new THREE.Vector3();
+    this._carK = 0;                 // tâm quay: 0 = người, 1 = xe (trượt mượt khi đổi)
     this.cyc = { t: 0, n: 0, rest: SMOKE_REST_FIRST };     // nhịp hút thuốc
     this.mouthCorr = new THREE.Vector3();
     this.wd = { mode: 'idle', t: 0, dur: 4, face: null, target: new THREE.Vector3() };   // đi lanh quanh
@@ -282,11 +283,12 @@ export class StopScene {
     this.person.head.getWorldPosition(cam.focus);
     cam.focal = 32; cam.range = 0.8;
     if (w > 1e-3) {
-      // tâm quay: người (mặc định) hoặc xe (cài đặt); lúc quay lại xe luôn về người. Tâm trượt mượt khi đổi.
-      const onCar = this.tune.orbitCar && this.state !== 'enter';
-      const want = onCar ? carRoot.getWorldPosition(this._t1).addScaledVector(UP, 0.8) : this.person.root.getWorldPosition(this._t1).addScaledVector(UP, 0.95);
-      if (this.orbitA === null) this._ctr.copy(want); else this._ctr.lerp(want, 1 - Math.exp(-dt * 3));
-      const center = this._ctr;
+      // tâm quay: người (mặc định) hoặc xe (cài đặt); lúc quay lại xe luôn về người.
+      // Chỉ trượt mượt tỉ lệ người ↔ xe khi đổi; bám người thì bám đúng từng khung (không trễ khi người đi).
+      const k = this.tune.orbitCar && this.state !== 'enter' ? 1 : 0;
+      if (this.orbitA === null) this._carK = k; else this._carK += (k - this._carK) * (1 - Math.exp(-dt * 3));
+      const center = this.person.root.getWorldPosition(this._ctr).addScaledVector(UP, 0.95);
+      if (this._carK > 1e-4) center.lerp(carRoot.getWorldPosition(this._t1).addScaledVector(UP, 0.8), this._carK);
       if (this.orbitA === null) this.orbitA = Math.atan2(P.x - center.x, P.z - center.z);
       if (this.orbitHold > 0) this.orbitHold = Math.max(0, this.orbitHold - dt);
       else this.orbitA += dt * 0.1 * w;
