@@ -235,6 +235,8 @@ export class CameraRig {
       const g = this.groundAt(this.camera.position.x, this.camera.position.z) + 0.6;
       if (this.camera.position.y < g) this.camera.position.y = g;
     }
+    // trần (hầm map New York): camera không xuyên lên trên trần
+    if (this.ceilAt) { const c = this.ceilAt(); if (this.camera.position.y > c) this.camera.position.y = c; }
     this._l.copy(pos).add(cl);
     this.camera.lookAt(this._l);
     if (Math.abs(this.camera.fov - this.fov) > 0.01 || transitioning) {

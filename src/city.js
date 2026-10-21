@@ -17,6 +17,9 @@ const DEPTH = 180;                  // nhà trải ra hai bên tới cách tim �
 const AHEAD = 1150, BEHIND = 260;
 const WALK_Y = 0.2, MARK_Y = 0.055;          // so với mặt đường tại chỗ đó
 const POLE_GAP = 30;
+// góc rẽ New York (cung tròn bán kính ~15 m): arc = nửa chiều dài cung, tan = khoảng tiếp tuyến tới góc vuông, stop = vạch dừng
+// cách tâm cung, arm = độ dài 2 nhánh đường đi tiếp vẽ thêm ở góc
+const CORNER = { arc: 12, tan: 15.3, stop: 16.6, arm: 120 };
 // đèn giao thông mỗi ngã tư (chu kỳ 46 s, lệch pha ngẫu nhiên theo ngã tư): đường chính xanh 22 s → vàng 3 s → đỏ;
 // đường ngang xanh 15.5 s → vàng 3 s; giữa hai pha đỏ cả hai 1.5 s
 export const SIGNAL = { cycle: 46, mainG: 22, y: 3, allRed: 1.5, crossG: 15.5, stopA: 11.45 };
@@ -347,6 +350,7 @@ export class City {
     this.lastS = 0;
     this.camF = 1;
     this.clock = 0;                                              // đồng hồ đèn giao thông (s)
+    this.nyc = false;                                            // map New York: vòng thật, đường một chiều, góc rẽ vuông (main đặt)
     this.clockRate = 1;                                          // < 1 => pha đèn dài hơn (bảng 🚦)
     this.sigMat = new THREE.MeshStandardMaterial({ color: 0x2b2d30, roughness: 0.6, metalness: 0.3 });
     this.lensMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
@@ -421,12 +425,35 @@ export class City {
   stopAhead(s, dir, v) {
     if (!this.group.visible) return Infinity;
     const road = this.road, A = SIGNAL.stopA;
-    const n = dir > 0 ? road.junctionIndex(s + A - 1) : road.junctionIndex(s - A + 1) - 1;
-    const line = road.junction(n) - dir * A, dist = (line - s) * dir;
+    let n, line;
+    if (dir > 0) ({ n, line } = this.nextLine(s - 1));
+    else { n = road.junctionIndex(s - A + 1) - 1; line = road.junction(n) + A; }
+    const dist = (line - s) * dir;
     if (dist > 160 || dist < -1) return Infinity;
     const ph = this._phase(n).main;
     if (ph === 2 || (ph === 1 && dist > v * v / 8)) return dist;
     return Infinity;
+  }
+
+  // khoảng cách vạch dừng tới tâm ngã tư n (góc rẽ New York: vạch lùi trước khúc cua + vạch qua đường)
+  stopA(n) { return this.nyc && this.road.junctionInfo(n)?.corner ? CORNER.stop : SIGNAL.stopA; }
+  // vạch dừng đầu tiên (chiều +s) nằm ở s ≥ x: { n, line }
+  nextLine(x) {
+    const road = this.road;
+    let n = road.junctionIndex(x + SIGNAL.stopA);
+    if (road.junction(n) - this.stopA(n) < x) n++;
+    return { n, line: road.junction(n) - this.stopA(n) };
+  }
+  // khung góc rẽ (New York) tại tâm khúc cua sJ: gốc = giao 2 tim đường thẳng (góc vuông thật), trục a = hướng đường tới,
+  // u = phải của đường tới. Đường đi tiếp (rẽ trái) chạy về −u; đường tới tiếp tục về +a (nhánh A+), đường đi tiếp kéo dài về +u (nhánh B−)
+  _cornerFrame(sJ) {
+    const road = this.road.street, pa = road.at(sJ - 30, {}), pb = road.at(sJ + 30, {});
+    const fa = [-Math.sin(pa.th), -Math.cos(pa.th)], fb = [-Math.sin(pb.th), -Math.cos(pb.th)];
+    // pa + t·fa = pb − k·fb
+    const det = fa[0] * fb[1] - fa[1] * fb[0], dx = pb.x - pa.x, dz = pb.z - pa.z;
+    const t = Math.abs(det) < 1e-6 ? 30 : (dx * fb[1] - dz * fb[0]) / det;
+    const x = pa.x + fa[0] * t, z = pa.z + fa[1] * t, y = road.at(sJ, {}).y;
+    return { x, y, z, rx: Math.cos(pa.th), rz: -Math.sin(pa.th), fx: fa[0], fz: fa[1], th: pa.th, turn: pb.th - pa.th };
   }
 
   // camera không xuyên nhà: đi dọc tia từ xe (cao 1.3 m) tới camera, gặp khối nhà (nới 0.6 m) thì kéo camera về trước chỗ đó.
@@ -528,14 +555,18 @@ export class City {
 
   // khung toạ độ tại quãng s: tâm đường + vector phải r + vector tiến f
   _frame(s) {
-    const p = this.road.at(s, {});
+    const p = (this.nyc ? this.road.street : this.road).at(s, {});
     return { x: p.x, y: p.y, z: p.z, rx: Math.cos(p.th), rz: -Math.sin(p.th), fx: -Math.sin(p.th), fz: -Math.cos(p.th), th: p.th };
   }
 
 
   _build(n) {
-    const road = this.road, group = new THREE.Group();
+    // New York: mặt phố (vỉa hè, nhà) theo cao độ phố `road.street`; vạch kẻ trên mặt đường thật (hầm / cầu cạn) dùng `atR`
+    const road = this.nyc ? this.road.street : this.road, group = new THREE.Group();
     const sJ = road.junction(n), sK = road.junction(n + 1);
+    const cJ = this.nyc && !!road.junctionInfo(n)?.corner, cK = this.nyc && !!road.junctionInfo(n + 1)?.corner;
+    const FcJ = cJ ? this._cornerFrame(sJ) : null, FcK = cK ? this._cornerFrame(sK) : null;
+    let own = [];                 // New York: [khung góc, vai] để lọc nhà kề góc rẽ (xem `owns`)
     const HW = CITY.hw, SW = CITY.walk, CW = CITY.side, SWK = CITY.sideWalk;
     const FRONT = HW + SW + 0.4;                               // mép trong của dãy nhà mặt tiền
     const mark = { pos: [], nor: [], col: [], idx: [] };
@@ -563,6 +594,7 @@ export class City {
     const UP = [0, 1, 0];
     // điểm trên đường chính: quãng s, lệch u, cao y so với mặt đường
     const at = (s, u, y) => { const p = road.at(s, this._p); return [p.x + Math.cos(p.th) * u, p.y + y, p.z - Math.sin(p.th) * u]; };
+    const atR = (s, u, y) => { const p = this.road.at(s, this._p); return [p.x + Math.cos(p.th) * u, p.y + y, p.z - Math.sin(p.th) * u]; };
     // dải dọc đường chính từ sA tới sB, ngang u0..u1 (lấy mẫu mỗi 2 m theo đường cong)
     const strip = (B, sA, sB, u0, u1, y, col, uvFn) => {
       if (sB <= sA) return;
@@ -571,6 +603,15 @@ export class City {
         const a = sA + (sB - sA) * i / N, b = sA + (sB - sA) * (i + 1) / N;
         quad(B, [at(a, u0, y), at(b, u0, y), at(b, u1, y), at(a, u1, y)], UP, col,
           uvFn && [uvFn(a, u0), uvFn(b, u0), uvFn(b, u1), uvFn(a, u1)]);
+      }
+    };
+    // vạch kẻ trên mặt đường thật (New York: theo hầm / cầu cạn)
+    const stripR = (sA, sB, u0, u1, col) => {
+      if (sB <= sA) return;
+      const N = Math.max(1, Math.ceil((sB - sA) / 2));
+      for (let i = 0; i < N; i++) {
+        const a = sA + (sB - sA) * i / N, b = sA + (sB - sA) * (i + 1) / N;
+        quad(mark, [atR(a, u0, MARK_Y), atR(b, u0, MARK_Y), atR(b, u1, MARK_Y), atR(a, u1, MARK_Y)], UP, col);
       }
     };
     // mặt đứng dọc đường (bó vỉa) tại u, từ y0 tới y1
@@ -600,8 +641,10 @@ export class City {
       }
     };
 
+    // ---- New York: góc rẽ trái thay cho ngã tư thường ----
+    if (cJ) this._corner(FcJ, { quad, cross, walk, mark, WHITE });
     // ---- ngã tư n: đường ngang + vỉa hè dọc đường ngang + vạch ----
-    for (const su of [-1, 1]) {
+    if (!cJ) for (const su of [-1, 1]) {
       const uA = su * HW, uB = su * DEPTH;
       jquad(cross, -CW, CW, uA, uB, 0.05, null, (a, u) => [(a + CW) / (2 * CW), u / 12]);
       for (const sa of [-1, 1]) {
@@ -616,13 +659,23 @@ export class City {
       jquad(mark, su * 0.15, su * (CW - 0.2), su * (HW + 4.0), su * (HW + 4.45), MARK_Y, WHITE);
       for (let u = FRONT + 3; u < DEPTH - 3; u += 6) jquad(mark, -0.07, 0.07, su * u, su * (u + 3), MARK_Y, WHITE);
     }
-    for (const sa of [-1, 1]) for (let u = -HW + 0.35; u < HW - 0.4; u += 0.9) jquad(mark, sa * 6.4, sa * 10.4, u, u + 0.45, MARK_Y, WHITE);
-    jquad(mark, -11.9, -11.45, 0.2, HW - 0.3, MARK_Y, WHITE);
-    jquad(mark, 11.45, 11.9, -HW + 0.3, -0.2, MARK_Y, WHITE);
+    if (!cJ) for (const sa of [-1, 1]) for (let u = -HW + 0.35; u < HW - 0.4; u += 0.9) jquad(mark, sa * 6.4, sa * 10.4, u, u + 0.45, MARK_Y, WHITE);
+    if (this.nyc) { if (!cJ) jquad(mark, -11.9, -11.45, -HW + 0.3, HW - 0.3, MARK_Y, WHITE); }   // một chiều: vạch dừng cả mặt đường
+    else {
+      jquad(mark, -11.9, -11.45, 0.2, HW - 0.3, MARK_Y, WHITE);
+      jquad(mark, 11.45, 11.9, -HW + 0.3, -0.2, MARK_Y, WHITE);
+    }
 
     // ---- vạch đường chính trong khối ----
-    const zA = sJ + 10.4, zB = sK - 10.4;
-    for (const su of [-1, 1]) {
+    // New York (một chiều kiểu Mỹ): mép trái vàng liền, mép phải trắng liền, chia 4 làn trắng đứt 3 m / khoảng 9 m
+    const zA = sJ + (cJ ? 14 : 10.4), zB = sK - (cK ? CORNER.stop + 0.9 : 10.4);
+    if (this.nyc) {
+      stripR(zA, zB, -HW + 0.25, -HW + 0.4, YEL);
+      stripR(zA, zB, HW - 0.4, HW - 0.25, WHITE);
+      for (const lu of [-3.5, 0, 3.5]) for (let k = Math.ceil(zA / 12); k * 12 + 3 < zB; k++) stripR(k * 12, k * 12 + 3, lu - 0.07, lu + 0.07, WHITE);
+      if (cK) stripR(sK - CORNER.stop - 0.45, sK - CORNER.stop, -HW + 0.3, HW - 0.3, WHITE);   // vạch dừng trước góc rẽ
+    }
+    if (!this.nyc) for (const su of [-1, 1]) {
       strip(mark, zA, zB, su * 0.1, su * 0.25, MARK_Y, YEL);
       strip(mark, sJ + 6, sK - 6, su * (HW - 0.4), su * (HW - 0.25), MARK_Y, WHITE);
       const lA = sJ + 12, lB = sK - 12;
@@ -630,15 +683,16 @@ export class City {
       strip(mark, Math.max(lA, lB - 30), lB, su * 3.42, su * 3.58, MARK_Y, WHITE);
       for (let k = Math.ceil((lA + 30) / 10); k * 10 + 5 < lB - 30; k++) strip(mark, k * 10, k * 10 + 5, su * 3.42, su * 3.58, MARK_Y, WHITE);
     }
-    for (const lu of CITY.lanes) {
+    if (!this.nyc) for (const lu of CITY.lanes) {
       const sa = sK - 11.9 - 8;
       strip(mark, sa - 3.2, sa, lu - 0.08, lu + 0.08, MARK_Y, WHITE);
       for (let k = 0; k < 4; k++) { const w = 0.45 - k * 0.11; strip(mark, sa + k * 0.25, sa + (k + 1) * 0.25, lu - w, lu + w, MARK_Y, WHITE); }
     }
 
     // ---- vỉa hè đường chính ----
-    const wA = sJ + CW, wB = sK - CW;
+    // góc rẽ trái: vỉa hè phía trong (trái) chạy liền vòng qua cung; phía ngoài (phải) dừng ở đầu cung, phần góc dựng trong `_corner`
     for (const su of [-1, 1]) {
+      const wA = sJ + (cJ ? (su > 0 ? CORNER.arc : 0) : CW), wB = sK - (cK ? (su > 0 ? CORNER.arc : 0) : CW);
       const u0 = su * HW, u1 = su * FRONT;
       strip(walk, wA, wB, u0, u1, WALK_Y, null, (s, u) => [u / 2, s / 2]);
       wallStrip(walk, wA, wB, u0, 0.03, WALK_Y, su);
@@ -665,7 +719,19 @@ export class City {
     // phía trong khúc cua: bỏ nhà ở quá xa (vượt qua tâm cong => chồng lên nhà của đoạn khác)
     const inner = (s, u) => { const k = road.curvature(s); return k * u < 0 && Math.abs(u) > 0.55 / Math.max(Math.abs(k), 1e-6); };
     // nhà tâm (x, z), mặt tiền hướng yaw; g0 = cao độ mặt đất phía trước nhà (tầng trệt bắt đầu từ đây)
+    // New York, khối kề góc rẽ: mỗi nhà phải nằm trọn trong phần đất của đường mình (chia theo đường chéo của góc) => không chồng nhau
+    if (cK) own.push([FcK, 'in']);
+    if (cJ) own.push([FcJ, 'out']);
+    const owns = (x, z, w, d, yaw) => {
+      const cs = Math.cos(yaw), sn = Math.sin(yaw);
+      for (const [Fc, role] of own) for (const [lx, lz] of [[-w / 2, -d / 2], [w / 2, -d / 2], [-w / 2, d / 2], [w / 2, d / 2]]) {
+        const dx = x + cs * lx + sn * lz - Fc.x, dz = z - sn * lx + cs * lz - Fc.z, a = dx * Fc.fx + dz * Fc.fz, u = dx * Fc.rx + dz * Fc.rz;
+        if (!(role === 'in' ? a < -0.5 && Math.abs(u) < -a : role === 'out' ? u < -0.5 && Math.abs(a) < -u : role === 'A' ? a > 0.5 && Math.abs(u) < a : u > 0.5 && Math.abs(a) < u)) return false;
+      }
+      return true;
+    };
     const add = (x, z, yaw, w, d, type, shop, far, g0, flSet) => {
+      if (own.length && !owns(x, z, w, d, yaw)) { add.last = 0; return 0; }
       const cs = Math.cos(yaw), sn = Math.sin(yaw);
       let lo = g0;
       for (const [lx, lz] of [[-w / 2, -d / 2], [w / 2, -d / 2], [-w / 2, d / 2], [w / 2, d / 2]]) lo = Math.min(lo, hLow(x + cs * lx + sn * lz, z - sn * lx + cs * lz));
@@ -679,7 +745,7 @@ export class City {
       return h;
     };
     const pickType = (front) => { const k = r(); return front ? (k < 0.58 ? 0 : k < 0.83 ? 1 : k < 0.96 ? 2 : 3) : (k < 0.3 ? 3 : k < 0.6 ? 1 : k < 0.8 ? 0 : 2); };
-    const iA = sJ + CW + SWK + 18, iB = sK - CW - SWK - 18;
+    const iA = sJ + (cJ ? 30 : CW + SWK + 18), iB = sK - (cK ? 30 : CW + SWK + 18);
     const props = { slab: [], rail: [], hedge: [], bench: [], tree: [] };   // [x, y, z, yaw, sx, sy, sz] (tâm hộp)
     const lawn = { pos: [], nor: [], uv: [], idx: [] };
     // khu chung cư: tòa nhà lùi vào 11 m, phía trước là công viên nhỏ (cỏ, hàng rào cây, cây, ghế) + bậc thang lên sân sảnh,
@@ -734,8 +800,8 @@ export class City {
     };
     for (const su of [-1, 1]) {
       // dãy mặt tiền nhìn ra đường chính; thỉnh thoảng có hẻm bậc thang / bãi đất trống
-      let s = sJ + CW + SWK + 0.4;
-      const sEnd = sK - CW - SWK - 0.4;
+      let s = sJ + (cJ ? CORNER.arc + 0.4 : CW + SWK + 0.4);
+      const sEnd = sK - (cK ? CORNER.arc + 0.4 : CW + SWK + 0.4);
       let lastGap = s;
       while (s < sEnd - 4) {
         const k = r(), canGap = s > iA && s < iB - 20 && s - lastGap > 25;
@@ -765,6 +831,7 @@ export class City {
       // dãy nhìn ra đường ngang + nhà bên trong khối
       const uIn = FRONT + 18.6;
       for (const [sEdge, dir] of [[sJ + CW + SWK + 0.3, 1], [sK - CW - SWK - 0.3, -1]]) {
+        if ((dir > 0 && cJ) || (dir < 0 && cK)) continue;                // góc rẽ: dãy nhà nhìn ra 2 nhánh dựng trong `_corner`
         const Fe = this._frame(sEdge);
         let u = uIn;
         while (u < DEPTH - 8) {
@@ -790,6 +857,26 @@ export class City {
           add(x, z, Fi.th + (r() < 0.5 ? 0 : Math.PI) + (r() < 0.5 ? Math.PI / 2 : 0), w, d, type, false, far, hLow(x, z));
         }
       }
+    }
+    // góc rẽ New York: dãy nhà dọc 2 nhánh đường đi tiếp (A+ = đường tới kéo dài, B− = đường đi tiếp kéo dài về phía sau)
+    if (cJ) {
+      const Fc = FcJ, P2 = (a, u) => [Fc.x + Fc.fx * a + Fc.rx * u, Fc.z + Fc.fz * a + Fc.rz * u];
+      // trục 'a' (nhánh A+): mặt tiền ở u = side·FRONT; trục 'u' (nhánh B−): mặt tiền ở a = side·FRONT
+      const row = (axis, side, t0, t1, role) => {
+        own = [[Fc, role]];
+        for (let t = t0; t < t1 - 4;) {
+          const w = Math.min(t1 - t, 5 + 9 * r() * r() + 2 * r()), d = 10 + 8 * r(), o = side * (FRONT + d / 2), c = t + w / 2;
+          const [x, z] = axis === 'a' ? P2(c, o) : P2(o, c);
+          // mặt tiền quay về trục nhánh: nhánh A+ (hướng th) bên phải => yaw th − π/2; nhánh B− (hướng th − π/2): bên phải là −a
+          const yaw = axis === 'a' ? Fc.th + (side > 0 ? -Math.PI / 2 : Math.PI / 2) : Fc.th + (side > 0 ? 0 : -Math.PI);
+          const type = pickType(true);
+          add(x, z, yaw, w, d, type, type !== 3 && r() < 0.8, false, Fc.y + WALK_Y);
+          t += w + 0.05 + (r() < 0.3 ? 0.4 + r() * 1.2 : 0);
+        }
+      };
+      row('a', 1, FRONT + 0.4, 80, 'A'); row('a', -1, 30, 80, 'A');
+      row('u', 1, 12, 80, 'B'); row('u', -1, 30, 80, 'B');
+      own = [];
     }
     group.userData.obb = obb;
 
@@ -872,7 +959,7 @@ export class City {
     // cột điện + dây võng
     const poleAt = (k) => { const s = k * POLE_GAP + 8, j = road.nearJunction(s); return Math.abs(s - j) < 9 ? null : s; };
     const poles = [];
-    for (let k = Math.ceil((sJ - 8) / POLE_GAP); k * POLE_GAP + 8 < sK; k++) {
+    for (let k = Math.ceil((sJ - 8) / POLE_GAP); k * POLE_GAP + 8 < sK && !this.nyc; k++) {
       const s = poleAt(k);
       if (s === null) continue;
       let k2 = k + 1, s2 = poleAt(k2);
@@ -912,15 +999,53 @@ export class City {
       ls.frustumCulled = false;
       group.add(ls);
     }
-    this._signals(group, F, gJ);
+    if (cJ) this._signals(group, FcJ, () => FcJ.y, true);
+    else this._signals(group, F, gJ);
     this.group.add(group);
     return group;
   }
 
+  // góc rẽ trái New York (khung Fc, xem `_cornerFrame`): mặt nhựa giao lộ + 2 nhánh đường đi tiếp (A+ dọc +a, B− dọc +u),
+  // vỉa hè 3 góc ngoài (góc trong là vỉa hè cong liền của khối), vạch qua đường 4 phía, vạch chia làn trên 2 nhánh
+  _corner(Fc, { quad, cross, walk, mark, WHITE }) {
+    const HW = CITY.hw, FRONT = HW + CITY.walk + 0.4, T = CORNER.tan, ARM = CORNER.arm, UP = [0, 1, 0];
+    const C = (a, u, y) => [Fc.x + Fc.fx * a + Fc.rx * u, Fc.y + y, Fc.z + Fc.fz * a + Fc.rz * u];
+    const rect = (B, a0, a1, u0, u1, y, col, uv = true) => quad(B, [C(a0, u0, y), C(a1, u0, y), C(a1, u1, y), C(a0, u1, y)], UP, col,
+      uv ? [[u0 / 12, a0 / 12], [u0 / 12, a1 / 12], [u1 / 12, a1 / 12], [u1 / 12, a0 / 12]] : null);
+    // mặt nhựa: đường tới kéo vào tận góc, đường đi tiếp, 2 nhánh
+    rect(cross, -T, HW, -HW, HW, 0.035);
+    rect(cross, -HW, HW, -T, -HW, 0.035);
+    rect(cross, HW, ARM, -HW, HW, 0.035);
+    rect(cross, -HW, HW, HW, ARM, 0.035);
+    // vỉa hè (tấm cao WALK_Y + bó vỉa 4 mặt)
+    const slab = (a0, a1, u0, u1) => {
+      rect(walk, a0, a1, u0, u1, WALK_Y);
+      const side = (P, n) => quad(walk, P, n, null, [[0, 0], [1, 0], [1, 0.1], [0, 0.1]]);
+      side([C(a0, u0, 0.03), C(a1, u0, 0.03), C(a1, u0, WALK_Y), C(a0, u0, WALK_Y)], [-Fc.rx, 0, -Fc.rz]);
+      side([C(a0, u1, 0.03), C(a1, u1, 0.03), C(a1, u1, WALK_Y), C(a0, u1, WALK_Y)], [Fc.rx, 0, Fc.rz]);
+      side([C(a0, u0, 0.03), C(a0, u1, 0.03), C(a0, u1, WALK_Y), C(a0, u0, WALK_Y)], [-Fc.fx, 0, -Fc.fz]);
+      side([C(a1, u0, 0.03), C(a1, u1, 0.03), C(a1, u1, WALK_Y), C(a1, u0, WALK_Y)], [Fc.fx, 0, Fc.fz]);
+    };
+    slab(-T, -HW, HW, FRONT);                 // góc trước–phải (giữa đường tới và nhánh B−)
+    slab(HW, FRONT, -T, -FRONT);              // góc sau–trái (giữa đường đi tiếp và nhánh A+), nối với vỉa hè nhánh A+
+    slab(HW, ARM, HW, FRONT); slab(HW, ARM, -FRONT, -HW);     // 2 bên nhánh A+
+    slab(HW, FRONT, FRONT, ARM); slab(-FRONT, -HW, FRONT, ARM);   // 2 bên nhánh B−
+    // vạch qua đường (sọc dọc chiều xe chạy) + vạch dừng nhánh B− (xe từ B− đi vào góc)
+    for (let u = -HW + 0.35; u < HW - 0.4; u += 0.9) { rect(mark, -13.5, -9.5, u, u + 0.45, MARK_Y, WHITE, false); rect(mark, HW + 0.6, HW + 4.6, u, u + 0.45, MARK_Y, WHITE, false); }
+    for (let a = -HW + 0.35; a < HW - 0.4; a += 0.9) { rect(mark, a, a + 0.45, -13.5, -9.5, MARK_Y, WHITE, false); rect(mark, a, a + 0.45, HW + 0.6, HW + 4.6, MARK_Y, WHITE, false); }
+    rect(mark, -HW + 0.3, HW - 0.3, HW + 5.2, HW + 5.65, MARK_Y, WHITE, false);
+    // 2 nhánh: mép vàng / trắng liền + chia làn đứt
+    for (const [o, sgn] of [[-HW + 0.32, 1], [HW - 0.32, 0]]) {
+      rect(mark, HW + 5, ARM, o - 0.07, o + 0.07, MARK_Y, sgn ? [0.86, 0.66, 0.16] : WHITE, false);
+      rect(mark, o - 0.07, o + 0.07, HW + 6, ARM, MARK_Y, sgn ? WHITE : [0.86, 0.66, 0.16], false);
+    }
+    for (const lu of [-3.5, 0, 3.5]) for (let t = HW + 8; t + 3 < ARM; t += 12) { rect(mark, t, t + 3, lu - 0.07, lu + 0.07, MARK_Y, WHITE, false); rect(mark, lu - 0.07, lu + 0.07, t, t + 3, MARK_Y, WHITE, false); }
+  }
+
   // đèn giao thông ngã tư (khung F): 2 cột tay vươn cho đường chính (đặt phía bên kia ngã tư, đầu đèn ngang trên làn),
   // 2 cột thấp cho đường ngang. Mặt đèn: xanh – vàng – đỏ từ trái sang phải (nhìn từ người lái)
-  _signals(group, F, gJ) {
-    const HW = CITY.hw, CW = CITY.side;
+  _signals(group, F, gJ, corner = false) {
+    const HW = CITY.hw, CW = corner ? CITY.hw : CITY.side, A = corner ? CORNER.stop : SIGNAL.stopA;
     const P = (a, u) => [F.x + F.fx * a + F.rx * u, F.z + F.fz * a + F.rz * u];
     const heads = [], poles = [], arms = [], peds = [];
     // kiểu Việt Nam: cột đèn ở góc vỉa hè bên phải PHÍA XE TỚI, ngay vạch dừng (trước ngã tư); đầu đèn trên tay vươn ra lòng đường.
@@ -938,9 +1063,9 @@ export class City {
       const [qx, qz] = P(a, su * (HW + 0.7 - 0.2));
       peds.push([qx, y0 + 2.45, qz, yaw(-su * F.rx, -su * F.rz), 2]);
     };
-    mainHead(-(SIGNAL.stopA - 0.35), 1);    // chiều mình (đi theo +f): góc phải trước ngã tư, quay về phía xe tới
-    mainHead(SIGNAL.stopA - 0.35, -1);      // chiều ngược lại
-    for (const su of [-1, 1]) {
+    mainHead(-(A - 0.35), 1);    // chiều mình (đi theo +f): góc phải trước ngã tư, quay về phía xe tới
+    mainHead(A - 0.35, -1);      // chiều ngược lại
+    for (const su of corner ? [1] : [-1, 1]) {                       // góc rẽ: phía −u là đường mình đi tiếp (không có cột giữa khúc cua)
       // xe trên đường ngang đi về phía -su (tới đường chính từ phía su): bên phải của họ là +f·su => góc (su·a, su·u), phía xe tới
       const a = su * (CW + 1.0), [px, pz] = P(a, su * (HW + 0.8));
       poles.push([px, y0, pz, 4.4]);
@@ -994,6 +1119,7 @@ export class City {
     // đèn đường 4 góc ngã tư (tay đòn chĩa vào tâm ngã tư)
     const S = this.scenery, lamps = [], bulbs = [];
     for (const sa of [-1, 1]) for (const su of [-1, 1]) {
+      if (corner && sa < 0 && su < 0) continue;                       // góc rẽ: góc trong là khúc cua (không có vỉa hè ở đó)
       const [px, pz] = P(sa * (CW + 3.4), su * (HW + 0.9)), dx = F.x - px, dz = F.z - pz, L = Math.hypot(dx, dz), ux = dx / L, uz = dz / L;
       const yw = Math.atan2(uz, -ux);
       lamps.push([px, y0, pz, yw]);
@@ -1017,7 +1143,7 @@ export class City {
     sign(-14.2, HW + 0.55, -F.fx, -F.fz, 0);                    // chiều mình tới ngã tư: biển vạch qua đường bên phải
     sign(14.2, -(HW + 0.55), F.fx, F.fz, 0);                    // chiều ngược lại
     sign(CW + 0.7, HW + 4.6, F.rx, F.rz, 1, 2.2);              // đường ngang phía phải: dừng lại
-    sign(-(CW + 0.7), -(HW + 4.6), -F.rx, -F.rz, 1, 2.2);
+    if (!corner) sign(-(CW + 0.7), -(HW + 4.6), -F.rx, -F.rz, 1, 2.2);
     sign(60, HW + 0.55, -F.fx, -F.fz, 2);                       // giữa khối: tốc độ tối đa 40
     sign(95, -(HW + 0.55), F.fx, F.fz, 3);                      // cấm đỗ
     const mkPlates = (mat, back) => {

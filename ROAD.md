@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -17,7 +17,7 @@
   Máy chủ thử chạy nền tự tắt sau 2 giờ => bật lại. Script chụp tạm để ở scratchpad, không đưa file preview vào `docs/`.
   Máy chậm => môi trường (env map) chưa kịp chụp lại khi đổi giờ: gọi `__app.env.update(0.016, drive.pos); env._captureEnv()`.
 - **Kiểm tra tự động** (node, không cần trình duyệt; đều PASS): `scripts/check-traffic.mjs`, `check-traffic-policy.mjs`, `check-steering.mjs`,
-  `check-stopscene.mjs`, `check-hlg.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
+  `check-stopscene.mjs`, `check-hlg.mjs`, `check-nyc.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
   `check-waterfalls.mjs`, `check-rear-glass.mjs [model.glb]`. Model tải lên nặng: nén bằng `npx @gltf-transform/cli@4 webp … --quality 82`
   rồi `meshopt` (giữ file gốc); sóng biển bake bằng `node scripts/bake-ocean.mjs`. **Fixture GUI** `scripts/*-preview.js` (giữ cảnh cố định để chụp):
   bundle bằng esbuild ra `docs/<tên>-check.js`, sao `docs/index.html` thành trang riêng đổi script sang bundle đó; chụp xong
@@ -329,9 +329,9 @@
   khoá ngang (Android), gợi ý xoay ngang khi cầm dọc; iPhone: "Thêm vào MH chính" (manifest fullscreen/landscape).
 
 ## 5. Việc còn mở / cần chú ý
-- **TIẾP THEO — Map New York** 🗽 (nhóm Drive): plan + tuyến vòng đã chốt trong **`NYC_PLAN.md`** (7th Ave qua Times Square → 32nd St
-  → Park Ave có hầm + cầu cạn Grand Central → 55th St → 7th Ave; không tối màn hình). Chưa có code. Bắt đầu B1: kiểm chiều một chiều
-  bằng OSM, `scripts/fetch-nyc.mjs`, dựng vòng + 4 khúc rẽ trái.
+- **TIẾP THEO — Map New York** 🗽: B1 xong (xem `NYC_PLAN.md` mục "Kết quả B1"). Chú chê "không khác map Phố, không giống Times Square"
+  (gửi ảnh low-poly Times Square: tháp biển LED giữa, nhà chọc trời, biển quảng cáo lớn) => làm tiếp Times Square (B4 + nhà cao tầng B2
+  cho 7th Ave 42–47 St) trước. Hỏi chú nếu muốn thứ tự khác.
 - **Map Cao tốc HLG — có thể làm tiếp**: footprint Microsoft không có chiều cao ở VN => cao theo diện tích (đoán); sông / lạch cắt chéo
   đúng góc thật (đang vuông góc tuyến); mặt nước lạch dài ±400 m rồi dừng; cỏ cao `meadow` vẫn phủ cả khu dân cư; biển tốc độ dựng bên đường còn theo mẫu Đại lộ (HUD đã đúng biển thật); Cầu Long Thành dùng tháp dây văng
   chung của Đại lộ (chưa đối chiếu ảnh thật); nút giao chưa có tên đường cắt ngang cho Nhơn Trạch / QL51 / Long Thành / Cẩm Mỹ
@@ -376,3 +376,15 @@
   ghi `NYC_PLAN.md` + mục 5. Phiên mới làm tiếp từ B1.
 - **#8 — Thứ tự dùng DeepSeek (21/10/2026)**: ưu tiên `opencode/deepseek-v4.1-flash-free` (đã thử chạy), hết giới hạn mới hỏi chú
   để dùng credit API (MCP `deepseek`); mô tả công cụ MCP ghi rõ "chỉ dùng khi chú đồng ý".
+- **#9 — Map New York B1 (21/10/2026)**: `scripts/fetch-nyc.mjs` → `src/nyc-data.json` (OSM, kiểm chiều một chiều bằng Dijkstra có hướng:
+  32nd St đông, 55th St tây, hầm Park Ave bắc, cầu cạn bắc — đúng plan). `src/nyc.js`: vòng (`nycLoop`, độ cao hầm / cầu cạn), `NycWorks`
+  (tường gạch men + trần + đèn hầm, 1 PointLight theo xe trong hầm; bản mặt cầu + lan can + trụ). road.js: `setShape('nyc', loop)` — s quấn
+  vòng, hướng +2π / vòng, `junction*` từ dữ liệu, `junctionInfo`, `cornerAhead`, `curveV` (tốc độ vào cua, aLat 2.4), `elevAt`, `road.street`
+  (mặt phố), điểm đường có `g` (terrain bám mặt phố dưới cầu / trên hầm kín). city.js (`city.nyc`): góc rẽ `_corner` / `_cornerFrame`
+  (giao lộ vuông + 2 nhánh đi tiếp + vỉa hè góc + 4 vạch qua đường), vạch Mỹ một chiều, lọc nhà theo đường chéo góc (`owns`), không cột điện,
+  `stopA(n)` / `nextLine`. cityTraffic chế độ `nyc` (một chiều 4 làn, xe đường ngang theo chiều thật, không ở góc). main: map `nyc` (MAPS,
+  `mapKind` → city, `chilldrive.nyc`, vào ở s = L + 30), `nycAuto` (xi nhan trái 150 m, sang làn trái khi trống, về làn phải sau góc 40 m;
+  lái tay ≤ 8 s thì không tự đổi), lỗi `turn` / `turnSig`, biển 40, camera trong hầm có trần (`rig.ceilAt`), bỏ lỗi đèn đỏ khi xe nhảy > 30 m.
+  check-nyc + traffic / traffic-policy / steering / stopscene / hlg / car-switch PASS. Playwright Low: quét trọn vòng mỗi 60 m không lỗi
+  console; tự lái thật qua góc 7th → 32nd: 0 lỗi, 22 km/h trong cua. Khung trình duyệt trong app bị ẩn thì rAF đứng — dùng Playwright
+  (`~/.npm/_npx/e41f203b7505f1fb/node_modules/playwright` + `executablePath` chromium_headless_shell-1248, `click` qua `evaluate`).

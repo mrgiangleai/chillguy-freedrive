@@ -191,7 +191,7 @@ export class CityPeople {
     for (let n = n0; n < n1; n++) {
       let tm = this.timers.get(n) ?? Math.random() * 3;
       tm -= dt;
-      if (tm <= 0 && this.peds.length < MAX - 8) {
+      if (tm <= 0 && this.peds.length < MAX - 8 && !road.junctionInfo(n)?.corner) {   // New York: góc rẽ chưa có người qua đường
         tm = 4 + Math.random() * 7;
         const J = road.junction(n), sa = Math.random() < 0.5 ? -1 : 1, su = Math.random() < 0.5 ? -1 : 1;
         const p = this._walker(J + sa * (6.9 + Math.random() * 3), su, 1);
@@ -235,6 +235,8 @@ export class CityPeople {
         // đi dọc vỉa hè; tới đường ngang thì chờ đèn đường chính xanh
         const n = p.dir > 0 ? road.junctionIndex(p.s - 4) : road.junctionIndex(p.s + 4) - 1;
         const J = road.junction(n), edge = J - p.dir * (CITY.side + 0.3), dist = (edge - p.s) * p.dir;
+        // New York: vỉa hè phía ngoài góc rẽ (bên phải) dừng ở đầu khúc cua => quay đầu đi ngược lại
+        if (p.u > 0 && road.junctionInfo(n)?.corner && Math.abs(J - p.s) < 13) { p.dir = -p.dir; p.s += p.dir * 0.5; continue; }
         const stopHere = dist > 0 && dist < 1.2 && city._phase(n).main !== 0;
         p.mode = stopHere ? 'wait' : 'walk';
         if (!stopHere) vs = p.dir * p.speed;
@@ -271,7 +273,7 @@ export class CityPeople {
       if (i >= MAX) break;
       road.at(p.s, P);
       const onWalk = amb && Math.abs(p.u) > CITY.hw && road.nearJunction(p.s) !== null && Math.abs(p.s - road.nearJunction(p.s)) > CITY.side;
-      const y = (!amb && this.yAt ? this.yAt(p.s, p.u, P.y) : P.y) + (onWalk ? 0.2 : 0.05);   // Đại lộ: nhánh rẽ ở cao độ nền
+      const y = (this.yAt ? this.yAt(p.s, p.u, P.y) : P.y) + (onWalk ? 0.2 : 0.05);   // Đại lộ: nhánh rẽ ở cao độ nền; New York: vỉa hè ở mặt phố
       const rx = Math.cos(P.th), rz = -Math.sin(P.th), fx = -Math.sin(P.th), fz = -Math.cos(P.th);
       const h = p.head ?? (p.mode === 'wait' && p.crossing ? (p.side > 0 ? -Math.PI / 2 : Math.PI / 2) : 0);
       const dx = fx * Math.cos(h) + rx * Math.sin(h), dz = fz * Math.cos(h) + rz * Math.sin(h);   // hướng nhìn trong thế giới

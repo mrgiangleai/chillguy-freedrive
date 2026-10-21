@@ -176,7 +176,8 @@ export class Terrain {
       const t = Math.max(0, Math.min(1, ((x - a.x) * abx + (z - a.z) * abz) / len2));
       const ex = x - a.x - abx * t, ez = z - a.z - abz * t;
       const d = Math.hypot(ex, ez);
-      if (d < bd) { bd = d; by = a.y + (b.y - a.y) * t; bl = (ex * -abz + ez * abx) / Math.sqrt(len2); }
+      // g: mặt đất mà địa hình bám theo (New York: dưới cầu cạn / trên hầm kín là mặt phố, không phải mặt đường)
+      if (d < bd) { bd = d; const ga = a.g ?? a.y, gb = b.g ?? b.y; by = ga + (gb - ga) * t; bl = (ex * -abz + ez * abx) / Math.sqrt(len2); }
     }
     this._nd = bd; this._ny = by; this._nl = bl; this._ns = bi * ROAD.step;
     return true;

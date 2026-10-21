@@ -494,6 +494,7 @@ export class Scenery {
       const s = s0 + i * lampGap + (city ? 21 : 6);          // phố: lệch khỏi cột điện (mỗi 30 m, ở +8)
       if (road.dirtAt(s) > 0.05) continue;          // đường đất: không có đèn đường
       if (city) { const j = road.nearJunction(s); if (j !== null && Math.abs(s - j) < 16) continue; }   // phố: không đặt giữa ngã tư / vạch qua đường
+      if (road.elevAt(s) < -0.3) continue;            // New York: không đặt đèn đường trong hầm (trên cầu cạn: đặt trên bản mặt cầu)
       road.at(s, p);
       const side = this.map === 'mountain' ? -1 : (Math.round(s / lampGap) % 2) ? 1 : -1;
       const off = HW + (city ? 0.9 : this.map === 'avenue' ? 1.0 : 1.4);

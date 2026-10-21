@@ -130,20 +130,35 @@ export class Road {
     this.city = false;            // map Phố: đường thẳng + ngã tư
     this.avenue = false;          // map Đại lộ: cao tốc cong rất thoải (cả map Cao tốc HLG)
     this.real = null;             // map Cao tốc HLG: { step, heading[] } hướng đi thật theo s (dữ liệu OSM, `hlg.js`)
+    this.loop = null;             // map New York: vòng khép kín (`nyc.js`): { length, step, x[], z[], heading[], turn, elev(s), junctions[] }
+    // map New York: mặt phố (vỉa hè / nhà / người) ở cao độ "street" — khác mặt đường ở hầm / cầu cạn
+    this.street = Object.create(this);
+    this.street.at = (s, out = {}) => { this.at(s, out); out.y -= this.elevAt(s); return out; };
     this._cum = [0];              // map Phố: tổng góc bẻ tới hết đoạn k
   }
 
-  // đổi hình đường: kind 'city' (Phố) | 'avenue' (Đại lộ) | 'hlg' (cao tốc thật, real = { step, heading[] }) | khác (đường lượn
-  // các map ngắm cảnh) => tính lại toàn bộ điểm đường
+  // đổi hình đường: kind 'city' (Phố) | 'avenue' (Đại lộ) | 'hlg' (cao tốc thật, real = { step, heading[] }) | 'nyc' (vòng khép kín,
+  // real = { loop: true, … }) | khác (đường lượn các map ngắm cảnh) => tính lại toàn bộ điểm đường
   setShape(kind, real = null) {
-    const city = kind === 'city', avenue = kind === 'avenue' || kind === 'hlg';
+    const city = kind === 'city' || kind === 'nyc', avenue = kind === 'avenue' || kind === 'hlg';
+    const loop = kind === 'nyc' ? real : null;
     real = kind === 'hlg' ? real : null;
-    if (city === this.city && avenue === this.avenue && real === this.real) return;
-    this.city = city; this.avenue = avenue; this.real = real;
-    this.pts = [{ x: 0, z: 0, y: 0 }];
+    if (city === this.city && avenue === this.avenue && real === this.real && loop === this.loop) return;
+    this.city = city; this.avenue = avenue; this.real = real; this.loop = loop;
+    this.pts = [loop ? this._loopPt(0) : { x: 0, z: 0, y: 0 }];
   }
+  // ---- vòng khép kín (map New York): s bất kỳ ≥ 0, quấn theo chiều dài vòng ----
+  _lf(s) { const L = this.loop, r = ((s % L.length) + L.length) % L.length, f = r / L.step, i = Math.min(L.x.length - 2, Math.floor(f)); return [i, f - i, Math.floor(s / L.length)]; }
+  _loopPt(s) {
+    const L = this.loop, [i, t] = this._lf(s), x = L.x[i] + (L.x[i + 1] - L.x[i]) * t, z = L.z[i] + (L.z[i + 1] - L.z[i]) * t;
+    const e = L.elev(s), y = hLow(x, z);
+    return { x, z, y: y + e, g: y + (e > 0 || e <= L.roof ? 0 : e) };   // g: mặt đất cho địa hình (cầu cạn / hầm kín: mặt phố)
+  }
+  // độ cao mặt đường so với mặt phố (âm trong hầm, dương trên cầu cạn); map khác 0
+  elevAt(s) { return this.loop ? this.loop.elev(s) : 0; }
   // hướng thật tại s (nội suy tuyến tính mảng heading, ngoài 2 đầu giữ hướng cuối)
   _realH(s) {
+    if (this.loop) { const L = this.loop, [i, t, k] = this._lf(s); return L.heading[i] + (L.heading[i + 1] - L.heading[i]) * t + L.turn * k; }
     const { step, heading: A } = this.real, f = Math.min(A.length - 1, Math.max(0, s / step)), i = Math.min(A.length - 2, Math.floor(f));
     return A[i] + (A[i + 1] - A[i]) * (f - i);
   }
@@ -162,16 +177,43 @@ export class Road {
     return this._cum[k];
   }
 
-  // ngã tư thứ n (map Phố): độ dài cung tâm ngã tư
+  // ngã tư thứ n (map Phố): độ dài cung tâm ngã tư. Vòng New York: danh sách thật lặp lại mỗi vòng
   junction(n) {
+    if (this.loop) { const J = this.loop.junctions, m = J.length, k = Math.floor(n / m); return J[n - k * m].s + k * this.loop.length; }
     const k = Math.floor(n / 3), i = n - k * 3;
     return k * CITY.seg + JPOS[i] + (hashR(n * 3.17 + 1.9) - 0.5) * (i === 2 ? 10 : 24);
   }
   // chỉ số ngã tư đầu tiên có tâm >= s
   junctionIndex(s) {
+    if (this.loop) {
+      const J = this.loop.junctions, L = this.loop.length, k = Math.floor(s / L), r = s - k * L;
+      let i = 0; while (i < J.length && J[i].s < r) i++;
+      return k * J.length + i;
+    }
     let n = Math.floor(s / CITY.seg) * 3 - 1;
     while (this.junction(n) < s) n++;
     return n;
+  }
+  // thông tin ngã tư n (vòng New York: { s, names, ow, signal, corner }); map Phố: null
+  junctionInfo(n) { if (!this.loop) return null; const J = this.loop.junctions, m = J.length; return J[((n % m) + m) % m]; }
+  // khoảng cách tới góc rẽ kế tiếp (tâm khúc cua) phía trước s; không phải vòng: Infinity
+  cornerAhead(s) {
+    if (!this.loop) return Infinity;
+    const L = this.loop.length, r = ((s % L) + L) % L;
+    let best = Infinity;
+    for (const c of this.loop.corners) { const d = ((c.s - r) % L + L) % L; if (d < best) best = d; }
+    return best;
+  }
+  // tốc độ tối đa (m/s) tại s để vào được các khúc cua phía trước trong `look` m: gia tốc ngang ≤ aLat ở khúc cua, phanh êm
+  // `brake` m/s² từ xa (vòng New York: góc rẽ vuông + cầu cạn vòng quanh Grand Central). Đường khác: Infinity
+  curveV(s, aLat = 2.4, brake = 2.2, look = 80) {
+    if (!this.loop) return Infinity;
+    let v = Infinity;
+    for (let d = 0; d <= look; d += 4) {
+      const k = Math.abs(this.curvature(s + d));
+      if (k > 1e-3) v = Math.min(v, Math.sqrt(aLat / k + 2 * brake * d));
+    }
+    return v;
   }
   // tâm ngã tư gần s nhất (map Phố) hoặc null
   nearJunction(s) {
@@ -187,7 +229,7 @@ export class Road {
     return sst(DIRT.start, DIRT.start + DIRT.ramp, m) * (1 - sst(DIRT.start + DIRT.len - DIRT.ramp, DIRT.start + DIRT.len, m));
   }
 
-  _y(x, z, s) { return this.city ? hLow(x, z) : this.avenue ? hLow(x, z) + avHump(s) : hLow(x, z) + this.dirtAt(s) * bump(s); }
+  _y(x, z, s) { return this.city ? hLow(x, z) + this.elevAt(s) : this.avenue ? hLow(x, z) + avHump(s) : hLow(x, z) + this.dirtAt(s) * bump(s); }
   // cao độ nền của đại lộ tại s (không tính phần nhô lên cầu vượt) — nhánh rẽ / đường ngang đi ở cao độ này.
   // Nút giao nằm trên cầu cạn (HLG): nhánh tách ở cao độ cầu rồi xuống dần, tới đường ngang (|t| ≤ 60) mới về mặt đất
   baseY(s) {
@@ -198,7 +240,7 @@ export class Road {
   }
 
   heading(s) {
-    if (this.real) return this._realH(s);
+    if (this.real || this.loop) return this._realH(s);
     if (this.avenue) return HA(s) - HA0;
     if (!this.city) return H(s) - H0;
     const k = Math.floor(s / CITY.seg);
@@ -218,6 +260,7 @@ export class Road {
     const { step } = ROAD;
     while (this.pts.length <= i + 1) {
       const k = this.pts.length - 1;
+      if (this.loop) { this.pts.push(this._loopPt((k + 1) * step)); continue; }
       const th = this.heading(k * step + step / 2);
       const p = this.pts[k];
       const x = p.x - Math.sin(th) * step, z = p.z - Math.cos(th) * step;
@@ -226,7 +269,7 @@ export class Road {
   }
 
   // đổi map (địa hình khác) => tính lại độ cao của đường
-  recomputeHeights() { this.pts.forEach((p, i) => { p.y = this._y(p.x, p.z, i * ROAD.step); }); }
+  recomputeHeights() { this.pts.forEach((p, i) => { if (this.loop) Object.assign(p, this._loopPt(i * ROAD.step)); else p.y = this._y(p.x, p.z, i * ROAD.step); }); }
 
   // Điểm tim đường tại độ dài cung s. th = góc hướng (xoay quanh trục Y, 0 = đi về -Z).
   // Vector "bên phải" của đường = (cos th, 0, -sin th).

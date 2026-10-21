@@ -203,6 +203,8 @@ const MIX = [['sedan', 0.3], ['kei', 0.24], ['taxi', 0.1], ['van', 0.12], ['bus'
 const MODES = {
   city: { lanes: CITY.lanes, laneK: [1, 1], ahead: AHEAD, behind: BEHIND, gap: MAIN_GAP, cross: true,
     mix: MIX },
+  // New York (B1): đường một chiều — mọi xe đường chính chạy chiều +s trên cả 4 làn (±1.75 / ±5.25); chậm lại ở góc rẽ vuông
+  nyc: { lanes: CITY.lanes, laneK: [1, 1], ahead: AHEAD, behind: BEHIND, gap: MAIN_GAP, cross: true, oneway: true, mix: MIX },
   avenue: { lanes: AVENUE.lanes, laneK: [1.12, 1, 0.84], ahead: 900, behind: 300, gap: [50, 120], cross: false,
     mix: [['sedan', 0.36], ['kei', 0.1], ['taxi', 0.08], ['van', 0.16], ['bus', 0.1], ['truck', 0.12], ['container', 0.08]] },
 };
@@ -364,8 +366,9 @@ export class CityTraffic {
     if (!this.filled) {
       this.filled = true;
       for (const dir of [1, -1]) for (const l of lanes) {
+        if (cfg.oneway && dir < 0) continue;
         for (let x = s - BEHIND + Math.random() * 40; x < s + AHEAD; x += (MAIN_GAP[0] + Math.random() * (MAIN_GAP[1] - MAIN_GAP[0])) / this.density) {
-          const dd = dir * l;
+          const dd = cfg.oneway ? (Math.random() < 0.5 ? -l : l) : dir * l;
           if (lanes.indexOf(l) >= laneCount(x)) continue;               // đoạn 2 làn: làn ngoài cùng là làn khẩn cấp
           if (Math.abs(x - s) < 15 && Math.abs(dd - d) < 2) continue;
           const t = this._pick(); if (!t) continue;
@@ -373,27 +376,31 @@ export class CityTraffic {
         }
       }
     }
-    for (const dir of [1, -1]) for (const l of lanes) {
-      const dd = dir * l;
+    for (const dir of cfg.oneway ? [1, -1] : [1, -1]) for (const l of lanes) {
+      const dd = dir * l;                                   // một chiều: dir chỉ chọn nửa làn (trái / phải), xe vẫn chạy +s
+      const cdir = cfg.oneway ? 1 : dir;
       // xe ngược chiều: vào từ xa phía trước; cùng chiều: vào từ phía sau (xe mình chậm) hoặc phía trước (xe mình nhanh)
-      const at = dir < 0 ? s + AHEAD - 10 : v < 10 ? s - BEHIND + 10 : s + AHEAD - 10;
+      const at = cdir < 0 ? s + AHEAD - 10 : v < 10 ? s - BEHIND + 10 : s + AHEAD - 10;
       if (lanes.indexOf(l) >= laneCount(at)) continue;
       if (Math.random() < dt * 0.35 * Math.min(1, this.density) && this._free(at, dd, MAIN_GAP[0] / this.density + 10) && Math.abs(at - s) > 30) {
         const free = this.useModels && this.pool && Math.random() < 0.35 ? this.pool().find((x) => !x.busy && !x.carriage) : null;
         if (free) {                                          // thỉnh thoảng là xe model của chú
           free.busy = free.cityBusy = true;
           const vm = this.kmh(36 + Math.random() * 14, this.vr.main) * KMH;
-          this.cars.push({ type: 'model', model: free, s: at, d: dd, home: dd, dir, len: free.dim.length, wid: free.dim.width, vMax: dir > 0 && at > s ? Math.min(vm, Math.max(4, v - 2)) : vm, v: vm, lat: 0, color: '#ffffff' });
+          this.cars.push({ type: 'model', model: free, s: at, d: dd, home: dd, dir: cdir, len: free.dim.length, wid: free.dim.width, vMax: cdir > 0 && at > s ? Math.min(vm, Math.max(4, v - 2)) : vm, v: vm, lat: 0, color: '#ffffff' });
         } else {
           const t = this._pick();
-          if (t) { const c = this._new(t, { s: at, d: dd, home: dd, dir }); if (dir > 0 && at > s) c.vMax = Math.min(c.vMax, Math.max(4, v - 2)); this.cars.push(c); }
+          if (t) { const c = this._new(t, { s: at, d: dd, home: dd, dir: cdir }); if (cdir > 0 && at > s) c.vMax = Math.min(c.vMax, Math.max(4, v - 2)); this.cars.push(c); }
         }
       }
     }
     // ---- xe đường ngang ở các ngã tư gần ----
     const n0 = cfg.cross ? road.junctionIndex(s - 60) : 0, n1 = cfg.cross ? road.junctionIndex(s + 330) : 0;
     for (let n = n0; n < n1; n++) {
+      const J = road.junctionInfo(n);                            // New York: góc rẽ không có xe ngang; đường ngang một chiều chỉ 1 hướng
+      if (J?.corner) continue;
       for (const du of [1, -1]) {                                // du: hướng chạy theo trục u (+r / -r)
+        if (J?.ow && du !== J.ow) continue;
         const key = n * 2 + (du > 0 ? 1 : 0);
         let tm = this.crossTimers.get(key);
         if (tm === undefined) tm = Math.random() * 4;
@@ -484,6 +491,7 @@ export class CityTraffic {
         const dl = tollDist(c.s + c.dir * c.len / 2, c.dir);
         if (dl < TOLL.zone && dl > -14) want = Math.min(want, TOLL.slow + Math.sqrt(2 * 1.6 * Math.max(0, dl - 2)));
       }
+      if (cfg.oneway) want = Math.min(want, road.curveV(c.s));    // khúc cua gắt (góc rẽ vuông, cầu cạn): ~22 km/h, phanh êm từ xa
       const f = ahead(c, c.d);
       if (f) {
         if (f.e.dir === c.dir || f.e.player) want = Math.min(want, follow(f.e.v * (f.e.dir === c.dir ? 1 : 0), f.gap));
@@ -492,6 +500,15 @@ export class CityTraffic {
         if (!c.changing && c.ramp == null && f.gap < 35 && f.e.v < c.vMax - 2.5 && (f.e.dir === c.dir || f.e.player)) {
           // làn cùng chiều bên cạnh: ưu tiên làn trong (vượt bên trái), không có thì làn ngoài
           const li = lanes.indexOf(Math.abs(c.home));
+          if (cfg.oneway) {                                      // một chiều: 4 làn cùng chiều −5.25 … 5.25, sang làn kề bên trống
+            const L4 = [-lanes[1], -lanes[0], lanes[0], lanes[1]], i4 = L4.indexOf(c.home);
+            for (const oi of Math.random() < 0.5 ? [i4 - 1, i4 + 1] : [i4 + 1, i4 - 1]) {
+              if (oi < 0 || oi > 3) continue;
+              const other = L4[oi];
+              const clear = !main.concat([player]).some((e) => e !== c && Math.abs(e.d - other) < 2.2 && e.s - c.s > -18 - (e.len + c.len) / 2 && e.s - c.s < 25);
+              if (clear) { c.home = other; c.changing = true; break; }
+            }
+          } else
           for (const oi of [li - 1, li + 1]) {
             if (oi < 0 || oi >= lanes.length || (TYPES[c.type]?.heavy && oi === 0)) continue;   // xe nặng không vào làn trong
             if (oi >= Math.min(laneCount(c.s), laneCount(c.s + c.dir * 200))) continue;            // không vượt vào làn khẩn cấp

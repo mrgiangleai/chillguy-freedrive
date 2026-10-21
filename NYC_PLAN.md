@@ -1,4 +1,4 @@
-# Plan: Map New York (🗽, nhóm Drive) — ĐÃ CHỐT TUYẾN, CHƯA CODE
+# Plan: Map New York (🗽, nhóm Drive) — B1 XONG (đường + vòng + rẽ + hầm + cầu cạn)
 
 > Phiên mới: đọc `CLAUDE.md` → `ROAD.md` → file này. Làm theo từng bước, mỗi bước push 1 lần để chú test.
 > Plan gốc soạn ở phiên cloud (bị chặn mạng); phiên Mac này tải OSM được (như map HLG) nên không cần mở mạng.
@@ -49,4 +49,17 @@ camera, qua đường thành đợt khi đèn đi bộ xanh; map Phố hiện t�
 (ODbL) trong README + ⓘ; cập nhật ROAD.md; thử Low trên máy ảo, chú thử hiệu năng điện thoại.
 
 ## Trạng thái
-- [ ] B1  - [ ] B2  - [ ] B3  - [ ] B4  - [ ] B5   (cập nhật ô này + ROAD.md sau mỗi bước)
+- [x] B1  - [ ] B2  - [ ] B3  - [ ] B4  - [ ] B5   (cập nhật ô này + ROAD.md sau mỗi bước)
+- **Phản hồi chú sau B1 (21/10/2026)**: "nhìn không khác map Phố, không giống Times Square" — chú muốn kiểu ảnh low-poly Times Square
+  (tháp One Times Square phủ biển LED ở giữa, nhà chọc trời kính, biển quảng cáo lớn nhiều tầng, quảng trường lát gạch + bậc đỏ TKTS).
+  => ưu tiên làm **B4 (Times Square)** gộp phần nhà cao tầng của B2 cho đoạn 7th Ave 42–47 St trước, rồi mới phủ nhà thật cả vòng.
+
+## Kết quả B1 (đã kiểm OSM 21/10/2026 — đúng hết, không phải đổi đường ngang)
+- `scripts/fetch-nyc.mjs` dò từng chặng bằng Dijkstra trên đồ thị CÓ HƯỚNG chỉ gồm way đúng tên (sai chiều => dừng báo lỗi), chặng Park Ave
+  bắt buộc qua cạnh tunnel + bridge, góc có nhiều node (đường đôi) thì quay lui. Kết quả: 7th Ave nam (1.84 km), 32nd St đông (0.90),
+  Park Ave bắc (1.91, hầm way 46520834 một chiều bắc, cầu cạn có đoạn 2 chiều trước chỗ tách), 55th St tây (0.90). Vòng 5 543 m, 42 ngã tư
+  (đại lộ cách ~80 m), hầm OSM s 2766–3189, cầu cạn 3319–3719, cổng Helmsley 3719–3793. Cầu cạn thật có 2 khúc 90° vòng quanh Grand Central.
+- Làm mượt hướng trung bình trượt 24 m => góc vuông thành cung R ≈ 15.3 m (nửa cung 12 m, tiếp tuyến 15.3 m = `NYC.arc/tangent`, `CORNER` trong city.js).
+- Độ cao (nyc.js `nycElevKeys`): hầm sâu 5.5 m, cầu cạn cao 6 m, dốc smoothstep ≤ 6 %; trần kín khi sâu > 4.8 m (390 m).
+- Chưa làm (để bước sau): bề rộng đường theo đoạn (đang 4 làn 7.2 m mọi nơi), nhà thật, Grand Central / Helmsley, xe buýt / taxi vàng,
+  đường ngang dưới cầu cạn (42 St) và trên hầm (33–39 St) chưa vẽ, góc trong khúc cua để trống.
