@@ -23,6 +23,57 @@ function merge(parts) {
 }
 
 // ---- khối cây (dùng chung cho hệ địa hình) ----
+// cây cao su đồn điền Đông Nam Bộ (map Cao tốc HLG): thân trống cao ~6 m, 3 cành chữ V, tán cao hẹp; 214 tam giác (MiniMax viết, đã chấm)
+export function rubberTreeGeometry() {
+  const BARK = 0x7a6a58;
+  const LEAF_A = 0x3f6b2e;
+  const LEAF_B = 0x4b7a34;
+  const LEAF_C = 0x56863b;
+
+  const parts = [];
+
+  // --- trunk: tall, straight, slender, clear bole -----------------------
+  parts.push(
+    tint(new THREE.CylinderGeometry(0.16, 0.24, 6.2, 6, 1, true).translate(0, 3.1, 0), BARK)
+  );
+  // slight root flare at the ground
+  parts.push(
+    tint(new THREE.CylinderGeometry(0.24, 0.33, 0.55, 6, 1, true).translate(0, 0.275, 0), BARK)
+  );
+
+  // --- 3 main branches splitting upward in a narrow V -------------------
+  // The cylinder pivot is moved to the branch base BEFORE rotating, so the
+  // graft always stays exactly on the trunk axis (x = z = 0) at height baseY.
+  const branch = (baseY, azimuth, tilt, len, rBot, rTop) => {
+    const g = new THREE.CylinderGeometry(rTop, rBot, len, 5, 1, true);
+    g.translate(0, len * 0.5, 0); // pivot -> base of the branch
+    g.rotateZ(tilt); // lean away from the axis, base does not move
+    g.rotateY(azimuth); // spin around the trunk axis
+    g.translate(0, baseY, 0); // graft the base onto the trunk axis
+    return tint(g, BARK);
+  };
+  parts.push(branch(5.5, 0.30, 0.33, 3.7, 0.13, 0.07));
+  parts.push(branch(5.6, 2.50, 0.40, 3.1, 0.12, 0.06));
+  parts.push(branch(5.9, 4.55, 0.29, 2.8, 0.11, 0.055));
+
+  // --- high, narrow, airy canopy ----------------------------------------
+  // Slightly oblate icosahedron blobs (wider than tall), stacked into a
+  // tall loose crown roughly 4.8 m across, from ~6 m up to ~12.3 m.
+  const blob = (r, detail, sx, sy, sz, x, y, z, color) => {
+    const g = new THREE.IcosahedronGeometry(r, detail);
+    g.scale(sx, sy, sz);
+    g.translate(x, y, z);
+    return tint(g, color);
+  };
+
+  parts.push(blob(1.45, 0, 1.15, 0.95, 1.15, -1.00, 7.25, -0.35, LEAF_C));
+  parts.push(blob(1.40, 0, 1.15, 0.95, 1.15, 1.05, 7.45, 0.40, LEAF_A));
+  parts.push(blob(1.95, 1, 1.15, 0.92, 1.15, 0.00, 8.90, 0.00, LEAF_B));
+  parts.push(blob(1.45, 0, 1.15, 0.95, 1.15, 0.50, 10.85, -0.40, LEAF_A));
+  parts.push(blob(1.35, 0, 1.15, 0.95, 1.15, -0.70, 11.15, 0.50, LEAF_C));
+
+  return merge(parts);
+}
 export function pineGeometry() {
   return merge([
     tint(new THREE.CylinderGeometry(0.18, 0.28, 1.6, 6).translate(0, 0.8, 0), 0x5a3d2b),

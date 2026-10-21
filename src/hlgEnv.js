@@ -4,7 +4,8 @@
 // - màu đất theo loại sử dụng đất (terrain gọi TP.land)
 // Dữ liệu đo theo chiều đi (s, u); chiều về: s' = L − s, u' = −u. Dựng theo đoạn CH m quanh xe, ≤ 1 đoạn / khung.
 import * as THREE from 'three';
-import { TP, hLow, hDetail, hash2 } from './terrain-noise.js';
+import { TP, hLow, hDetail, hash2, demAt } from './terrain-noise.js';
+import { rubberTreeGeometry } from './scenery.js';
 import { layout, IC } from './road.js';
 import { HLG } from './hlg.js';
 
@@ -26,6 +27,7 @@ export class HlgEnv {
     this.data = null; this.loading = false; this.onReady = null;
     this._m = new THREE.Matrix4(); this._q = new THREE.Quaternion(); this._v = new THREE.Vector3(); this._s = new THREE.Vector3(); this._c = new THREE.Color();
     this._up = new THREE.Vector3(0, 1, 0);
+    this.rubberGeo = rubberTreeGeometry();
   }
   get visible() { return this.group.visible; }
   set visible(v) {
@@ -149,7 +151,7 @@ export class HlgEnv {
       (o.k === 0 && o.h < 9 && o.w * o.d < 300 ? houses : boxes).push(rec);
     }
     // ---- cây rừng / vườn + nhà nhỏ bổ sung ở khu dân cư thưa dữ liệu ----
-    const trees = [], L = this.data.lu;
+    const trees = [], rubber = [], L = this.data.lu;
     for (let sF = Math.ceil(fA / L.ds) * L.ds; sF < fB; sF += L.ds) {
       for (let cI = 0; cI < L.rows[0].length; cI++) {
         const uF = L.u0 + cI * L.du, ch = this._lu(sF, uF);
@@ -157,6 +159,16 @@ export class HlgEnv {
         if (ch === 'f') {
           // rừng / vườn cao su: dày gần đường, thưa dần (máy yếu); xa hơn 360 m bỏ (địa hình đã tô màu rừng)
           const nT = Math.abs(uF) < 160 ? 3 : Math.abs(uF) < 360 ? 1 : 0;
+          const P0 = pose(s, u), plant = TP.dem && demAt(TP.dem, P0.x, P0.z) >= 14;
+          if (plant) {                                         // vùng cao (≥ 14 m): đồn điền cao su trồng thẳng hàng dọc đường
+            for (let t = 0; t < nT; t++) {
+              const ds = (t - (nT - 1) / 2) * (L.ds / Math.max(1, nT)), du = (hashS(sF * 0.1, uF) - 0.5) * 2;
+              if (this._blocked(s + ds, u + du, 3)) continue;
+              const P = pose(s + ds, u + du);
+              rubber.push([P.x, ground(P.x, P.z) - 0.15, P.z, hashS(P.x, P.z) * 6.28, 0.9 + hashS(P.z, P.x) * 0.2]);
+            }
+            continue;
+          }
           for (let t = 0; t < nT; t++) {
             const ds = (hashS(sF + t * 13, uF) - 0.5) * L.ds, du = (hashS(uF + t * 7, sF * 0.5) - 0.5) * L.du;
             if (this._blocked(s + ds, u + du, 4)) continue;
@@ -191,13 +203,14 @@ export class HlgEnv {
       im.castShadow = im.receiveShadow = true; im.frustumCulled = false;
       group.add(im);
     }
-    if (trees.length) {
-      const im = new THREE.InstancedMesh(this.avenue.treeGeo, this.avenue.treeMat, trees.length);
-      trees.forEach(([x, y, z, r, k], i) => { q.setFromAxisAngle(this._up, r); m.compose(v.set(x, y, z), q, sc.setScalar(k)); im.setMatrixAt(i, m); });
+    for (const [list, geo] of [[trees, this.avenue.treeGeo], [rubber, this.rubberGeo]]) {
+      if (!list.length) continue;
+      const im = new THREE.InstancedMesh(geo, this.avenue.treeMat, list.length);
+      list.forEach(([x, y, z, r, k], i) => { q.setFromAxisAngle(this._up, r); m.compose(v.set(x, y, z), q, sc.setScalar(k)); im.setMatrixAt(i, m); });
       im.receiveShadow = true; im.frustumCulled = false;
       group.add(im);
     }
-    group.userData.n = boxes.length + houses.length; group.userData.trees = trees.length;
+    group.userData.n = boxes.length + houses.length; group.userData.trees = trees.length + rubber.length; group.userData.rubber = rubber.length;
     this.group.add(group);
     return group;
   }

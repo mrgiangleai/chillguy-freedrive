@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -32,6 +32,10 @@
   cập nhật ROAD.md, commit, push. Có thể có người khác (Codex) cùng sửa nhánh: `git fetch` trước khi làm.
 - **Handoff**: ROAD.md là sổ bàn giao giữa các phiên — mỗi thay đổi quan trọng (kể cả cấu hình ngoài repo) phải ghi vào đây ngay
   trong lượt làm, kèm việc còn dở ở mục 5, để phiên khác đọc là làm tiếp được.
+- **Worker 3D MiniMax** (chú yêu cầu): `opencode run --standalone --auto --format json -m opencode/minimax-m3.1-flash-free` (free;
+  mặc định KHÔNG `#high`, chỉ dùng cho việc 3D khó), chạy trong thư mục riêng ở scratchpad với `TASK.md` (tiêu chí + lệnh chấm +
+  tối đa 5 vòng tự sửa) và script chấm; `perl -e 'alarm 300; exec @ARGV'` ~5 phút / việc, chạy nền chờ thông báo, chỉ chấm sản phẩm
+  cuối. Việc vài dòng: tự sửa. Ví dụ: cây cao su (1 vòng tự sửa, ~5 phút). Bản free lúc nhanh (1 phút) lúc treo (> 10 phút).
 - **Tiết kiệm quota (chú yêu cầu)**: việc làm theo khuôn (code nháp, sửa hàng loạt, tóm tắt) giao DeepSeek qua công cụ MCP `deepseek`
   (máy chủ `~/.claude/mcp/deepseek/server.mjs`, đăng ký phạm vi user — mọi phiên Claude Code; khoá trong Keychain service
   `deepseek-api`; model `deepseek-flash`, có `deepseek-v4-pro`; mặc định chờ 120 s, tối đa 600; flash suy nghĩ ngầm nên đừng đặt
@@ -250,7 +254,8 @@ model thử (~625 MB) không nằm trong git.
   dốc tối đa 5.9% (cầu vượt nút giao Long Thành). **Cảnh quan** (`hlgEnv.js`): 8 401 nhà = OSM 522 + Microsoft Global ML Building
   Footprints 7 879 (ODbL, 2 ô quadkey zoom 9, |u| 22–450 m; OSM thắng khi trùng); 21 chung cư ≥ 20 m, 378 thương mại, 138 xưởng.
   Ô đất OSM trống được lấp: mật độ nhà => 'r' / 'i'; còn lại theo độ cao SRTM: < 5 m ruộng 'p', 5–14 m pha ruộng / rừng theo mảng
-  ~200 m, ≥ 14 m rừng cao su 'f' (15% trảng). Cây 'f': 3 / ô khi |u| < 160 m, 1 / ô tới 360 m.
+  ~200 m, ≥ 14 m rừng cao su 'f' (15% trảng). Cây 'f': 3 / ô khi |u| < 160 m, 1 / ô tới 360 m; ô 'f' cao ≥ 14 m (theo `TP.dem`) trồng
+  `rubberTreeGeometry` (scenery.js, 214 tam giác, cao ~12 m) thẳng hàng dọc đường, còn lại cây tán tròn.
   **Map Đại lộ** (`avenue`, 🛣️, nhóm Drive cùng Phố; M trong Drive: Phố ↔ Đại lộ): cao tốc 6 làn (`AVENUE`: tâm làn ±2.25 / ±5.75 /
   ±9.25, dải phân cách ±0.5, mép làn ±11, lề khẩn cấp tới ±13), đường cong rất thoải (bán kính ≥ ~2 km), địa hình `avenue` (đồi cỏ
   thấp, cỏ cao `meadow` hai bên), hộ lan thép 2 bên, đèn đường 2 bên xen kẽ. Xe: `cityTraffic` chế độ avenue (3 làn mỗi chiều, tốc
@@ -415,3 +420,6 @@ model thử (~625 MB) không nằm trong git.
 - **#5 — Cài đặt Safari của chú thành mặc định (21/10/2026)**: `default-settings.json` + `loadTraffic` / `loadMist` / `defSet`. GUI
   (xoá localStorage): Chill phơi sáng 1.25, quay quanh 30 m; Drive phơi sáng 0.73; HLG gió lớn / ban ngày / cam Sát mặt đường; cao tốc
   mật độ 2.5, 120–208 km/h; nút Mặc định camera trả về 1.75 m. Check scripts PASS, console không lỗi.
+- **#6 — Cây cao su cho map HLG do MiniMax dựng (21/10/2026)**: worker MiniMax tự viết + tự chấm (`check-tree`: ≤ 360 tam giác, cao
+  11–13 m, tán 3.5–5.5 m, thân trống ≥ 5.3 m, gốc cành ≤ 0.45 m khỏi trục) — đạt sau 1 vòng sửa (lỗi xoay cành quanh tâm). GUI Low km 38.5:
+  ~2 000 cây cao su thẳng hàng hai bên. check-hlg PASS.
