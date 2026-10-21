@@ -12,8 +12,9 @@ import * as empire from './landmarks/empire.js';
 import * as chrysler from './landmarks/chrysler.js';
 import * as metlife from './landmarks/metlife.js';
 import * as helmsley from './landmarks/helmsley.js';
-// tòa nổi tiếng: [tên, module, kích thước X (đông–tây), Z (bắc–nam)]; Grand Central thêm khi có model
-const LANDMARKS = { empire: [empire, 129, 57], chrysler: [chrysler, 61, 58], metlife: [metlife, 90, 50], helmsley: [helmsley, 90, 60] };
+import * as grandcentral from './landmarks/grandcentral.js';
+// tòa nổi tiếng: [module, kích thước X (đông–tây), Z (bắc–nam)]
+const LANDMARKS = { empire: [empire, 129, 57], chrysler: [chrysler, 61, 58], metlife: [metlife, 90, 50], helmsley: [helmsley, 90, 60], grandcentral: [grandcentral, 90, 120] };
 
 export class NycBuildings {
   constructor(scene, ts, road) {
@@ -60,18 +61,24 @@ export class NycBuildings {
     if (pas) {
       road.at(L + (pas.s0 + pas.s1) / 2, P);
       place('helmsley', P.x - Math.cos(P.th) * 9, P.z + Math.sin(P.th) * 9, P.th);
-      // MetLife: dò chỗ bên trái cầu cạn trước Helmsley sao cho mép đường (±HW) không chạm footprint (nới 1 m)
-      const Q = {}, clear = (x, z, th) => {
+      // Grand Central (mặt chính −Z quay về nam / 42 St => yaw + π) rồi MetLife phía bắc: dò chỗ bên trái đoạn cầu cạn chạy dọc nhà ga sao cho
+      // mép đường (±HW) không chạm footprint (nới 1 m) và 2 tòa không chồng nhau
+      const Q = {}, put = [];
+      const clear = (x, z, th, hx, hz) => {
         const c = Math.cos(th), sn = Math.sin(th);
-        for (let t = pas.s0 - 320; t < pas.s1 + 40; t += 2) { road.at(L + t, Q); for (const u of [-HW, 0, HW]) {
+        for (let t = pas.s0 - 420; t < pas.s1 + 40; t += 2) { road.at(L + t, Q); for (const u of [-HW, 0, HW]) {
           const ex = Q.x + Math.cos(Q.th) * u - x, ez = Q.z - Math.sin(Q.th) * u - z;
-          if (Math.abs(ex * c - ez * sn) < 46 && Math.abs(ex * sn + ez * c) < 26) return false; } }
+          if (Math.abs(ex * c - ez * sn) < hx + 1 && Math.abs(ex * sn + ez * c) < hz + 1) return false; } }
+        for (const [px, pz, phx, phz] of put) { const ex = px - x, ez = pz - z; if (Math.abs(ex * c - ez * sn) < hx + phx + 2 && Math.abs(ex * sn + ez * c) < hz + phz + 2) return false; }
         return true;
       };
-      search: for (let ds = 70; ds <= 160; ds += 10) for (let ex = 0; ex <= 30; ex += 6) {
-        road.at(L + pas.s0 - ds, P);
-        const o = HW + 1.5 + 45 + ex, x = P.x - Math.cos(P.th) * o, z = P.z + Math.sin(P.th) * o;
-        if (clear(x, z, P.th)) { place('metlife', x, z, P.th); break search; }
+      for (const [name, d0, d1, flip] of [['grandcentral', 110, 220, Math.PI], ['metlife', 40, 200, 0]]) {
+        const [, X, Z] = LANDMARKS[name];
+        search: for (let ds = d0; ds <= d1; ds += 5) for (let ex = 0; ex <= 40; ex += 5) {
+          road.at(L + pas.s0 - ds, P);
+          const o = HW + 1.5 + X / 2 + ex, x = P.x - Math.cos(P.th) * o, z = P.z + Math.sin(P.th) * o;
+          if (clear(x, z, P.th, X / 2, Z / 2)) { place(name, x, z, P.th + flip); put.push([x, z, X / 2, Z / 2]); break search; }
+        }
       }
     }
   }

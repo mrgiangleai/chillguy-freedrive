@@ -248,14 +248,14 @@ TimesSquare.prototype._spawnCrowd = function () {
   const r = Math.random;
   this.crowd = [];
   for (const z of this.zones) for (let i = 0; i < Math.round(z.n * this.density); i++) {
-    const p = { z, s: z.s0 + r() * (z.s1 - z.s0), u: z.u0 + r() * (z.u1 - z.u0), ts: 0, tu: 0, speed: 0.9 + r() * 0.6, wait: r() * 6, ph: r() * 6.28,
+    const p = { zn: z, s: z.s0 + r() * (z.s1 - z.s0), u: z.u0 + r() * (z.u1 - z.u0), ts: 0, tu: 0, speed: 0.9 + r() * 0.6, wait: r() * 6, ph: r() * 6.28,
       moving: 0, acc: r() < 0.2 ? 2 : r() < 0.35 ? 1 : 0, color: SHIRTS[Math.floor(r() * SHIRTS.length)], ds: 1, du: 0, x: 0, y: 0, z: 0, fx: 0, fz: 1 };
     this._target(p);
     this.crowd.push(p);
   }
 };
 TimesSquare.prototype._target = function (p) {
-  const z = p.z, r = Math.random;
+  const z = p.zn, r = Math.random;
   if (z.kind === 'walk') { p.ts = Math.min(z.s1, Math.max(z.s0, p.s + (r() < 0.5 ? -1 : 1) * (20 + r() * 60))); p.tu = z.u0 + r() * (z.u1 - z.u0); }
   else { p.ts = z.s0 + r() * (z.s1 - z.s0); p.tu = z.u0 + r() * (z.u1 - z.u0); }
 };
@@ -263,7 +263,7 @@ TimesSquare.prototype._crowd = function (dt, car) {
   const W = this.W, F = this.F, near = this.near;
   near.length = 0;
   for (const p of this.crowd) {
-    const z = p.z;
+    const z = p.zn;
     if (z.kind === 'steps') { p.moving = 0; p.ds = 1; p.du = 0; }
     else if (p.wait > 0) {                                            // đứng: ngắm biển (nhìn ra đường / lên cao), có người giơ điện thoại
       p.wait -= dt; p.moving = 0;
