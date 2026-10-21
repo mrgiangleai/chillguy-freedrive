@@ -15,6 +15,7 @@ import { withMist } from './mist.js';
 const AHEAD = 260, BEHIND = 90;
 const WALKERS = 38;
 const MAX = 96;
+const CROWD = 520;             // thêm cho đám đông ngoài (Times Square, `extra`), vẽ chung 1 InstancedMesh
 const SHIRTS = ['#e9e6df', '#2b2d33', '#6d7d8f', '#8c2f2f', '#c9a96e', '#3d5f4b', '#d7c6b0', '#5a4a6e', '#b8c4d6', '#1f3552'];
 const KIND_COL = { officer: '#1d2a48', medic: '#e9eef2', driver: '#121214' };
 
@@ -71,7 +72,7 @@ export class CityPeople {
     this.group.visible = false;
     scene.add(this.group);
     const g = personGeometry();
-    this.phase = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3).setUsage(THREE.DynamicDrawUsage);   // pha bước, đang đi, đồ dùng
+    this.phase = new THREE.InstancedBufferAttribute(new Float32Array((MAX + CROWD) * 3), 3).setUsage(THREE.DynamicDrawUsage);   // pha bước, đang đi, đồ dùng
     g.setAttribute('aWalk', this.phase);
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
     mat.onBeforeCompile = (sh) => {
@@ -95,8 +96,8 @@ export class CityPeople {
     };
     mat.customProgramCacheKey = () => 'city-person';
     withMist(mat);
-    this.mesh = new THREE.InstancedMesh(g, mat, MAX);
-    this.mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
+    this.mesh = new THREE.InstancedMesh(g, mat, MAX + CROWD);
+    this.mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array((MAX + CROWD) * 3), 3);
     this.mesh.count = 0; this.mesh.castShadow = true; this.mesh.frustumCulled = false;
     this.group.add(this.mesh);
     this.peds = [];          // { s, u, vs, vu, speed, mode: walk|wait|cross|fallen|script, ph, color, n?, side? }
@@ -285,6 +286,14 @@ export class CityPeople {
       this.mesh.setColorAt(i, this._c.set(p.color));
       this.phase.setXYZ(i, p.ph, p.moving, p.acc || 0);
       p.wx = v.x; p.wz = v.z;
+      i++;
+    }
+    // đám đông ngoài (Times Square): [{ x, y, z, fx, fz (hướng nhìn), color, ph, moving, acc }] đã lọc gần camera
+    if (this.extra) for (const p of this.extra()) {
+      if (i >= MAX + CROWD) break;
+      q.setFromEuler(this._e.set(0, Math.atan2(-p.fx, -p.fz), 0)); v.set(p.x, p.y, p.z);
+      m.compose(v, q, this._one);
+      this.mesh.setMatrixAt(i, m); this.mesh.setColorAt(i, this._c.set(p.color)); this.phase.setXYZ(i, p.ph, p.moving, p.acc);
       i++;
     }
     this.mesh.count = i;

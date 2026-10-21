@@ -36,6 +36,7 @@ export class TimesSquare {
     this.road = road; this.city = city;
     this.group = new THREE.Group(); this.group.visible = false; scene.add(this.group);
     this.built = false; this.obb = [];
+    this.crowd = []; this.near = []; this.density = 1;     // đám đông: density theo chất lượng (Low 0.6)
     this.uTime = { value: 0 }; this.uK = { value: 1 };
     this.mats = [0, 1, 2].map((k) => { const [map, em] = facadeTex(k); return withMist(new THREE.MeshStandardMaterial({ map, emissiveMap: em, emissive: 0xffffff, emissiveIntensity: 0, roughness: k === 1 ? 0.8 : 0.3, metalness: k === 1 ? 0 : 0.35 })); });
     this.dark = withMist(new THREE.MeshStandardMaterial({ color: 0x1d2024, roughness: 0.6, metalness: 0.3 }));
@@ -60,8 +61,9 @@ export class TimesSquare {
   set visible(v) { this.group.visible = v; if (v && !this.built) this._build(); this.city.exclude = v ? this._excl : null; this.city.extraObb = v ? this.obb : null; }
   get visible() { return this.group.visible; }
   // lamps 0..1: cửa sổ sáng + biển sáng hơn ban đêm
-  update(dt, lamps) {
+  update(dt, lamps, car) {
     this.uTime.value += dt;
+    if (this.built) this._crowd(dt, car);
     this.uK.value = 0.85 + 0.75 * lamps;
     for (const m of this.mats) m.emissiveIntensity = 1.4 * lamps;
     this.red.emissiveIntensity = 0.2 + 1.2 * lamps;
@@ -121,6 +123,9 @@ export class TimesSquare {
       }
       return h;
     };
+    this.zones = [];
+    for (const [a, b] of blocks) for (const su of [-1, 1])            // vỉa hè đông người dọc 7th Ave
+      this.zones.push({ kind: 'walk', s0: a - 3, s1: b + 3, u0: su > 0 ? CITY.hw + 0.7 : -FRONT + 0.6, u1: su > 0 ? FRONT - 0.6 : -CITY.hw - 0.7, n: Math.round((b - a) / 5), su });
     for (const [a, b, k] of blocks) for (const su of [-1, 1]) {
       if (tower(k, su)) {
         // One Times Square: tháp hẹp cao 110 m, mặt bắc (nhìn về xe đang tới, −s) + mặt nhìn ra đường phủ biển xếp chồng
@@ -151,12 +156,14 @@ export class TimesSquare {
       // quảng trường lát gạch + bàn ghế đỏ, bồn cây
       if (plaza(k, su)) {
         const u0 = su * (FRONT - 0.2), u1 = su * (FRONT + 33);
+        this.zones.push({ kind: 'plaza', s0: a + 1, s1: b - 1, u0: Math.min(u0, u1) + 0.5, u1: Math.max(u0, u1) - 0.5, n: Math.round((b - a) * 33 / 24), su });
         geo.plaza = geo.plaza || []; geo.plaza.push([a, b, Math.min(u0, u1), Math.max(u0, u1), 0.2, 0.2]);
         for (let i = 0; i < 18; i++) { const s = a + 4 + r() * (b - a - 8), u = su * (FRONT + 4 + r() * 26); (geo.props = geo.props || []).push(['red', s, u, 0.75, 0.75, 0.75]); }
         for (let s = a + 6; s < b - 6; s += 12) geo.props.push(['green', s, su * (FRONT + 1.6), 1.6, 0.8, 4]);
         // bậc đỏ TKTS (Duffy Square): 13 bậc dâng về phía bắc (−s), nhìn xuống quảng trường phía nam
         if (su > 0) {
           const sB = b - 6, uA = FRONT + 8, uB = FRONT + 24;
+          this.zones.push({ kind: 'steps', s0: sB - 12.35, s1: sB - 0.3, u0: uA + 0.5, u1: uB - 0.5, n: 40 });
           for (let i = 0; i < 13; i++) geo.props.push(['redstep', sB - i * 0.95 - 0.475, (uA + uB) / 2, 0.95, (i + 1) * 0.42, uB - uA]);
           geo.props.push(['glass', sB - 13 * 0.95 - 2.5, (uA + uB) / 2, 5, 5.46, uB - uA]);
         }
@@ -201,9 +208,52 @@ export class TimesSquare {
     });
     pg.setAttribute('aAd', new THREE.InstancedBufferAttribute(aAd, 3));
     im.frustumCulled = false; this.group.add(im);
+    this.W = W; this.F = F; this.y0 = y0;
+    this._spawnCrowd();
     this.count = { buildings: geo[0].length + geo[1].length + geo[2].length, ads: ads.length };
   }
 }
+
+const SHIRTS = ['#e9e6df', '#2b2d33', '#6d7d8f', '#8c2f2f', '#c9a96e', '#3d5f4b', '#d7c6b0', '#5a4a6e', '#b8c4d6', '#1f3552', '#d9482b', '#f2c94c', '#2f80ed'];
+// ---- đám đông: tản bộ trong vùng (quảng trường / vỉa hè), đứng ngắm biển, giơ điện thoại chụp; trên bậc TKTS đứng nhìn về phía nam ----
+TimesSquare.prototype._spawnCrowd = function () {
+  const r = Math.random;
+  this.crowd = [];
+  for (const z of this.zones) for (let i = 0; i < Math.round(z.n * this.density); i++) {
+    const p = { z, s: z.s0 + r() * (z.s1 - z.s0), u: z.u0 + r() * (z.u1 - z.u0), ts: 0, tu: 0, speed: 0.9 + r() * 0.6, wait: r() * 6, ph: r() * 6.28,
+      moving: 0, acc: r() < 0.2 ? 2 : r() < 0.35 ? 1 : 0, color: SHIRTS[Math.floor(r() * SHIRTS.length)], ds: 1, du: 0, x: 0, y: 0, z: 0, fx: 0, fz: 1 };
+    this._target(p);
+    this.crowd.push(p);
+  }
+};
+TimesSquare.prototype._target = function (p) {
+  const z = p.z, r = Math.random;
+  if (z.kind === 'walk') { p.ts = Math.min(z.s1, Math.max(z.s0, p.s + (r() < 0.5 ? -1 : 1) * (20 + r() * 60))); p.tu = z.u0 + r() * (z.u1 - z.u0); }
+  else { p.ts = z.s0 + r() * (z.s1 - z.s0); p.tu = z.u0 + r() * (z.u1 - z.u0); }
+};
+TimesSquare.prototype._crowd = function (dt, car) {
+  const W = this.W, F = this.F, near = this.near;
+  near.length = 0;
+  for (const p of this.crowd) {
+    const z = p.z;
+    if (z.kind === 'steps') { p.moving = 0; p.ds = 1; p.du = 0; }
+    else if (p.wait > 0) {                                            // đứng: ngắm biển (nhìn ra đường / lên cao), có người giơ điện thoại
+      p.wait -= dt; p.moving = 0;
+      if (p.wait <= 0) this._target(p);
+    } else {
+      const ds = p.ts - p.s, du = p.tu - p.u, L = Math.hypot(ds, du);
+      if (L < 0.3) { p.wait = z.kind === 'plaza' ? 3 + Math.random() * 14 : Math.random() < 0.15 ? 2 + Math.random() * 5 : 0; p.ds = Math.random() - 0.5; p.du = -(z.su || 1); if (!p.wait) this._target(p); }
+      else { const v = Math.min(L, p.speed * dt); p.s += ds / L * v; p.u += du / L * v; p.ds = ds / L; p.du = du / L; p.ph += p.speed * dt * 5.2; p.moving = 1; }
+    }
+    const [x, zz] = W(p.s, p.u);
+    if (car && Math.abs(x - car.x) + Math.abs(zz - car.z) > 230) continue;     // chỉ vẽ người quanh xe
+    let y = this.y0 + 0.2;
+    if (z.kind === 'steps') y += (Math.floor((z.s1 + 0.3 - p.s) / 0.95) + 1) * 0.42;
+    const l = Math.hypot(p.ds, p.du) || 1;
+    p.x = x; p.y = y; p.z = zz; p.fx = (F.fx * p.ds + F.rx * p.du) / l; p.fz = (F.fz * p.ds + F.rz * p.du) / l;
+    near.push(p);
+  }
+};
 
 const mk = () => ({ pos: [], nor: [], uv: [], idx: [] });
 function quad(B, V, N, uvs) {

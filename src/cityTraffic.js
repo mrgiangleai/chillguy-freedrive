@@ -204,7 +204,9 @@ const MODES = {
   city: { lanes: CITY.lanes, laneK: [1, 1], ahead: AHEAD, behind: BEHIND, gap: MAIN_GAP, cross: true,
     mix: MIX },
   // New York (B1): đường một chiều — mọi xe đường chính chạy chiều +s trên cả 4 làn (±1.75 / ±5.25); chậm lại ở góc rẽ vuông
-  nyc: { lanes: CITY.lanes, laneK: [1, 1], ahead: AHEAD, behind: BEHIND, gap: MAIN_GAP, cross: true, oneway: true, mix: MIX },
+  // taxi vàng ~40 %, buýt MTA (xanh / trắng), không xe kei / xe máy
+  nyc: { lanes: CITY.lanes, laneK: [1, 1], ahead: AHEAD, behind: BEHIND, gap: MAIN_GAP, cross: true, oneway: true,
+    mix: [['taxi', 0.4], ['sedan', 0.32], ['van', 0.16], ['bus', 0.12]], colors: { taxi: ['#f3b80c', '#f6c21a', '#e9ad06'], bus: ['#1f5fa8', '#e9ecef'] } },
   avenue: { lanes: AVENUE.lanes, laneK: [1.12, 1, 0.84], ahead: 900, behind: 300, gap: [50, 120], cross: false,
     mix: [['sedan', 0.36], ['kei', 0.1], ['taxi', 0.08], ['van', 0.16], ['bus', 0.1], ['truck', 0.12], ['container', 0.08]] },
 };
@@ -337,7 +339,7 @@ export class CityTraffic {
   _new(type, extra) {
     // xe tải / container không chạy làn trong cùng của cao tốc (đổi thành xe con)
     if (TYPES[type].heavy && extra.home !== undefined && this.cfg.lanes.indexOf(Math.abs(extra.home)) === 0) type = 'sedan';
-    const def = TYPES[type], cols = COLORS[type];
+    const def = TYPES[type], cols = this.cfg.colors?.[type] || COLORS[type];
     const em = type === 'police' || type === 'ambulance';
     const li = extra.home !== undefined ? this.cfg.lanes.indexOf(Math.abs(extra.home)) : -1;
     const raw = def.v[0] + Math.random() * (def.v[1] - def.v[0]), R = extra.xr ? this.vr.cross : this.vr.main;

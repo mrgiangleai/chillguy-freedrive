@@ -54,7 +54,8 @@ camera, qua đường thành đợt khi đèn đi bộ xanh; map Phố hiện t�
   (tháp One Times Square phủ biển LED ở giữa, nhà chọc trời kính, biển quảng cáo lớn nhiều tầng, quảng trường lát gạch + bậc đỏ TKTS).
   => ưu tiên làm **B4 (Times Square)** gộp phần nhà cao tầng của B2 cho đoạn 7th Ave 42–47 St trước, rồi mới phủ nhà thật cả vòng.
 - **Times Square lượt 1 (21/10/2026)**: `src/timesSquare.js` + `src/adAtlas.js` — nhà chọc trời, biển LED động, tháp One Times Square,
-  quảng trường + bậc đỏ TKTS (chi tiết ở ROAD.md mục 1). Chưa có: đám đông, biển cong quấn góc, taxi vàng, Broadway cắt chéo thật.
+  quảng trường + bậc đỏ TKTS (chi tiết ở ROAD.md mục 1). Lượt 2: đám đông ~400 người + taxi vàng / buýt MTA.
+  Chưa có: biển cong quấn góc, người qua đường thành đợt theo đèn, Broadway cắt chéo thật.
 
 ## Kết quả B1 (đã kiểm OSM 21/10/2026 — đúng hết, không phải đổi đường ngang)
 - `scripts/fetch-nyc.mjs` dò từng chặng bằng Dijkstra trên đồ thị CÓ HƯỚNG chỉ gồm way đúng tên (sai chiều => dừng báo lỗi), chặng Park Ave

@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -218,6 +218,9 @@
   sổ sáng đêm), thay nhà map Phố trong vùng (`city.exclude`); biển LED InstancedMesh đổi hình 5–11 s/hình (`adAtlas.js`: 16 thương hiệu tự chế,
   DeepSeek viết, đã soát), dải biển tầng trệt, mặt bắc nhà đầu khối phủ biển; tháp One Times Square (bên trái 43→42 St, 112 m, 15 tấm biển);
   quảng trường lát gạch (phải 47→46 St có 13 bậc đỏ TKTS + quầy kính; trái 45→43 St) có bàn ghế đỏ, bồn cây.
+  **Đám đông** (`_crowd`): ~400 người (Low × 0.6) tản bộ trong vùng (quảng trường / vỉa hè 7th Ave / bậc TKTS), đứng 3–17 s ngắm biển,
+  ~20 % giơ điện thoại; chỉ vẽ người trong ~230 m quanh xe, vẽ chung InstancedMesh của cityPeople (`extra`, thêm `CROWD` 520 chỗ).
+  Xe NYC: taxi vàng ~40 %, buýt MTA xanh / trắng, không xe kei / xe máy (`MODES.nyc.mix / colors`).
   **Map Đại lộ** (`avenue`, 🛣️, nhóm Drive cùng Phố; M trong Drive: Phố ↔ Đại lộ): cao tốc 6 làn (`AVENUE`: tâm làn ±2.25 / ±5.75 /
   ±9.25, dải phân cách ±0.5, mép làn ±11, lề khẩn cấp tới ±13), đường cong rất thoải (bán kính ≥ ~2 km), địa hình `avenue` (đồi cỏ
   thấp, cỏ cao `meadow` hai bên), hộ lan thép 2 bên, đèn đường 2 bên xen kẽ. Xe: `cityTraffic` chế độ avenue (3 làn mỗi chiều, tốc
@@ -346,7 +349,7 @@
 
 ## 5. Việc còn mở / cần chú ý
 - **TIẾP THEO — Map New York** 🗽: B1 + Times Square lượt 1 xong, chờ chú xem. Còn: biển LED quấn góc nhà / cong, đám đông quảng trường
-  (B4), taxi vàng / buýt (B3), nhà thật cả vòng (B2), Grand Central / Helmsley, đường ngang dưới cầu cạn + trên hầm, góc trong khúc cua trống.
+  (B4: qua đường thành đợt), nhà thật cả vòng (B2), Grand Central / Helmsley, đường ngang dưới cầu cạn + trên hầm, góc trong khúc cua trống.
   Ảnh chụp Low: ban đêm biển sáng rõ; camera Bên hông dễ bị 1 tấm biển che kín khung hình.
 - **Map Cao tốc HLG — có thể làm tiếp**: footprint Microsoft không có chiều cao ở VN => cao theo diện tích (đoán); sông / lạch cắt chéo
   đúng góc thật (đang vuông góc tuyến); mặt nước lạch dài ±400 m rồi dừng; cỏ cao `meadow` vẫn phủ cả khu dân cư; biển tốc độ dựng bên đường còn theo mẫu Đại lộ (HUD đã đúng biển thật); Cầu Long Thành dùng tháp dây văng
@@ -369,3 +372,4 @@
 ## 6. Nhật ký cập nhật
 - Đã tóm tắt tới commit "Map New York: Times Square lượt 1" (gồm: handoff + MCP DeepSeek, HLG số làn / SRTM / nhà Microsoft / cây cao su,
   tốc độ giao thông km/h, cài đặt Safari làm mặc định, chốt plan + B1 map New York, thứ tự dùng DeepSeek, Times Square lượt 1).
+- **#1 — Times Square: đám đông + taxi vàng / buýt (21/10/2026)**: xem mục 1 (Map New York). Chụp Low: quảng trường đông người, không lỗi console.
