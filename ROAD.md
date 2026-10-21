@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -36,67 +36,13 @@
   mặc định KHÔNG `#high`, chỉ dùng cho việc 3D khó), chạy trong thư mục riêng ở scratchpad với `TASK.md` (tiêu chí + lệnh chấm +
   tối đa 5 vòng tự sửa) và script chấm; `perl -e 'alarm 300; exec @ARGV'` ~5 phút / việc, chạy nền chờ thông báo, chỉ chấm sản phẩm
   cuối. Việc vài dòng: tự sửa. Ví dụ: cây cao su (1 vòng tự sửa, ~5 phút). Bản free lúc nhanh (1 phút) lúc treo (> 10 phút).
-- **Tiết kiệm quota (chú yêu cầu)**: việc làm theo khuôn (code nháp, sửa hàng loạt, tóm tắt) giao DeepSeek qua công cụ MCP `deepseek`
-  (máy chủ `~/.claude/mcp/deepseek/server.mjs`, đăng ký phạm vi user — mọi phiên Claude Code; khoá trong Keychain service
-  `deepseek-api`; model `deepseek-flash`, có `deepseek-v4-pro`; mặc định chờ 120 s, tối đa 600; flash suy nghĩ ngầm nên đừng đặt
-  `max_tokens` nhỏ). DeepSeek chỉ trả văn bản — Claude tự kiểm tra rồi mới ghi file. Hoặc subagent Sonnet/Haiku. Không dùng
-  `opencode run --auto` chạy nền (đã treo ~15 phút không ra gì).
-
-## 3. Bản đồ mã nguồn (`src/`)
-| File | Nội dung chính |
-|---|---|
-| `main.js` | Ghép mọi thứ, vòng lặp `frame()`, giao diện/nút/phím, `state` mặc định, lái xe (`drive`: `home` làn tự chọn, `goal` tốc độ, nhận `traffic.ctrl`), cấp tốc độ `GEARS`, ống kính theo camera (`onCamChange`), `cockpitPitch()`, `gripWheel()` (IK tay theo `cars.steerAngle`), `stopLook()`, `rayParams()`, toàn màn hình điện thoại, chọn xe/map/chất lượng |
-| `config.js` | `CARS` (thông số từng xe, `mats` sửa vật liệu, `seatMesh`, `seat` (Mustang: `SEAT_67` drop 0.19 / forward 0.16 / hip / foot / recline 0.1), `steer`/`steerMesh`/`steerShift`, `lamps {head, tail}` tâm bóng đèn bên phải đo từ model), `MAPS`, `WEATHERS`, `TIMES`, `CAMERAS`, `FSTOPS`, `QUALITY` |
-| `world.js` | Bầu trời (shader, mặt trời, **trăng**), mây, sương phủ trời, ánh sáng mặt trời/trăng (1 DirectionalLight đổ bóng), hemi, phơi sáng, thời tiết, sét, chụp env map (PMREM), cân bằng nắng/trời (`sunK`) |
-| `post.js` | Hậu kỳ: xoá phông (CoC ống kính thật), bloom, **tia nắng** (god rays), **mưa trên kính** (RAIN_GLASS), ACES + chỉnh màu phim, grain, blur xuyên tâm 180 km/h |
-| `camera.js` | Các chế độ camera, tiêu cự 16–35 mm (`fovFor`), nhìn quanh (giữ góc sau khi thả), `cockpitPitch` hook |
-| `cars.js` | Tải + chuẩn hoá xe, vật liệu (`mats`, `envK`), bánh xe quay, cửa tài xế, đèn hậu (quầng mềm `softGlowTexture`), bóng gầm, đèn cabin (tại màn hình taplo), dò **kính trước/sau** (mask raster từ toàn bộ tam giác kính thật), **cần gạt** 3D (`wiperRig`), vô lăng da (`leatherMaterial`), dời vô lăng (`steerShift`), pivot vô lăng + `steerAngle` (tự lái theo cua) |
-| `headlights.js` | `lampsFor(dim)` (tâm bóng đèn từ `dim.lamps` hoặc ước lượng). Rig đèn pha chung xe người chơi + NPC: SpotLight thật + quầng giảm theo hướng nhìn (`createHeadlights(group, tex, {spots, glows})`, `placeHeadlights`, `updateHeadlights(rig, root, cam, level)`) |
-| `mirror.js` | Gương chiếu hậu giữa (render-to-texture, **tỉ lệ 4:3**, `GW/GH`; đặt bên phải màn hình taplo theo `screen`, không có que đỡ) |
-| `wingmirrors.js` | 2 gương hông soi thật (phản chiếu phẳng, frustum lệch tâm, vẽ xen kẽ; `uTex` theo hệ xe) — chỉ khi ngồi trong xe, chỉ xe Mustang |
-| `wipers.js` | Gạt mưa tự động (pha cos) + lượng nước trên kính trước/sau |
-| `dashscreen.js` | Màn hình giải trí taplo (canvas, tông ấm, kích thước giảm 15%) + đèn hắt |
-| `person.js` | Người lái (Quaternius, animation), cao `HEIGHT` 1.70 m, áo đen/quần jeans/giày vẽ bằng shader (`footShade`: giày sẫm khi ngồi lái), IK 2 xương `reach(side, target, pole)` (tay) + `reachLeg(side, target, pole, toe)` (chân), `recline(angle)` (ngả spine_01, không cộng dồn dù clip không có track), `headOffsetSit`/`hipOffsetSit` |
-| `stopscene.js` | Cảnh dừng xe: dừng → bước ra, đóng cửa → đi lên trước xe → hút thuốc → **đi lanh quanh** (`_wander`, `_pickTarget`, `_look`) → quay lại xe; từ `OUT_T` 2.25 s: camera quay quanh/bám người + `autoZoom` 5 s ra xa, dừng tự quay 2 s sau thao tác; `zoomBy(f)` 16–35 mm, khoảng cách 1–30 m; lúc đi về xe tự tiến dần tới 1 m |
-| `smoke.js` | Điếu thuốc (kẹp giữa ngón trỏ/giữa), đầu thuốc đỏ, lửa bật lửa, hạt khói (đầu điếu + nhả từ miệng) |
-| `terrain.js`, `terrain-noise.js` | Địa hình quadtree nhiều mức, cây tấm, cụm đá (`rockGeometry(k, detail)` export), texture ảnh; `setView` (Ultra xa ×2); `heightAt` (đặt `_d` = khoảng cách tới đường); `hash2`, `vnoise` |
-| `nature.js` | Cây/bụi/đá model chi tiết quanh camera (gần đổ bóng, xa không) |
-| `reeds.js` | Cỏ lau / búi cỏ / cỏ đồi (instancing, gió, `setView`) |
-| `road.js`, `scenery.js` | **Lớp bố trí** `setLayout(L)` / `layout()`: null = Đại lộ theo chu kỳ; danh sách thật (HLG) => `icS/icIndex/icP/flyS/flyIndex/flyP/riverS/riverIndex/riverP/deckS/deckIndex/deckP/deckHump/tollS/tollIndex/tollDist/camS/camIndex/avLimit/avHump` đọc danh sách (chỉ số ngoài danh sách = ±1e9). `setShape('hlg', real)` => `heading(s)` nội suy dữ liệu thật. Đường vô tận (`at`, `heading`, `curvature(s)` đổi hướng có dấu trên 12 m), đoạn đường đất; mặt đường (nhựa sần, vũng nước, phản chiếu), cọc, đèn đường (cột `LAMP_H` 11.1 m; ánh sáng = `LAMP_LIGHTS` 3 SpotLight dùng chung, `updateLights(cam)` gán cột gần nhất, mờ theo khoảng cách cột kế tiếp; 140 × lamps (đã giảm 80%), nửa góc 1.2, penumbra 0.8, decay 0.6, tầm 80 m, chếch vào lòng đường), hộ lan |
-| `town.js` | Map núi: thị trấn nhỏ + **thị trấn lớn** dưới thung lũng, đèn đường |
-| `waterfalls.js` | Map núi: suối/thác (`waterfallSpec`, `waterfallGeometry` → nodes/water/wet/rocks/sprays; `Waterfalls.setMap`, `update(time, s, light, {d, v, dim, npcs, cam, audio})`). Dòng dò theo dốc (`trace`) + uốn lượn (`meander`); nước = MeshStandardMaterial + nhiễu theo **thời gian chảy `tau`** (không dùng `along - uTime*speed` => tránh sọc); lớp ướt = blend nhân màu; đá tảng dùng `rockGeometry(k, 2)` + `terrain.rockMat`; nước bắn bánh xe (`Splash`, Points kéo về camera 4%) |
-| `carriage.js` | `loadCarriage(loader)` → hàm tạo xe ngựa `{group, dim 5.6×2.8, wheels: [], mixer, carriage: true}`; `CARRIAGE` (15–30 s, tối đa 2, 25–40 km/h). traffic.js sinh/điều khiển như NPC (`_spawnCarriage`, `carriageTimer`, không đèn, không tiếng lướt, không nhận chùm pha dùng chung) |
-| `ocean.js` | Map Biển: `Ocean.setMap(on, level)`, `update(time, cam, road, s)`. Lưới vuông 1.5 m ±120 m (sóng nhô lên ≤ ~100 m) + vành 8 m tới ±400 m + khung phẳng tới 6 km, **nắn theo bước 1.5 m** (đỉnh cố định trong thế giới). `waveAt`: atlas `assets/tex/ocean-waves.png?v=WAVE_VER` (76 khung, 10×8; bake bằng `scripts/bake-ocean.mjs`, trộn chéo 24 khung cuối vào đầu), ô ×2 = 54.2 m, cao ×1.3, chu kỳ ≈ 9 s; 4 mẫu lệch nửa ô; nội suy khung **dời theo hướng trôi** `DRIFT` (−0.5, +2.25 px/khung); **2 lớp lệch nửa vòng**, lớp tới chỗ nối fade sin² còn 10%, lớp kia giữ 100%, chuẩn hoá giữ biên độ; bọt ven bờ theo `uT` liên tục; `textureLod` theo khoảng cách (`uLod`); độ sâu ven đê từ 27 điểm tim đường (nắn bước 12 m) |
-| `city.js` | Map Phố (kiểu phố Nhật): dựng theo **khối phố** n (giữa ngã tư `road.junction(n)` và n+1): đường ngang + vỉa hè + vạch (vằn qua đường, vạch dừng, tim vàng đôi, chia làn đứt/liền 30 m trước ngã tư, mũi tên), vỉa hè lát gạch + gạch dẫn đường vàng, nhà instancing (hộp + mái dốc) mặt tiền vẽ bằng shader (tầng trệt cửa hàng + biển chữ atlas, 4 kiểu cửa sổ, đèn đêm), biển dọc, máy bán nước, cột điện + dây võng. Nhà tới `DEPTH` 180 m, khối dựng ±1.2 km |
-| `cityTraffic.js` | Map Phố: xe dựng bằng code (sedan, kei, taxi, van, buýt 10.5 m, xe máy + người lái), mỗi loại 1 InstancedMesh (aTint: sơn nhận instanceColor; aGloss: kính; aGlow: đèn × uLamp). 2 làn mỗi chiều, bám xe trước, dừng đèn đỏ (`city.stopAhead`), đổi làn cùng chiều để vượt; xe đường ngang ở ngã tư trong [s−60, s+330] theo pha đèn đường ngang. `ctrl.maxV` = bám xe trước cho xe mình. Xe NPC nặng (Mustang/Mazda) cất đi trong map Phố (`traffic.clearAll`) |
-| `cityPeople.js` | Map Phố: người đi bộ dựng bằng code (1 InstancedMesh, chân tay đung đưa trong vertex shader theo `aWalk` = pha, đang đi). Toạ độ (s, u) theo đường chính. Đi vỉa hè (chờ đèn đường chính xanh mới qua đường ngang), chờ ở góc rồi băng qua vạch đường chính khi đèn đường ngang xanh còn ≥ 9 s. `spawn/goTo/remove` cho người kịch bản; `hitTest`, `crossingNear` |
-| `cityIncident.js` | Map Phố: đâm xe / người => xe dừng khựng, nạn nhân ngã / xe đứng yên, camera Quay quanh; cảnh sát (xe đen trắng, đèn đỏ nhấp nháy) tới từ phía sau, cảnh sát đi tới cửa lái, người lái (ẩn model, hiện người dựng) theo về xe cảnh sát; xe cấp cứu tới từ phía trước làn ngược chiều, 2 nhân viên đưa nạn nhân đi; màn hình tối "bị đưa về đồn" rồi chạy tiếp (~30 s). Còi hụ (`audio.setSiren`: cảnh sát rú 650↔1350 Hz chu kỳ 4 s, cấp cứu "pi–po" 960/770 Hz) khi xe ưu tiên đang chạy, tắt khi đỗ, to dần khi lại gần |
-| `avenue.js` | Map Đại lộ (nút giao `ic(k)/_buildIC/carve`, trạm thu phí `_buildToll/updateToll`, atlas biển `signTexture`): dựng theo đoạn 200 m quanh xe (±1.4 km / 300 m sau): vạch kẻ (vàng liền sát dải phân cách, trắng đứt 6/9 m giữa làn, trắng liền mép ngoài), dải phân cách bê tông "jersey" kéo theo mặt cắt. Đường: `road.setShape('avenue')` (cong rất thoải), `AVENUE` trong road.js. Xe: `cityTraffic.setMode('avenue')` |
-| `hlg.js` | Map Cao tốc HCM – Long Thành – Dầu Giây (`hlg`): `HLG` (length 54 520 m, start 150, end 320), `hlgLayout(rev)` → bố trí 1 chiều từ `hlg-data.json` (OSM, tạo bằng `node scripts/fetch-hlg.mjs`, cache Overpass ở scratchpad): `real.heading` (mỗi 10 m), `ics` (cách ≥ 1.3 km, xa sông), `rivers` (rộng ≥ 40 m, cách ≥ 3.5 km, tâm = chỗ sông cắt tuyến, sông ≥ 300 m có tháp dây văng, `meander` 0), `flys` (cầu 250 m–3 km không qua sông), `tolls` (bỏ trạm trên nhánh nút giao), `cams` (~6 km chỗ trống), `limits` (maxspeed OSM). Chiều về: s' = L − s, hướng + π |
-| `hlgEnv.js` | Map HLG: cảnh quan theo bản đồ thật từ `docs/assets/hlg-env.json` (tải khi vào map, `scripts/fetch-hlg-env.mjs`): nhà (7 số nguyên / nhà: s, u dm, w dm, d dm, góc so với đường mrad, cao dm, loại 0 nhà / 1 chung cư / 2 thương mại / 3 công nghiệp / 4 khác) dựng bằng `city.facade` + `city.boxGeo/houseGeo` (instancing, mặt trước quay ra đường, chân móng 2.5 m), cây `avenue.treeGeo` ở ô đất 'f', nhà nhỏ bổ sung ở ô 'r'/'c' chưa có nhà; `TP.land(x, z, out)` tô màu đất (lưới thế giới 40 m); `_blocked` tránh đường / nút giao / sông / lạch. Đoạn 400 m, ≤ 1 đoạn / khung |
-| `minimap.js` | Bản đồ tròn (chỉ chế độ Drive): canvas 2D vẽ từ dữ liệu thật — `road.pts`, khối nhà + đường ngang Phố, nút giao / nhánh / đường gom / nhà / trạm thu phí Đại lộ, xe khác (chấm), xe mình (mũi tên xanh). Thu nhỏ 150 px (điện thoại 104) góc phải giữa, bám xe, hướng xe lên trên, vẽ ~8 lần/s; bấm vào: phóng to giữa màn hình (78vmin, `body.mapopen` ẩn các hộp HUD bị đè), Bắc lên trên, kéo = pan, lăn chuột / chụm 2 ngón = zoom (0.02–4 px/m), ◎ về xe, × / Esc / bấm ngoài để thu nhỏ; thước tỉ lệ |
-| `cows.js` | Map đồi cỏ: đàn 5 bò sữa + hàng rào gỗ |
-| `fireflies.js` | Đom đóm ban đêm |
-| `traffic.js` | Spawn/pool/vẽ NPC: ngược chiều (10–25 s/chiếc, tối đa 2) + cùng chiều (25–60 s, tối đa 1, vào từ phía sau 80–110 m); pool 3 xe; NPC chỉ có quầng pha, chùm sáng thật = 1 cặp SpotLight dùng chung (`beam`, gắn NPC gần nhất ≤300 m, `_beam`); đèn `lamps × NPC_LAMP(0.24)`, đèn hậu ×0.6; thân xe xoay `yaw = atan(latV/v)` (≤0.35, nội suy 8/s), bánh trước `w.front` đánh lái `yaw × 1.8`; âm thanh lướt qua 1 lần/lượt; xuất `ctrl {lane, maxV}` cho xe người chơi |
-| `traffic-policy.js` | Luật bám/vượt (`_decide`, `_follow`, `_canOvertake` tầm nhìn 50 m + thời gian xe đối diện tới, `_overtakeDanger`, `_sideClear`). Làn: chiều người chơi 1.5, ngược chiều −1.8. Cờ `noOvertake` (xe ngược chiều) |
-| `traffic-ai.js` | `TRAFFIC` (mật độ), `stepTraffic`: né người/xe trong 30 m từ mép thân (+1.2 s × tốc độ xe lao tới), vận tốc ngang `latV` có gia tốc (3 m/s², né gấp 16) và trần 0.2 × v (né gấp 0.35 × v), giữ hướng né, phanh/dừng nếu bị chặn, chống xuyên vật cản; `trafficCurveSpeed` (vào cua 60%); `roadPosition` (chiếu người đi bộ về toạ độ đường) |
-| `audio.js` | Nhạc lo-fi tự sinh, gió/mưa/lốp/động cơ/sấm; `engBus` (máy + ống xả) 60% ngoài xe / 30% trong xe; bus `outGain` (trong xe ×0.4 + lowpass), mưa: ngoài `rainG` 0.08, kính `glassG` 0.08, mui `roofG` 0.02 (× lượng mưa); `passBy(rel, pan, lat)` + `passDur(rel)` tiếng xe lướt qua theo tốc độ tương đối; `setSiren(kind, level, pan)` còi hụ; động cơ: hộp số ảo 6 số (`R` rpm/(m/s), đi êm lên số ≤ ~2200 rpm, đạp ga giữ tới ~5800), tần số nổ rpm/15, gầm nền + ống xả rào to dần theo vòng tua / tăng tốc (`load` = gia tốc/4) / tốc độ; `setWater(level, pan)` tiếng suối (buffer bọt khí tạo lần đầu), `splash(power)` xe lội nước |
-| `particles.js`, `mist.js`, `reflection.js`, `textures.js`, `colorspace.js` | Mưa/tuyết, sương tầng thấp (`withMist`), phản chiếu vũng nước, texture tự sinh, đổi màu hiển thị → tuyến tính |
-
-**Module dùng chung `shared/`** (JS thuần, không import three; game `src/` và editor `experiments/webgpu/` cùng import — sửa ở đây là đổi cả hai bên):
-| File | Nội dung | Game dùng qua | Editor dùng qua |
-|---|---|---|---|
-| `terrain-noise.js` | `TERRAIN_MAPS`, `TP`, `setTerrainMap` (id lạ → reed), `hash2`, `vnoise`, `hLow`, `hDetail`, `mountains` | `src/terrain-noise.js` (re-export + giữ `TERRAIN_GLSL`) | `runtime/TerrainStreamer.js` |
-| `weather.js` | `WEATHER` (bảng thời tiết gốc), `WEATHER_IDS`, `weatherPresets(keys, overrides)` | `src/world.js` | `editor/core/weather.js` (giữ sương FogExp2, `fogBright`, nắng bão 0.05 bằng overrides) |
-| `sky.js` | `SKY_KEYS` (mã hex màu trời theo độ cao mặt trời), `skyKeys(Color)` | `src/world.js` | `editor/core/sky.js` |
-| `traffic-curve.js` | `trafficCurveSpeed(v, road)` (nhận `v.direction` hoặc `v.dir`) | `src/traffic-ai.js` (re-export) | `runtime/TrafficMath.js` (re-export) |
-
-**Editor WebGPU `experiments/webgpu/`** (gộp từ nhánh `experiment/webgpu-vertical-slice`): trình dựng cảnh kiểu Lumion, three r186 WebGPU + Rapier + Vite,
-tài liệu riêng trong `CONTEXT.md` + `experiments/webgpu/docs/`. Chạy: `cd experiments/webgpu && npm ci && npm run build && npm start` (cổng 4173);
-`vite.config.mjs` cho dev server đọc `shared/`. Chỉ chạy được khi trình duyệt có WebGPU (Chromium 141 trong máy ảo lỗi `swizzle`);
-model thử (~625 MB) không nằm trong git.
-
-## 4. Trạng thái hiện tại (tóm tắt)
+- **Tiết kiệm quota (chú yêu cầu)**: việc làm theo khuôn (code nháp, sửa hàng loạt, tóm tắt) giao DeepSeek theo thứ tự:
+  1) **opencode free** `opencode run --standalone -m opencode/deepseek-v4.1-flash-free` (ưu tiên; `opencode/deepseek-v4.1-flash` trả phí
+  và `vibi/…` đã hết tiền); 2) bản free hết giới hạn => **hỏi chú trước** rồi mới dùng credit API riêng của chú: công cụ MCP `deepseek`
+  (máy chủ `~/.claude/mcp/deepseek/server.mjs`, phạm vi user — mọi phiên Claude Code; khoá Keychain service `deepseek-api`; model
+  `deepseek-flash`, có `deepseek-v4-pro`; mặc định chờ 120 s, tối đa 600; flash suy nghĩ ngầm nên đừng đặt `max_tokens` nhỏ) hoặc
+  `deepseek/deepseek-flash` trong opencode. DeepSeek chỉ trả văn bản — Claude tự kiểm rồi mới ghi file. Việc nhiều bước rõ ràng:
+  subagent Sonnet; việc chỉ đọc: Haiku. Không dùng `opencode run --auto` chạy nền dài với DeepSeek (đã treo ~15 phút).
 - **Mặc định vào game**: map núi, camera Quay quanh, mưa, hoàng hôn (17.6 h), 16 mm f/1.4, chất lượng Good, xe Mustang '67 Đen,
   tốc độ 25 km/h. Cinematic luôn bật (không có nút). Bấm Start: 3 s ở 180 km/h, giảm về 25 km/h rồi tự chuyển camera **Bên hông**
   (**tạm thời** `QUICK_OPENING = true` trong main.js: chỉ 0.5 s rồi về 25 km/h ngay — chú yêu cầu, bật lại khi chú bảo).
@@ -428,3 +374,5 @@ model thử (~625 MB) không nằm trong git.
   ~2 000 cây cao su thẳng hàng hai bên. check-hlg PASS.
 - **#7 — Chốt plan map New York (21/10/2026)**: đọc plan dở từ phiên cloud (chú dán), chú chốt vòng có hầm + cầu cạn Park Ave;
   ghi `NYC_PLAN.md` + mục 5. Phiên mới làm tiếp từ B1.
+- **#8 — Thứ tự dùng DeepSeek (21/10/2026)**: ưu tiên `opencode/deepseek-v4.1-flash-free` (đã thử chạy), hết giới hạn mới hỏi chú
+  để dùng credit API (MCP `deepseek`); mô tả công cụ MCP ghi rõ "chỉ dùng khi chú đồng ý".
