@@ -9,8 +9,8 @@ export const SKY_KEYS = [
   [0, '#1d3d80', '#4868ab', '#e3987c', '#ff8a48', '#ff7030'],
   [4, '#2453a0', '#6286c4', '#f0bd92', '#ffb36c', '#ff9a52'],
   [10, '#2a64b4', '#719fd9', '#f1d9bd', '#ffd59c', '#ffcf88'],
-  [22, '#2468c8', '#5b9be3', '#c6def3', '#e1edf5', '#fff1d6'],
-  [50, '#1e5fc4', '#4f92e0', '#b4d4f2', '#d2e5f3', '#fff7e6'],
+  [22, '#2a66b8', '#6a9bd4', '#d3dde6', '#e8ecee', '#fff1d6'],   // ban ngày: bớt ám xanh (chân trời / dải gần trung tính)
+  [50, '#285fb0', '#6393cc', '#cbd6e0', '#e3e8eb', '#fff7e6'],
 ];
 
 // Đổi bảng hex sang màu: Color = lớp THREE.Color của bên gọi.

@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -85,6 +85,7 @@
   và quầng sáng sàn. Mưa: giọt nước/vệt chảy trên kính trước + gạt mưa; kính sau dùng mask từ mesh kính thật (không phủ
   ghế/khung). Hạt mưa ngoài trời bị loại trong thể tích xe; âm thanh ngoài −60% + mưa lộp độp trên kính.
 - **Thời tiết / giờ**: "Trời trong" (đổi tên từ "Trời nắng"); đã bỏ mốc "Giờ vàng".
+  "Ban ngày" bớt ám xanh (chú yêu cầu 22/10/2026): `shared/sky.js` mốc 22° / 50° — chân trời `#cbd6e0` / dải `#e3e8eb` (trước `#b4d4f2` / `#d2e5f3`, làm sương + ánh sáng nền xanh), đỉnh trời dịu hơn.
 - **Ánh sáng**: nắng gắt cân bằng kiểu máy ảnh: nắng ×2.3, ánh trời ×0.5, phơi sáng ×0.7. Đêm có trăng (đổ bóng).
 - **Mặc định = cài đặt của chú** (`src/default-settings.json` = `DEF`, xuất từ localStorage Safari của chú 21/10/2026: `tuning`
   (chill / drive / traffic / mist), `scopes` city / avenue / hlg, `quality`): chưa có bản lưu => nạp `DEF.tuning`; nhóm thiếu => lấy
@@ -397,3 +398,4 @@
 - **#4 — NYC: kích thước thật, nhà OSM, 4 tòa nổi tiếng, hầm 7 m (21/10/2026)**: check-nyc PASS, Playwright: 1 657 nhà dựng, không lỗi trang.
 - **#5 — NYC: Grand Central + sửa đám đông Times Square (22/10/2026)**: build không cảnh báo, 5 tòa nổi tiếng không chạm đường, 218 người quanh xe.
 - **#6 — NYC: cửa hàng tầng trệt, mái hiên, biển tên đường, ONE WAY, trụ cứu hoả, đèn dọc kiểu Mỹ (22/10/2026)**: chụp Low không lỗi trang.
+- **#7 — Bớt ám xanh "Ban ngày" (22/10/2026)**: chỉ đổi bảng màu trời; chưa chụp so sánh (chú bảo khỏi chụp vì chậm).
