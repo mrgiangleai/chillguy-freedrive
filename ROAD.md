@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 10/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -405,3 +405,7 @@
 - **#9 — Nét 0–50 m trong xe, tường hầm bớt sáng, nhà không lấn đường (22/10/2026)**: tường hầm `0x9a958a` tự sáng rất nhẹ, đèn theo xe 70;
   fetch-nyc đo nhà ↔ đường từ điểm tim đường (trong đa giác = 0) + kiểm cuối với toàn tuyến (0 nhà còn lấn); Helmsley cổng rỗng (0 tam giác);
   nhà Times Square đặt theo khung đường tại từng s (7th Ave lệch 3.5 m so với thẳng). Chưa tìm ra chỗ "đi xuyên" khác — cần chú chỉ vị trí.
+- **#10 — Sửa xuyên nhà / đè hình quanh Grand Central – Helmsley + cửa hầm (22/10/2026)**: Helmsley đặt ở đoạn thẳng trước 46 St (đoạn đi qua
+  tòa thật lượn ~60°), đế thu sz 0.7, nới ngang ×1.15, dò sao cho thân xe làn ngoài (±6.4) nằm trong cổng; GCT / MetLife dò chỗ theo khung bao
+  thật của model + tránh Helmsley; kiểm tia đứng 5 làn s 3000–3900: 0 điểm chạm model. Hầm: điểm đường `g` = mặt đường (trước: hầm kín = mặt
+  phố => địa hình dựng tấm chắn cửa hầm); cầu cạn: đáy bản + nhựa dưới gầm chỉ khi gầm > 1.6 m (trước 2 mặt cách 1 cm nhấp nháy).

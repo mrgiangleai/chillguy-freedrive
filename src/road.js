@@ -152,7 +152,8 @@ export class Road {
   _loopPt(s) {
     const L = this.loop, [i, t] = this._lf(s), x = L.x[i] + (L.x[i + 1] - L.x[i]) * t, z = L.z[i] + (L.z[i + 1] - L.z[i]) * t;
     const e = L.elev(s), y = hLow(x, z);
-    return { x, z, y: y + e, g: y + (e > 0 || e <= L.roof ? 0 : e) };   // g: mặt đất cho địa hình (cầu cạn / hầm kín: mặt phố)
+    return { x, z, y: y + e, g: y + (e > 0 ? 0 : e) };   // g: mặt đất cho địa hình (dưới cầu cạn: mặt phố; hầm: theo mặt đường, trần che phía trên —
+    // trước đây hầm kín dùng mặt phố => ở cửa hầm địa hình dựng thành tấm nghiêng chắn miệng hầm)
   }
   // độ cao mặt đường so với mặt phố (âm trong hầm, dương trên cầu cạn); map khác 0
   elevAt(s) { return this.loop ? this.loop.elev(s) : 0; }

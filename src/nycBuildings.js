@@ -51,9 +51,15 @@ export class NycBuildings {
     const road = this.road.street, L = NYC.length, P = {}, D = NYC.data, HW = CITY.hw;
     const thG = D.heading[Math.round(4100 / D.step)];                // trục lưới phố (Park Ave hướng bắc)
     const mat = withMist(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.15 }));
-    const place = (name, x, z, yaw) => {
-      const [mod, X, Z] = LANDMARKS[name], g = mod.build(THREE).geometry;
-      const m = new THREE.Mesh(g, mat); m.position.set(x, hLow(x, z) - 0.3, z); m.rotation.y = yaw; m.castShadow = m.receiveShadow = true;
+    // khung bao thật của model (model có thể to hơn kích thước danh nghĩa tới 8 %): nửa rộng theo X / Z quanh gốc
+    const geos = {}, geo = (name) => {
+      if (!geos[name]) { const g = LANDMARKS[name][0].build(THREE).geometry; g.computeBoundingBox(); const b = g.boundingBox;
+        geos[name] = { g, hx: Math.max(-b.min.x, b.max.x), hz: Math.max(-b.min.z, b.max.z) }; }
+      return geos[name];
+    };
+    const place = (name, x, z, yaw, sz = 1, sx = 1) => {
+      const { g, hx: GX, hz: GZ } = geo(name), X = 2 * GX * sx, Z = 2 * GZ * sz;
+      const m = new THREE.Mesh(g, mat); m.position.set(x, hLow(x, z) - 0.3, z); m.rotation.y = yaw; m.scale.set(sx, 1, sz); m.castShadow = m.receiveShadow = true;
       this.group.add(m);
       const c = Math.cos(yaw), s = Math.sin(yaw), hx = X / 2 + 4, hz = Z / 2 + 4;
       this.lmRects.push((px, pz) => { const ex = px - x, ez = pz - z; return Math.abs(ex * c - ez * s) < hx && Math.abs(ex * s + ez * c) < hz; });
@@ -62,11 +68,30 @@ export class NycBuildings {
     for (const name of ['empire', 'chrysler']) if (lm[name]) place(name, lm[name][0], lm[name][1], thG);
     const pas = D.passages[0];
     if (pas) {
-      road.at(L + (pas.s0 + pas.s1) / 2, P);
-      place('helmsley', P.x - Math.cos(P.th) * 9, P.z + Math.sin(P.th) * 9, P.th);
+      // Helmsley: cầu cạn chạy xuyên cổng đông (x ∈ [2, 16] của model). Đoạn qua tòa nhà thật lượn ~60° => đặt ở đoạn thẳng ngay trước
+      // ngã tư 46 St, đế thu ngắn theo trục phố (sz) cho vừa; dò tâm / độ thu sao cho 4 làn xe (±7.2 m) nằm trọn trong lòng cổng.
+      const j46 = D.junctions.find((j) => j.s > pas.s1 - 5)?.s ?? pas.s1 + 15, endS = j46 - CITY.side - CITY.sideWalk - 1;
+      const PA = {}, PB = {}, PC = {};
+      helm: for (const sz of [1, 0.85, 0.7, 0.6, 0.5, 0.42]) {
+        const half = geo('helmsley').hz * sz;
+        for (let c = endS - half; c > pas.s0; c -= 2) {
+          road.at(L + c - half, PA); road.at(L + c + half, PB); road.at(L + c, PC);
+          const th = Math.atan2(-(PB.x - PA.x), -(PB.z - PA.z)), cs = Math.cos(th), sn = Math.sin(th);   // hướng dây cung qua đế
+          const SX = 1.15, x = PC.x - cs * 9 * SX, z = PC.z + sn * 9 * SX;                                // tim đường ở tâm cổng đông (x = +9, nới ngang ×1.15)
+          let ok = true;
+          for (let t = c - half - 4; t <= c + half + 4 && ok; t += 2) {
+            road.at(L + t, PA);
+            for (const u of [-6.4, 6.4]) {                                      // thân xe ở làn ngoài cùng (5.4 ± 0.95)
+              const ex = PA.x + Math.cos(PA.th) * u - x, ez = PA.z - Math.sin(PA.th) * u - z, lx = ex * cs - ez * sn, lz = ex * sn + ez * cs;
+              if (Math.abs(lz) < half + 1 && (lx < 2 * SX + 0.2 || lx > 16 * SX - 0.2)) ok = false;
+            }
+          }
+          if (ok) { place('helmsley', x, z, th, sz, SX); this._helm = [x, z, geo('helmsley').hx * SX, geo('helmsley').hz * sz]; break helm; }
+        }
+      }
       // Grand Central (mặt chính −Z quay về nam / 42 St => yaw + π) rồi MetLife phía bắc: dò chỗ bên trái đoạn cầu cạn chạy dọc nhà ga sao cho
       // mép đường (±HW) không chạm footprint (nới 1 m) và 2 tòa không chồng nhau
-      const Q = {}, put = [];
+      const Q = {}, put = this._helm ? [this._helm] : [];
       const clear = (x, z, th, hx, hz) => {
         const c = Math.cos(th), sn = Math.sin(th);
         for (let t = pas.s0 - 420; t < pas.s1 + 40; t += 2) { road.at(L + t, Q); for (const u of [-HW, 0, HW]) {
@@ -76,7 +101,7 @@ export class NycBuildings {
         return true;
       };
       for (const [name, d0, d1, flip] of [['grandcentral', 110, 220, Math.PI], ['metlife', 40, 200, 0]]) {
-        const [, X, Z] = LANDMARKS[name];
+        const X = 2 * geo(name).hx, Z = 2 * geo(name).hz;
         search: for (let ds = d0; ds <= d1; ds += 5) for (let ex = 0; ex <= 40; ex += 5) {
           road.at(L + pas.s0 - ds, P);
           const o = HW + 1.5 + X / 2 + ex, x = P.x - Math.cos(P.th) * o, z = P.z + Math.sin(P.th) * o;

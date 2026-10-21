@@ -121,7 +121,7 @@ export class NycWorks {
         }
         // phần nền giữa mặt đường và mặt bên (đoạn bản mặt cầu rộng hơn mặt đường)
         for (const su of [-1, 1]) quad(B.conc, [pt(a, su * HW, ya + 0.04), pt(b, su * HW, yb + 0.04), pt(b, su * (HW + 1.0), yb + 0.04), pt(a, su * (HW + 1.0), ya + 0.04)], 0, P, true);
-        if (ea > 1.2 || eb > 1.2) {
+        if (ea > 1.6 && eb > 1.6) {                     // gầm đủ cao: đáy bản + mặt phố nhựa dưới gầm (thấp hơn => 2 mặt sát nhau nhấp nháy)
           quad(B.conc, [pt(a, -w, bot(ya, ga)), pt(b, -w, bot(yb, gb)), pt(b, w, bot(yb, gb)), pt(a, w, bot(ya, ga))], 0, P, false);   // đáy bản
           quad(B.top, [pt(a, -w, ga + 0.03), pt(b, -w, gb + 0.03), pt(b, w, gb + 0.03), pt(a, w, ga + 0.03)], 0, P, true, [[0, a / 12], [0, b / 12], [1, b / 12], [1, a / 12]]);
         }
