@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -214,6 +214,9 @@
   `_cornerFrame` (cung R 15.3 m, `CORNER`), vạch Mỹ một chiều, lọc nhà theo đường chéo góc (`owns`), không cột điện, `stopA(n)` / `nextLine`,
   `exclude` + `extraObb` (vùng nhà riêng). cityTraffic chế độ `nyc` (một chiều 4 làn). main: vào ở s = L + 30, `nycAuto` (xi nhan trái 150 m,
   sang làn trái khi trống, về làn phải sau góc 40 m), lỗi `turn` / `turnSig`, biển 40 (25 mph).
+  **Làn sóng xanh** (city.js `_phase`, `WAVE` 40 km/h, `SIGNAL_NYC`: đường chính xanh 30 s / chu kỳ 46 s, ngang 7.5 s): đèn lệch pha theo
+  s / tốc độ sóng, xe đúng 40 km/h tới giữa pha xanh. `scripts/check-nyc-wave.mjs`: 1 vòng 42 ngã tư gặp đỏ 7 / 5 / 2 / 1 lần ở 25 / 30 / 35 / 40 km/h
+  (pha ngẫu nhiên cũ ~23), > 40 km/h gặp đỏ nhiều (16–27). Xe đường ngang NYC thưa × 2.5. cityPeople dùng `ph.crossEnd` (không cứng 42).
   **Times Square** (`timesSquare.js`, s 470–960 = 47 → 42 St): nhà chọc trời kính nhiều bậc lùi 3 dãy (35–250 m, 3 kiểu mặt tiền canvas, cửa
   sổ sáng đêm), thay nhà map Phố trong vùng (`city.exclude`); biển LED InstancedMesh đổi hình 5–11 s/hình (`adAtlas.js`: 16 thương hiệu tự chế,
   DeepSeek viết, đã soát), dải biển tầng trệt, mặt bắc nhà đầu khối phủ biển; tháp One Times Square (bên trái 43→42 St, 112 m, 15 tấm biển);
@@ -376,3 +379,4 @@
   tốc độ giao thông km/h, cài đặt Safari làm mặc định, chốt plan + B1 map New York, thứ tự dùng DeepSeek, Times Square lượt 1).
 - **#1 — Times Square: đám đông + taxi vàng / buýt (21/10/2026)**: xem mục 1 (Map New York). Chụp Low: quảng trường đông người, không lỗi console.
 - **#2 — Times Square: kính gương phản chiếu + nút bật / tắt (21/10/2026)**: chụp Low bật / tắt so sánh, không lỗi console.
+- **#3 — NYC: làn sóng xanh + xe ngang thưa (21/10/2026)**: chú chê nhiều đèn đỏ / đường cắt ngang. Mô phỏng + chạy thử không lỗi.

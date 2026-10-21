@@ -17,12 +17,15 @@ const DEPTH = 180;                  // nhà trải ra hai bên tới cách tim �
 const AHEAD = 1150, BEHIND = 260;
 const WALK_Y = 0.2, MARK_Y = 0.055;          // so với mặt đường tại chỗ đó
 const POLE_GAP = 30;
+const WAVE = 40 / 3.6;                // tốc độ "làn sóng xanh" của map New York (m/s)
 // góc rẽ New York (cung tròn bán kính ~15 m): arc = nửa chiều dài cung, tan = khoảng tiếp tuyến tới góc vuông, stop = vạch dừng
 // cách tâm cung, arm = độ dài 2 nhánh đường đi tiếp vẽ thêm ở góc
 const CORNER = { arc: 12, tan: 15.3, stop: 16.6, arm: 120 };
 // đèn giao thông mỗi ngã tư (chu kỳ 46 s, lệch pha ngẫu nhiên theo ngã tư): đường chính xanh 22 s → vàng 3 s → đỏ;
 // đường ngang xanh 15.5 s → vàng 3 s; giữa hai pha đỏ cả hai 1.5 s
 export const SIGNAL = { cycle: 46, mainG: 22, y: 3, allRed: 1.5, crossG: 15.5, stopA: 11.45 };
+// New York: đường chính (tuyến vòng) xanh lâu hơn, chu kỳ giữ nguyên 46 s
+const SIGNAL_NYC = { ...SIGNAL, mainG: 30, crossG: 7.5 };
 const LENS_ON = [[0.0, 1.0, 0.42], [1.0, 0.55, 0.0], [1.0, 0.03, 0.02]], LENS_OFF = [[0.03, 0.06, 0.05], [0.07, 0.06, 0.02], [0.07, 0.02, 0.02]];
 const FONT = '"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Noto Sans CJK JP","Yu Gothic","Meiryo",sans-serif';
 // biển ngang cửa hàng: [chữ, nền, màu chữ]
@@ -402,12 +405,15 @@ export class City {
 
   // pha đèn đường chính / đường ngang tại ngã tư n: 0 xanh, 1 vàng, 2 đỏ
   _phase(n) {
-    const S = SIGNAL, off = (Math.sin(n * 91.7 + 13.1) * 43758.5453 % 1 + 1) % 1 * S.cycle;
+    // New York: "làn sóng xanh" — đèn lệch pha theo quãng đường / tốc độ sóng => chạy đều ~40 km/h gặp xanh liên tục trên đoạn thẳng
+    // (xe chạy đúng tốc độ sóng tới vạch giữa pha xanh => nhanh / chậm hơn chút vẫn còn xanh)
+    const S = this.sig, off = this.nyc ? ((S.mainG * 0.45 - this.road.junction(n) / WAVE) % S.cycle + S.cycle) % S.cycle
+      : (Math.sin(n * 91.7 + 13.1) * 43758.5453 % 1 + 1) % 1 * S.cycle;
     const t = ((this.clock + off) % S.cycle + S.cycle) % S.cycle;
     const main = t < S.mainG ? 0 : t < S.mainG + S.y ? 1 : 2;
     const c0 = S.mainG + S.y + S.allRed;
     const cross = t >= c0 && t < c0 + S.crossG ? 0 : t >= c0 + S.crossG && t < c0 + S.crossG + S.y ? 1 : 2;
-    return { main, cross, t };
+    return { main, cross, t, crossEnd: c0 + S.crossG };
   }
   mainLight(n) { return this._phase(n).main; }
   // thấu kính kiểu k (0 xe đường chính, 1 xe đường ngang, 2 đi bộ qua đường chính, 3 đi bộ qua đường ngang) màu col có sáng không.
@@ -415,7 +421,7 @@ export class City {
   _lensOn(ph, k, col) {
     if (k < 2) return (k ? ph.cross : ph.main) === col;
     const g = (k === 2 ? ph.cross : ph.main) === 0;
-    const S = SIGNAL, left = k === 2 ? S.mainG + S.y + S.allRed + S.crossG - ph.t : S.mainG - ph.t;
+    const S = this.sig, left = k === 2 ? S.mainG + S.y + S.allRed + S.crossG - ph.t : S.mainG - ph.t;
     if (g && left < 4 && Math.floor(ph.t * 2.5) % 2) return false;
     return (g ? 0 : 2) === col;
   }
@@ -436,6 +442,7 @@ export class City {
   }
 
   // khoảng cách vạch dừng tới tâm ngã tư n (góc rẽ New York: vạch lùi trước khúc cua + vạch qua đường)
+  get sig() { return this.nyc ? SIGNAL_NYC : SIGNAL; }       // thời lượng pha đèn của map đang chạy
   stopA(n) { return this.nyc && this.road.junctionInfo(n)?.corner ? CORNER.stop : SIGNAL.stopA; }
   // vạch dừng đầu tiên (chiều +s) nằm ở s ≥ x: { n, line }
   nextLine(x) {

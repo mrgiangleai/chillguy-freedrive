@@ -226,7 +226,7 @@ export class CityPeople {
         if (p.pauseT <= 0) p.mode = 'walk';
       } else if (p.crossing) {
         const ph = city._phase(p.n);
-        const remain = 42 - ph.t;                                     // còn bao lâu đèn đi bộ (đường ngang xanh) — xem SIGNAL
+        const remain = ph.crossEnd - ph.t;                            // còn bao lâu đèn đi bộ (đường ngang xanh) — xem SIGNAL
         if (p.mode === 'wait' && ph.cross === 0 && remain > 9) p.mode = 'cross';
         if (p.mode === 'cross') {
           vu = -p.side * p.speed * 1.15;

@@ -408,7 +408,7 @@ export class CityTraffic {
         if (tm === undefined) tm = Math.random() * 4;
         tm -= dt;
         if (tm <= 0) {
-          tm = (3 + Math.random() * 6) / Math.max(0.05, this.density);   // mật độ thấp => xe đường ngang thưa
+          tm = (3 + Math.random() * 6) * (cfg.oneway ? 2.5 : 1) / Math.max(0.05, this.density);   // mật độ thấp => xe đường ngang thưa; New York thưa hơn
           const u0 = -du * CROSS_R, a = du > 0 ? -1.75 : 1.75;
           const busy = this.cars.some((c) => c.cross && c.cross.n === n && c.cross.du === du && Math.abs(c.cross.u - u0) < 14);
           const t = this._pick();
