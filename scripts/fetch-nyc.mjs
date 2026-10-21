@@ -272,7 +272,7 @@ if (fs.existsSync(BF)) {
     return bd;
   };
   const hOf = (t) => { const h = parseFloat(t.height); if (h > 2) return h; const l = parseFloat(t['building:levels']); if (l > 0) return l * 3.6 + 2; return null; };
-  const out = []; let drop = 0, moved = 0, noH = 0;
+  const out = []; let drop = 0, drop2 = 0, moved = 0, noH = 0;
   for (const w of JSON.parse(fs.readFileSync(BF, 'utf8')).elements) {
     if (!w.geometry || w.geometry.length < 4 || w.tags.building === 'roof' || w.tags.building === 'construction') continue;
     let P = w.geometry.map(ll); P.pop();
@@ -281,12 +281,48 @@ if (fs.existsSync(BF)) {
     if (dist > RANGE) continue;
     P = P.map(([E, N]) => [E + off[j][0], N + off[j][1]]);
     const jq = nearest(cE + off[j][0], cN + off[j][1], Q)[0];
-    let md = Infinity; for (const [E, N] of P) md = Math.min(md, segD(E, N, jq));
+    // khoảng cách đường ↔ nhà đo từ các điểm tim đường (±160 m) tới đa giác (nằm trong = 0) — bắt cả nhà to có cạnh vắt qua đường
+    let md = Infinity;
+    for (let k = jq - 160; k <= jq + 160; k++) {
+      const [qx, qy] = Q[(k + N1) % N1];
+      let inside = false, dmin = Infinity;
+      for (let a = 0, b = P.length - 1; a < P.length; b = a++) {
+        const [ax, ay] = P[a], [bx, by] = P[b];
+        if ((ay > qy) !== (by > qy) && qx < ax + (bx - ax) * (qy - ay) / (by - ay)) inside = !inside;
+        const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((qx - ax) * dx + (qy - ay) * dy) / l2));
+        dmin = Math.min(dmin, Math.hypot(qx - ax - dx * t, qy - ay - dy * t));
+      }
+      md = Math.min(md, inside ? 0 : dmin);
+    }
     if (md < FRONT + 0.3) {
       const dl = FRONT + 0.3 - md; if (dl > 9) { drop++; continue; }
       const q = Q[jq], c = [cE + off[j][0], cN + off[j][1]], nl = Math.hypot(c[0] - q[0], c[1] - q[1]) || 1, nx = (c[0] - q[0]) / nl, ny = (c[1] - q[1]) / nl;
       P = P.map(([E, N]) => [E + nx * dl, N + ny * dl]); moved++;
     }
+    // kiểm cuối với TOÀN BỘ tuyến (mẫu 2 m): còn lấn vỉa hè thì lùi tiếp theo hướng từ điểm đường gần nhất (tối đa 3 lần), không được thì bỏ
+    let ok = false;
+    for (let it = 0; it < 4 && !ok; it++) {
+      let bd = Infinity, bq = null;
+      for (let k = 0; k < N1; k += 2) {
+        const [qx, qy] = Q[k];
+        if (Math.abs(qx - P[0][0]) > 400 || Math.abs(qy - P[0][1]) > 400) continue;
+        let inside = false, dmin = Infinity;
+        for (let a = 0, b = P.length - 1; a < P.length; b = a++) {
+          const [ax, ay] = P[a], [bx, by] = P[b];
+          if ((ay > qy) !== (by > qy) && qx < ax + (bx - ax) * (qy - ay) / (by - ay)) inside = !inside;
+          const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((qx - ax) * dx + (qy - ay) * dy) / l2));
+          dmin = Math.min(dmin, Math.hypot(qx - ax - dx * t, qy - ay - dy * t));
+        }
+        const d = inside ? 0 : dmin;
+        if (d < bd) { bd = d; bq = Q[k]; }
+      }
+      if (bd >= FRONT - 0.2) { ok = true; break; }
+      if (bd < 3 || it === 3) break;
+      const cx2 = P.reduce((a, p) => a + p[0], 0) / P.length, cy2 = P.reduce((a, p) => a + p[1], 0) / P.length;
+      const nl = Math.hypot(cx2 - bq[0], cy2 - bq[1]) || 1, d2 = FRONT + 0.3 - bd;
+      P = P.map(([E, N]) => [E + (cx2 - bq[0]) / nl * d2, N + (cy2 - bq[1]) / nl * d2]);
+    }
+    if (!ok) { drop2++; continue; }
     const pts = []; for (const [E, N] of P) { const l = pts.length; if (l && Math.hypot(pts[l - 2] - E, pts[l - 1] + N) < 0.8) continue; pts.push(+E.toFixed(1), +(-N).toFixed(1)); }
     if (pts.length < 6) continue;
     let h = hOf(w.tags); if (!h) { noH++; h = 14 + 10 * Math.random(); }
@@ -302,5 +338,5 @@ if (fs.existsSync(BF)) {
   }
   const BO = 'docs/assets/nyc-buildings.json';
   fs.writeFileSync(BO, JSON.stringify({ source: 'OpenStreetMap contributors (ODbL)', lm, b: out }));
-  console.log(`=> ${BO}: ${(fs.statSync(BO).size / 1024).toFixed(0)} KB, ${out.length} nhà (lùi ${moved}, bỏ ${drop}, không có chiều cao ${noH})`);
+  console.log(`=> ${BO}: ${(fs.statSync(BO).size / 1024).toFixed(0)} KB, ${out.length} nhà (lùi ${moved}, bỏ ${drop} + ${drop2} khi kiểm cuối, không có chiều cao ${noH})`);
 }

@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -80,6 +80,7 @@
   0.362) + trượt lên trước 16 cm (`cars.js`, `seat.drop/forward`); xương chậu đặt tại `seat.hip` (stopscene.place), lưng ngả 0.1 rad,
   chân IK duỗi tới sàn (cổ chân `seat.foot`, mũi giày chếch lên 24°), tay IK giữ vô lăng (khuỷu gập ~77°). Đo: lún đệm 1.6 cm,
   không chạm trần (đỉnh đầu 1.254) / sàn / tựa lưng; mắt 1.21 m.
+- **Trong xe — lấy nét** (22/10/2026, chú yêu cầu): DOF tâm 25 m ± 25 m => nét 0–50 m (trước lấy nét taplo 0.8 m, ngoài kính mờ).
 - **Trong xe**: mắt = xương đầu +0.15 m; góc chúc tự canh: chừa phần dưới vành để thấy cả bàn tay và cẳng tay, không cắt
   gương giữa. Gương giữa (4:3, cạnh màn hình taplo) + 2 gương hông soi thật. Ánh sáng cabin từ màn hình taplo; đã bỏ dải LED
   và quầng sáng sàn. Mưa: giọt nước/vệt chảy trên kính trước + gạt mưa; kính sau dùng mask từ mesh kính thật (không phủ
@@ -401,3 +402,6 @@
 - **#6 — NYC: cửa hàng tầng trệt, mái hiên, biển tên đường, ONE WAY, trụ cứu hoả, đèn dọc kiểu Mỹ (22/10/2026)**: chụp Low không lỗi trang.
 - **#7 — Bớt ám xanh "Ban ngày" (22/10/2026)**: chỉ đổi bảng màu trời; chưa chụp so sánh (chú bảo khỏi chụp vì chậm).
 - **#8 — Nút bật / tắt cảnh tai nạn (22/10/2026)**: check traffic / policy / stopscene / nyc PASS.
+- **#9 — Nét 0–50 m trong xe, tường hầm bớt sáng, nhà không lấn đường (22/10/2026)**: tường hầm `0x9a958a` tự sáng rất nhẹ, đèn theo xe 70;
+  fetch-nyc đo nhà ↔ đường từ điểm tim đường (trong đa giác = 0) + kiểm cuối với toàn tuyến (0 nhà còn lấn); Helmsley cổng rỗng (0 tam giác);
+  nhà Times Square đặt theo khung đường tại từng s (7th Ave lệch 3.5 m so với thẳng). Chưa tìm ra chỗ "đi xuyên" khác — cần chú chỉ vị trí.

@@ -59,7 +59,7 @@ export class NycWorks {
     this.group.visible = false;
     scene.add(this.group);
     this.concrete = new THREE.MeshStandardMaterial({ color: 0x8f8b84, roughness: 0.9 });
-    this.tile = new THREE.MeshStandardMaterial({ color: 0xc9c4b6, roughness: 0.55, emissive: 0x2e2b25 });   // tường hầm ốp gạch men sáng (hơi tự sáng)
+    this.tile = new THREE.MeshStandardMaterial({ color: 0x9a958a, roughness: 0.6, emissive: 0x0b0a08 });   // tường hầm ốp gạch men (tự sáng rất nhẹ)
     // đèn hầm: 1 đèn điểm đi theo xe khi xe ở đoạn có trần (chỉ trong nhóm này => map khác không tốn thêm đèn)
     this.light = new THREE.PointLight(0xffe2b8, 0, 40, 1.4);
     this.group.add(this.light);
@@ -71,7 +71,7 @@ export class NycWorks {
   get visible() { return this.group.visible; }
   setLamps(k) { this.lampMat.emissiveIntensity = 1.6 + 1.4 * k; }
   // pos: vị trí xe; k: 0..1 mức "trong hầm" (mờ dần ở 2 miệng hầm)
-  update(pos, k) { this.light.position.set(pos.x, pos.y + 3.6, pos.z); this.light.intensity = 160 * k; }
+  update(pos, k) { this.light.position.set(pos.x, pos.y + 3.6, pos.z); this.light.intensity = 70 * k; }
 
   _build() {
     this.built = true;

@@ -103,7 +103,8 @@ export class TimesSquare {
     // khung theo đường: 7th Ave đoạn này thẳng => 1 khung cho cả vùng
     road.at(base + TS.s0, P);
     const F = { x: P.x, y: P.y, z: P.z, fx: -Math.sin(P.th), fz: -Math.cos(P.th), rx: Math.cos(P.th), rz: -Math.sin(P.th), th: P.th };
-    const W = (s, u) => [F.x + F.fx * (s - TS.s0) + F.rx * u, F.z + F.fz * (s - TS.s0) + F.rz * u];
+    // vị trí theo khung đường tại chính s (7th Ave đoạn này lệch ~3.5 m so với đường thẳng => không lấn vỉa hè)
+    const PW = {}, W = (s, u) => { road.at(base + s, PW); return [PW.x + Math.cos(PW.th) * u, PW.z - Math.sin(PW.th) * u]; };
     const y0 = F.y;
     // vùng loại nhà map Phố (tứ giác thế giới)
     const Q = [W(TS.s0, -TS.depth), W(TS.s1, -TS.depth), W(TS.s1, TS.depth), W(TS.s0, TS.depth)];

@@ -1525,14 +1525,14 @@ function dofParams(dt) {
   const inCar = CAMERAS[state.cam].id === 'cockpit';
   _focusP.copy(drive.pos).y += 0.6;
   if (stop.active) _focusP.copy(stop.cam.focus);
-  const target = inCar && !stop.active ? 0.8 : Math.max(0.5, camera.position.distanceTo(_focusP));
+  const target = inCar && !stop.active ? 25 : Math.max(0.5, camera.position.distanceTo(_focusP));   // trong xe: nét 0–50 m (tâm 25 m ± 25 m)
   dof.focus += (target - dof.focus) * (dof.amt > 0.01 ? 1 - Math.exp(-dt * 6) : 1);
   const f = rig.focalEff, N = rig.apertureS, F = dof.focus * 1000;
   dof.cocK = ((f * f) / (N * Math.max(F - f, 1))) * (post.longSide / 36) * BOKEH;
   dof.maxCoc = Math.max(6, post.longSide * 0.0125);
   // cả chiếc xe nằm trong vùng nét: nửa bề dày xe theo hướng nhìn
   if (stop.active) dof.range = stop.cam.range;
-  else if (inCar) dof.range = 0;
+  else if (inCar) dof.range = 25;
   else {
     const dx = camera.position.x - _focusP.x, dz = camera.position.z - _focusP.z, h = Math.hypot(dx, dz) || 1;
     const s = Math.sin(drive.yaw), c = Math.cos(drive.yaw);
