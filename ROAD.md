@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -383,6 +383,9 @@ model thử (~625 MB) không nằm trong git.
   khoá ngang (Android), gợi ý xoay ngang khi cầm dọc; iPhone: "Thêm vào MH chính" (manifest fullscreen/landscape).
 
 ## 5. Việc còn mở / cần chú ý
+- **TIẾP THEO — Map New York** 🗽 (nhóm Drive): plan + tuyến vòng đã chốt trong **`NYC_PLAN.md`** (7th Ave qua Times Square → 32nd St
+  → Park Ave có hầm + cầu cạn Grand Central → 55th St → 7th Ave; không tối màn hình). Chưa có code. Bắt đầu B1: kiểm chiều một chiều
+  bằng OSM, `scripts/fetch-nyc.mjs`, dựng vòng + 4 khúc rẽ trái.
 - **Map Cao tốc HLG — có thể làm tiếp**: footprint Microsoft không có chiều cao ở VN => cao theo diện tích (đoán); sông / lạch cắt chéo
   đúng góc thật (đang vuông góc tuyến); mặt nước lạch dài ±400 m rồi dừng; cỏ cao `meadow` vẫn phủ cả khu dân cư; biển tốc độ dựng bên đường còn theo mẫu Đại lộ (HUD đã đúng biển thật); Cầu Long Thành dùng tháp dây văng
   chung của Đại lộ (chưa đối chiếu ảnh thật); nút giao chưa có tên đường cắt ngang cho Nhơn Trạch / QL51 / Long Thành / Cẩm Mỹ
@@ -423,3 +426,5 @@ model thử (~625 MB) không nằm trong git.
 - **#6 — Cây cao su cho map HLG do MiniMax dựng (21/10/2026)**: worker MiniMax tự viết + tự chấm (`check-tree`: ≤ 360 tam giác, cao
   11–13 m, tán 3.5–5.5 m, thân trống ≥ 5.3 m, gốc cành ≤ 0.45 m khỏi trục) — đạt sau 1 vòng sửa (lỗi xoay cành quanh tâm). GUI Low km 38.5:
   ~2 000 cây cao su thẳng hàng hai bên. check-hlg PASS.
+- **#7 — Chốt plan map New York (21/10/2026)**: đọc plan dở từ phiên cloud (chú dán), chú chốt vòng có hầm + cầu cạn Park Ave;
+  ghi `NYC_PLAN.md` + mục 5. Phiên mới làm tiếp từ B1.
