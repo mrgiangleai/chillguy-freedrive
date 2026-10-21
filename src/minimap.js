@@ -1,4 +1,4 @@
-import { ROAD, CITY, IC, tollS, TOLL, camS, camIndex } from './road.js';
+import { ROAD, CITY, IC, tollS, tollIndex, camS, camIndex } from './road.js';
 
 // Bản đồ tròn (góc phải giữa màn hình): vẽ 2D từ dữ liệu thật của thế giới — đường (road.pts), đường ngang + khối nhà map Phố,
 // nút giao / nhánh / đường gom / nhà / trạm thu phí map Đại lộ, xe khác, xe mình (mũi tên). Thu nhỏ: bám xe, quay theo hướng xe
@@ -115,7 +115,7 @@ export class Minimap {
       for (const Rv of (S.avenue.rivers || new Map()).values()) {    // sông: dải xanh theo độ uốn
         if (Math.abs(Rv.P.x - cx) > span + 3000 || Math.abs(Rv.P.z - cz) > span + 3000) continue;
         const pts = [];
-        for (let u = -3000; u <= 3000; u += 60) { const m = 40 * Math.sin(u / 300); pts.push([Rv.P.x + Rv.rx * u + Rv.fx * m, Rv.P.z + Rv.rz * u + Rv.fz * m]); }
+        for (let u = -3000; u <= 3000; u += 60) { const m = (Rv.mA ?? 40) * Math.sin(u / 300); pts.push([Rv.P.x + Rv.rx * u + Rv.fx * m, Rv.P.z + Rv.rz * u + Rv.fz * m]); }
         line(pts, Rv.hw * 2, '#6fa8d6', 3);
       }
       for (const F of (S.avenue.flys || new Map()).values()) {       // quốc lộ 4 làn dưới cầu cao
@@ -139,8 +139,8 @@ export class Minimap {
     line(main, hw * 2, ROADC[id] || '#f3f1ea', 2.2);
     if (id === 'avenue') {                                       // dải phân cách + trạm thu phí
       line(main, 0.8, '#b8a060', 0);
-      const k0 = Math.round((sNow - span * 1.6 - TOLL.first) / TOLL.period), k1 = Math.round((sNow + span * 1.6 - TOLL.first) / TOLL.period);
-      for (let k = Math.max(0, k0); k <= k1; k++) {
+      for (let k = tollIndex(sNow - span * 1.6); k <= tollIndex(sNow + span * 1.6); k++) {
+        if (Math.abs(tollS(k) - sNow) > span * 1.6 + 100) continue;
         const q = road.at(tollS(k), {});
         g.save(); g.translate(q.x, q.z); g.rotate(-q.th); g.fillStyle = '#2f5fae'; g.fillRect(-hw - 2, -12, hw * 2 + 4, 24); g.restore();
       }

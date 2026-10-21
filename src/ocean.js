@@ -69,10 +69,10 @@ const WAVE = `
 uniform sampler2D uWave;
 uniform float uFrame, uFrameB, uWA, uWB, uSea, uLod, uT;
 uniform vec3 uCamW;
-uniform float uRiv, uRivHW;          // chế độ sông (map Đại lộ): 1 = bật; nửa bề rộng sông
+uniform float uRiv, uRivHW, uRivM;   // chế độ sông (map Đại lộ): 1 = bật; nửa bề rộng sông; biên độ uốn
 uniform vec4 uRivPF;                 // tâm sông (x, z) + hướng ngang sông f (x, z)
 // khoảng cách có dấu tới tim sông (đã trừ độ uốn 40·sin(u/300) như avenue.js)
-float rivA(vec2 p) { vec2 d = p - uRivPF.xy, f = uRivPF.zw, r = vec2(-f.y, f.x); float u = dot(d, r); return dot(d, f) - 40.0 * sin(u / 300.0); }
+float rivA(vec2 p) { vec2 d = p - uRivPF.xy, f = uRivPF.zw, r = vec2(-f.y, f.x); float u = dot(d, r); return dot(d, f) - uRivM * sin(u / 300.0); }
 uniform vec3 uRoad[${ROAD_N}];
 const float TILE = ${TILE.toFixed(3)};
 const mat2 ROT = mat2(0.906, 0.423, -0.423, 0.906);      // ô sóng xoay ~25° so với trục thế giới
@@ -171,7 +171,7 @@ export class Ocean {
     this.level = 0;
     this.roadPts = Array.from({ length: ROAD_N }, () => new THREE.Vector3());
     this.u = { uWave: { value: null }, uFrame: { value: 0 }, uFrameB: { value: 0 }, uWA: { value: 1 }, uWB: { value: 0 }, uT: { value: 0 }, uSea: { value: 0 }, uLod: { value: 3000 }, uCamW: { value: new THREE.Vector3() }, uRoad: { value: this.roadPts },
-      uRiv: { value: 0 }, uRivHW: { value: 100 }, uRivPF: { value: new THREE.Vector4() } };
+      uRiv: { value: 0 }, uRivHW: { value: 100 }, uRivM: { value: 40 }, uRivPF: { value: new THREE.Vector4() } };
     this.material = null;
     this._p = {};
   }
@@ -201,14 +201,14 @@ export class Ocean {
   }
 
   // map Đại lộ: mặt sông (sóng biển nhỏ lại, nước sẫm), chỉ trong dải |a| < hw quanh tim sông P, hướng ngang sông f
-  setRiver(on, level = 0, P = null, f = null, hw = 100) {
+  setRiver(on, level = 0, P = null, f = null, hw = 100, mA = 40) {
     if (!on && this.u.uRiv.value < 0.5) return;                     // đang không ở chế độ sông: không đụng tới map Biển
     this.u.uRiv.value = on ? 1 : 0;
     this.group.visible = on;
     if (!on) return;
     if (!this.material) this._build();
     this.level = level;
-    this.u.uRivHW.value = hw;
+    this.u.uRivHW.value = hw; this.u.uRivM.value = mA;
     this.u.uRivPF.value.set(P.x, P.z, f.x, f.z);
   }
 

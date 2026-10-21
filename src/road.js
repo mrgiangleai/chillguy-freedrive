@@ -19,45 +19,71 @@ const HA0 = HA(0);
 // ngoài trước cầu, đi ở cao độ nền (cao tốc lên cầu, nhánh "xuống" dần so với cầu), cắt đường ngang ở |u| = IC.rampU, rồi nhánh vào
 // leo lại nhập làn ngoài sau cầu. rampU(t) = độ lệch ngang theo khung cao tốc (t = s − icS), chiều +s; chiều ngược: u = −rampU(−t).
 export const IC = { period: 3000, first: 4000, hump: 7.5, flat: 40, rise: 260, rampU: 45, rampLen: 480, crossHW: 4.6, crossLen: 420 };
-export const icS = (k) => IC.first + k * IC.period;
 // trạm thu phí (đại lộ): giữa 2 nút giao, mỗi TOLL.period m; mọi xe giảm còn ~20 km/h trước vạch barie, barie tự nâng (ETC)
 export const TOLL = { period: 6000, first: 5500, slow: 20 / 3.6, zone: 160 };
-export const tollS = (k) => TOLL.first + k * TOLL.period;
-// khoảng cách (theo chiều dir) từ s tới vạch barie trạm kế tiếp (đã qua quá 18 m thì tính trạm sau)
-export function tollDist(s, dir) {
-  let k = Math.round((s - TOLL.first) / TOLL.period);
-  let d = (tollS(k) - s) * dir;
-  if (d < -18) d += TOLL.period;
-  return d;
-}
-export const icIndex = (s) => Math.max(0, Math.round((s - IC.first) / IC.period));
 // camera bắn tốc độ (đại lộ): cột đầu ở 1450 m (giữa cầu cao và cầu sông), rồi mỗi 3 km từ 6200 m (700 m sau trạm phí / cầu)
 export const CAM = { first0: 1450, first: 6200, period: 3000, tol: 5 };
-export const camS = (k) => (k <= 0 ? CAM.first0 : CAM.first + (k - 1) * CAM.period);
-export const camIndex = (s) => (s < (CAM.first0 + CAM.first) / 2 ? 0 : 1 + Math.max(0, Math.round((s - CAM.first) / CAM.period)));
-// tốc độ tối đa (km/h) trên cao tốc theo biển: 40 quanh trạm phí (biển ở 250 m trước, hết 120 m sau), 100 quanh nút giao
-// (biển 100 ở t = −700, biển 120 ở t = 620), còn lại 120. Nhánh ra / vào: 60 (main tự xét)
-export function avLimit(s, dir = 1) {
-  const x = (s - tollS(Math.round((s - TOLL.first) / TOLL.period))) * dir;
-  if (x > -250 && x < 120) return 40;
-  const t = (s - icS(icIndex(s))) * dir;
-  return t > -700 && t < 620 ? 100 : 120;
-}
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 // Cầu vượt cao (FLY): mỗi 12 km (cái đầu ở 700 m), cao tốc nhô lên 12 m thành cầu cạn trên trụ, bắc qua quốc lộ 4 làn nằm trong
 // hào sâu 3 m (tĩnh không ~13 m). Cầu qua sông (RIVER): mỗi 12 km (cái đầu ở 2200 m), cao tốc nhô 8 m thành cầu cạn dài qua thung lũng sông
 // rộng 2·hw (mặt nước thấp hơn nền drop m). `viaduct` = |t| mà ở trong đó mặt đất dưới cầu giữ tự nhiên (không đắp nền).
 export const FLY = { period: 12000, first0: 700, first: 8500, hump: 12, flat: 70, rise: 400, cut: 3, crossLen: 520, crossHW: 8.2, lanes: [1.75, 5.25], viaduct: 230 };
-export const RIVER = { period: 12000, first0: 2200, first: 14500, hump: 8, flat: 200, rise: 430, hw: 120, drop: 14, depth: 5, viaduct: 330 };
-// cầu đầu tiên đặt gần đầu đường (để thử ngay): cầu cao ở 700 m, cầu sông ở 2200 m; các cầu sau nằm giữa 2 nút giao,
-// không trùng trạm thu phí: cầu cao 8500 + 12000k, cầu sông 14500 + 12000k
-export const flyS = (k) => (k <= 0 ? FLY.first0 : FLY.first + (k - 1) * FLY.period);
-export const flyIndex = (s) => (s < (FLY.first0 + FLY.first) / 2 ? 0 : 1 + Math.max(0, Math.round((s - FLY.first) / FLY.period)));
-export const riverS = (k) => (k <= 0 ? RIVER.first0 : RIVER.first + (k - 1) * RIVER.period);
-export const riverIndex = (s) => (s < (RIVER.first0 + RIVER.first) / 2 ? 0 : 1 + Math.max(0, Math.round((s - RIVER.first) / RIVER.period)));
+export const RIVER = { period: 12000, first0: 2200, first: 14500, hump: 8, flat: 200, rise: 430, hw: 120, drop: 14, depth: 5, viaduct: 330, meander: 40 };
+
+// Bố trí công trình của cao tốc: LAY = null => Đại lộ (đặt theo chu kỳ, cầu đầu tiên gần đầu đường để thử ngay: cầu cao 700 m,
+// cầu sông 2200 m; các cầu sau nằm giữa 2 nút giao, không trùng trạm thu phí). LAY = danh sách thật (map Cao tốc HLG, `hlg.js`):
+// { ics, flys, rivers, tolls, cams: [{ s, ... }] sắp theo s, limits: [{ s0, s1, kmh }] }. Chỉ số ngoài danh sách => vị trí rất xa.
+let LAY = null;
+export const setLayout = (L) => { LAY = L; };
+export const layout = () => LAY;
+const FAR = 1e9;
+const at = (arr, k) => (k < 0 ? -FAR : k >= arr.length ? FAR : arr[k].s);
+// chỉ số phần tử có s gần nhất (mảng sắp theo s; rỗng => 0)
+function nearIdx(arr, s) {
+  let lo = 0, hi = arr.length - 1;
+  if (hi <= 0) return 0;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (arr[m].s < s) lo = m; else hi = m; }
+  return s - arr[lo].s < arr[hi].s - s ? lo : hi;
+}
+export const icS = (k) => (LAY ? at(LAY.ics, k) : IC.first + k * IC.period);
+export const icIndex = (s) => (LAY ? nearIdx(LAY.ics, s) : Math.max(0, Math.round((s - IC.first) / IC.period)));
+export const tollS = (k) => (LAY ? at(LAY.tolls, k) : TOLL.first + k * TOLL.period);
+export const tollIndex = (s) => (LAY ? nearIdx(LAY.tolls, s) : Math.max(0, Math.round((s - TOLL.first) / TOLL.period)));
+// khoảng cách (theo chiều dir) từ s tới vạch barie trạm kế tiếp (đã qua quá 18 m thì tính trạm sau)
+export function tollDist(s, dir) {
+  if (LAY) {
+    let best = FAR;
+    for (const T of LAY.tolls) { const d = (T.s - s) * dir; if (d >= -18 && d < best) best = d; }
+    return best;
+  }
+  let k = Math.round((s - TOLL.first) / TOLL.period);
+  let d = (tollS(k) - s) * dir;
+  if (d < -18) d += TOLL.period;
+  return d;
+}
+export const camS = (k) => (LAY ? at(LAY.cams, k) : k <= 0 ? CAM.first0 : CAM.first + (k - 1) * CAM.period);
+export const camIndex = (s) => (LAY ? nearIdx(LAY.cams, s) : s < (CAM.first0 + CAM.first) / 2 ? 0 : 1 + Math.max(0, Math.round((s - CAM.first) / CAM.period)));
+export const flyS = (k) => (LAY ? at(LAY.flys, k) : k <= 0 ? FLY.first0 : FLY.first + (k - 1) * FLY.period);
+export const flyIndex = (s) => (LAY ? nearIdx(LAY.flys, s) : s < (FLY.first0 + FLY.first) / 2 ? 0 : 1 + Math.max(0, Math.round((s - FLY.first) / FLY.period)));
+export const riverS = (k) => (LAY ? at(LAY.rivers, k) : k <= 0 ? RIVER.first0 : RIVER.first + (k - 1) * RIVER.period);
+export const riverIndex = (s) => (LAY ? nearIdx(LAY.rivers, s) : s < (RIVER.first0 + RIVER.first) / 2 ? 0 : 1 + Math.max(0, Math.round((s - RIVER.first) / RIVER.period)));
+// thông số riêng từng cầu (danh sách thật ghi đè giá trị chung: viaduct, hw, hump…)
+export const flyP = (k) => (LAY && LAY.flys[k]) || FLY;
+export const riverP = (k) => (LAY && LAY.rivers[k]) || RIVER;
+// tốc độ tối đa (km/h) trên cao tốc theo biển: 40 quanh trạm phí (biển ở 250 m trước, hết 120 m sau), 100 quanh nút giao
+// (biển 100 ở t = −700, biển 120 ở t = 620), còn lại 120 (map HLG: theo biển thật từng đoạn). Nhánh ra / vào: 60 (main tự xét)
+export function avLimit(s, dir = 1) {
+  const x = (s - tollS(tollIndex(s))) * dir;
+  if (x > -250 && x < 120) return 40;
+  if (LAY) { for (const L of LAY.limits) if (s >= L.s0 && s < L.s1) return L.kmh; return 120; }
+  const t = (s - icS(icIndex(s))) * dir;
+  return t > -700 && t < 620 ? 100 : 120;
+}
 export function avHump(s) {
-  const a = Math.abs(s - icS(icIndex(s))), b = Math.abs(s - flyS(flyIndex(s))), c = Math.abs(s - riverS(riverIndex(s)));
-  return IC.hump * (1 - sm(IC.flat, IC.rise, a)) + FLY.hump * (1 - sm(FLY.flat, FLY.rise, b)) + RIVER.hump * (1 - sm(RIVER.flat, RIVER.rise, c));
+  const a = Math.abs(s - icS(icIndex(s)));
+  const fk = flyIndex(s), F = flyP(fk), b = Math.abs(s - flyS(fk));
+  const rk = riverIndex(s), R = riverP(rk), c = Math.abs(s - riverS(rk));
+  return IC.hump * (1 - sm(IC.flat, IC.rise, a)) + F.hump * (1 - sm(F.flat, F.rise, b)) + R.hump * (1 - sm(R.flat, R.rise, c));
 }
 // nhánh rẽ phía phải (chiều +s): t ∈ [−rampLen, rampLen], ngoài khoảng trả null
 export function rampU(t) {
@@ -82,16 +108,24 @@ export class Road {
     this.pts = [{ x: 0, z: 0, y: hLow(0, 0) }];
     this.dirt = false;            // bật ở map đồi thông
     this.city = false;            // map Phố: đường thẳng + ngã tư
-    this.avenue = false;          // map Đại lộ: cao tốc cong rất thoải
+    this.avenue = false;          // map Đại lộ: cao tốc cong rất thoải (cả map Cao tốc HLG)
+    this.real = null;             // map Cao tốc HLG: { step, heading[] } hướng đi thật theo s (dữ liệu OSM, `hlg.js`)
     this._cum = [0];              // map Phố: tổng góc bẻ tới hết đoạn k
   }
 
-  // đổi hình đường: kind 'city' (Phố) | 'avenue' (Đại lộ) | khác (đường lượn các map ngắm cảnh) => tính lại toàn bộ điểm đường
-  setShape(kind) {
-    const city = kind === 'city', avenue = kind === 'avenue';
-    if (city === this.city && avenue === this.avenue) return;
-    this.city = city; this.avenue = avenue;
+  // đổi hình đường: kind 'city' (Phố) | 'avenue' (Đại lộ) | 'hlg' (cao tốc thật, real = { step, heading[] }) | khác (đường lượn
+  // các map ngắm cảnh) => tính lại toàn bộ điểm đường
+  setShape(kind, real = null) {
+    const city = kind === 'city', avenue = kind === 'avenue' || kind === 'hlg';
+    real = kind === 'hlg' ? real : null;
+    if (city === this.city && avenue === this.avenue && real === this.real) return;
+    this.city = city; this.avenue = avenue; this.real = real;
     this.pts = [{ x: 0, z: 0, y: 0 }];
+  }
+  // hướng thật tại s (nội suy tuyến tính mảng heading, ngoài 2 đầu giữ hướng cuối)
+  _realH(s) {
+    const { step, heading: A } = this.real, f = Math.min(A.length - 1, Math.max(0, s / step)), i = Math.min(A.length - 2, Math.floor(f));
+    return A[i] + (A[i + 1] - A[i]) * (f - i);
   }
 
   // góc bẻ ở đầu đoạn k (map Phố): một nửa số đoạn đi thẳng; kéo dần về hướng gốc để đường không xoay vòng
@@ -138,6 +172,7 @@ export class Road {
   baseY(s) { const y = this.at(s, this._by || (this._by = {})).y; return this.avenue ? y - avHump(s) : y; }
 
   heading(s) {
+    if (this.real) return this._realH(s);
     if (this.avenue) return HA(s) - HA0;
     if (!this.city) return H(s) - H0;
     const k = Math.floor(s / CITY.seg);

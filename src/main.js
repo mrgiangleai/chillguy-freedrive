@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { ROAD, ROAD_HW, CITY, AVENUE, IC, icS, icIndex, rampU, avHump, TOLL, tollDist, riverIndex, CAM, camS, camIndex, avLimit, Road } from './road.js';
+import { ROAD, ROAD_HW, CITY, AVENUE, IC, icS, icIndex, rampU, avHump, TOLL, tollDist, tollIndex, riverIndex, CAM, camS, camIndex, avLimit, setLayout, Road } from './road.js';
+import { HLG, hlgLayout } from './hlg.js';
 import { Avenue } from './avenue.js';
 import { Minimap } from './minimap.js';
 import { City, SIGNAL } from './city.js';
@@ -50,7 +51,9 @@ const GEARS = [25 * KMH, 50 * KMH, 180 * KMH];
 const CHILL_DEFAULT = GEARS[0], CHILL_MIN = 10 * KMH, CHILL_MAX = 60 * KMH, FAST_SPEED = GEARS[2];
 // map Đại lộ: cấp tốc độ cao tốc 80 → 100 → 180 km/h, chỉnh tay (W/S) tới 120 km/h
 const AV_GEARS = [80 * KMH, 100 * KMH, 180 * KMH], AV_MAX = 120 * KMH;
-const onAvenue = () => MAPS[state.map]?.id === 'avenue';
+// map Cao tốc HLG (dữ liệu thật) dùng chung mọi thứ của Đại lộ: `mapKind` quy 'hlg' về 'avenue'
+const mapKind = (id) => (id === 'hlg' ? 'avenue' : id);
+const onAvenue = () => mapKind(MAPS[state.map]?.id) === 'avenue';
 const gears = () => (onAvenue() ? AV_GEARS : GEARS);
 
 // ---------- renderer / scene ----------
@@ -93,7 +96,7 @@ const person = new Person();
 const stop = new StopScene(cars, person);
 // mặt đất dưới người khi xuống xe: mặt đường (+5 cm), vỉa hè map Phố (+20 cm), còn lại địa hình
 // Đại lộ: ngoài mép cao tốc trong vùng nút giao (nhánh rẽ, đường ngang) mặt đất ở cao độ nền (`road.baseY`), không theo cầu vượt
-const avLowY = (s, u) => (MAPS[state.map].id === 'avenue' && Math.abs(u) > AVENUE.hw + 0.3 && Math.abs(s - icS(icIndex(s))) < IC.rampLen + 20 ? road.baseY(s) : null);
+const avLowY = (s, u) => (onAvenue() && Math.abs(u) > AVENUE.hw + 0.3 && Math.abs(s - icS(icIndex(s))) < IC.rampLen + 20 ? road.baseY(s) : null);
 stop.groundAt = (x, z) => {
   const rp = roadPosition({ x, z }, road, drive.s), p = road.at(rp.s, {}), a = Math.abs(rp.d);
   if (a <= ROAD.halfWidth) return p.y + 0.05;
@@ -134,7 +137,7 @@ const _mmP = {}, _mmX = {};
 const minimap = new Minimap({
   road, city, avenue,
   visible: () => state.started && isDriveMap(state.map),      // chỉ chế độ Drive (Phố, Đại lộ)
-  mapId: () => MAPS[state.map].id,
+  mapId: () => mapKind(MAPS[state.map].id),
   s: () => drive.s,
   player: () => ({ x: drive.pos.x, z: drive.pos.z, th: drive.yaw }),
   cars: () => {
@@ -385,7 +388,7 @@ const retuneAnimals = () => { fireflies.ground.clear(); cows.retune(); meadow.ap
 const cloneJ = (o) => JSON.parse(JSON.stringify(o));
 const TUNE_BASE = cloneJ(tuneParts());                              // mặc định trong code (trước khi đọc bản lưu)
 const tuneSets = { chill: null, drive: null };
-let tuneGroup = ['city', 'avenue'].includes(MAPS[state.map].id) ? 'drive' : 'chill';
+let tuneGroup = ['city', 'avenue', 'hlg'].includes(MAPS[state.map].id) ? 'drive' : 'chill';
 function loadTuneSet(src) {
   if (!src) return;
   const P = tuneParts();
@@ -568,12 +571,15 @@ function warmShaders(delay = 500) {
   }, delay);
 }
 const applyMap = () => {
-  const id = MAPS[state.map].id;
+  const mapId = MAPS[state.map].id, id = mapKind(mapId), isHlg = mapId === 'hlg';
   setTerrainMap(id);            // đổi tham số địa hình (đồi thấp / đồi núi)
-  const isCity = id === 'city', isAvenue = id === 'avenue', isTraffic = isCity || isAvenue;   // nhóm Drive: Phố + Đại lộ
+  const isCity = id === 'city', isAvenue = id === 'avenue', isTraffic = isCity || isAvenue;   // nhóm Drive: Phố + Đại lộ + Cao tốc HLG
   ROAD.halfWidth = isCity ? CITY.hw : isAvenue ? AVENUE.hw : ROAD_HW;   // phố: 4 làn; đại lộ: 6 làn + lề
-  road.setShape(id);            // phố: đường thẳng theo đoạn + ngã tư; đại lộ: cong rất thoải
-  if (isAvenue && curMapId !== 'avenue') { drive.s = 150; drive.ramp = null; }   // vào đại lộ: luôn từ đầu đường (cầu cao ở 700 m, cầu sông 2.2 km)
+  // cao tốc HLG: vào map luôn ở An Phú, chiều đi Dầu Giây; bố trí công trình theo dữ liệu thật (Đại lộ: theo chu kỳ)
+  if (isHlg && curMapId !== 'hlg') hlgDir = hlgLayout(false);
+  setLayout(isHlg ? hlgDir : null);
+  road.setShape(isHlg ? 'hlg' : id, isHlg ? hlgDir.real : null);   // phố: đường thẳng theo đoạn + ngã tư; đại lộ: cong rất thoải
+  if (isAvenue && curMapId !== mapId) { drive.s = isHlg ? HLG.start : 150; drive.ramp = null; }   // vào đại lộ: luôn từ đầu đường (cầu cao ở 700 m, cầu sông 2.2 km)
   road.dirt = id === 'forest';  // đồi thông: có đoạn đường đất xuyên rừng
   road.recomputeHeights();      // độ cao đường theo địa hình mới
   // map Biển: mực nước thấp hơn chỗ thấp nhất của đường 3 m (xét 120 km đường phía trước)
@@ -608,17 +614,18 @@ const applyMap = () => {
   if (!isTraffic && tuneKind === 'traffic') closeTune();
   applyTrafficTune(); applyLightTune();
   if (isCity && state.started) toast('Map Phố: tự phanh khi gặp đèn đỏ — giữ phím Space hoặc nút Space');
-  if (isAvenue && state.started) toast('Map Đại lộ: cao tốc 6 làn — giữ ← / → để đổi làn');
+  if (isAvenue && state.started) toast(isHlg ? 'Cao tốc TP.HCM – Long Thành – Dầu Giây (dữ liệu thật © OpenStreetMap) — giữ ← / → để đổi làn'
+    : 'Map Đại lộ: cao tốc 6 làn — giữ ← / → để đổi làn');
   cityFront = null;
   // cài đặt (thời tiết / giờ / camera) của map Phố tách riêng: vào phố => lấy bộ của phố (mặc định Tự động / Tự động / Sau xe,
   // lưu trên trình duyệt), ra khỏi phố => trả lại bộ của các map khác
   // đại lộ cũng có bộ riêng (lần đầu lấy theo bộ hiện tại của Phố)
-  const prevMap = curMapId; curMapId = id;
+  const prevMap = curMapId; curMapId = mapId;
   switchTuneGroup(isTraffic ? 'drive' : 'chill');               // thông số chỉnh tay riêng Chill / Drive (trước khi trả cài đặt map)
-  if (prevMap !== id) {
+  if (prevMap !== mapId) {
     if (SCOPED[prevMap]) saveScope(prevMap);
-    else if (prevMap !== null && SCOPED[id]) saveScope('world');
-    if (SCOPED[id]) restoreScope(scopes[id] || (isAvenue && scopes.city) || cityDefaults());
+    else if (prevMap !== null && SCOPED[mapId]) saveScope('world');
+    if (SCOPED[mapId]) restoreScope(scopes[mapId] || (isHlg && scopes.avenue) || (isAvenue && scopes.city) || cityDefaults());
     else if (SCOPED[prevMap] && scopes.world) restoreScope(scopes.world);
   }
   rig.sideDist = isCity ? 13 : isAvenue ? 17 : null;   // phố / đại lộ: camera bên hông đứng trên đường (không chui vào nhà / ra ngoài hộ lan)
@@ -634,8 +641,27 @@ const applyMap = () => {
   warmShaders();
 };
 // chế độ chọn ở màn hình vào game: Chill = các map ngắm cảnh (không có Phố), Drive = chỉ map Phố
-const CITY_MAP = MAPS.findIndex((m) => m.id === 'city'), AVENUE_MAP = MAPS.findIndex((m) => m.id === 'avenue');
-const isDriveMap = (i) => i === CITY_MAP || i === AVENUE_MAP;     // nhóm Drive (giao thông): Phố + Đại lộ
+const CITY_MAP = MAPS.findIndex((m) => m.id === 'city'), AVENUE_MAP = MAPS.findIndex((m) => m.id === 'avenue'), HLG_MAP = MAPS.findIndex((m) => m.id === 'hlg');
+const isDriveMap = (i) => i === CITY_MAP || i === AVENUE_MAP || i === HLG_MAP;     // nhóm Drive (giao thông): Phố + Đại lộ + Cao tốc HLG
+let hlgDir = null;              // bố trí chiều đang chạy của cao tốc HLG (đổi khi quay đầu cuối tuyến)
+let hlgTurnT = 0;
+// cao tốc HLG: còn HLG.end m tới cuối tuyến => màn tối, quay đầu chạy chiều về (dựng lại đường + công trình của chiều kia)
+function hlgEnd(dt) {
+  if (MAPS[state.map].id !== 'hlg' || !hlgDir) { hlgTurnT = 0; return; }
+  if (!hlgTurnT && drive.ramp == null && !stop.active && !incident.active && drive.s > HLG.length - HLG.end) {
+    hlgTurnT = 1.4; $('fade').textContent = hlgDir.rev ? '↩ Tới An Phú (TP.HCM) — quay đầu đi Dầu Giây' : '↩ Tới Dầu Giây — quay đầu về TP.HCM';
+    $('fade').classList.add('show');
+  }
+  if (hlgTurnT > 0 && (hlgTurnT -= dt) <= 0) {
+    hlgTurnT = 0;
+    hlgDir = hlgLayout(!hlgDir.rev);
+    drive.s = HLG.start; drive.ramp = null;
+    cityTraffic.visible = false;               // trả xe model, xoá xe theo đường cũ (applyMap bật lại)
+    applyMap();
+    $('fade').classList.remove('show');
+    say(hlgDir.rev ? 'Chiều về · Dầu Giây → TP.HCM' : 'Chiều đi · TP.HCM → Dầu Giây');
+  }
+}
 let lastDriveMap = CITY_MAP;
 let lastChillMap = MAPS.findIndex((m) => m.id === 'meadow');
 // tên chế độ hiện giữa màn hình 1 giây rồi mờ dần
@@ -671,8 +697,8 @@ let renderTune = () => {};
 const nextCam = () => { state.cam = (state.cam + 1) % CAMERAS.length; rig.setMode(state.cam); onCamChange(); refreshUI(); if (tuneKind === 'camera') renderTune(); say('Camera · ' + CAMERAS[state.cam].name); };
 // thời tiết 'auto': tự chọn ngẫu nhiên (trong / mây / mưa / sương / bão) mỗi 2.5–5 phút
 let autoWeatherT = 0, curMapId = null;
-const SCOPED = { city: 'chilldrive.city', avenue: 'chilldrive.avenue' };   // map có bộ cài đặt riêng (lưu trên trình duyệt)
-const scopes = { world: null, city: null, avenue: null };
+const SCOPED = { city: 'chilldrive.city', avenue: 'chilldrive.avenue', hlg: 'chilldrive.hlg' };   // map có bộ cài đặt riêng (lưu trên trình duyệt)
+const scopes = { world: null, city: null, avenue: null, hlg: null };
 for (const [k, key] of Object.entries(SCOPED)) try { scopes[k] = JSON.parse(localStorage.getItem(key)); } catch { /* bỏ qua */ }
 const cityDefaults = () => ({ weather: WEATHERS.findIndex((w) => w.id === 'auto'), time: TIMES.findIndex((t) => t.id === 'auto'), cam: CAMERAS.findIndex((c) => c.id === 'chase') });
 function saveScope(name) {
@@ -1075,7 +1101,7 @@ renderTune = () => {
     tuneMode.hidden = true;
     $('tune-title').textContent = 'Nature · cỏ cây';
     // mỗi loại cỏ một bộ riêng: map Cỏ lau => cỏ lau (`reeds`), map Đồi cỏ / Đại lộ => cỏ đồi (`meadow`)
-    const mid = MAPS[state.map].id, fld = mid === 'reed' ? reeds : mid === 'meadow' || mid === 'avenue' ? meadow : null;
+    const mid = mapKind(MAPS[state.map].id), fld = mid === 'reed' ? reeds : mid === 'meadow' || mid === 'avenue' ? meadow : null;
     if (!fld) { addHeading('Map này chưa có tuỳ chỉnh cỏ (có ở map Đồi cỏ, Cỏ lau, Đại lộ)'); return; }
     const N = fld.tune, ap = () => fld.applyTune();
     addHeading(fld === reeds ? 'Cỏ lau (map Cỏ lau)' : 'Cỏ (map Đồi cỏ' + (mid === 'avenue' ? ', Đại lộ)' : ')'));
@@ -1523,6 +1549,7 @@ function frame(now) {
     refreshUI();
   }
   drive.s += drive.v * dt;
+  hlgEnd(dt);
   // hiệu ứng tốc độ tăng dần theo tốc độ thực tế (không có gì dưới ~55 km/h)
   drive.fx += (sstep(55 * KMH, FAST_SPEED, drive.v) - drive.fx) * (1 - Math.exp(-dt * 4));
 
@@ -1617,14 +1644,14 @@ function frame(now) {
   scenery.updateLights(camera.position);
   if (avenue.visible) {                                    // đại lộ: mặt sông khi tới gần cầu sông (≤ 3.5 km)
     const R = avenue.river(riverIndex(drive.s));
-    ocean.setRiver(Math.abs(R.s - drive.s) < 3500, R.level, R.P, { x: R.fx, z: R.fz }, R.hw);
+    ocean.setRiver(Math.abs(R.s - drive.s) < 3500, R.level, R.P, { x: R.fx, z: R.fz }, R.hw, R.mA ?? 40);
   }
   ocean.update(now / 1000, camera.position, road, drive.s);
   waterfalls.update(now / 1000, drive.s, st.light, { d: drive.d, v: drive.v, dim: cars.dim, npcs: traffic.active, cam: camera, audio });
   if (reeds.visible) reeds.update(now / 1000, camera.position, road, drive.s, st);
   grass.group.visible = MAPS[state.map].id === 'forest' && st.cover < 0.5;   // tuyết phủ thì ẩn cỏ
   if (grass.visible) grass.update(now / 1000, camera.position, road, drive.s, st);
-  meadow.group.visible = (MAPS[state.map].id === 'meadow' || MAPS[state.map].id === 'avenue') && st.cover < 0.5;
+  meadow.group.visible = (MAPS[state.map].id === 'meadow' || onAvenue()) && st.cover < 0.5;
   if (meadow.visible) meadow.update(now / 1000, camera.position, road, drive.s, st);
   cows.update(dt, drive.s, road, terrain);
   terrain.setCar(drive.s);
@@ -1691,7 +1718,7 @@ function frame(now) {
       if (onAvenue() && !stop.active && drive.ramp == null) {
         const front = drive.s + cars.dim.length / 2, dl = tollDist(front, 1);
         if (dl < TOLL.zone && dl > -14) maxV = Math.min(maxV, TOLL.slow + Math.sqrt(2 * 1.6 * Math.max(0, dl - 2)));
-        const tk = Math.round((front + dl - TOLL.first) / TOLL.period);
+        const tk = tollIndex(front + dl);
         if (dl < 300 && dl > 150 && tollWarn !== tk) { tollWarn = tk; toast('🛂 Sắp tới trạm thu phí — tự giảm tốc, thu phí tự động'); }
         if (dl < 0 && dl > -14 && tollPaid !== tk) { tollPaid = tk; audio.beep(); toast('💳 Đã trừ phí tự động (ETC): 35.000đ'); }
         avenue.updateToll(dt, [{ s: front, d: drive.d, dir: 1 }, ...cityTraffic.cars.filter((c) => !c.xr && !c.cross && c.ramp == null).map((c) => ({ s: c.s + c.dir * c.len / 2, d: c.d, dir: c.dir }))]);

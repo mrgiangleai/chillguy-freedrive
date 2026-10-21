@@ -49,6 +49,7 @@ export const MAPS = [
   { id: 'sea', name: 'Biển', icon: '🌊' },
   { id: 'city', name: 'Phố', icon: '🏙️' },
   { id: 'avenue', name: 'Đại lộ', icon: '🛣️' },
+  { id: 'hlg', name: 'Cao tốc HCM – Long Thành – Dầu Giây', icon: '🛣️' },
 ];
 
 export const WEATHERS = [

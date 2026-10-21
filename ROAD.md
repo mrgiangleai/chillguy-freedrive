@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -17,7 +17,7 @@
   Máy chủ thử chạy nền tự tắt sau 2 giờ => bật lại. Script chụp tạm để ở scratchpad, không đưa file preview vào `docs/`.
   Máy chậm => môi trường (env map) chưa kịp chụp lại khi đổi giờ: gọi `__app.env.update(0.016, drive.pos); env._captureEnv()`.
 - **Kiểm tra tự động** (node, không cần trình duyệt; đều PASS): `scripts/check-traffic.mjs`, `check-traffic-policy.mjs`, `check-steering.mjs`,
-  `check-stopscene.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
+  `check-stopscene.mjs`, `check-hlg.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
   `check-waterfalls.mjs`, `check-rear-glass.mjs [model.glb]`. Model tải lên nặng: nén bằng `npx @gltf-transform/cli@4 webp … --quality 82`
   rồi `meshopt` (giữ file gốc); sóng biển bake bằng `node scripts/bake-ocean.mjs`. **Fixture GUI** `scripts/*-preview.js` (giữ cảnh cố định để chụp):
   bundle bằng esbuild ra `docs/<tên>-check.js`, sao `docs/index.html` thành trang riêng đổi script sang bundle đó; chụp xong
@@ -51,7 +51,7 @@
 | `terrain.js`, `terrain-noise.js` | Địa hình quadtree nhiều mức, cây tấm, cụm đá (`rockGeometry(k, detail)` export), texture ảnh; `setView` (Ultra xa ×2); `heightAt` (đặt `_d` = khoảng cách tới đường); `hash2`, `vnoise` |
 | `nature.js` | Cây/bụi/đá model chi tiết quanh camera (gần đổ bóng, xa không) |
 | `reeds.js` | Cỏ lau / búi cỏ / cỏ đồi (instancing, gió, `setView`) |
-| `road.js`, `scenery.js` | Đường vô tận (`at`, `heading`, `curvature(s)` đổi hướng có dấu trên 12 m), đoạn đường đất; mặt đường (nhựa sần, vũng nước, phản chiếu), cọc, đèn đường (cột `LAMP_H` 11.1 m; ánh sáng = `LAMP_LIGHTS` 3 SpotLight dùng chung, `updateLights(cam)` gán cột gần nhất, mờ theo khoảng cách cột kế tiếp; 140 × lamps (đã giảm 80%), nửa góc 1.2, penumbra 0.8, decay 0.6, tầm 80 m, chếch vào lòng đường), hộ lan |
+| `road.js`, `scenery.js` | **Lớp bố trí** `setLayout(L)` / `layout()`: null = Đại lộ theo chu kỳ; danh sách thật (HLG) => `icS/icIndex/flyS/flyIndex/flyP/riverS/riverIndex/riverP/tollS/tollIndex/tollDist/camS/camIndex/avLimit/avHump` đọc danh sách (chỉ số ngoài danh sách = ±1e9). `setShape('hlg', real)` => `heading(s)` nội suy dữ liệu thật. Đường vô tận (`at`, `heading`, `curvature(s)` đổi hướng có dấu trên 12 m), đoạn đường đất; mặt đường (nhựa sần, vũng nước, phản chiếu), cọc, đèn đường (cột `LAMP_H` 11.1 m; ánh sáng = `LAMP_LIGHTS` 3 SpotLight dùng chung, `updateLights(cam)` gán cột gần nhất, mờ theo khoảng cách cột kế tiếp; 140 × lamps (đã giảm 80%), nửa góc 1.2, penumbra 0.8, decay 0.6, tầm 80 m, chếch vào lòng đường), hộ lan |
 | `town.js` | Map núi: thị trấn nhỏ + **thị trấn lớn** dưới thung lũng, đèn đường |
 | `waterfalls.js` | Map núi: suối/thác (`waterfallSpec`, `waterfallGeometry` → nodes/water/wet/rocks/sprays; `Waterfalls.setMap`, `update(time, s, light, {d, v, dim, npcs, cam, audio})`). Dòng dò theo dốc (`trace`) + uốn lượn (`meander`); nước = MeshStandardMaterial + nhiễu theo **thời gian chảy `tau`** (không dùng `along - uTime*speed` => tránh sọc); lớp ướt = blend nhân màu; đá tảng dùng `rockGeometry(k, 2)` + `terrain.rockMat`; nước bắn bánh xe (`Splash`, Points kéo về camera 4%) |
 | `carriage.js` | `loadCarriage(loader)` → hàm tạo xe ngựa `{group, dim 5.6×2.8, wheels: [], mixer, carriage: true}`; `CARRIAGE` (15–30 s, tối đa 2, 25–40 km/h). traffic.js sinh/điều khiển như NPC (`_spawnCarriage`, `carriageTimer`, không đèn, không tiếng lướt, không nhận chùm pha dùng chung) |
@@ -61,6 +61,7 @@
 | `cityPeople.js` | Map Phố: người đi bộ dựng bằng code (1 InstancedMesh, chân tay đung đưa trong vertex shader theo `aWalk` = pha, đang đi). Toạ độ (s, u) theo đường chính. Đi vỉa hè (chờ đèn đường chính xanh mới qua đường ngang), chờ ở góc rồi băng qua vạch đường chính khi đèn đường ngang xanh còn ≥ 9 s. `spawn/goTo/remove` cho người kịch bản; `hitTest`, `crossingNear` |
 | `cityIncident.js` | Map Phố: đâm xe / người => xe dừng khựng, nạn nhân ngã / xe đứng yên, camera Quay quanh; cảnh sát (xe đen trắng, đèn đỏ nhấp nháy) tới từ phía sau, cảnh sát đi tới cửa lái, người lái (ẩn model, hiện người dựng) theo về xe cảnh sát; xe cấp cứu tới từ phía trước làn ngược chiều, 2 nhân viên đưa nạn nhân đi; màn hình tối "bị đưa về đồn" rồi chạy tiếp (~30 s). Còi hụ (`audio.setSiren`: cảnh sát rú 650↔1350 Hz chu kỳ 4 s, cấp cứu "pi–po" 960/770 Hz) khi xe ưu tiên đang chạy, tắt khi đỗ, to dần khi lại gần |
 | `avenue.js` | Map Đại lộ (nút giao `ic(k)/_buildIC/carve`, trạm thu phí `_buildToll/updateToll`, atlas biển `signTexture`): dựng theo đoạn 200 m quanh xe (±1.4 km / 300 m sau): vạch kẻ (vàng liền sát dải phân cách, trắng đứt 6/9 m giữa làn, trắng liền mép ngoài), dải phân cách bê tông "jersey" kéo theo mặt cắt. Đường: `road.setShape('avenue')` (cong rất thoải), `AVENUE` trong road.js. Xe: `cityTraffic.setMode('avenue')` |
+| `hlg.js` | Map Cao tốc HCM – Long Thành – Dầu Giây (`hlg`): `HLG` (length 54 520 m, start 150, end 320), `hlgLayout(rev)` → bố trí 1 chiều từ `hlg-data.json` (OSM, tạo bằng `node scripts/fetch-hlg.mjs`, cache Overpass ở scratchpad): `real.heading` (mỗi 10 m), `ics` (cách ≥ 1.3 km, xa sông), `rivers` (rộng ≥ 40 m, cách ≥ 3.5 km, tâm = chỗ sông cắt tuyến, sông ≥ 300 m có tháp dây văng, `meander` 0), `flys` (cầu 250 m–3 km không qua sông), `tolls` (bỏ trạm trên nhánh nút giao), `cams` (~6 km chỗ trống), `limits` (maxspeed OSM). Chiều về: s' = L − s, hướng + π |
 | `minimap.js` | Bản đồ tròn (chỉ chế độ Drive): canvas 2D vẽ từ dữ liệu thật — `road.pts`, khối nhà + đường ngang Phố, nút giao / nhánh / đường gom / nhà / trạm thu phí Đại lộ, xe khác (chấm), xe mình (mũi tên xanh). Thu nhỏ 150 px (điện thoại 104) góc phải giữa, bám xe, hướng xe lên trên, vẽ ~8 lần/s; bấm vào: phóng to giữa màn hình (78vmin, `body.mapopen` ẩn các hộp HUD bị đè), Bắc lên trên, kéo = pan, lăn chuột / chụm 2 ngón = zoom (0.02–4 px/m), ◎ về xe, × / Esc / bấm ngoài để thu nhỏ; thước tỉ lệ |
 | `cows.js` | Map đồi cỏ: đàn 5 bò sữa + hàng rào gỗ |
 | `fireflies.js` | Đom đóm ban đêm |
@@ -204,6 +205,14 @@ model thử (~625 MB) không nằm trong git.
   (vạch qua đường xanh, "止まれ" trên đường ngang, tốc độ 40, cấm đỗ). Cài đặt thời tiết / giờ / camera của phố tách riêng
   (`scopes`, lưu `chilldrive.city`; mặc định Tự động / Tự động / Sau xe); ra khỏi phố trả lại bộ của map khác.
   Mỗi lần chuyển đổi (camera, xe, map, thời tiết, giờ, nhân vật, tốc độ, nhạc, chất lượng, dừng) có toast ngắn 1.6 s (`say`).
+  **Map Cao tốc HCM – Long Thành – Dầu Giây** (`hlg`, 🛣️, nhóm Drive; M: Phố → Đại lộ → Cao tốc): dùng toàn bộ Đại lộ (`mapKind('hlg')`
+  = 'avenue' trong main; địa hình / cỏ / xe / bảng 🚦 như Đại lộ, 3 làn mỗi chiều dù OSM ghi 2), đường + công trình theo dữ liệu thật
+  (OSM ODbL, credits trong README + ⓘ). Chiều đi An Phú → Dầu Giây 54.5 km: nút giao Đỗ Xuân Hợp 3.1, Vành đai 2 4.5, Long Trường 7.8,
+  Nhơn Trạch 19.5, QL51 23.3, Long Thành 24.7, Cẩm Mỹ 43.0 km (tên thật trên giàn biển, `hlgSign`); Cầu Long Thành (sông Đồng Nai hw 332,
+  tháp) 12.5, Nước Trong 16.1, Đồng Môn 21.5; cầu cạn Mương Kênh 1.4, Ruột Ngựa 14.6; trạm phí Long Phước 11.1, Dầu Giây 52.2;
+  giới hạn 60 (An Phú) / 80 / 120 / 100 (Cầu Long Thành) / 60 (nút QL51 – Long Thành). Còn 320 m tới cuối => `#fade` 1.4 s, `hlgLayout(!rev)`,
+  `applyMap()` dựng lại (xe về s = 150). Bộ cài đặt riêng `chilldrive.hlg` (lần đầu lấy của Đại lộ). Sông cắt vuông góc với tuyến
+  (đơn giản hoá), cầu cạn dài 6.5 km qua Sông Tắc và các cầu nhỏ chưa dựng; địa hình phẳng (không có độ cao thật).
   **Map Đại lộ** (`avenue`, 🛣️, nhóm Drive cùng Phố; M trong Drive: Phố ↔ Đại lộ): cao tốc 6 làn (`AVENUE`: tâm làn ±2.25 / ±5.75 /
   ±9.25, dải phân cách ±0.5, mép làn ±11, lề khẩn cấp tới ±13), đường cong rất thoải (bán kính ≥ ~2 km), địa hình `avenue` (đồi cỏ
   thấp, cỏ cao `meadow` hai bên), hộ lan thép 2 bên, đèn đường 2 bên xen kẽ. Xe: `cityTraffic` chế độ avenue (3 làn mỗi chiều, tốc
@@ -361,3 +370,10 @@ model thử (~625 MB) không nằm trong git.
 - **#8 — Sửa check-stopscene: camera dừng xe bám người không trễ (18/10/2026)**: từ lần thêm `orbitCar`, tâm quay `_ctr` trượt dần
   (exp 3/s) nên khi người đi camera trễ ~0.3 s (~0.4 m) và script báo "Orbit must look at the player". Nay chỉ trượt tỉ lệ người ↔ xe
   (`_carK`), tâm = vị trí người từng khung (hoà về xe theo `_carK`). Đổi người ↔ xe vẫn mượt ~1.5 s. Mọi `check-*` chạy lại PASS.
+- **#9 — Map Cao tốc HCM – Long Thành – Dầu Giây từ dữ liệu thật (21/10/2026)**: chú chọn OSM (Google Maps không cho tải dữ liệu),
+  trọn tuyến tới Dầu Giây, cuối tuyến quay đầu, dùng lại đồ Đại lộ. `scripts/fetch-hlg.mjs` (Overpass, Dijkstra theo nút chung các way
+  CT.29, làm mượt hướng 60 m, lệch OSM ≤ 2 m) → `src/hlg-data.json` 54 KB; `src/hlg.js` bố trí; `road.js` lớp bố trí dùng chung; avenue.js
+  nhận thông số từng cầu (viaduct / hw / depth / biên độ uốn `mA`, tháp tuỳ chọn, thuyền chỉ ở sông ≥ 120 m), biển nút giao tên thật;
+  shader sông nhận `uRivM`. `check-hlg.mjs` PASS (lệch ≤ 7 m sau khi dựng, R min 352 m ngoài nhánh dẫn, không chồng công trình, 2 chiều
+  khớp, Đại lộ giữ bố trí cũ); check traffic / traffic-policy / steering / car-switch PASS. GUI Low: An Phú (biển 60), nút giao Vành đai 2,
+  Cầu Long Thành (tháp + biển 100), quay đầu ở Dầu Giây sang chiều về; console không lỗi. Chưa xem trên máy thật / Good / Ultra.
