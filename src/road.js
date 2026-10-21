@@ -70,6 +70,20 @@ export const riverIndex = (s) => (LAY ? nearIdx(LAY.rivers, s) : s < (RIVER.firs
 // thông số riêng từng cầu (danh sách thật ghi đè giá trị chung: viaduct, hw, hump…)
 export const flyP = (k) => (LAY && LAY.flys[k]) || FLY;
 export const riverP = (k) => (LAY && LAY.rivers[k]) || RIVER;
+export const icP = (k) => (LAY && LAY.ics[k]) || IC;
+// cầu cạn / cầu nhỏ (chỉ map HLG): đoạn mặt cầu trên trụ, không có đường dưới gầm, có thể bắc qua suối / kênh.
+// { s (tâm), half (nửa chiều dài), h (độ nhô), flat, rise, name, creeks: [{ t (so với s), hw }] }; cầu dài chia đoạn ≤ 800 m nối liền nhau
+export const deckS = (k) => (LAY?.decks ? at(LAY.decks, k) : FAR);
+export const deckIndex = (s) => (LAY?.decks ? nearIdx(LAY.decks, s) : 0);
+export const deckP = (k) => LAY?.decks?.[k] || null;
+// độ nhô của cầu cạn tại s (0 ngoài cầu + dốc dẫn)
+export function deckHump(s) {
+  if (!LAY?.decks) return 0;
+  const k = deckIndex(s);
+  let h = 0;                     // lấy lớn nhất của 3 cầu quanh s => dốc dẫn của 2 cầu gần nhau không bị gãy khúc
+  for (let j = k - 1; j <= k + 1; j++) { const D = LAY.decks[j]; if (D) h = Math.max(h, D.h * (1 - sm(D.flat, D.rise, Math.abs(s - D.s)))); }
+  return h;
+}
 // tốc độ tối đa (km/h) trên cao tốc theo biển: 40 quanh trạm phí (biển ở 250 m trước, hết 120 m sau), 100 quanh nút giao
 // (biển 100 ở t = −700, biển 120 ở t = 620), còn lại 120 (map HLG: theo biển thật từng đoạn). Nhánh ra / vào: 60 (main tự xét)
 export function avLimit(s, dir = 1) {
@@ -80,10 +94,10 @@ export function avLimit(s, dir = 1) {
   return t > -700 && t < 620 ? 100 : 120;
 }
 export function avHump(s) {
-  const a = Math.abs(s - icS(icIndex(s)));
+  const ik = icIndex(s), a = Math.abs(s - icS(ik));
   const fk = flyIndex(s), F = flyP(fk), b = Math.abs(s - flyS(fk));
   const rk = riverIndex(s), R = riverP(rk), c = Math.abs(s - riverS(rk));
-  return IC.hump * (1 - sm(IC.flat, IC.rise, a)) + F.hump * (1 - sm(F.flat, F.rise, b)) + R.hump * (1 - sm(R.flat, R.rise, c));
+  return (icP(ik).hump ?? IC.hump) * (1 - sm(IC.flat, IC.rise, a)) + F.hump * (1 - sm(F.flat, F.rise, b)) + R.hump * (1 - sm(R.flat, R.rise, c)) + deckHump(s);
 }
 // nhánh rẽ phía phải (chiều +s): t ∈ [−rampLen, rampLen], ngoài khoảng trả null
 export function rampU(t) {
@@ -168,8 +182,14 @@ export class Road {
   }
 
   _y(x, z, s) { return this.city ? hLow(x, z) : this.avenue ? hLow(x, z) + avHump(s) : hLow(x, z) + this.dirtAt(s) * bump(s); }
-  // cao độ nền của đại lộ tại s (không tính phần nhô lên cầu vượt) — nhánh rẽ / đường ngang đi ở cao độ này
-  baseY(s) { const y = this.at(s, this._by || (this._by = {})).y; return this.avenue ? y - avHump(s) : y; }
+  // cao độ nền của đại lộ tại s (không tính phần nhô lên cầu vượt) — nhánh rẽ / đường ngang đi ở cao độ này.
+  // Nút giao nằm trên cầu cạn (HLG): nhánh tách ở cao độ cầu rồi xuống dần, tới đường ngang (|t| ≤ 60) mới về mặt đất
+  baseY(s) {
+    const y = this.at(s, this._by || (this._by = {})).y;
+    if (!this.avenue) return y;
+    const dh = deckHump(s);
+    return y - avHump(s) + (dh ? dh * sm(60, 400, Math.abs(s - icS(icIndex(s)))) : 0);
+  }
 
   heading(s) {
     if (this.real) return this._realH(s);

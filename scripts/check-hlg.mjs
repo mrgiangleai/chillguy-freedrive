@@ -1,5 +1,5 @@
 // Kiểm tra map Cao tốc HLG: dữ liệu OSM liên tục, đường dựng lại khớp toạ độ thật, công trình không chồng nhau, đảo chiều đúng.
-import { Road, setLayout, icS, icIndex, tollDist, avLimit, avHump, IC } from '../src/road.js';
+import { Road, setLayout, icS, icIndex, tollDist, avLimit, avHump, deckHump, IC } from '../src/road.js';
 import { HLG, hlgLayout } from '../src/hlg.js';
 
 let fail = 0;
@@ -46,6 +46,20 @@ for (const rev of [false, true]) {
   ok([...lims].every((v) => v >= 40 && v <= 120), `${tag}: tốc độ tối đa ${[...lims].sort((a, b) => a - b).join('/')}`);
   let hmax = 0; for (let s = 0; s < L; s += 20) hmax = Math.max(hmax, avHump(s));
   ok(hmax < 25, `${tag}: độ nhô cầu tối đa ${hmax.toFixed(1)} m`);
+  // mặt đường + cao độ nhánh nút giao liền mạch (bước 2 m không nhảy quá 0.2 m — dốc tối đa 10%)
+  let jy = 0, jb = 0, js = 0, jbs = 0;
+  for (let s = 2; s < L; s += 2) {
+    const a = avHump(s - 2), b = avHump(s); if (Math.abs(b - a) > jy) { jy = Math.abs(b - a); js = s; }
+    const c = road.baseY(s - 2) - road.at(s - 2, {}).y, d = road.baseY(s) - road.at(s, {}).y; if (Math.abs(d - c) > jb) { jb = Math.abs(d - c); jbs = s; }
+  }
+  ok(jy < 0.2, `${tag}: độ nhô liền mạch (bước 2 m đổi tối đa ${jy.toFixed(3)} m tại ${(js / 1000).toFixed(2)} km)`);
+  ok(jb < 0.25, `${tag}: cao độ nhánh / nền liền mạch (${jb.toFixed(3)} m tại ${(jbs / 1000).toFixed(2)} km)`);
+  const onDeck = lay.ics.filter((c) => c.hump === 0);
+  ok(onDeck.every((c) => Math.abs(avHump(c.s) - IC.hump) < 0.3 && road.baseY(c.s) < road.at(c.s, {}).y - IC.hump + 0.3),
+    `${tag}: ${onDeck.length} nút giao trên cầu cạn: cao tốc ở độ cao cầu vượt, đường ngang ở mặt đất`);
+  ok(lay.decks.every((D) => D.creeks.every((c) => Math.abs(c.t) + c.hw <= D.half * 2 + 1)), `${tag}: ${lay.decks.length} đoạn cầu, lạch nằm dưới cầu`);
+  let sum = 0; for (const D of lay.decks) sum += 2 * D.half;
+  console.log(`     cầu cạn / cầu nhỏ: tổng ${(sum / 1000).toFixed(2)} km; deckHump(km 7) = ${deckHump(rev ? L - 7000 : 7000).toFixed(1)} m`);
 }
 setLayout(null);
 // Đại lộ không đổi: chỉ số / vị trí theo chu kỳ cũ

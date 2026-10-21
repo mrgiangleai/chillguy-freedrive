@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -51,7 +51,7 @@
 | `terrain.js`, `terrain-noise.js` | Địa hình quadtree nhiều mức, cây tấm, cụm đá (`rockGeometry(k, detail)` export), texture ảnh; `setView` (Ultra xa ×2); `heightAt` (đặt `_d` = khoảng cách tới đường); `hash2`, `vnoise` |
 | `nature.js` | Cây/bụi/đá model chi tiết quanh camera (gần đổ bóng, xa không) |
 | `reeds.js` | Cỏ lau / búi cỏ / cỏ đồi (instancing, gió, `setView`) |
-| `road.js`, `scenery.js` | **Lớp bố trí** `setLayout(L)` / `layout()`: null = Đại lộ theo chu kỳ; danh sách thật (HLG) => `icS/icIndex/flyS/flyIndex/flyP/riverS/riverIndex/riverP/tollS/tollIndex/tollDist/camS/camIndex/avLimit/avHump` đọc danh sách (chỉ số ngoài danh sách = ±1e9). `setShape('hlg', real)` => `heading(s)` nội suy dữ liệu thật. Đường vô tận (`at`, `heading`, `curvature(s)` đổi hướng có dấu trên 12 m), đoạn đường đất; mặt đường (nhựa sần, vũng nước, phản chiếu), cọc, đèn đường (cột `LAMP_H` 11.1 m; ánh sáng = `LAMP_LIGHTS` 3 SpotLight dùng chung, `updateLights(cam)` gán cột gần nhất, mờ theo khoảng cách cột kế tiếp; 140 × lamps (đã giảm 80%), nửa góc 1.2, penumbra 0.8, decay 0.6, tầm 80 m, chếch vào lòng đường), hộ lan |
+| `road.js`, `scenery.js` | **Lớp bố trí** `setLayout(L)` / `layout()`: null = Đại lộ theo chu kỳ; danh sách thật (HLG) => `icS/icIndex/icP/flyS/flyIndex/flyP/riverS/riverIndex/riverP/deckS/deckIndex/deckP/deckHump/tollS/tollIndex/tollDist/camS/camIndex/avLimit/avHump` đọc danh sách (chỉ số ngoài danh sách = ±1e9). `setShape('hlg', real)` => `heading(s)` nội suy dữ liệu thật. Đường vô tận (`at`, `heading`, `curvature(s)` đổi hướng có dấu trên 12 m), đoạn đường đất; mặt đường (nhựa sần, vũng nước, phản chiếu), cọc, đèn đường (cột `LAMP_H` 11.1 m; ánh sáng = `LAMP_LIGHTS` 3 SpotLight dùng chung, `updateLights(cam)` gán cột gần nhất, mờ theo khoảng cách cột kế tiếp; 140 × lamps (đã giảm 80%), nửa góc 1.2, penumbra 0.8, decay 0.6, tầm 80 m, chếch vào lòng đường), hộ lan |
 | `town.js` | Map núi: thị trấn nhỏ + **thị trấn lớn** dưới thung lũng, đèn đường |
 | `waterfalls.js` | Map núi: suối/thác (`waterfallSpec`, `waterfallGeometry` → nodes/water/wet/rocks/sprays; `Waterfalls.setMap`, `update(time, s, light, {d, v, dim, npcs, cam, audio})`). Dòng dò theo dốc (`trace`) + uốn lượn (`meander`); nước = MeshStandardMaterial + nhiễu theo **thời gian chảy `tau`** (không dùng `along - uTime*speed` => tránh sọc); lớp ướt = blend nhân màu; đá tảng dùng `rockGeometry(k, 2)` + `terrain.rockMat`; nước bắn bánh xe (`Splash`, Points kéo về camera 4%) |
 | `carriage.js` | `loadCarriage(loader)` → hàm tạo xe ngựa `{group, dim 5.6×2.8, wheels: [], mixer, carriage: true}`; `CARRIAGE` (15–30 s, tối đa 2, 25–40 km/h). traffic.js sinh/điều khiển như NPC (`_spawnCarriage`, `carriageTimer`, không đèn, không tiếng lướt, không nhận chùm pha dùng chung) |
@@ -68,7 +68,7 @@
 | `traffic.js` | Spawn/pool/vẽ NPC: ngược chiều (10–25 s/chiếc, tối đa 2) + cùng chiều (25–60 s, tối đa 1, vào từ phía sau 80–110 m); pool 3 xe; NPC chỉ có quầng pha, chùm sáng thật = 1 cặp SpotLight dùng chung (`beam`, gắn NPC gần nhất ≤300 m, `_beam`); đèn `lamps × NPC_LAMP(0.24)`, đèn hậu ×0.6; thân xe xoay `yaw = atan(latV/v)` (≤0.35, nội suy 8/s), bánh trước `w.front` đánh lái `yaw × 1.8`; âm thanh lướt qua 1 lần/lượt; xuất `ctrl {lane, maxV}` cho xe người chơi |
 | `traffic-policy.js` | Luật bám/vượt (`_decide`, `_follow`, `_canOvertake` tầm nhìn 50 m + thời gian xe đối diện tới, `_overtakeDanger`, `_sideClear`). Làn: chiều người chơi 1.5, ngược chiều −1.8. Cờ `noOvertake` (xe ngược chiều) |
 | `traffic-ai.js` | `TRAFFIC` (mật độ), `stepTraffic`: né người/xe trong 30 m từ mép thân (+1.2 s × tốc độ xe lao tới), vận tốc ngang `latV` có gia tốc (3 m/s², né gấp 16) và trần 0.2 × v (né gấp 0.35 × v), giữ hướng né, phanh/dừng nếu bị chặn, chống xuyên vật cản; `trafficCurveSpeed` (vào cua 60%); `roadPosition` (chiếu người đi bộ về toạ độ đường) |
-| `audio.js` | Nhạc lo-fi tự sinh, gió/mưa/lốp/động cơ/sấm; bus `outGain` (trong xe ×0.4 + lowpass), mưa: ngoài `rainG` 0.08, kính `glassG` 0.08, mui `roofG` 0.02 (× lượng mưa); `passBy(rel, pan, lat)` + `passDur(rel)` tiếng xe lướt qua theo tốc độ tương đối; `setSiren(kind, level, pan)` còi hụ; động cơ: hộp số ảo 6 số (`R` rpm/(m/s), đi êm lên số ≤ ~2200 rpm, đạp ga giữ tới ~5800), tần số nổ rpm/15, gầm nền + ống xả rào to dần theo vòng tua / tăng tốc (`load` = gia tốc/4) / tốc độ; `setWater(level, pan)` tiếng suối (buffer bọt khí tạo lần đầu), `splash(power)` xe lội nước |
+| `audio.js` | Nhạc lo-fi tự sinh, gió/mưa/lốp/động cơ/sấm; `engBus` (máy + ống xả) 60% ngoài xe / 30% trong xe; bus `outGain` (trong xe ×0.4 + lowpass), mưa: ngoài `rainG` 0.08, kính `glassG` 0.08, mui `roofG` 0.02 (× lượng mưa); `passBy(rel, pan, lat)` + `passDur(rel)` tiếng xe lướt qua theo tốc độ tương đối; `setSiren(kind, level, pan)` còi hụ; động cơ: hộp số ảo 6 số (`R` rpm/(m/s), đi êm lên số ≤ ~2200 rpm, đạp ga giữ tới ~5800), tần số nổ rpm/15, gầm nền + ống xả rào to dần theo vòng tua / tăng tốc (`load` = gia tốc/4) / tốc độ; `setWater(level, pan)` tiếng suối (buffer bọt khí tạo lần đầu), `splash(power)` xe lội nước |
 | `particles.js`, `mist.js`, `reflection.js`, `textures.js`, `colorspace.js` | Mưa/tuyết, sương tầng thấp (`withMist`), phản chiếu vũng nước, texture tự sinh, đổi màu hiển thị → tuyến tính |
 
 **Module dùng chung `shared/`** (JS thuần, không import three; game `src/` và editor `experiments/webgpu/` cùng import — sửa ở đây là đổi cả hai bên):
@@ -163,7 +163,8 @@ model thử (~625 MB) không nằm trong git.
 - **Xe ngựa cổ tích** (`carriage.js`, model nén `assets/models/carriage.glb` 1.6 MB từ file gốc 11 MB): chạy trên đường như NPC
   (15–30 s/chiếc, tối đa 2, 25–40 km/h, ngựa phi theo tốc độ; phần lớn ngược chiều; không đèn/tiếng lướt). Mây bụi dưới vó là
   một phần model.
-- **Dừng xe**: chân chạm đất thật (`stop._ground`: bàn chân thấp hơn so với `stop.groundAt` từ main — mặt đường +5 cm, vỉa hè
+- **Dừng xe**: camera quay quanh bám người không trễ (tâm `_ctr` = vị trí người từng khung, chỉ trượt tỉ lệ người ↔ xe `_carK`,
+  đổi người ↔ xe mượt ~1.5 s). Chân chạm đất thật (`stop._ground`: bàn chân thấp hơn so với `stop.groundAt` từ main — mặt đường +5 cm, vỉa hè
   phố +20 cm, còn lại địa hình; nâng/hạ cả người ≤ 4 cm/khung; trước đây lún ~7 cm). Xem `stopscene.js`; người áo đen; bước ra khỏi xe là camera quay quanh người + tự zoom ra xa hết cỡ trong 5 s
   (16 mm + lùi 20 m). Rê/zoom dừng tự quay 2 s; zoom tay (wheel / pinch / phím ±) tiến sát tới 1 m. Khi đi về xe,
   camera bám người và tiến từ khoảng cách hiện tại tới 1 m đúng lúc tới cửa. Nhịp hút 8 s → 12 s → ngẫu nhiên 12–24 s;
@@ -211,8 +212,15 @@ model thử (~625 MB) không nằm trong git.
   Nhơn Trạch 19.5, QL51 23.3, Long Thành 24.7, Cẩm Mỹ 43.0 km (tên thật trên giàn biển, `hlgSign`); Cầu Long Thành (sông Đồng Nai hw 332,
   tháp) 12.5, Nước Trong 16.1, Đồng Môn 21.5; cầu cạn Mương Kênh 1.4, Ruột Ngựa 14.6; trạm phí Long Phước 11.1, Dầu Giây 52.2;
   giới hạn 60 (An Phú) / 80 / 120 / 100 (Cầu Long Thành) / 60 (nút QL51 – Long Thành). Còn 320 m tới cuối => `#fade` 1.4 s, `hlgLayout(!rev)`,
-  `applyMap()` dựng lại (xe về s = 150). Bộ cài đặt riêng `chilldrive.hlg` (lần đầu lấy của Đại lộ). Sông cắt vuông góc với tuyến
-  (đơn giản hoá), cầu cạn dài 6.5 km qua Sông Tắc và các cầu nhỏ chưa dựng; địa hình phẳng (không có độ cao thật).
+  `applyMap()` dựng lại (xe về s = 150). Bộ cài đặt riêng `chilldrive.hlg` (lần đầu lấy của Đại lộ). **Cầu cạn / cầu nhỏ** (`decks`,
+  21 đoạn, tổng 9.6 km): mọi cầu OSM trừ cầu sông lớn, cầu vượt của chính nút giao và 600 m 2 đầu; cầu dài chia đoạn ≤ 800 m nối liền
+  (cầu cạn Long Phước 4.18–10.69 km = 9 đoạn). Độ nhô: chứa nút giao hoặc dài > 1.5 km = `IC.hump` 7.5 m (nút giao đó `hump: 0`),
+  < 150 m 2.5, < 400 m 4, còn lại 5.5; dốc dẫn 300 m; `deckHump` lấy max 3 cầu quanh s (không gãy khúc). `baseY` nâng nhánh nút giao
+  trên cầu: `deckHump · sm(60, 400, |t|)` (tách ở cao độ cầu, về mặt đất tại đường ngang). avenue.js: `deck(k)` + `_buildBig` kind
+  'deck' (không đường dưới gầm / tháp, bỏ ±30 m quanh tâm nút giao, tường mố chỉ ở 2 đầu thật), mặt đất dưới cầu giữ tự nhiên.
+  **Lạch dưới cầu** (`creeks`, sông / suối < 300 m nằm gọn dưới cầu, 9 lạch: Sông Tắc hw 92, Bà Cua, Nước Trong, Đồng Môn, Suối Sâu,
+  Suối Râm…): dải nước phẳng ±400 m (`creekMat`), lòng lạch đào xuống (`carve`, `creekA`), trụ xuống đáy lạch, bản đồ tròn vẽ xanh.
+  Chỉ Đồng Nai dùng mặt nước shader sông. Sông / lạch cắt vuông góc tuyến (đơn giản hoá); địa hình phẳng (không có độ cao thật).
   **Map Đại lộ** (`avenue`, 🛣️, nhóm Drive cùng Phố; M trong Drive: Phố ↔ Đại lộ): cao tốc 6 làn (`AVENUE`: tâm làn ±2.25 / ±5.75 /
   ±9.25, dải phân cách ±0.5, mép làn ±11, lề khẩn cấp tới ±13), đường cong rất thoải (bán kính ≥ ~2 km), địa hình `avenue` (đồi cỏ
   thấp, cỏ cao `meadow` hai bên), hộ lan thép 2 bên, đèn đường 2 bên xen kẽ. Xe: `cityTraffic` chế độ avenue (3 làn mỗi chiều, tốc
@@ -352,28 +360,7 @@ model thử (~625 MB) không nằm trong git.
 - `QUICK_OPENING = true` (TẠM, đầu game 0.5 s) — bật lại khi chú bảo. Kiểm thử Playwright: vào game bằng `#m-chill` / `#m-drive`.
 
 ## 6. Nhật ký cập nhật
-- Đã tóm tắt tới commit này (sau `be75c64`): xi nhan, giới hạn tốc độ + camera bắn tốc độ, bảng chấm điểm (+ nút bật / tắt), tai nạn
-  ở Đại lộ (nhánh rẽ / cầu cạn), sửa 2 script kiểm thử, Setting không bị bản đồ che, quầng đèn cầu kẹp cỡ, sương tuỳ chỉnh theo thời
-  tiết / giờ, sông bớt loá, màn hình chờ ngẫu nhiên 12 s + hoà tan + dịch sẵn shader.
-- **#1 — Tiếng xe nhỏ lại + intro có tiếng + intro chất lượng Good (11/10/2026)**: `audio.engBus` (máy + ống xả) 60% ngoài xe, 30% trong
-  xe; màn hình chờ phát nhạc + âm thanh; `PREVIEW.quality = 'good'`, `ratio = 2`.
-- **#2 — Cài đặt Chill / Drive không lưu chung (11/10/2026)**: tách bộ thông số chỉnh tay theo nhóm; thử: Phơi sáng 1.6 ở Drive, Chill
-  vẫn 1.0, tải lại vẫn đúng từng bên.
-- **#3 — Màn hình chờ về 1 cảnh Đồi cỏ đêm (Good), vào Chill 25 km/h + Sau xe (11/10/2026)**.
-- **#4 — Bảng 🐾 Animal: vị trí, số lượng đom đóm + bò (11/10/2026)**.
-- **#5 — Bảng 🌿 Nature: khoảng cách hiển thị + độ dày / cao / trong suốt cỏ đồi (12/10/2026)**.
-- **#6 — Nút quay màn hình (phím Y, lưu thư mục chọn sẵn Desktop) + Nature cho map Cỏ lau, lưu riêng (12/10/2026)**.
-- **#7 — Gộp editor WebGPU vào nhánh + tách module dùng chung `shared/` (18/10/2026)**: merge `experiment/webgpu-vertical-slice`
-  (không xung đột); `shared/terrain-noise|weather|sky|traffic-curve.js`, game và editor cùng import (xoá `runtime/TerrainNoise.js` của editor).
-  Kiểm chứng: 192 000 giá trị địa hình, bảng thời tiết (game + editor), màu trời, 3000 lượt giảm tốc vào cua — trùng 100% bản cũ;
-  `node build.mjs` + `vite build` OK; check-traffic / traffic-policy / steering / waterfalls PASS.
-- **#8 — Sửa check-stopscene: camera dừng xe bám người không trễ (18/10/2026)**: từ lần thêm `orbitCar`, tâm quay `_ctr` trượt dần
-  (exp 3/s) nên khi người đi camera trễ ~0.3 s (~0.4 m) và script báo "Orbit must look at the player". Nay chỉ trượt tỉ lệ người ↔ xe
-  (`_carK`), tâm = vị trí người từng khung (hoà về xe theo `_carK`). Đổi người ↔ xe vẫn mượt ~1.5 s. Mọi `check-*` chạy lại PASS.
-- **#9 — Map Cao tốc HCM – Long Thành – Dầu Giây từ dữ liệu thật (21/10/2026)**: chú chọn OSM (Google Maps không cho tải dữ liệu),
-  trọn tuyến tới Dầu Giây, cuối tuyến quay đầu, dùng lại đồ Đại lộ. `scripts/fetch-hlg.mjs` (Overpass, Dijkstra theo nút chung các way
-  CT.29, làm mượt hướng 60 m, lệch OSM ≤ 2 m) → `src/hlg-data.json` 54 KB; `src/hlg.js` bố trí; `road.js` lớp bố trí dùng chung; avenue.js
-  nhận thông số từng cầu (viaduct / hw / depth / biên độ uốn `mA`, tháp tuỳ chọn, thuyền chỉ ở sông ≥ 120 m), biển nút giao tên thật;
-  shader sông nhận `uRivM`. `check-hlg.mjs` PASS (lệch ≤ 7 m sau khi dựng, R min 352 m ngoài nhánh dẫn, không chồng công trình, 2 chiều
-  khớp, Đại lộ giữ bố trí cũ); check traffic / traffic-policy / steering / car-switch PASS. GUI Low: An Phú (biển 60), nút giao Vành đai 2,
-  Cầu Long Thành (tháp + biển 100), quay đầu ở Dầu Giây sang chiều về; console không lỗi. Chưa xem trên máy thật / Good / Ultra.
+- Đã tóm tắt tới commit "Cao tốc HLG: cầu cạn 6.5 km + cầu nhỏ + lạch nước" (sau `df82f9e`): tiếng xe nhỏ lại, intro Good có tiếng,
+  cài đặt Chill / Drive tách riêng, bảng Animal / Nature, quay màn hình, gộp editor WebGPU + `shared/`, camera dừng xe bám người,
+  map Cao tốc HCM – Long Thành – Dầu Giây (OSM) + cầu cạn / cầu nhỏ / lạch nước (giao DeepSeek qua opencode bị treo không ra kết quả,
+  tự viết lại; chạy `opencode run` nền dễ treo — nếu dùng, chạy tiền cảnh có giới hạn thời gian).
