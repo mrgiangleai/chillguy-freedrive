@@ -31,7 +31,7 @@ import { ValleyTown } from './town.js';
 import { DashScreen } from './dashscreen.js';
 import { Traffic } from './traffic.js';
 import { Ocean } from './ocean.js';
-import { roadPosition } from './traffic-ai.js';
+import { roadPosition, TRAFFIC } from './traffic-ai.js';
 import { Cows, COW_DEFAULTS } from './cows.js';
 import { Waterfalls } from './waterfalls.js';
 import { Smoke } from './smoke.js';
@@ -321,7 +321,12 @@ const QUICK_OPENING = true;          // TẠM: đầu game rút còn 0.5 s (đ�
 const TUNE_KEY = 'chilldrive.tuning.v1';
 let savedTuning = null;
 // bảng 🚦 Giao thông (map Phố): chú tự chỉnh để thử
-const TRAFFIC_DEFAULTS = Object.freeze({ avoid: 1, redStop: 0, score: 1, auto: 1, density: 1, speed: 1, walkers: 38, signal: 1, models: 0 });
+// tốc độ xe khác chỉnh bằng km/h (từ … đến …), riêng 3 nhóm map: chill (map ngắm cảnh), city (Phố), avenue (Đại lộ + Cao tốc HLG)
+const TRAFFIC_KMH = Object.freeze({ chill: [50, 200], city: [30, 52], avenue: [60, 104] });
+const TRAFFIC_DEFAULTS = Object.freeze({ avoid: 1, redStop: 0, score: 1, auto: 1, density: 1, walkers: 38, signal: 1, models: 0 });
+const trafficDefaults = () => ({ ...TRAFFIC_DEFAULTS, kmh: Object.fromEntries(Object.entries(TRAFFIC_KMH).map(([k, v]) => [k, [...v]])) });
+// nhóm tốc độ của map đang chạy
+const kmhGroup = () => { const k = mapKind(MAPS[state.map].id); return k === 'city' || k === 'avenue' ? k : 'chill'; };
 // bảng Lighting: hệ số các loại đèn (ngoài đèn pha xe chú / đèn đường đã có thông số riêng)
 const LIGHT_DEFAULTS = Object.freeze({ signal: 1, signalSize: 1, windows: 1, signs: 1, npc: 1, emergency: 1 });
 const lightTune = { ...LIGHT_DEFAULTS };
@@ -331,7 +336,7 @@ function applyLightTune() {
   cityTraffic.uNpc.value = lightTune.npc; traffic.lampK = lightTune.npc;
   cityTraffic.emK = lightTune.emergency;
 }
-const trafficTune = { ...TRAFFIC_DEFAULTS };
+const trafficTune = trafficDefaults();
 // sương sát đất (lớp MIST): lưu riêng cho nhóm Chill / Drive; mỗi kiểu thời tiết có độ phủ + độ dày (0..1), mỗi giờ có hệ số độ dày
 // (giờ lẻ / Tự động: nội suy giữa 4 mốc theo giờ). Chỉnh trong bảng Thời tiết / Thời gian (và bảng 🌫️ phím G), tự lưu mục `mist`.
 const MIST_HOURS = { sunrise: 6.4, noon: 12.5, sunset: 17.6, night: 22.5 };
@@ -376,8 +381,15 @@ function applyTrafficTune() {
     cityTraffic.cars = cityTraffic.cars.filter((c) => c.script || c.crashed || Math.random() < keep);
   }
   cityTraffic.density = T.density;
-  for (const c of cityTraffic.cars) if (!c.script && c.type !== 'police' && c.type !== 'ambulance') c.vMax *= T.speed / (cityTraffic.speedK || 1);
-  cityTraffic.speedK = T.speed;
+  // tốc độ km/h của bảng 🚦 × hệ số mức giao thông ngẫu nhiên (Thưa / Vừa / Đông); xe đang chạy đổi theo tỉ lệ
+  const lk = trafficLevel?.speed ?? 1, K = trafficTune.kmh, g = mapKind(MAPS[state.map].id) === 'avenue' ? 'avenue' : 'city';
+  const main = K[g].map((v) => v * lk), mean = (r) => (r[0] + r[1]) / 2, ratio = mean(main) / mean(cityTraffic.vr.main);
+  for (const c of cityTraffic.cars) if (!c.script && c.type !== 'police' && c.type !== 'ambulance' && !c.xr) c.vMax *= ratio;
+  cityTraffic.vr = { main, cross: K.city.map((v) => v * lk) };
+  // map ngắm cảnh: xe NPC (traffic.js) chạy trong khoảng km/h của nhóm chill
+  const ck = mean(K.chill) / 3.6 / ((TRAFFIC.minSpeed + TRAFFIC.maxSpeed) / 2);
+  TRAFFIC.minSpeed = K.chill[0] / 3.6; TRAFFIC.maxSpeed = K.chill[1] / 3.6;
+  for (const v of traffic.active || []) if (!v.carriage) { v.cruise *= ck; }
   cityPeople.walkers = Math.round(T.walkers);
   city.clockRate = 1 / trafficTune.signal;
   cityTraffic.useModels = !!trafficTune.models;
@@ -415,7 +427,12 @@ try {
     tuneSets.chill = cloneJ(legacy); tuneSets.drive = cloneJ(legacy);
   }
   loadTuneSet(tuneSets[tuneGroup]); meadow.applyTune(); reeds.applyTune();
-  if (savedTuning?.traffic) Object.assign(trafficTune, savedTuning.traffic);
+  if (savedTuning?.traffic) {
+    const { kmh, speed, ...rest } = savedTuning.traffic;
+    Object.assign(trafficTune, rest);
+    if (kmh) for (const g of Object.keys(TRAFFIC_KMH)) if (Array.isArray(kmh[g]) && kmh[g].length === 2) trafficTune.kmh[g] = kmh[g].map(Number);
+    else if (speed && speed !== 1) for (const g of ['city', 'avenue']) trafficTune.kmh[g] = TRAFFIC_KMH[g].map((v) => Math.round(v * speed));   // bản lưu cũ: hệ số ×
+  }
   for (const g of ['chill', 'drive']) {
     const sv = savedTuning?.mist?.[g]; if (!sv) continue;
     for (const [k, v] of Object.entries(sv.w || {})) if (mistTune[g].w[k]) Object.assign(mistTune[g].w[k], v);
@@ -615,10 +632,10 @@ const applyMap = () => {
   cityPeople.visible = isTraffic; cityPeople.ambient = isCity;   // đại lộ: chỉ người của cảnh tai nạn
   if (isTraffic) { traffic.clearAll(); trafficLevel = TRAFFIC_START; trafficStartT = 5; }   // vào phố / đại lộ: giao thông thấp 5 s đầu
   $('brake').hidden = !isTraffic;
-  $('b-traffic').hidden = !isTraffic;
+  $('b-traffic').hidden = false;                // bảng 🚦: mọi map (map ngắm cảnh chỉ có tốc độ xe khác km/h)
   $('b-score').hidden = !isTraffic || !trafficTune.score;
   if (!isTraffic) $('score').hidden = true;
-  if (!isTraffic && tuneKind === 'traffic') closeTune();
+  if (tuneKind === 'traffic') renderTune();     // bảng 🚦 đổi nội dung theo nhóm map
   applyTrafficTune(); applyLightTune();
   if (isCity && state.started) toast('Map Phố: tự phanh khi gặp đèn đỏ — giữ phím Space hoặc nút Space');
   if (isAvenue && state.started) toast(isHlg ? 'Cao tốc TP.HCM – Long Thành – Dầu Giây (dữ liệu thật © OpenStreetMap) — giữ ← / → để đổi làn'
@@ -1078,9 +1095,24 @@ const environmentSpecs = () => ENV_FIELDS.map(([key,label,min,max,step]) => ({ l
 renderTune = () => {
   if (!tuneKind) return;
   tuneFields.replaceChildren(); tuneMode.replaceChildren();
+  // tốc độ xe khác (km/h) của nhóm map đang chạy: từ / đến (đến ≥ từ + 5)
+  // (đang ở mức ngẫu nhiên Thưa / Vừa / Đông: hiện số đã nhân hệ số mức; chỉnh tay => tắt ngẫu nhiên trước rồi lưu đúng số chú nhập)
+  const kmhFields = (pre = () => {}) => {
+    const g = kmhGroup(), r = trafficTune.kmh[g], lk = () => (g === 'chill' ? 1 : trafficLevel?.speed ?? 1);
+    const name = { chill: 'map ngắm cảnh', city: 'Phố', avenue: 'cao tốc' }[g];
+    addNumber({ label: `Tốc độ xe khác — từ (km/h, ${name})`, min: 10, max: 250, step: 1, get: () => Math.round(r[0] * lk()), set: (v) => { pre(); r[0] = v; r[1] = Math.max(r[1], v + 5); applyTrafficTune(); } });
+    addNumber({ label: `Tốc độ xe khác — đến (km/h, ${name})`, min: 15, max: 260, step: 1, get: () => Math.round(r[1] * lk()), set: (v) => { pre(); r[1] = v; r[0] = Math.min(r[0], v - 5); applyTrafficTune(); } });
+  };
+  if (tuneKind === 'traffic' && kmhGroup() === 'chill') {           // map ngắm cảnh: chỉ có tốc độ xe khác
+    tuneMode.hidden = true;
+    $('tune-title').textContent = 'Giao thông';
+    addHeading('Xe khác trên đường');
+    kmhFields();
+    return;
+  }
   if (tuneKind === 'traffic') {
     tuneMode.hidden = true;
-    $('tune-title').textContent = 'Giao thông (Phố / Đại lộ)';
+    $('tune-title').textContent = 'Giao thông (Phố / Đại lộ / Cao tốc)';
     addHeading('Xe của chú');
     addToggle({ label: 'Tự giữ khoảng cách (tránh đâm xe trước)', get: () => trafficTune.avoid, set: (v) => { trafficTune.avoid = v; toast(v ? 'Đã bật tự giữ khoảng cách' : 'Đã tắt tự giữ khoảng cách — chú tự phanh, đâm là có cảnh sát tới', !v); } });
     addToggle({ label: 'Tự động dừng xe khi đèn đỏ', get: () => trafficTune.redStop, set: (v) => { trafficTune.redStop = v; toast(v ? 'Đã bật tự dừng đèn đỏ' : 'Đã tắt tự dừng đèn đỏ — chú tự phanh (Space)'); } });
@@ -1096,9 +1128,11 @@ renderTune = () => {
       renderTune();
     } });
     // chỉnh tay mật độ / tốc độ / số người => tắt chế độ ngẫu nhiên
-    const manual = (key) => (v) => { trafficTune[key] = v; if (trafficTune.auto || trafficLevel) { trafficTune.auto = 0; trafficLevel = null; trafficStartT = 0; } applyTrafficTune(); };
+    const stopAuto = () => { if (trafficTune.auto || trafficLevel) { trafficTune.auto = 0; trafficLevel = null; trafficStartT = 0; } };
+    const manual = (key) => (v) => { trafficTune[key] = v; stopAuto(); applyTrafficTune(); };
+
     addNumber({ label: 'Mật độ xe (×)', min: 0.05, max: 2.5, step: 0.05, get: () => trafficLevel?.density ?? trafficTune.density, set: manual('density') });
-    addNumber({ label: 'Tốc độ xe khác (×)', min: 0.4, max: 2, step: 0.05, get: () => trafficLevel?.speed ?? trafficTune.speed, set: manual('speed') });
+    kmhFields(stopAuto);
     addNumber({ label: 'Số người đi bộ', min: 0, max: 80, step: 1, get: () => trafficLevel?.walkers ?? trafficTune.walkers, set: manual('walkers') });
     addHeading('Đèn giao thông');
     addNumber({ label: 'Độ dài pha đèn (×)', min: 0.3, max: 3, step: 0.1, get: () => trafficTune.signal, set: (v) => { trafficTune.signal = v; applyTrafficTune(); } });
@@ -1241,7 +1275,7 @@ $('tune-reset').onclick = () => {
   }
   else if (tuneKind === 'time') { env.resetTune(); env.setTime(TIMES[state.time].hour); const g = isDriveMap(state.map) ? 'drive' : 'chill'; Object.assign(mistTune[g].t, MIST_DEFAULTS[g].t); }
   else if (tuneKind === 'carLight') Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS);
-  else if (tuneKind === 'traffic') { Object.assign(trafficTune, TRAFFIC_DEFAULTS); $('b-score').hidden = !cityTraffic.visible; if (trafficStartT <= 0 && !trafficLevel) pickTrafficLevel(false); else applyTrafficTune(); }
+  else if (tuneKind === 'traffic') { Object.assign(trafficTune, trafficDefaults()); $('b-score').hidden = !cityTraffic.visible; if (trafficStartT <= 0 && !trafficLevel) pickTrafficLevel(false); else applyTrafficTune(); }
   else if (tuneKind === 'park') Object.assign(stop.tune, PARK_DEFAULTS);
   else if (tuneKind === 'animals') { Object.assign(fireflies.tune, FIREFLY_DEFAULTS); Object.assign(cows.tune, COW_DEFAULTS); retuneAnimals(); }
   else if (tuneKind === 'nature') { const f = MAPS[state.map].id === 'reed' ? reeds : meadow; Object.assign(f.tune, f.defaults); f.applyTune(); }

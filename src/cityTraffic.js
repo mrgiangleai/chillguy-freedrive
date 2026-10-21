@@ -184,6 +184,7 @@ function ambulance(o) {
   for (const [x, z] of [[-1, z0 + 0.9], [1, z0 + 0.9], [-1, z1 - 0.9], [1, z1 - 0.9]]) wheel(o, x * (hw - 0.1), 0.35, z, 0.35, 0.26);
 }
 
+const V_REF = [30, 52];       // khoảng tốc độ gốc (km/h) của các loại xe dưới đây
 const TYPES = {
   police: { build: police, len: 4.6, wid: 1.78, v: [40, 40], max: 2 },
   ambulance: { build: ambulance, len: 5.4, wid: 1.9, v: [40, 40], max: 2 },
@@ -200,9 +201,9 @@ const TYPES = {
 const MIX = [['sedan', 0.3], ['kei', 0.24], ['taxi', 0.1], ['van', 0.12], ['bus', 0.06], ['scooter', 0.18]];
 // cấu hình theo map: Phố (2 làn mỗi chiều, có ngã tư) / Đại lộ (3 làn mỗi chiều, không xe máy, chạy nhanh, làn trong nhanh nhất)
 const MODES = {
-  city: { lanes: CITY.lanes, vK: 1, laneK: [1, 1], ahead: AHEAD, behind: BEHIND, gap: MAIN_GAP, cross: true,
+  city: { lanes: CITY.lanes, laneK: [1, 1], ahead: AHEAD, behind: BEHIND, gap: MAIN_GAP, cross: true,
     mix: MIX },
-  avenue: { lanes: AVENUE.lanes, vK: 2.0, laneK: [1.12, 1, 0.84], ahead: 900, behind: 300, gap: [50, 120], cross: false,
+  avenue: { lanes: AVENUE.lanes, laneK: [1.12, 1, 0.84], ahead: 900, behind: 300, gap: [50, 120], cross: false,
     mix: [['sedan', 0.36], ['kei', 0.1], ['taxi', 0.08], ['van', 0.16], ['bus', 0.1], ['truck', 0.12], ['container', 0.08]] },
 };
 const COLORS = {
@@ -279,7 +280,9 @@ export class CityTraffic {
     this.crossTimers = new Map();
     this.filled = false;
     this.density = 1;          // hệ số mật độ xe (bảng 🚦)
-    this.speedK = 1;           // hệ số tốc độ xe khác
+    // tốc độ xe khác (km/h, chỉnh trong bảng 🚦): main = đường chính của map đang chạy, cross = đường ngang dưới cầu (đại lộ).
+    // Mỗi loại xe giữ vị trí tương đối của nó trong khoảng V_REF (xe buýt / xe tải chậm hơn xe con), rồi × hệ số làn
+    this.vr = { main: [30, 52], cross: [30, 52] };
     this.cfg = MODES.city;
   }
   // đổi cấu hình theo map ('city' | 'avenue'); gọi trước khi bật visible
@@ -335,9 +338,12 @@ export class CityTraffic {
     const def = TYPES[type], cols = COLORS[type];
     const em = type === 'police' || type === 'ambulance';
     const li = extra.home !== undefined ? this.cfg.lanes.indexOf(Math.abs(extra.home)) : -1;
-    const v = (def.v[0] + Math.random() * (def.v[1] - def.v[0])) * KMH * (em ? 1 : this.speedK * this.cfg.vK * (li >= 0 ? this.cfg.laneK[li] : 1));
+    const raw = def.v[0] + Math.random() * (def.v[1] - def.v[0]), R = extra.xr ? this.vr.cross : this.vr.main;
+    const v = em ? raw * KMH : this.kmh(raw, R) * KMH * (li >= 0 ? this.cfg.laneK[li] : 1);
     return Object.assign({ type, len: def.len, wid: def.wid, vMax: v, v, color: cols[Math.floor(Math.random() * cols.length)], lat: 0 }, extra);
   }
+  // tốc độ gốc của loại xe (km/h trong V_REF) => km/h theo khoảng R mà chú chỉnh
+  kmh(raw, R) { return R[0] + (raw - V_REF[0]) / (V_REF[1] - V_REF[0]) * (R[1] - R[0]); }
   // làn đường chính còn chỗ tại s (không xe nào trong ±gap)
   _free(s, d, gap) {
     for (const c of this.cars) if (!c.cross && !c.xr && Math.abs(c.d - d) < 1.8 && Math.abs(c.s - s) < gap) return false;
@@ -376,7 +382,7 @@ export class CityTraffic {
         const free = this.useModels && this.pool && Math.random() < 0.35 ? this.pool().find((x) => !x.busy && !x.carriage) : null;
         if (free) {                                          // thỉnh thoảng là xe model của chú
           free.busy = free.cityBusy = true;
-          const vm = (36 + Math.random() * 14) * KMH * this.speedK * cfg.vK;
+          const vm = this.kmh(36 + Math.random() * 14, this.vr.main) * KMH;
           this.cars.push({ type: 'model', model: free, s: at, d: dd, home: dd, dir, len: free.dim.length, wid: free.dim.width, vMax: dir > 0 && at > s ? Math.min(vm, Math.max(4, v - 2)) : vm, v: vm, lat: 0, color: '#ffffff' });
         } else {
           const t = this._pick();
@@ -413,7 +419,7 @@ export class CityTraffic {
           tm = (4 + Math.random() * 7) / Math.max(0.05, this.density);
           const u0 = -du * I.crossLen, busy = this.cars.some((c) => c.xr && c.xr.I === I && c.xr.a === a && Math.abs(c.xr.u - u0) < 16);
           const t = this._pick();
-          if (!busy && t && (I.kind === 'fly' || (t !== 'bus' && !TYPES[t].heavy))) { const c = this._new(t, { xr: { I, u: u0, a, du } }); c.vMax /= cfg.vK; if (I.kind === 'fly') c.vMax *= 1.4; c.v = c.vMax; this.cars.push(c); }
+          if (!busy && t && (I.kind === 'fly' || (t !== 'bus' && !TYPES[t].heavy))) { const c = this._new(t, { xr: { I, u: u0, a, du } }); if (I.kind === 'fly') c.vMax *= 1.4; c.v = c.vMax; this.cars.push(c); }
         }
         this.crossTimers.set(key, tm);
       }

@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -195,7 +195,12 @@ model thử (~625 MB) không nằm trong git.
   `terrain.js`/`scenery.js` đọc bề rộng đường lúc reset/setMap. Xe mình chạy làn ngoài phải (5.25), buông tay về làn gần nhất;
   vượt xe sang làn cùng chiều bên cạnh (`TrafficPolicy._other`). Camera bên hông 13 m, quay quanh 10 m. Không đom đóm.
   **Bảng 🚦 Giao thông** (nút `b-traffic`, chỉ hiện ở map Phố; `trafficTune` lưu trong `chilldrive.tuning.v1` mục `traffic`):
-  nút bấm Bật/Tắt (`addToggle`, không thả danh sách): tự giữ khoảng cách (tắt => xe mình không bám xe trước, đâm được để thử
+  **Tốc độ xe khác chỉnh bằng km/h** (từ / đến, `trafficTune.kmh`, mặc định `TRAFFIC_KMH`: chill 50–200, city 30–52, avenue
+  60–104 — avenue gồm cả Cao tốc HLG; `kmhGroup()`): nút 🚦 hiện ở MỌI map — map ngắm cảnh chỉ có 2 ô km/h (đặt
+  `TRAFFIC.minSpeed/maxSpeed` của traffic.js, xe đang chạy đổi theo tỉ lệ). cityTraffic: `vr.main` / `vr.cross` (đường ngang dưới cầu
+  dùng khoảng Phố), loại xe giữ vị trí tương đối trong `V_REF` 30–52 (`kmh(raw, R)`), × `laneK`; bỏ `speedK` / `vK`. Mức ngẫu nhiên
+  Thưa / Vừa / Đông (và khởi động 0.4) vẫn nhân hệ số lên khoảng km/h; ô km/h hiện số đã nhân, chỉnh tay => tắt ngẫu nhiên rồi lưu đúng
+  số nhập. Bản lưu cũ có `speed` (×) được đổi sang km/h. Các nút bấm Bật/Tắt (`addToggle`, không thả danh sách): tự giữ khoảng cách (tắt => xe mình không bám xe trước, đâm được để thử
   cảnh tai nạn), tự động dừng xe khi đèn đỏ (`trafficTune.redStop`, mặc định tắt: giới hạn tốc độ √(2·3.5·(khoảng cách vạch − 1.2)),
   vàng chỉ dừng khi kịp phanh êm), thêm xe của chú; mật độ xe × (0.05–2.5;
   giảm thì bớt ngay xe đang chạy, xe đường ngang thưa theo), tốc độ xe khác ×,
@@ -397,3 +402,6 @@ model thử (~625 MB) không nằm trong git.
 - **#3 — HLG: nhà theo footprint Microsoft + lấp loại đất (21/10/2026)**: `fetch-hlg-env.mjs` thêm nguồn Microsoft (cache `<tmp>/chilldrive-osm/ms/`,
   2 file 257 MB, chạy lại vài giây), `hlg-env.json` 272 KB. GUI Low: km 2.6 nhà dân hai bên, km 46 (cao 93 m) ruộng + hàng cây xa,
   console không lỗi. check-hlg PASS.
+- **#4 — Tốc độ giao thông chỉnh bằng km/h ở mọi map (21/10/2026)**: xem mục bảng 🚦. check traffic / traffic-policy / hlg / car-switch /
+  steering PASS; GUI: Chill 2 ô km/h lưu được, cao tốc NPC 36–115 km/h (60–104 × mức ngẫu nhiên × làn). **Đang chờ chú**: dán cài đặt
+  Safari (localStorage `chilldrive.*`) để đặt làm mặc định.
