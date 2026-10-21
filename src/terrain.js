@@ -258,6 +258,7 @@ export class Terrain {
     out.copy(pal.a).lerp(pal.b, sstep(0.3, 0.75, n1)).lerp(pal.c, sstep(0.45, 0.9, n2) * 0.55);
     if (TP.id === 'city') out.lerp(CITY_HILL, sstep(1, 20, h));
     if (pal.trees) out.lerp(FOREST, sstep(0.44, 0.66, vnoise(x / 260 + 3.1, z / 260 + 8.7)) * 0.6);
+    if (TP.land) TP.land(x, z, out);                                 // map Cao tốc HLG: màu đất theo sử dụng đất thật (hlgEnv)
     const dirtK = s >= 0 ? this.road.dirtAt(s) : 0;
     const dirtNear = dirtK * (1 - sstep(HW + 1, HW + 28, d));
     if (dirtNear > 0) out.lerp(FLOOR, dirtNear * 0.75);              // nền rừng rậm sẫm màu quanh đường đất

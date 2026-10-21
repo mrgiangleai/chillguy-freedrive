@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CITY, AVENUE, IC, icS, icIndex, rampU, TOLL, tollDist } from './road.js';
+import { CITY, AVENUE, IC, icS, icIndex, rampU, TOLL, tollDist, laneCount } from './road.js';
 import { withMist } from './mist.js';
 import { createHeadlights, placeHeadlights, updateHeadlights } from './headlights.js';
 
@@ -360,6 +360,7 @@ export class CityTraffic {
       for (const dir of [1, -1]) for (const l of lanes) {
         for (let x = s - BEHIND + Math.random() * 40; x < s + AHEAD; x += (MAIN_GAP[0] + Math.random() * (MAIN_GAP[1] - MAIN_GAP[0])) / this.density) {
           const dd = dir * l;
+          if (lanes.indexOf(l) >= laneCount(x)) continue;               // đoạn 2 làn: làn ngoài cùng là làn khẩn cấp
           if (Math.abs(x - s) < 15 && Math.abs(dd - d) < 2) continue;
           const t = this._pick(); if (!t) continue;
           this.cars.push(this._new(t, { s: x, d: dd, home: dd, dir }));
@@ -370,6 +371,7 @@ export class CityTraffic {
       const dd = dir * l;
       // xe ngược chiều: vào từ xa phía trước; cùng chiều: vào từ phía sau (xe mình chậm) hoặc phía trước (xe mình nhanh)
       const at = dir < 0 ? s + AHEAD - 10 : v < 10 ? s - BEHIND + 10 : s + AHEAD - 10;
+      if (lanes.indexOf(l) >= laneCount(at)) continue;
       if (Math.random() < dt * 0.35 * Math.min(1, this.density) && this._free(at, dd, MAIN_GAP[0] / this.density + 10) && Math.abs(at - s) > 30) {
         const free = this.useModels && this.pool && Math.random() < 0.35 ? this.pool().find((x) => !x.busy && !x.carriage) : null;
         if (free) {                                          // thỉnh thoảng là xe model của chú
@@ -451,7 +453,22 @@ export class CityTraffic {
       // đại lộ: xe làn ngoài đôi khi rẽ vào nhánh ra ở nút giao (22%), đi chậm trên nhánh, qua đường ngang rồi nhập lại
       if (this.avenue && !cfg.cross && c.ramp == null && Math.abs(Math.abs(c.home) - AVENUE.lanes[2]) < 0.1 && !c.model) {
         const k = icIndex(c.s), t = (c.s - icS(k)) * c.dir;
-        if (c.rk !== k && t > -485 && t < -460) { c.rk = k; if (Math.random() < 0.22) c.ramp = k; }
+        if (c.rk !== k && t > -485 && t < -460) { c.rk = k; if (c.exitK === k || Math.random() < 0.22) c.ramp = k; }
+      }
+      const li = lanes.indexOf(Math.abs(c.home));
+      if (this.avenue && !cfg.cross && c.ramp == null && !c.script) {
+        // tuyến 2 làn (HLG): xe làn giữa thỉnh thoảng sang làn giảm tốc trước nút giao để ra nhánh
+        const k = icIndex(c.s), t = (c.s - icS(k)) * c.dir;
+        if (li === 1 && !c.model && c.xk !== k && t > -640 && t < -560) {
+          c.xk = k;
+          if (Math.random() < 0.18 && !main.some((e) => e !== c && Math.abs(e.d - c.dir * lanes[2]) < 2.2 && Math.abs(e.s - c.s) < 25)) { c.home = c.dir * lanes[2]; c.changing = true; c.exitK = k; }
+        }
+        // làn ngoài cùng sắp hết (đoạn 2 làn phía trước): nhập vào làn giữa khi trống, sát chỗ hết làn thì chờ
+        if (li === 2 && c.exitK !== icIndex(c.s) && laneCount(c.s + c.dir * 160) < 3) {
+          const other = c.dir * lanes[1];
+          if (!main.concat([player]).some((e) => e !== c && Math.abs(e.d - other) < 2.2 && (e.s - c.s) * c.dir > -20 - (e.len + c.len) / 2 && (e.s - c.s) * c.dir < 25)) { c.home = other; c.changing = true; }
+          else if (laneCount(c.s + c.dir * 40) < 3) want = Math.min(want, 8);
+        }
       }
       if (c.ramp != null) {
         const t = (c.s - icS(c.ramp)) * c.dir;
@@ -471,6 +488,7 @@ export class CityTraffic {
           const li = lanes.indexOf(Math.abs(c.home));
           for (const oi of [li - 1, li + 1]) {
             if (oi < 0 || oi >= lanes.length || (TYPES[c.type]?.heavy && oi === 0)) continue;   // xe nặng không vào làn trong
+            if (oi >= Math.min(laneCount(c.s), laneCount(c.s + c.dir * 200))) continue;            // không vượt vào làn khẩn cấp
             const other = c.dir * lanes[oi];
             const clear = !main.concat([player]).some((e) => e !== c && Math.abs(e.d - other) < 2.2 && (e.s - c.s) * c.dir > -18 - (e.len + c.len) / 2 && (e.s - c.s) * c.dir < 25);
             if (clear) { c.home = other; c.changing = true; break; }

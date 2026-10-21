@@ -10,6 +10,7 @@ import { withMist } from './mist.js';
 // - Gió: sóng gió chạy ngang cánh đồng + rung nhẹ, biên độ theo uWind.
 // - Khóm cỏ tự thu nhỏ về 0 khi tới gần mặt đường (đường được truyền dưới dạng đường gấp khúc).
 export const ROAD_PTS = 27;
+const DEM_NONE = (() => { const t = new THREE.DataTexture(new Float32Array(4), 2, 2, THREE.RedFormat, THREE.FloatType); t.needsUpdate = true; return t; })();
 export const ROAD_PT_GAP = 12;
 const VIEW_MAX = 2;          // phạm vi hiển thị tối đa (Ultra)
 // thông số chỉnh tay (bảng 🌿 Nature: cỏ đồi `meadow` + cỏ lau `reed`, mỗi loại một bộ riêng): near = cỏ dày tới (m), far = cỏ xa tới (m, × phạm vi của
@@ -232,6 +233,7 @@ export class ReedField {
       uHK: { value: 1 }, uOpacity: { value: 1 }, uEdge: { value: 0 },
       uCarve0: { value: ROAD.halfWidth + 1.2 }, uCarve1: { value: ROAD.halfWidth + 16 },
       uTLow: { value: TP.low }, uTDet: { value: TP.det }, uTFine: { value: TP.fine },
+      uDem: { value: DEM_NONE }, uDemBox: { value: new THREE.Vector4() }, uDemN: { value: new THREE.Vector2(2, 2) },
       uExcl: { value: Array.from({ length: 32 }, () => new THREE.Vector4()) }, uExclW: { value: new Array(32).fill(0) }, uExclN: { value: 0 },
     };
 
@@ -363,6 +365,11 @@ export class ReedField {
     sh.uWind.value = st.wind;
     sh.uWindDir.value.copy(st.windDir);
     sh.uTLow.value = TP.low; sh.uTDet.value = TP.det; sh.uTFine.value = TP.fine;
+    const D = TP.dem;                                   // độ cao thật (HLG): lưới dùng chung với CPU, texture tạo 1 lần mỗi lưới
+    if (D && !D.tex) { D.tex = new THREE.DataTexture(D.h, D.nx, D.nz, THREE.RedFormat, THREE.FloatType); D.tex.needsUpdate = true; }
+    sh.uDem.value = D ? D.tex : DEM_NONE;
+    sh.uDemBox.value.set(D ? D.x0 : 0, D ? D.z0 : 0, D ? D.cell : 1, D ? 1 : 0);
+    sh.uDemN.value.set(D ? D.nx : 2, D ? D.nz : 2);
     const ex = this.exclusions || [];                    // [x0, z0, x1, z1, w]
     sh.uExclN.value = Math.min(32, ex.length);
     for (let i = 0; i < sh.uExclN.value; i++) { sh.uExcl.value[i].set(ex[i][0], ex[i][1], ex[i][2], ex[i][3]); sh.uExclW.value[i] = ex[i][4]; }

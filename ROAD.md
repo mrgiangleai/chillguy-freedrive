@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -69,6 +69,7 @@
 | `cityIncident.js` | Map Phố: đâm xe / người => xe dừng khựng, nạn nhân ngã / xe đứng yên, camera Quay quanh; cảnh sát (xe đen trắng, đèn đỏ nhấp nháy) tới từ phía sau, cảnh sát đi tới cửa lái, người lái (ẩn model, hiện người dựng) theo về xe cảnh sát; xe cấp cứu tới từ phía trước làn ngược chiều, 2 nhân viên đưa nạn nhân đi; màn hình tối "bị đưa về đồn" rồi chạy tiếp (~30 s). Còi hụ (`audio.setSiren`: cảnh sát rú 650↔1350 Hz chu kỳ 4 s, cấp cứu "pi–po" 960/770 Hz) khi xe ưu tiên đang chạy, tắt khi đỗ, to dần khi lại gần |
 | `avenue.js` | Map Đại lộ (nút giao `ic(k)/_buildIC/carve`, trạm thu phí `_buildToll/updateToll`, atlas biển `signTexture`): dựng theo đoạn 200 m quanh xe (±1.4 km / 300 m sau): vạch kẻ (vàng liền sát dải phân cách, trắng đứt 6/9 m giữa làn, trắng liền mép ngoài), dải phân cách bê tông "jersey" kéo theo mặt cắt. Đường: `road.setShape('avenue')` (cong rất thoải), `AVENUE` trong road.js. Xe: `cityTraffic.setMode('avenue')` |
 | `hlg.js` | Map Cao tốc HCM – Long Thành – Dầu Giây (`hlg`): `HLG` (length 54 520 m, start 150, end 320), `hlgLayout(rev)` → bố trí 1 chiều từ `hlg-data.json` (OSM, tạo bằng `node scripts/fetch-hlg.mjs`, cache Overpass ở scratchpad): `real.heading` (mỗi 10 m), `ics` (cách ≥ 1.3 km, xa sông), `rivers` (rộng ≥ 40 m, cách ≥ 3.5 km, tâm = chỗ sông cắt tuyến, sông ≥ 300 m có tháp dây văng, `meander` 0), `flys` (cầu 250 m–3 km không qua sông), `tolls` (bỏ trạm trên nhánh nút giao), `cams` (~6 km chỗ trống), `limits` (maxspeed OSM). Chiều về: s' = L − s, hướng + π |
+| `hlgEnv.js` | Map HLG: cảnh quan theo bản đồ thật từ `docs/assets/hlg-env.json` (tải khi vào map, `scripts/fetch-hlg-env.mjs`): nhà (7 số nguyên / nhà: s, u dm, w dm, d dm, góc so với đường mrad, cao dm, loại 0 nhà / 1 chung cư / 2 thương mại / 3 công nghiệp / 4 khác) dựng bằng `city.facade` + `city.boxGeo/houseGeo` (instancing, mặt trước quay ra đường, chân móng 2.5 m), cây `avenue.treeGeo` ở ô đất 'f', nhà nhỏ bổ sung ở ô 'r'/'c' chưa có nhà; `TP.land(x, z, out)` tô màu đất (lưới thế giới 40 m); `_blocked` tránh đường / nút giao / sông / lạch. Đoạn 400 m, ≤ 1 đoạn / khung |
 | `minimap.js` | Bản đồ tròn (chỉ chế độ Drive): canvas 2D vẽ từ dữ liệu thật — `road.pts`, khối nhà + đường ngang Phố, nút giao / nhánh / đường gom / nhà / trạm thu phí Đại lộ, xe khác (chấm), xe mình (mũi tên xanh). Thu nhỏ 150 px (điện thoại 104) góc phải giữa, bám xe, hướng xe lên trên, vẽ ~8 lần/s; bấm vào: phóng to giữa màn hình (78vmin, `body.mapopen` ẩn các hộp HUD bị đè), Bắc lên trên, kéo = pan, lăn chuột / chụm 2 ngón = zoom (0.02–4 px/m), ◎ về xe, × / Esc / bấm ngoài để thu nhỏ; thước tỉ lệ |
 | `cows.js` | Map đồi cỏ: đàn 5 bò sữa + hàng rào gỗ |
 | `fireflies.js` | Đom đóm ban đêm |
@@ -227,7 +228,16 @@ model thử (~625 MB) không nằm trong git.
   'deck' (không đường dưới gầm / tháp, bỏ ±30 m quanh tâm nút giao, tường mố chỉ ở 2 đầu thật), mặt đất dưới cầu giữ tự nhiên.
   **Lạch dưới cầu** (`creeks`, sông / suối < 300 m nằm gọn dưới cầu, 9 lạch: Sông Tắc hw 92, Bà Cua, Nước Trong, Đồng Môn, Suối Sâu,
   Suối Râm…): dải nước phẳng ±400 m (`creekMat`), lòng lạch đào xuống (`carve`, `creekA`), trụ xuống đáy lạch, bản đồ tròn vẽ xanh.
-  Chỉ Đồng Nai dùng mặt nước shader sông. Sông / lạch cắt vuông góc tuyến (đơn giản hoá); địa hình phẳng (không có độ cao thật).
+  Chỉ Đồng Nai dùng mặt nước shader sông. Sông / lạch cắt vuông góc tuyến (đơn giản hoá).
+  **Số làn** (`laneCount(s)`, `lay.lanes`): OSM kẹp 2–3 mỗi chiều, quanh nút giao (±620 m) luôn 3; đoạn 2 làn: vạch ngoài cùng (±7.5)
+  liền, làn thứ 3 thành làn khẩn cấp — mặt đường giữ bề rộng 3 làn. cityTraffic: không sinh / vượt vào làn 3 ở đoạn 2 làn, xe làn 3
+  nhập làn giữa trước khi hết làn (chờ ở 40 m nếu kẹt), 18% xe làn giữa sang làn 3 ở t −640…−560 để ra nhánh (`exitK`); xe mình tự
+  nhập làn giữa nếu đang tự lái ở làn 3. **Độ cao thật** (SRTM 30 m, `src/hlg-dem.json` 546 × 31 theo (s, u) ±1.5 km, làm mượt 5×5
+  ~500 m): `hlgDem(lay)` → lưới thế giới 50 m, `TP.dem` cộng vào `hLow` (shared) + GLSL `tDem` (texelFetch, khớp CPU; reeds đẩy
+  `uDem/uDemBox/uDemN`). HLG: `TP.low 1.5, mount 0` (bỏ núi xa). Cao độ đường ~2 m (Thủ Đức) → 13 (Long Thành) → ~199 m (Dầu Giây),
+  dốc tối đa 5.9% (cầu vượt nút giao Long Thành). **Cảnh quan** (`hlgEnv.js`): OSM rất thưa — 522 nhà (433 ở km 0–5), sử dụng đất
+  55–100% ô chưa có dữ liệu (km 30–35 trống hẳn) => phần lớn tuyến vẫn trống; hướng làm tiếp: footprint Microsoft / Google Open
+  Buildings + suy loại đất từ độ cao / mật độ nhà (xem mục 5).
   **Map Đại lộ** (`avenue`, 🛣️, nhóm Drive cùng Phố; M trong Drive: Phố ↔ Đại lộ): cao tốc 6 làn (`AVENUE`: tâm làn ±2.25 / ±5.75 /
   ±9.25, dải phân cách ±0.5, mép làn ±11, lề khẩn cấp tới ±13), đường cong rất thoải (bán kính ≥ ~2 km), địa hình `avenue` (đồi cỏ
   thấp, cỏ cao `meadow` hai bên), hộ lan thép 2 bên, đèn đường 2 bên xen kẽ. Xe: `cityTraffic` chế độ avenue (3 làn mỗi chiều, tốc
@@ -355,12 +365,13 @@ model thử (~625 MB) không nằm trong git.
   khoá ngang (Android), gợi ý xoay ngang khi cầm dọc; iPhone: "Thêm vào MH chính" (manifest fullscreen/landscape).
 
 ## 5. Việc còn mở / cần chú ý
-- **Map Cao tốc HLG — có thể làm tiếp** (chưa ai nhận): số làn thật theo đoạn (OSM `lanes`: 2–4 mỗi chiều; game đang 3);
-  sông / lạch cắt chéo đúng góc thật (đang vuông góc tuyến); mặt nước lạch dài ±400 m rồi dừng; địa hình phẳng (chưa có độ cao
-  thật, có thể lấy SRTM); biển tốc độ dựng bên đường còn theo mẫu Đại lộ (HUD đã đúng biển thật); Cầu Long Thành dùng tháp dây văng
+- **Map Cao tốc HLG — có thể làm tiếp**: ĐANG LÀM nhà theo footprint thật ngoài OSM (OSM chỉ 522 nhà); sông / lạch cắt chéo
+  đúng góc thật (đang vuông góc tuyến); mặt nước lạch dài ±400 m rồi dừng; cỏ cao `meadow` vẫn phủ cả khu dân cư; biển tốc độ dựng bên đường còn theo mẫu Đại lộ (HUD đã đúng biển thật); Cầu Long Thành dùng tháp dây văng
   chung của Đại lộ (chưa đối chiếu ảnh thật); nút giao chưa có tên đường cắt ngang cho Nhơn Trạch / QL51 / Long Thành / Cẩm Mỹ
   (`cross` null trong dữ liệu); trạm thu phí trên nhánh QL51 bị bỏ. Chưa xem trên máy thật / Good / Ultra.
-  Dữ liệu tạo lại: `node scripts/fetch-hlg.mjs` (cache Overpass `HLG_CACHE`, mặc định `<tmp>/chilldrive-osm`) rồi `check-hlg.mjs`.
+  Dữ liệu tạo lại: `node scripts/fetch-hlg.mjs` (cache Overpass `HLG_CACHE`, mặc định `<tmp>/chilldrive-osm`) rồi `check-hlg.mjs`;
+  `node scripts/fetch-hlg-env.mjs` (`ONLY=dem|env`; SRTM qua OpenTopoData ~4.5 phút, Overpass hay 502/504 ~23 phút — đừng dùng
+  `[maxsize:…]`, chia nhỏ bbox).
 - **Chờ chú**: map mới từ model `landscape_forest__mountains.glb` — chú dặn để lần sau, **hỏi chú trước khi làm**.
 - Chưa kiểm chứng hiệu năng trên máy thật (gương + tia nắng + mưa kính + thác tốn thêm GPU); chưa thử Good/Ultra trên máy ảo.
 - Cảnh dừng xe: đoạn ▶️ quay lại xe mới thử bằng mô phỏng logic (máy ảo quá chậm để chạy trọn).
@@ -379,3 +390,6 @@ model thử (~625 MB) không nằm trong git.
   tự viết lại; chạy `opencode run` nền dễ treo — nếu dùng, chạy tiền cảnh có giới hạn thời gian).
 - **#1 — Handoff + DeepSeek MCP (21/10/2026)**: dựng máy chủ MCP `deepseek` (ngoài repo, phạm vi user, đã thử thật: 2 model,
   trả lời ~3 s); ROAD.md mục 2 thêm quy ước handoff + tiết kiệm quota; mục 5 thêm việc mở của map Cao tốc HLG.
+- **#2 — HLG: số làn thật, độ cao SRTM, nhà / cây / màu đất theo OSM (21/10/2026)**: xem mục trạng thái Map Cao tốc + `hlgEnv.js`.
+  check-hlg (thêm số làn) / traffic / traffic-policy / steering / car-switch PASS; GUI Low: đường + địa hình theo độ cao thật, không
+  núi xa, nhà OSM ở km 0–5. Dữ liệu do subagent Sonnet tải (`fetch-hlg-env.mjs`).

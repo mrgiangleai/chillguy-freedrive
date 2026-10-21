@@ -76,6 +76,12 @@ export const icP = (k) => (LAY && LAY.ics[k]) || IC;
 export const deckS = (k) => (LAY?.decks ? at(LAY.decks, k) : FAR);
 export const deckIndex = (s) => (LAY?.decks ? nearIdx(LAY.decks, s) : 0);
 export const deckP = (k) => LAY?.decks?.[k] || null;
+// số làn mỗi chiều tại s (map HLG theo OSM: 2 hoặc 3; đoạn 2 làn thì làn ngoài cùng thành làn khẩn cấp). Đại lộ: 3
+export function laneCount(s) {
+  if (!LAY?.lanes) return 3;
+  for (const L of LAY.lanes) if (s >= L.s0 && s < L.s1) return L.n;
+  return 3;
+}
 // độ nhô của cầu cạn tại s (0 ngoài cầu + dốc dẫn)
 export function deckHump(s) {
   if (!LAY?.decks) return 0;

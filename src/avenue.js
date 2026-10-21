@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { AVENUE, IC, icS, icIndex, rampU, tollS, tollIndex, CAM, camS, camIndex, flyS, flyIndex, flyP, riverS, riverIndex, riverP, deckS, deckIndex, deckP, layout } from './road.js';
+import { AVENUE, IC, icS, icIndex, rampU, tollS, tollIndex, CAM, camS, camIndex, flyS, flyIndex, flyP, riverS, riverIndex, riverP, deckS, deckIndex, deckP, laneCount, layout } from './road.js';
 import { hLow } from './terrain-noise.js';
 import { withMist } from './mist.js';
 import { broadleafGeometry } from './scenery.js';
@@ -1162,7 +1162,11 @@ export class Avenue {
       strip(s0, s1, su * (A.median + 0.15), su * (A.median + 0.3), YEL);          // mép trong (sát dải phân cách): vàng liền
       strip(s0, s1, su * (A.edge - 0.1), su * (A.edge + 0.1), WHITE);             // mép ngoài (lề khẩn cấp): trắng liền
       for (const sep of A.seps) {                                                  // giữa các làn: trắng đứt
-        for (let a = Math.ceil(s0 / (DASH + GAP)) * (DASH + GAP); a < s1; a += DASH + GAP) strip(a, Math.min(s1, a + DASH), su * (sep - 0.075), su * (sep + 0.075), WHITE);
+        for (let a = Math.ceil(s0 / (DASH + GAP)) * (DASH + GAP); a < s1; a += DASH + GAP) {
+          // đoạn chỉ 2 làn (HLG): vạch ngoài cùng liền (làn thứ 3 thành làn khẩn cấp), vẽ liền cả khoảng hở giữa 2 nét
+          const solid = sep === A.seps[1] && laneCount(a + DASH / 2) < 3;
+          strip(a, Math.min(s1, a + (solid ? DASH + GAP : DASH)), su * (sep - 0.075), su * (sep + 0.075), WHITE);
+        }
       }
     }
     group.add(this._mesh(mark, this.markMat, true));

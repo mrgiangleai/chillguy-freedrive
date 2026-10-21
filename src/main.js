@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { ROAD, ROAD_HW, CITY, AVENUE, IC, icS, icIndex, rampU, avHump, TOLL, tollDist, tollIndex, riverIndex, CAM, camS, camIndex, avLimit, setLayout, Road } from './road.js';
-import { HLG, hlgLayout } from './hlg.js';
+import { ROAD, ROAD_HW, CITY, AVENUE, IC, icS, icIndex, rampU, avHump, TOLL, tollDist, tollIndex, riverIndex, CAM, camS, camIndex, avLimit, setLayout, laneCount, Road } from './road.js';
+import { HLG, hlgLayout, hlgDem } from './hlg.js';
+import { HlgEnv } from './hlgEnv.js';
 import { Avenue } from './avenue.js';
 import { Minimap } from './minimap.js';
 import { City, SIGNAL } from './city.js';
@@ -127,6 +128,8 @@ const cityTraffic = new CityTraffic(scene, road, city);      // map Phố: xe d�
 const cityPeople = new CityPeople(scene, road, city);        // map Phố: người đi bộ
 cityPeople.yAt = (s, u, y) => avLowY(s, u) ?? y;            // đại lộ: người trên nhánh rẽ / đường ngang ở cao độ nền
 const avenue = new Avenue(scene, road, scenery.cityTex);     // map Đại lộ: vạch kẻ 6 làn + dải phân cách + nút giao (xe: cityTraffic chế độ avenue)
+const hlgEnv = new HlgEnv(scene, road, city, avenue);       // map Cao tốc HLG: nhà / cây / màu đất theo bản đồ thật (tải assets/hlg-env.json)
+hlgEnv.onLand = () => { if (hlgEnv.visible) { terrain.reset(); terrain.setCar(drive.s); } };   // lưới màu đất sẵn sàng => tô lại địa hình
 terrain.extraCarve = (x, z, h, h0, ns, nd) => avenue.carve(x, z, h, h0, ns, nd);
 avenue.groundAt = (x, z) => terrain.heightAt(x, z);
 scenery.railGap = (s) => avenue.visible && avenue.railGap(s);
@@ -572,11 +575,15 @@ function warmShaders(delay = 500) {
 }
 const applyMap = () => {
   const mapId = MAPS[state.map].id, id = mapKind(mapId), isHlg = mapId === 'hlg';
+  if (isHlg && curMapId !== 'hlg') hlgDir = hlgLayout(false);
   setTerrainMap(id);            // đổi tham số địa hình (đồi thấp / đồi núi)
+  // cao tốc HLG: độ cao thật (SRTM) + gợn rất nhẹ, không có núi xa (đồng bằng Đông Nam Bộ)
+  if (isHlg) Object.assign(TP, { low: 1.5, det: 1.2, fine: 0.35, mount: 0, dem: hlgDem(hlgDir) });
+  hlgEnv.visible = isHlg;
+  if (isHlg) hlgEnv.setDir(hlgDir);
   const isCity = id === 'city', isAvenue = id === 'avenue', isTraffic = isCity || isAvenue;   // nhóm Drive: Phố + Đại lộ + Cao tốc HLG
   ROAD.halfWidth = isCity ? CITY.hw : isAvenue ? AVENUE.hw : ROAD_HW;   // phố: 4 làn; đại lộ: 6 làn + lề
   // cao tốc HLG: vào map luôn ở An Phú, chiều đi Dầu Giây; bố trí công trình theo dữ liệu thật (Đại lộ: theo chu kỳ)
-  if (isHlg && curMapId !== 'hlg') hlgDir = hlgLayout(false);
   setLayout(isHlg ? hlgDir : null);
   road.setShape(isHlg ? 'hlg' : id, isHlg ? hlgDir.real : null);   // phố: đường thẳng theo đoạn + ngã tư; đại lộ: cong rất thoải
   if (isAvenue && curMapId !== mapId) { drive.s = isHlg ? HLG.start : 150; drive.ramp = null; }   // vào đại lộ: luôn từ đầu đường (cầu cao ở 700 m, cầu sông 2.2 km)
@@ -1580,6 +1587,8 @@ function frame(now) {
         blinkDone = 2;
       }
     }
+    // tuyến 2 làn (HLG): đang tự lái ở làn ngoài cùng mà phía trước hết làn => tự nhập làn giữa
+    if (drive.ramp == null && !drive.manual && Math.abs(drive.home - AVENUE.lanes[2]) < 0.1 && laneCount(drive.s + 150) < 3) drive.home = AVENUE.lanes[1];
     if (drive.ramp != null) {
       const t = drive.s - icS(drive.ramp), u = rampU(t);
       if (u === null || t > IC.rampLen - 6) { drive.ramp = null; drive.home = AVENUE.lanes[2]; drive.manual = false; say('↗ Đã nhập lại cao tốc'); }
@@ -1746,6 +1755,7 @@ function frame(now) {
     }
   }
   avenue.update(drive.s, 1, dt); avenue.setLamps(st.lamps);
+  hlgEnv.update(drive.s, st.lamps);
   minimap.update(dt);
   updateBlinker(dt);
   updateSpeedLimit();
@@ -1919,4 +1929,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { get crashFx() { return crashFx; }, get blinker() { return blinker; }, get violations() { return violations; }, minimap, avenue, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { get crashFx() { return crashFx; }, get blinker() { return blinker; }, get violations() { return violations; }, minimap, avenue, hlgEnv, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

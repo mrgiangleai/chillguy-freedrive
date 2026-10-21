@@ -1,5 +1,5 @@
 // Kiểm tra map Cao tốc HLG: dữ liệu OSM liên tục, đường dựng lại khớp toạ độ thật, công trình không chồng nhau, đảo chiều đúng.
-import { Road, setLayout, icS, icIndex, tollDist, avLimit, avHump, deckHump, IC } from '../src/road.js';
+import { Road, setLayout, icS, icIndex, tollDist, avLimit, avHump, deckHump, laneCount, IC } from '../src/road.js';
 import { HLG, hlgLayout } from '../src/hlg.js';
 
 let fail = 0;
@@ -58,6 +58,9 @@ for (const rev of [false, true]) {
   ok(onDeck.every((c) => Math.abs(avHump(c.s) - IC.hump) < 0.3 && road.baseY(c.s) < road.at(c.s, {}).y - IC.hump + 0.3),
     `${tag}: ${onDeck.length} nút giao trên cầu cạn: cao tốc ở độ cao cầu vượt, đường ngang ở mặt đất`);
   ok(lay.decks.every((D) => D.creeks.every((c) => Math.abs(c.t) + c.hw <= D.half * 2 + 1)), `${tag}: ${lay.decks.length} đoạn cầu, lạch nằm dưới cầu`);
+  const LN = lay.lanes, cover = LN[0].s0 === 0 && LN.every((l, i) => !i || l.s0 === LN[i - 1].s1) && LN[LN.length - 1].s1 >= L - 20;
+  ok(cover && LN.every((l) => (l.n === 2 || l.n === 3) && l.s1 - l.s0 >= 300) && lay.ics.every((c) => laneCount(c.s - IC.rampLen) === 3 && laneCount(c.s + IC.rampLen) === 3),
+    `${tag}: số làn ${LN.map((l) => `${(l.s0 / 1000).toFixed(1)}:${l.n}`).join(' ')} (phủ kín, nút giao có làn thứ 3)`);
   let sum = 0; for (const D of lay.decks) sum += 2 * D.half;
   console.log(`     cầu cạn / cầu nhỏ: tổng ${(sum / 1000).toFixed(2)} km; deckHump(km 7) = ${deckHump(rev ? L - 7000 : 7000).toFixed(1)} m`);
 }

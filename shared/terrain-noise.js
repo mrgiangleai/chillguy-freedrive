@@ -21,7 +21,7 @@ export const TP = { id: 'reed', ...TERRAIN_MAPS.reed };
 // id lạ => về cỏ lau
 export function setTerrainMap(id) {
   if (!TERRAIN_MAPS[id]) id = 'reed';
-  Object.assign(TP, { side: false, sea: false, hill: 0 }, TERRAIN_MAPS[id], { id });
+  Object.assign(TP, { side: false, sea: false, hill: 0, dem: null, land: null }, TERRAIN_MAPS[id], { id });
 }
 
 export function hash2(ix, iz) {
@@ -46,7 +46,15 @@ export function hLow(x, z) {
     const m = vnoise(x / 900 + 2.1, z / 900 + 8.4), k = m < 0.45 ? 0 : m > 0.62 ? 1 : (m - 0.45) / 0.17;
     return TP.hill * k * k * (3 - 2 * k) * (vnoise(x / 260 + 6.6, z / 260 + 3.2) - 0.5) * 2;
   }
-  return TP.low * ((vnoise(x / 1000 + 11.3, z / 1000 + 7.1) - 0.5) * 1.34 + (vnoise(x / 500 + 3.7, z / 500 + 1.9) - 0.5) * 0.66);
+  return TP.low * ((vnoise(x / 1000 + 11.3, z / 1000 + 7.1) - 0.5) * 1.34 + (vnoise(x / 500 + 3.7, z / 500 + 1.9) - 0.5) * 0.66)
+    + (TP.dem ? demAt(TP.dem, x, z) : 0);
+}
+// độ cao thật (map Cao tốc HLG): lưới vuông theo thế giới { x0, z0, cell, nx, nz, h: Float32Array }, nội suy song tuyến
+// (GLSL trong src/terrain-noise.js đọc cùng lưới bằng texelFetch => khớp CPU)
+export function demAt(D, x, z) {
+  const fx = Math.min(D.nx - 1.001, Math.max(0, (x - D.x0) / D.cell)), fz = Math.min(D.nz - 1.001, Math.max(0, (z - D.z0) / D.cell));
+  const i = Math.floor(fx), j = Math.floor(fz), tx = fx - i, tz = fz - j, H = D.h, n = D.nx, k = j * n + i;
+  return (H[k] * (1 - tx) + H[k + 1] * tx) * (1 - tz) + (H[k + n] * (1 - tx) + H[k + n + 1] * tx) * tz;
 }
 
 export function hDetail(x, z) {
