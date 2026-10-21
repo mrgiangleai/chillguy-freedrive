@@ -3,6 +3,7 @@ import { ROAD, ROAD_HW, CITY, AVENUE, IC, icS, icIndex, rampU, avHump, TOLL, tol
 import { HLG, hlgLayout, hlgDem } from './hlg.js';
 import { HlgEnv } from './hlgEnv.js';
 import { NYC, nycLoop, nycStreet, NycWorks } from './nyc.js';
+import { TimesSquare } from './timesSquare.js';
 // mặc định của game = bộ cài đặt chú chỉnh trên Safari (xuất localStorage 21/10/2026): người chơi mới nhận bộ này,
 // nút "Mặc định" trong các bảng chỉnh trả về số của bộ này (không phải số gốc trong code)
 import DEF from './default-settings.json' with { type: 'json' };
@@ -137,6 +138,7 @@ const cityPeople = new CityPeople(scene, road, city);        // map Phố: ngư�
 const _yp = {};
 cityPeople.yAt = (s, u, y) => avLowY(s, u) ?? (onNyc() && Math.abs(u) > CITY.hw ? road.street.at(s, _yp).y : y);   // đại lộ: nhánh rẽ / đường ngang ở cao độ nền; New York: vỉa hè ở mặt phố
 const nycWorks = new NycWorks(scene, road, scenery.roadMat);   // map New York: tường + trần hầm Park Ave, cầu cạn quanh Grand Central
+const timesSq = new TimesSquare(scene, road, city);            // map New York: Times Square (nhà chọc trời, biển LED, quảng trường)
 const avenue = new Avenue(scene, road, scenery.cityTex);     // map Đại lộ: vạch kẻ 6 làn + dải phân cách + nút giao (xe: cityTraffic chế độ avenue)
 const hlgEnv = new HlgEnv(scene, road, city, avenue);       // map Cao tốc HLG: nhà / cây / màu đất theo bản đồ thật (tải assets/hlg-env.json)
 hlgEnv.onLand = () => { if (hlgEnv.visible) { terrain.reset(); terrain.setCar(drive.s); } };   // lưới màu đất sẵn sàng => tô lại địa hình
@@ -641,6 +643,7 @@ const applyMap = () => {
   town.reset();
   town.visible = id === 'mountain';
   city.nyc = isNyc;
+  timesSq.visible = isNyc;      // trước khi dựng khối phố: vùng loại nhà map Phố
   city.reset();                 // Phố ↔ New York: khối nhà dựng theo hình đường cũ
   city.visible = isCity;
   city.prime(drive.s);
@@ -1858,6 +1861,7 @@ function frame(now) {
   }
   avenue.update(drive.s, 1, dt); avenue.setLamps(st.lamps);
   hlgEnv.update(drive.s, st.lamps);
+  if (timesSq.visible) timesSq.update(dt, st.lamps);
   if (nycWorks.visible) { nycWorks.setLamps(st.lamps); nycWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
   minimap.update(dt);
   updateBlinker(dt);

@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -15,6 +15,9 @@
   Hook kiểm thử: `window.__app` (env, cars, rig, drive, state, stop, person, smoke, wing, audio, traffic, town, cows, waterfalls, ocean,
   terrain, toggleStop, nextMap…). Sau khi dời xe (`drive.s`) phải `terrain.prime(pos)`, không thì ô địa hình gần còn là ô thô.
   Máy chủ thử chạy nền tự tắt sau 2 giờ => bật lại. Script chụp tạm để ở scratchpad, không đưa file preview vào `docs/`.
+  Khung trình duyệt trong app bị ẩn thì rAF đứng (ảnh không đổi) => dùng Playwright có sẵn ở `~/.npm/_npx/e41f203b7505f1fb/node_modules/playwright`
+  với `executablePath` = `~/Library/Caches/ms-playwright/chromium_headless_shell-1248/…/chrome-headless-shell`, bấm nút qua `evaluate(el.click())`,
+  `goto(..., { waitUntil: 'domcontentloaded' })`; map có cài đặt "Tự động" ghi đè camera / giờ => đặt lại ngay trước khi chụp.
   Máy chậm => môi trường (env map) chưa kịp chụp lại khi đổi giờ: gọi `__app.env.update(0.016, drive.pos); env._captureEnv()`.
 - **Kiểm tra tự động** (node, không cần trình duyệt; đều PASS): `scripts/check-traffic.mjs`, `check-traffic-policy.mjs`, `check-steering.mjs`,
   `check-stopscene.mjs`, `check-hlg.mjs`, `check-nyc.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
@@ -202,6 +205,19 @@
   Ô đất OSM trống được lấp: mật độ nhà => 'r' / 'i'; còn lại theo độ cao SRTM: < 5 m ruộng 'p', 5–14 m pha ruộng / rừng theo mảng
   ~200 m, ≥ 14 m rừng cao su 'f' (15% trảng). Cây 'f': 3 / ô khi |u| < 160 m, 1 / ô tới 360 m; ô 'f' cao ≥ 14 m (theo `TP.dem`) trồng
   `rubberTreeGeometry` (scenery.js, 214 tam giác, cao ~12 m) thẳng hàng dọc đường, còn lại cây tán tròn.
+  **Map New York** (`nyc`, 🗽, nhóm Drive; `mapKind('nyc') = 'city'`, cài đặt `chilldrive.nyc`; plan + kết quả chi tiết: `NYC_PLAN.md`):
+  vòng khép kín Midtown 5 543 m theo OSM (`scripts/fetch-nyc.mjs` → `src/nyc-data.json`; Dijkstra có hướng kiểm chiều một chiều: 7th Ave nam,
+  32nd St đông, Park Ave bắc qua hầm + cầu cạn, 55th St tây). road.js `setShape('nyc', nycLoop())`: s quấn vòng (hướng +2π / vòng), ngã tư /
+  góc từ dữ liệu (`junctionInfo`, `cornerAhead`), `curveV` (tốc độ vào cua aLat 2.4 — cả xe mình + NPC), `elevAt` + `road.street` (mặt phố),
+  điểm đường có `g` cho địa hình. Hầm sâu 5.5 m / cầu cạn cao 6 m (`nycElevKeys`, dốc ≤ 6 %), `NycWorks` (tường gạch men, trần, đèn trần,
+  PointLight theo xe trong hầm; bản mặt cầu, lan can, trụ); camera trong hầm có trần (`rig.ceilAt`). city.js (`city.nyc`): góc rẽ `_corner` /
+  `_cornerFrame` (cung R 15.3 m, `CORNER`), vạch Mỹ một chiều, lọc nhà theo đường chéo góc (`owns`), không cột điện, `stopA(n)` / `nextLine`,
+  `exclude` + `extraObb` (vùng nhà riêng). cityTraffic chế độ `nyc` (một chiều 4 làn). main: vào ở s = L + 30, `nycAuto` (xi nhan trái 150 m,
+  sang làn trái khi trống, về làn phải sau góc 40 m), lỗi `turn` / `turnSig`, biển 40 (25 mph).
+  **Times Square** (`timesSquare.js`, s 470–960 = 47 → 42 St): nhà chọc trời kính nhiều bậc lùi 3 dãy (35–250 m, 3 kiểu mặt tiền canvas, cửa
+  sổ sáng đêm), thay nhà map Phố trong vùng (`city.exclude`); biển LED InstancedMesh đổi hình 5–11 s/hình (`adAtlas.js`: 16 thương hiệu tự chế,
+  DeepSeek viết, đã soát), dải biển tầng trệt, mặt bắc nhà đầu khối phủ biển; tháp One Times Square (bên trái 43→42 St, 112 m, 15 tấm biển);
+  quảng trường lát gạch (phải 47→46 St có 13 bậc đỏ TKTS + quầy kính; trái 45→43 St) có bàn ghế đỏ, bồn cây.
   **Map Đại lộ** (`avenue`, 🛣️, nhóm Drive cùng Phố; M trong Drive: Phố ↔ Đại lộ): cao tốc 6 làn (`AVENUE`: tâm làn ±2.25 / ±5.75 /
   ±9.25, dải phân cách ±0.5, mép làn ±11, lề khẩn cấp tới ±13), đường cong rất thoải (bán kính ≥ ~2 km), địa hình `avenue` (đồi cỏ
   thấp, cỏ cao `meadow` hai bên), hộ lan thép 2 bên, đèn đường 2 bên xen kẽ. Xe: `cityTraffic` chế độ avenue (3 làn mỗi chiều, tốc
@@ -329,9 +345,9 @@
   khoá ngang (Android), gợi ý xoay ngang khi cầm dọc; iPhone: "Thêm vào MH chính" (manifest fullscreen/landscape).
 
 ## 5. Việc còn mở / cần chú ý
-- **TIẾP THEO — Map New York** 🗽: B1 xong (xem `NYC_PLAN.md` mục "Kết quả B1"). Chú chê "không khác map Phố, không giống Times Square"
-  (gửi ảnh low-poly Times Square: tháp biển LED giữa, nhà chọc trời, biển quảng cáo lớn) => làm tiếp Times Square (B4 + nhà cao tầng B2
-  cho 7th Ave 42–47 St) trước. Hỏi chú nếu muốn thứ tự khác.
+- **TIẾP THEO — Map New York** 🗽: B1 + Times Square lượt 1 xong, chờ chú xem. Còn: biển LED quấn góc nhà / cong, đám đông quảng trường
+  (B4), taxi vàng / buýt (B3), nhà thật cả vòng (B2), Grand Central / Helmsley, đường ngang dưới cầu cạn + trên hầm, góc trong khúc cua trống.
+  Ảnh chụp Low: ban đêm biển sáng rõ; camera Bên hông dễ bị 1 tấm biển che kín khung hình.
 - **Map Cao tốc HLG — có thể làm tiếp**: footprint Microsoft không có chiều cao ở VN => cao theo diện tích (đoán); sông / lạch cắt chéo
   đúng góc thật (đang vuông góc tuyến); mặt nước lạch dài ±400 m rồi dừng; cỏ cao `meadow` vẫn phủ cả khu dân cư; biển tốc độ dựng bên đường còn theo mẫu Đại lộ (HUD đã đúng biển thật); Cầu Long Thành dùng tháp dây văng
   chung của Đại lộ (chưa đối chiếu ảnh thật); nút giao chưa có tên đường cắt ngang cho Nhơn Trạch / QL51 / Long Thành / Cẩm Mỹ
@@ -351,40 +367,5 @@
 - `QUICK_OPENING = true` (TẠM, đầu game 0.5 s) — bật lại khi chú bảo. Kiểm thử Playwright: vào game bằng `#m-chill` / `#m-drive`.
 
 ## 6. Nhật ký cập nhật
-- Đã tóm tắt tới commit "Cao tốc HLG: cầu cạn 6.5 km + cầu nhỏ + lạch nước" (sau `df82f9e`): tiếng xe nhỏ lại, intro Good có tiếng,
-  cài đặt Chill / Drive tách riêng, bảng Animal / Nature, quay màn hình, gộp editor WebGPU + `shared/`, camera dừng xe bám người,
-  map Cao tốc HCM – Long Thành – Dầu Giây (OSM) + cầu cạn / cầu nhỏ / lạch nước (giao DeepSeek qua opencode bị treo không ra kết quả,
-  tự viết lại; chạy `opencode run` nền dễ treo — nếu dùng, chạy tiền cảnh có giới hạn thời gian).
-- **#1 — Handoff + DeepSeek MCP (21/10/2026)**: dựng máy chủ MCP `deepseek` (ngoài repo, phạm vi user, đã thử thật: 2 model,
-  trả lời ~3 s); ROAD.md mục 2 thêm quy ước handoff + tiết kiệm quota; mục 5 thêm việc mở của map Cao tốc HLG.
-- **#2 — HLG: số làn thật, độ cao SRTM, nhà / cây / màu đất theo OSM (21/10/2026)**: xem mục trạng thái Map Cao tốc + `hlgEnv.js`.
-  check-hlg (thêm số làn) / traffic / traffic-policy / steering / car-switch PASS; GUI Low: đường + địa hình theo độ cao thật, không
-  núi xa, nhà OSM ở km 0–5. Dữ liệu do subagent Sonnet tải (`fetch-hlg-env.mjs`).
-- **#3 — HLG: nhà theo footprint Microsoft + lấp loại đất (21/10/2026)**: `fetch-hlg-env.mjs` thêm nguồn Microsoft (cache `<tmp>/chilldrive-osm/ms/`,
-  2 file 257 MB, chạy lại vài giây), `hlg-env.json` 272 KB. GUI Low: km 2.6 nhà dân hai bên, km 46 (cao 93 m) ruộng + hàng cây xa,
-  console không lỗi. check-hlg PASS.
-- **#4 — Tốc độ giao thông chỉnh bằng km/h ở mọi map (21/10/2026)**: xem mục bảng 🚦. check traffic / traffic-policy / hlg / car-switch /
-  steering PASS; GUI: Chill 2 ô km/h lưu được, cao tốc NPC 36–115 km/h (60–104 × mức ngẫu nhiên × làn). Cài đặt Safari của chú đã thành mặc định
-  ở mục #5.
-- **#5 — Cài đặt Safari của chú thành mặc định (21/10/2026)**: `default-settings.json` + `loadTraffic` / `loadMist` / `defSet`. GUI
-  (xoá localStorage): Chill phơi sáng 1.25, quay quanh 30 m; Drive phơi sáng 0.73; HLG gió lớn / ban ngày / cam Sát mặt đường; cao tốc
-  mật độ 2.5, 120–208 km/h; nút Mặc định camera trả về 1.75 m. Check scripts PASS, console không lỗi.
-- **#6 — Cây cao su cho map HLG do MiniMax dựng (21/10/2026)**: worker MiniMax tự viết + tự chấm (`check-tree`: ≤ 360 tam giác, cao
-  11–13 m, tán 3.5–5.5 m, thân trống ≥ 5.3 m, gốc cành ≤ 0.45 m khỏi trục) — đạt sau 1 vòng sửa (lỗi xoay cành quanh tâm). GUI Low km 38.5:
-  ~2 000 cây cao su thẳng hàng hai bên. check-hlg PASS.
-- **#7 — Chốt plan map New York (21/10/2026)**: đọc plan dở từ phiên cloud (chú dán), chú chốt vòng có hầm + cầu cạn Park Ave;
-  ghi `NYC_PLAN.md` + mục 5. Phiên mới làm tiếp từ B1.
-- **#8 — Thứ tự dùng DeepSeek (21/10/2026)**: ưu tiên `opencode/deepseek-v4.1-flash-free` (đã thử chạy), hết giới hạn mới hỏi chú
-  để dùng credit API (MCP `deepseek`); mô tả công cụ MCP ghi rõ "chỉ dùng khi chú đồng ý".
-- **#9 — Map New York B1 (21/10/2026)**: `scripts/fetch-nyc.mjs` → `src/nyc-data.json` (OSM, kiểm chiều một chiều bằng Dijkstra có hướng:
-  32nd St đông, 55th St tây, hầm Park Ave bắc, cầu cạn bắc — đúng plan). `src/nyc.js`: vòng (`nycLoop`, độ cao hầm / cầu cạn), `NycWorks`
-  (tường gạch men + trần + đèn hầm, 1 PointLight theo xe trong hầm; bản mặt cầu + lan can + trụ). road.js: `setShape('nyc', loop)` — s quấn
-  vòng, hướng +2π / vòng, `junction*` từ dữ liệu, `junctionInfo`, `cornerAhead`, `curveV` (tốc độ vào cua, aLat 2.4), `elevAt`, `road.street`
-  (mặt phố), điểm đường có `g` (terrain bám mặt phố dưới cầu / trên hầm kín). city.js (`city.nyc`): góc rẽ `_corner` / `_cornerFrame`
-  (giao lộ vuông + 2 nhánh đi tiếp + vỉa hè góc + 4 vạch qua đường), vạch Mỹ một chiều, lọc nhà theo đường chéo góc (`owns`), không cột điện,
-  `stopA(n)` / `nextLine`. cityTraffic chế độ `nyc` (một chiều 4 làn, xe đường ngang theo chiều thật, không ở góc). main: map `nyc` (MAPS,
-  `mapKind` → city, `chilldrive.nyc`, vào ở s = L + 30), `nycAuto` (xi nhan trái 150 m, sang làn trái khi trống, về làn phải sau góc 40 m;
-  lái tay ≤ 8 s thì không tự đổi), lỗi `turn` / `turnSig`, biển 40, camera trong hầm có trần (`rig.ceilAt`), bỏ lỗi đèn đỏ khi xe nhảy > 30 m.
-  check-nyc + traffic / traffic-policy / steering / stopscene / hlg / car-switch PASS. Playwright Low: quét trọn vòng mỗi 60 m không lỗi
-  console; tự lái thật qua góc 7th → 32nd: 0 lỗi, 22 km/h trong cua. Khung trình duyệt trong app bị ẩn thì rAF đứng — dùng Playwright
-  (`~/.npm/_npx/e41f203b7505f1fb/node_modules/playwright` + `executablePath` chromium_headless_shell-1248, `click` qua `evaluate`).
+- Đã tóm tắt tới commit "Map New York: Times Square lượt 1" (gồm: handoff + MCP DeepSeek, HLG số làn / SRTM / nhà Microsoft / cây cao su,
+  tốc độ giao thông km/h, cài đặt Safari làm mặc định, chốt plan + B1 map New York, thứ tự dùng DeepSeek, Times Square lượt 1).

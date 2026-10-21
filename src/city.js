@@ -470,6 +470,8 @@ export class City {
       const o = g.userData.obb;
       for (let i = 0; i < o.length; i += 7) if (Math.abs(o[i] - ax) < R && Math.abs(o[i + 1] - az) < R) near.push(i, o);
     }
+    const X = this.extraObb;                                       // nhà ngoài khối phố (Times Square)
+    if (X) for (let i = 0; i < X.length; i += 7) if (Math.abs(X[i] - ax) < R + 30 && Math.abs(X[i + 1] - az) < R + 30) near.push(i, X);
     let f = 1;
     const M = 0.6;
     for (let t = 0.8; t <= L + M && f === 1; t += 0.35) {
@@ -731,7 +733,7 @@ export class City {
       return true;
     };
     const add = (x, z, yaw, w, d, type, shop, far, g0, flSet) => {
-      if (own.length && !owns(x, z, w, d, yaw)) { add.last = 0; return 0; }
+      if ((own.length && !owns(x, z, w, d, yaw)) || this.exclude?.(x, z)) { add.last = 0; return 0; }   // exclude: vùng Times Square (nhà riêng)
       const cs = Math.cos(yaw), sn = Math.sin(yaw);
       let lo = g0;
       for (const [lx, lz] of [[-w / 2, -d / 2], [w / 2, -d / 2], [-w / 2, d / 2], [w / 2, d / 2]]) lo = Math.min(lo, hLow(x + cs * lx + sn * lz, z - sn * lx + cs * lz));
@@ -822,7 +824,7 @@ export class City {
           const cs = Math.cos(yaw), sn = Math.sin(yaw);
           signs.push([x + cs * lx + sn * lz, z - sn * lx + cs * lz, yaw, g0 + 4.3, hs, Math.floor(r() * 16)]);
         }
-        if (shop && r() < 0.22) {
+        if (shop && h > 0 && r() < 0.22) {
           const sv = s + 0.8 + r() * Math.max(0.1, w - 1.6), pv = road.at(sv, this._q), uv = su * (HW + SW - 0.05);
           vends.push([pv.x + Math.cos(pv.th) * uv, pv.y + WALK_Y, pv.z - Math.sin(pv.th) * uv, yaw]);
         }
