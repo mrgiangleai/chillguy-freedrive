@@ -5,6 +5,7 @@ import { HlgEnv } from './hlgEnv.js';
 import { NYC, NYC_DIM, nycLoop, nycStreet, NycWorks } from './nyc.js';
 import { TimesSquare } from './timesSquare.js';
 import { NycBuildings } from './nycBuildings.js';
+import { NycStreetProps } from './nycStreet.js';
 // mặc định của game = bộ cài đặt chú chỉnh trên Safari (xuất localStorage 21/10/2026): người chơi mới nhận bộ này,
 // nút "Mặc định" trong các bảng chỉnh trả về số của bộ này (không phải số gốc trong code)
 import DEF from './default-settings.json' with { type: 'json' };
@@ -143,7 +144,8 @@ const nycWorks = new NycWorks(scene, road, scenery.roadMat);   // map New York: 
 const timesSq = new TimesSquare(scene, road, city);
 try { timesSq.setMirror(localStorage.getItem('chilldrive.nyc.mirror') !== '0'); } catch { /* chế độ riêng tư */ }            // map New York: Times Square (nhà chọc trời, biển LED, quảng trường, đám đông)
 cityPeople.extra = () => (timesSq.visible ? timesSq.near : []);
-const nycBld = new NycBuildings(scene, timesSq, road);               // map New York: nhà thật OSM (footprint + chiều cao)
+const nycBld = new NycBuildings(scene, timesSq, road);
+const nycProps = new NycStreetProps(scene, road);            // map New York: biển tên đường, ONE WAY, trụ cứu hoả, thùng rác               // map New York: nhà thật OSM (footprint + chiều cao)
 nycBld.onReady = () => { if (nycBld.visible) city.extraObb = timesSq.obb.concat(nycBld.obb); };
 const avenue = new Avenue(scene, road, scenery.cityTex);     // map Đại lộ: vạch kẻ 6 làn + dải phân cách + nút giao (xe: cityTraffic chế độ avenue)
 const hlgEnv = new HlgEnv(scene, road, city, avenue);       // map Cao tốc HLG: nhà / cây / màu đất theo bản đồ thật (tải assets/hlg-env.json)
@@ -653,6 +655,7 @@ const applyMap = () => {
   timesSq.density = state.quality === QUALITY.findIndex((q) => q.id === 'low') ? 0.6 : 1;   // đám đông Times Square: Low ít người hơn
   timesSq.visible = isNyc;      // trước khi dựng khối phố: vùng loại nhà map Phố
   nycBld.visible = isNyc;
+  nycProps.visible = isNyc;
   if (isNyc) { city.exclude = () => true; nycBld.onReady(); }   // New York: không dựng nhà map Phố (nhà thật OSM thay)
   city.reset();                 // Phố ↔ New York: khối nhà dựng theo hình đường cũ
   city.visible = isCity;
@@ -2053,4 +2056,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { nycBld, timesSq, get crashFx() { return crashFx; }, get blinker() { return blinker; }, get violations() { return violations; }, minimap, avenue, hlgEnv, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { nycBld, nycProps, timesSq, get crashFx() { return crashFx; }, get blinker() { return blinker; }, get violations() { return violations; }, minimap, avenue, hlgEnv, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

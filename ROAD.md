@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -224,6 +224,10 @@
   Grand Central (trái đoạn cầu cạn chạy dọc nhà ga, mặt chính quay nam; dò chỗ cùng MetLife: không chạm đường, không chồng nhau). Đề + script
   chấm worker: scratchpad `lm/<tên>/TASK.md, check.mjs, spec.json` — đừng để log trong thư mục làm việc (DeepSeek đọc nhầm log rồi thoát).
   MiniMax free treo > 15 phút ở lượt này. Đã sửa lỗi đám đông Times Square (thuộc tính `z` trùng: vùng / toạ độ => đám đông riêng không hiện).
+  **Mặt tiền + đồ phố**: nhà OSM cao > 9 m có tầng trệt cửa hàng 4.8 m (`shopTex`: bảng hiệu màu, kính sáng ấm ban đêm), mặt nhìn ra tuyến có mái
+  hiên (393 tấm, 5 màu); `nycStreet.js`: cột ở góc trước-phải mỗi ngã tư (không phải góc rẽ) với biển tên đường xanh lá NYC ("W 53 St" → "53 St",
+  "7 Av", tên thật OSM, atlas canvas), biển ONE WAY phố ngang (chiều thật `ow`) + đại lộ, trụ cứu hoả đỏ / vàng 2 cái mỗi khối, thùng rác xanh.
+  Đèn tín hiệu NYC: đầu đèn dọc (đỏ trên, `headGeoV`), cần vươn tới u = −1.5 với 2 đầu đèn treo trên làn + 1 trên cột, không có cột chiều ngược.
   **Làn sóng xanh** (city.js `_phase`, `WAVE` 40 km/h, `SIGNAL_NYC`: đường chính xanh 30 s / chu kỳ 46 s, ngang 7.5 s): đèn lệch pha theo
   s / tốc độ sóng, xe đúng 40 km/h tới giữa pha xanh. `scripts/check-nyc-wave.mjs`: 1 vòng 42 ngã tư gặp đỏ 7 / 5 / 2 / 1 lần ở 25 / 30 / 35 / 40 km/h
   (pha ngẫu nhiên cũ ~23), > 40 km/h gặp đỏ nhiều (16–27). Xe đường ngang NYC thưa × 2.5. cityPeople dùng `ph.crossEnd` (không cứng 42).
@@ -392,3 +396,4 @@
 - **#3 — NYC: làn sóng xanh + xe ngang thưa (21/10/2026)**: chú chê nhiều đèn đỏ / đường cắt ngang. Mô phỏng + chạy thử không lỗi.
 - **#4 — NYC: kích thước thật, nhà OSM, 4 tòa nổi tiếng, hầm 7 m (21/10/2026)**: check-nyc PASS, Playwright: 1 657 nhà dựng, không lỗi trang.
 - **#5 — NYC: Grand Central + sửa đám đông Times Square (22/10/2026)**: build không cảnh báo, 5 tòa nổi tiếng không chạm đường, 218 người quanh xe.
+- **#6 — NYC: cửa hàng tầng trệt, mái hiên, biển tên đường, ONE WAY, trụ cứu hoả, đèn dọc kiểu Mỹ (22/10/2026)**: chụp Low không lỗi trang.

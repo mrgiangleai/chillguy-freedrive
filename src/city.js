@@ -360,6 +360,7 @@ export class City {
     this.lensMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
     withMist(this.sigMat); withMist(this.lensMat);
     this.headGeo = new THREE.BoxGeometry(1.3, 0.44, 0.3);
+    this.headGeoV = new THREE.BoxGeometry(0.44, 1.3, 0.3);      // New York: đầu đèn dọc (đỏ trên)
     this.pedHeadGeo = new THREE.BoxGeometry(0.34, 0.62, 0.2);
     this.lensGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.04, 14).rotateX(Math.PI / 2);
     this.sigPoleGeo = new THREE.CylinderGeometry(0.1, 0.12, 1, 8).translate(0, 0.5, 0);
@@ -1067,6 +1068,17 @@ export class City {
     const y0 = gJ(0) + 0.2;
     const mainHead = (a, su) => {
       const [px, pz] = P(a, su * (HW + 0.7));
+      if (this.nyc) {                                 // kiểu Mỹ: cần vươn dài qua lòng đường, 2 đầu đèn dọc treo dưới cần + 1 đầu đèn trên cột
+        const [ex, ez] = P(a, su * -1.5);
+        poles.push([px, y0, pz, 6.9]);
+        arms.push([px, y0 + 6.7, pz, Math.atan2(-(ez - pz), ex - px), Math.hypot(ex - px, ez - pz) + 0.3]);
+        const face = yaw(su > 0 ? -F.fx : F.fx, su > 0 ? -F.fz : F.fz);
+        for (const u of [5.4, 1.8]) { const [hx, hz] = P(a, su * u); heads.push([hx, y0 + 5.85, hz, face, 0]); }
+        heads.push([px - (su > 0 ? F.fx : -F.fx) * 0.2, y0 + 3.2, pz - (su > 0 ? F.fz : -F.fz) * 0.2, face, 0]);
+        const [qx, qz] = P(a, su * (HW + 0.7 - 0.2));
+        peds.push([qx, y0 + 2.45, qz, yaw(-su * F.rx, -su * F.rz), 2]);
+        return;
+      }
       const [hx, hz] = P(a, su * 3.6);
       poles.push([px, y0, pz, 5.9]);
       arms.push([px, y0 + 5.7, pz, Math.atan2(-(hz - pz), hx - px), Math.hypot(hx - px, hz - pz) + 0.7]);
@@ -1076,7 +1088,7 @@ export class City {
       peds.push([qx, y0 + 2.45, qz, yaw(-su * F.rx, -su * F.rz), 2]);
     };
     mainHead(-(A - 0.35), 1);    // chiều mình (đi theo +f): góc phải trước ngã tư, quay về phía xe tới
-    mainHead(A - 0.35, -1);      // chiều ngược lại
+    if (!this.nyc) mainHead(A - 0.35, -1);      // chiều ngược lại (New York một chiều: không có)
     for (const su of corner ? [1] : [-1, 1]) {                       // góc rẽ: phía −u là đường mình đi tiếp (không có cột giữa khúc cua)
       // xe trên đường ngang đi về phía -su (tới đường chính từ phía su): bên phải của họ là +f·su => góc (su·a, su·u), phía xe tới
       const a = su * (CW + 1.0), [px, pz] = P(a, su * (HW + 0.8));
@@ -1095,14 +1107,14 @@ export class City {
     };
     add(this.sigPoleGeo, this.sigMat, poles, ([x, y, z, h]) => m.compose(v.set(x, y, z), q.identity(), sc.set(1, h, 1)));
     add(this.armGeo, this.sigMat, arms, ([x, y, z, a, L]) => m.compose(v.set(x, y, z), q.setFromAxisAngle(this._up, a), sc.set(L, 1, 1)));
-    add(this.headGeo, this.sigMat, heads, ([x, y, z, yw]) => m.compose(v.set(x, y, z), q.setFromAxisAngle(this._up, yw), sc.set(1, 1, 1)));
+    add(this.nyc ? this.headGeoV : this.headGeo, this.sigMat, heads, ([x, y, z, yw]) => m.compose(v.set(x, y, z), q.setFromAxisAngle(this._up, yw), sc.set(1, 1, 1)));
     add(this.pedHeadGeo, this.sigMat, peds, ([x, y, z, yw]) => m.compose(v.set(x, y, z), q.setFromAxisAngle(this._up, yw), sc.set(1, 1, 1)));
     const lens = [], kind = [], col = [];
     for (const [x, y, z, yw, k] of heads) {
       const cs = Math.cos(yw), sn = Math.sin(yw);
       for (let i = 0; i < 3; i++) {
-        const lx = (i - 1) * 0.42, lz = 0.16;
-        lens.push([x + cs * lx + sn * lz, y, z - sn * lx + cs * lz, yw, 1]);
+        const lx = this.nyc ? 0 : (i - 1) * 0.42, lz = 0.16, dy = this.nyc ? (i - 1) * 0.42 : 0;   // New York: dọc, xanh dưới – đỏ trên
+        lens.push([x + cs * lx + sn * lz, y + dy, z - sn * lx + cs * lz, yw, 1]);
         kind.push(k); col.push(i);
       }
     }
