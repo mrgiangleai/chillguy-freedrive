@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -221,6 +221,8 @@
   **Đám đông** (`_crowd`): ~400 người (Low × 0.6) tản bộ trong vùng (quảng trường / vỉa hè 7th Ave / bậc TKTS), đứng 3–17 s ngắm biển,
   ~20 % giơ điện thoại; chỉ vẽ người trong ~230 m quanh xe, vẽ chung InstancedMesh của cityPeople (`extra`, thêm `CROWD` 520 chỗ).
   Xe NYC: taxi vàng ~40 %, buýt MTA xanh / trắng, không xe kei / xe máy (`MODES.nyc.mix / colors`).
+  **Kính gương** (~35 % tòa, kiểu mặt tiền 3): envMap = `CubeCamera` 256 px đặt giữa Times Square cao 22 m (`capture`: lần đầu, đèn đổi > 0.12,
+  mỗi 15 s; tắt envMap của chính nó lúc chụp) => phản chiếu nhà + biển LED. Bật / tắt ở bảng 🚦 mục "New York" (`chilldrive.nyc.mirror`, mặc định bật).
   **Map Đại lộ** (`avenue`, 🛣️, nhóm Drive cùng Phố; M trong Drive: Phố ↔ Đại lộ): cao tốc 6 làn (`AVENUE`: tâm làn ±2.25 / ±5.75 /
   ±9.25, dải phân cách ±0.5, mép làn ±11, lề khẩn cấp tới ±13), đường cong rất thoải (bán kính ≥ ~2 km), địa hình `avenue` (đồi cỏ
   thấp, cỏ cao `meadow` hai bên), hộ lan thép 2 bên, đèn đường 2 bên xen kẽ. Xe: `cityTraffic` chế độ avenue (3 làn mỗi chiều, tốc
@@ -373,3 +375,4 @@
 - Đã tóm tắt tới commit "Map New York: Times Square lượt 1" (gồm: handoff + MCP DeepSeek, HLG số làn / SRTM / nhà Microsoft / cây cao su,
   tốc độ giao thông km/h, cài đặt Safari làm mặc định, chốt plan + B1 map New York, thứ tự dùng DeepSeek, Times Square lượt 1).
 - **#1 — Times Square: đám đông + taxi vàng / buýt (21/10/2026)**: xem mục 1 (Map New York). Chụp Low: quảng trường đông người, không lỗi console.
+- **#2 — Times Square: kính gương phản chiếu + nút bật / tắt (21/10/2026)**: chụp Low bật / tắt so sánh, không lỗi console.

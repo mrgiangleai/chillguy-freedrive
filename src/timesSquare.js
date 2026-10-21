@@ -19,7 +19,7 @@ function facadeTex(kind) {
   const W = 256, H = 256, c = document.createElement('canvas'), e = document.createElement('canvas');
   c.width = e.width = W; c.height = e.height = H;
   const g = c.getContext('2d'), ge = e.getContext('2d'), r = rng(kind * 97 + 5);
-  const [wall, glass, glass2] = [['#2b333b', '#5d7790', '#3a4f63'], ['#a89a83', '#2d3640', '#46525e'], ['#1d2126', '#46596b', '#2a3744']][kind];
+  const [wall, glass, glass2] = [['#2b333b', '#5d7790', '#3a4f63'], ['#a89a83', '#2d3640', '#46525e'], ['#1d2126', '#46596b', '#2a3744'], ['#20262c', '#3c4d5c', '#27333f']][kind];
   g.fillStyle = wall; g.fillRect(0, 0, W, H); ge.fillStyle = '#000'; ge.fillRect(0, 0, W, H);
   for (let fy = 0; fy < 4; fy++) for (let fx = 0; fx < 4; fx++) {
     const x = fx * 64 + (kind === 1 ? 10 : 4), y = fy * 64 + (kind === 1 ? 12 : 6), w = kind === 1 ? 44 : 56, h = kind === 1 ? 40 : 52;
@@ -38,7 +38,13 @@ export class TimesSquare {
     this.built = false; this.obb = [];
     this.crowd = []; this.near = []; this.density = 1;     // đám đông: density theo chất lượng (Low 0.6)
     this.uTime = { value: 0 }; this.uK = { value: 1 };
-    this.mats = [0, 1, 2].map((k) => { const [map, em] = facadeTex(k); return withMist(new THREE.MeshStandardMaterial({ map, emissiveMap: em, emissive: 0xffffff, emissiveIntensity: 0, roughness: k === 1 ? 0.8 : 0.3, metalness: k === 1 ? 0 : 0.35 })); });
+    this.mats = [0, 1, 2, 3].map((k) => { const [map, em] = facadeTex(k); return withMist(new THREE.MeshStandardMaterial({ map, emissiveMap: em, emissive: 0xffffff, emissiveIntensity: 0, roughness: k === 1 ? 0.8 : 0.3, metalness: k === 1 ? 0 : 0.35 })); });
+    // kính gương (kiểu 3, ~35 % tòa): phản chiếu cảnh Times Square chụp bằng CubeCamera đặt giữa phố (chụp lại khi trời đổi sáng / mỗi 15 s)
+    this.cubeRT = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
+    this.cube = new THREE.CubeCamera(2, 2500, this.cubeRT);
+    for (const c of this.cube.children) c.layers.enableAll();
+    this.mirror = true; this._capT = 0; this._capL = -1;
+    this.setMirror(true);
     this.dark = withMist(new THREE.MeshStandardMaterial({ color: 0x1d2024, roughness: 0.6, metalness: 0.3 }));
     this.red = withMist(new THREE.MeshStandardMaterial({ color: 0xc4141c, emissive: 0x8a0008, emissiveIntensity: 0.2, roughness: 0.25 }));
     this.glass = withMist(new THREE.MeshStandardMaterial({ color: 0x9fb8c8, roughness: 0.1, metalness: 0.5, transparent: true, opacity: 0.55 }));
@@ -58,6 +64,26 @@ export class TimesSquare {
     this.adMat.customProgramCacheKey = () => 'ts-ad';
     withMist(this.adMat);
   }
+  // bật / tắt phản chiếu kính (bảng 🚦 ở map New York)
+  setMirror(on) {
+    this.mirror = on;
+    const m = this.mats[3];
+    Object.assign(m, on ? { envMap: this.cubeRT.texture, envMapIntensity: 1.1, roughness: 0.06, metalness: 0.9 } : { envMap: null, roughness: 0.3, metalness: 0.35 });
+    m.needsUpdate = true;
+    this._capL = -1;
+  }
+  // chụp lại cảnh xung quanh cho kính gương: lần đầu, khi độ sáng đèn đổi > 0.12, hoặc mỗi 15 s
+  capture(renderer, scene, dt, lamps) {
+    if (!this.built || !this.mirror || !this.group.visible) return;
+    this._capT -= dt;
+    if (this._capL >= 0 && this._capT > 0 && Math.abs(lamps - this._capL) < 0.12) return;
+    this._capT = 15; this._capL = lamps;
+    const [x, z] = this.W((TS.s0 + TS.s1) / 2, 0);
+    this.cube.position.set(x, this.y0 + 22, z);
+    this.mats[3].envMap = null;                       // không tự phản chiếu chính mình khi chụp
+    this.cube.update(renderer, scene);
+    this.mats[3].envMap = this.cubeRT.texture;
+  }
   set visible(v) { this.group.visible = v; if (v && !this.built) this._build(); this.city.exclude = v ? this._excl : null; this.city.extraObb = v ? this.obb : null; }
   get visible() { return this.group.visible; }
   // lamps 0..1: cửa sổ sáng + biển sáng hơn ban đêm
@@ -65,7 +91,7 @@ export class TimesSquare {
     this.uTime.value += dt;
     if (this.built) this._crowd(dt, car);
     this.uK.value = 0.85 + 0.75 * lamps;
-    for (const m of this.mats) m.emissiveIntensity = 1.4 * lamps;
+    for (const m of this.mats) m.emissiveIntensity = (m === this.mats[3] && this.mirror ? 0.8 : 1.4) * lamps;
     this.red.emissiveIntensity = 0.2 + 1.2 * lamps;
   }
 
@@ -94,7 +120,7 @@ export class TimesSquare {
     const obbBox = (s0, s1, u0, u1, h) => { const [x, z] = W((s0 + s1) / 2, (u0 + u1) / 2); this.obb.push(x, z, Math.cos(F.th), Math.sin(F.th), Math.abs(u1 - u0) / 2, Math.abs(s1 - s0) / 2, y0 + h); };   // như obb nhà map Phố (yaw = hướng đường)
     // tòa nhà nhiều bậc lùi: [s0, s1] dọc đường, u0 → u0 + su·d; trả về chiều cao
     const tall = (s0, s1, u0, su, d, hMax, front, north = false) => {
-      const kind = Math.floor(r() * 3);
+      const kind = r() < 0.35 ? 3 : Math.floor(r() * 3);
       let h = 0, a = s0, b = s1, u = u0, dd = d;
       const tiers = 1 + Math.floor(r() * 3);
       for (let t = 0; t < tiers; t++) {
@@ -187,7 +213,7 @@ export class TimesSquare {
       g.setAttribute('uv', new THREE.Float32BufferAttribute(B.uv, 2)); g.setIndex(B.idx);
       const m = new THREE.Mesh(g, mat); m.castShadow = shadow; m.receiveShadow = true; m.frustumCulled = false; this.group.add(m);
     };
-    for (let k = 0; k < 3; k++) { const B = mk(); for (const b of geo[k]) box(B, ...b, true); mesh(B, this.mats[k]); }
+    for (let k = 0; k < 4; k++) { const B = mk(); for (const b of geo[k] || []) box(B, ...b, true); mesh(B, this.mats[k]); }
     { const B = mk(); for (const b of geo[-1] || []) box(B, ...b, false); mesh(B, this.dark); }
     { const B = mk(); for (const [a, b, u0, u1, h] of geo.plaza || []) { const C = (s, u) => { const [x, z] = W(s, u); return [x, y0 + h, z]; }; quad(B, [C(a, u0), C(b, u0), C(b, u1), C(a, u1)], [0, 1, 0], [[u0 / 2, a / 2], [u0 / 2, b / 2], [u1 / 2, b / 2], [u1 / 2, a / 2]]); } mesh(B, this.city.walkMat, false); }
     for (const [key, mat] of [['red', this.red], ['redstep', this.red], ['green', this.green], ['glass', this.glass]]) {

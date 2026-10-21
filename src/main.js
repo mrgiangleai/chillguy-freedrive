@@ -138,7 +138,8 @@ const cityPeople = new CityPeople(scene, road, city);        // map Phố: ngư�
 const _yp = {};
 cityPeople.yAt = (s, u, y) => avLowY(s, u) ?? (onNyc() && Math.abs(u) > CITY.hw ? road.street.at(s, _yp).y : y);   // đại lộ: nhánh rẽ / đường ngang ở cao độ nền; New York: vỉa hè ở mặt phố
 const nycWorks = new NycWorks(scene, road, scenery.roadMat);   // map New York: tường + trần hầm Park Ave, cầu cạn quanh Grand Central
-const timesSq = new TimesSquare(scene, road, city);            // map New York: Times Square (nhà chọc trời, biển LED, quảng trường, đám đông)
+const timesSq = new TimesSquare(scene, road, city);
+try { timesSq.setMirror(localStorage.getItem('chilldrive.nyc.mirror') !== '0'); } catch { /* chế độ riêng tư */ }            // map New York: Times Square (nhà chọc trời, biển LED, quảng trường, đám đông)
 cityPeople.extra = () => (timesSq.visible ? timesSq.near : []);
 const avenue = new Avenue(scene, road, scenery.cityTex);     // map Đại lộ: vạch kẻ 6 làn + dải phân cách + nút giao (xe: cityTraffic chế độ avenue)
 const hlgEnv = new HlgEnv(scene, road, city, avenue);       // map Cao tốc HLG: nhà / cây / màu đất theo bản đồ thật (tải assets/hlg-env.json)
@@ -1181,6 +1182,12 @@ renderTune = () => {
   if (tuneKind === 'traffic') {
     tuneMode.hidden = true;
     $('tune-title').textContent = 'Giao thông (Phố / Đại lộ / Cao tốc)';
+    if (onNyc()) {                                                   // New York: thử hiển thị
+      addHeading('New York');
+      addToggle({ label: 'Phản chiếu kính (một số tòa nhà Times Square)', get: () => timesSq.mirror, set: (v) => {
+        timesSq.setMirror(v); try { localStorage.setItem('chilldrive.nyc.mirror', v ? '1' : '0'); } catch { /* chế độ riêng tư */ }
+        toast(v ? 'Đã bật phản chiếu kính' : 'Đã tắt phản chiếu kính'); } });
+    }
     addHeading('Xe của chú');
     addToggle({ label: 'Tự giữ khoảng cách (tránh đâm xe trước)', get: () => trafficTune.avoid, set: (v) => { trafficTune.avoid = v; toast(v ? 'Đã bật tự giữ khoảng cách' : 'Đã tắt tự giữ khoảng cách — chú tự phanh, đâm là có cảnh sát tới', !v); } });
     addToggle({ label: 'Tự động dừng xe khi đèn đỏ', get: () => trafficTune.redStop, set: (v) => { trafficTune.redStop = v; toast(v ? 'Đã bật tự dừng đèn đỏ' : 'Đã tắt tự dừng đèn đỏ — chú tự phanh (Space)'); } });
@@ -1863,7 +1870,7 @@ function frame(now) {
   }
   avenue.update(drive.s, 1, dt); avenue.setLamps(st.lamps);
   hlgEnv.update(drive.s, st.lamps);
-  if (timesSq.visible) timesSq.update(dt, st.lamps, drive.pos);
+  if (timesSq.visible) { timesSq.update(dt, st.lamps, drive.pos); timesSq.capture(renderer, scene, dt, st.lamps); }
   if (nycWorks.visible) { nycWorks.setLamps(st.lamps); nycWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
   minimap.update(dt);
   updateBlinker(dt);
