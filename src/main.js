@@ -343,7 +343,7 @@ let savedTuning = null;
 // bảng 🚦 Giao thông (map Phố): chú tự chỉnh để thử
 // tốc độ xe khác chỉnh bằng km/h (từ … đến …), riêng 3 nhóm map: chill (map ngắm cảnh), city (Phố), avenue (Đại lộ + Cao tốc HLG)
 const TRAFFIC_KMH = Object.freeze({ chill: [50, 200], city: [30, 52], avenue: [60, 104] });
-const TRAFFIC_DEFAULTS = Object.freeze({ avoid: 1, redStop: 0, score: 1, auto: 1, density: 1, walkers: 38, signal: 1, models: 0 });
+const TRAFFIC_DEFAULTS = Object.freeze({ avoid: 1, redStop: 0, score: 1, auto: 1, density: 1, walkers: 38, signal: 1, models: 0, incident: 1 });   // incident: cảnh tai nạn (cảnh sát / cấp cứu)
 const trafficDefaults = () => ({ ...TRAFFIC_DEFAULTS, kmh: Object.fromEntries(Object.entries(TRAFFIC_KMH).map(([k, v]) => [k, [...v]])) });
 // nhóm tốc độ của map đang chạy
 const kmhGroup = () => { const k = mapKind(MAPS[state.map].id); return k === 'city' || k === 'avenue' ? k : 'chill'; };
@@ -1200,6 +1200,8 @@ renderTune = () => {
     }
     addHeading('Xe của chú');
     addToggle({ label: 'Tự giữ khoảng cách (tránh đâm xe trước)', get: () => trafficTune.avoid, set: (v) => { trafficTune.avoid = v; toast(v ? 'Đã bật tự giữ khoảng cách' : 'Đã tắt tự giữ khoảng cách — chú tự phanh, đâm là có cảnh sát tới', !v); } });
+    addToggle({ label: 'Cảnh tai nạn (đâm xe / người: dừng xe, cảnh sát + cấp cứu tới)', get: () => trafficTune.incident, set: (v) => { trafficTune.incident = v;
+      toast(v ? 'Đã bật cảnh tai nạn' : 'Đã tắt cảnh tai nạn — đâm xe chỉ khựng + rung rồi chạy tiếp'); } });
     addToggle({ label: 'Tự động dừng xe khi đèn đỏ', get: () => trafficTune.redStop, set: (v) => { trafficTune.redStop = v; toast(v ? 'Đã bật tự dừng đèn đỏ' : 'Đã tắt tự dừng đèn đỏ — chú tự phanh (Space)'); } });
     addToggle({ label: 'Chấm điểm buổi lái (bật lại = tính lại từ đầu)', get: () => trafficTune.score, set: (v) => {
       trafficTune.score = v; $('b-score').hidden = !v;
@@ -1837,9 +1839,12 @@ function frame(now) {
             impact(rel, drive.d >= (side ? drive.d : car.d) ? 1 : -1);
             if (!side) { car.slide = Math.min(9, Math.max(0, drive.v - along) * 0.7); car.slideDir = 1; car.slideLat = car.d - drive.d; }
           } else impact(drive.v * 0.4, 0);
-          crashCam = state.cam;
-          state.cam = CAMERAS.findIndex((c) => c.id === 'orbit'); rig.setMode(state.cam); onCamChange(); refreshUI();
-          incident.start(drive.s, drive.d, cars.dim, car ? { car } : { ped });
+          if (!trafficTune.incident) crashGrace = 2.5;        // tắt cảnh tai nạn: chỉ khựng + rung + khói rồi chạy tiếp
+          else {
+            crashCam = state.cam;
+            state.cam = CAMERAS.findIndex((c) => c.id === 'orbit'); rig.setMode(state.cam); onCamChange(); refreshUI();
+            incident.start(drive.s, drive.d, cars.dim, car ? { car } : { ped });
+          }
         }
       }
       let maxV = stop.active || !trafficTune.avoid ? Infinity : cityTraffic.ctrl.maxV;

@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -311,6 +311,7 @@
   **Va chạm vật lý** (`crashfx.js` + `impact()` trong main): xe mình chúi đầu + nảy ngang, rung camera mạnh tắt dần ~0.6 s,
   tiếng "rầm" + kim loại (`audio.crash`), đâm > ~20 km/h tương đối thì khói bốc từ capo 4–10 s (48 sprite dùng lại); xe bị đâm
   trôi theo lực (`slide` ≤ 9 m/s, giảm 7 m/s²). Map khác: đụng xe NPC cũng khựng + rung + khói (không cảnh sát), hồi 2.5 s.
+  **Bật / tắt cảnh tai nạn** (bảng 🚦, `trafficTune.incident`, mặc định bật): tắt => va chạm chỉ khựng + rung + khói + trừ điểm, `crashGrace` 2.5 s, không cảnh sát.
   **Cảnh tai nạn** (`cityIncident.js`): ~0.9 s sau va chạm chú bước ra khỏi xe (`stop.leaveCar`: cảnh dừng xe với `hold` +
   `noSmoke` + `faceTo`; đi dọc hông trái về gần đuôi xe, đứng quay mặt ra sau, không hút thuốc / đi lanh quanh). Cảnh sát tới đỗ
   sau xe, xuống cửa trái, đi thẳng ở ngoài mép trái 2 xe tới đứng trước mặt chú (cách 1.1 m), toast lời cảnh sát, 2.5 s sau
@@ -399,3 +400,4 @@
 - **#5 — NYC: Grand Central + sửa đám đông Times Square (22/10/2026)**: build không cảnh báo, 5 tòa nổi tiếng không chạm đường, 218 người quanh xe.
 - **#6 — NYC: cửa hàng tầng trệt, mái hiên, biển tên đường, ONE WAY, trụ cứu hoả, đèn dọc kiểu Mỹ (22/10/2026)**: chụp Low không lỗi trang.
 - **#7 — Bớt ám xanh "Ban ngày" (22/10/2026)**: chỉ đổi bảng màu trời; chưa chụp so sánh (chú bảo khỏi chụp vì chậm).
+- **#8 — Nút bật / tắt cảnh tai nạn (22/10/2026)**: check traffic / policy / stopscene / nyc PASS.
