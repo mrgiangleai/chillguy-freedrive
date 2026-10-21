@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -225,6 +225,8 @@
   (kính / đá / kính tối / kính gương / gạch); bỏ hẳn nhà map Phố (`city.exclude = () => true`); obb camera theo lưới phố. Cache Overpass
   `nyc/buildings.json` (4.9 MB, kumi hay 504). **Tòa nổi tiếng** (`src/landmarks/*.js`, DeepSeek viết theo đề + `check.mjs` kích thước thật):
   Empire State, Chrysler (toạ độ thật `lm`), Helmsley (cầu cạn xuyên cổng đông x = +9), MetLife (tự dò chỗ trái cầu cạn không chạm đường);
+  Thêm (22/10/2026, MiniMax 4 + DeepSeek 1): Waldorf Astoria (co X 0.61), Seagram, Lever House, Macy's, Madison Square Garden — toạ độ thật (`lm`),
+  xoay mặt chính về phố (`REAL`), tự đẩy ra khi lấn vỉa hè; kiểm tia đứng 5 làn cả vòng: 0 chạm.
   Grand Central (trái đoạn cầu cạn chạy dọc nhà ga, mặt chính quay nam; dò chỗ cùng MetLife: không chạm đường, không chồng nhau). Đề + script
   chấm worker: scratchpad `lm/<tên>/TASK.md, check.mjs, spec.json` — đừng để log trong thư mục làm việc (DeepSeek đọc nhầm log rồi thoát).
   MiniMax free treo > 15 phút ở lượt này. Đã sửa lỗi đám đông Times Square (thuộc tính `z` trùng: vùng / toạ độ => đám đông riêng không hiện).
@@ -397,5 +399,5 @@
 - Đã tóm tắt tới commit "đèn đường cao hơn + vũng sáng" (22/10/2026): Times Square đám đông + taxi / buýt, kính gương, làn sóng xanh,
   kích thước Manhattan + nhà OSM + 5 tòa nổi tiếng + hầm 7 m, Grand Central, cửa hàng / mái hiên / biển tên đường / ONE WAY / đèn dọc kiểu Mỹ,
   Ban ngày bớt ám xanh, nút cảnh tai nạn, nét 0–50 m trong xe, sửa xuyên nhà quanh Helmsley / cửa hầm / cầu cạn nhấp nháy, đèn đường —
-  chi tiết ở mục 1 (Map New York), mục 2 và NYC_PLAN.md. Đang chạy nền (scratchpad `lm2/`, `run.sh`: MiniMax → DeepSeek): model Waldorf
-  Astoria, Seagram, Lever House, Macy's, Madison Square Garden — chưa ghép vào game (`logs/status.txt` báo DONE / FAIL).
+  chi tiết ở mục 1 (Map New York), mục 2 và NYC_PLAN.md. Worker nền: scratchpad `lm2/run.sh <tên>` (MiniMax 8 phút → DeepSeek 8 phút, log ở `lm2/logs/`).
+- **#1 — 5 tòa nổi tiếng mới trên tuyến (22/10/2026)**: 10 model tổng, 0 điểm làn xe chạm.

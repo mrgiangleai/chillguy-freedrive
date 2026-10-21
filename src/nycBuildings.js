@@ -13,8 +13,17 @@ import * as chrysler from './landmarks/chrysler.js';
 import * as metlife from './landmarks/metlife.js';
 import * as helmsley from './landmarks/helmsley.js';
 import * as grandcentral from './landmarks/grandcentral.js';
+import * as waldorf from './landmarks/waldorf.js';
+import * as seagram from './landmarks/seagram.js';
+import * as lever from './landmarks/lever.js';
+import * as macys from './landmarks/macys.js';
+import * as msg from './landmarks/msg.js';
 // tòa nổi tiếng: [module, kích thước X (đông–tây), Z (bắc–nam)]
-const LANDMARKS = { empire: [empire, 129, 57], chrysler: [chrysler, 61, 58], metlife: [metlife, 90, 50], helmsley: [helmsley, 90, 60], grandcentral: [grandcentral, 90, 120] };
+const LANDMARKS = { empire: [empire, 129, 57], chrysler: [chrysler, 61, 58], metlife: [metlife, 90, 50], helmsley: [helmsley, 90, 60], grandcentral: [grandcentral, 90, 120],
+  waldorf: [waldorf], seagram: [seagram], lever: [lever], macys: [macys], msg: [msg] };
+// tòa đặt theo toạ độ thật (`lm` từ fetch-nyc): [tên, góc xoay so với lưới phố (mặt chính −Z: 0 = bắc, π/2 = tây, −π/2 = đông, π = nam), co theo X]
+const REAL = [['empire', 0, 1], ['chrysler', 0, 1], ['waldorf', Math.PI, 0.61], ['seagram', Math.PI / 2, 1], ['lever', -Math.PI / 2, 1],
+  ['macys', Math.PI, 1], ['msg', -Math.PI / 2, 1]];
 
 export class NycBuildings {
   constructor(scene, ts, road) {
@@ -65,7 +74,25 @@ export class NycBuildings {
       this.lmRects.push((px, pz) => { const ex = px - x, ez = pz - z; return Math.abs(ex * c - ez * s) < hx && Math.abs(ex * s + ez * c) < hz; });
       this.obb.push(x, z, c, s, X / 2, Z / 2, hLow(x, z) + 60);
     };
-    for (const name of ['empire', 'chrysler']) if (lm[name]) place(name, lm[name][0], lm[name][1], thG);
+    // toạ độ thật; lấn vỉa hè / đường (mép nhà gần tim đường hơn mép vỉa hè) thì đẩy ra xa từng 2 m theo hướng từ điểm đường gần nhất
+    const FRONT = HW + CITY.walk + 0.4, RQ = {};
+    for (const [name, rot, sx] of REAL) {
+      if (!lm[name]) continue;
+      let [x, z] = lm[name];
+      const yaw = thG + rot, c = Math.cos(yaw), sn = Math.sin(yaw), hx = geo(name).hx * sx, hz = geo(name).hz;
+      for (let it = 0; it < 15; it++) {
+        let bd = Infinity, bx = 0, bz = 0;
+        for (let t = 0; t < L; t += 3) {
+          road.at(L + t, RQ); const ex = RQ.x - x, ez = RQ.z - z;
+          if (Math.abs(ex) > 400 || Math.abs(ez) > 400) continue;
+          const lx = ex * c - ez * sn, lz = ex * sn + ez * c, dx = Math.max(0, Math.abs(lx) - hx), dz = Math.max(0, Math.abs(lz) - hz), d = Math.hypot(dx, dz);
+          if (d < bd) { bd = d; bx = RQ.x; bz = RQ.z; }
+        }
+        if (bd >= FRONT) break;
+        const nl = Math.hypot(x - bx, z - bz) || 1; x += (x - bx) / nl * 2; z += (z - bz) / nl * 2;
+      }
+      place(name, x, z, yaw, 1, sx);
+    }
     const pas = D.passages[0];
     if (pas) {
       // Helmsley: cầu cạn chạy xuyên cổng đông (x ∈ [2, 16] của model). Đoạn qua tòa nhà thật lượn ~60° => đặt ở đoạn thẳng ngay trước
