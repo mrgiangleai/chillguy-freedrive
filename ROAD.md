@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -30,6 +30,13 @@
   `Claude-Session: https://claude.ai/code/session_01WP3tGtiy9zkx8o65PTcvkV`. Không ghi tên/mã model trong code/commit.
 - Sửa xong: `node build.mjs`, chạy các `check-*.mjs` liên quan, chụp thử (Low), cập nhật README nếu đổi tính năng,
   cập nhật ROAD.md, commit, push. Có thể có người khác (Codex) cùng sửa nhánh: `git fetch` trước khi làm.
+- **Handoff**: ROAD.md là sổ bàn giao giữa các phiên — mỗi thay đổi quan trọng (kể cả cấu hình ngoài repo) phải ghi vào đây ngay
+  trong lượt làm, kèm việc còn dở ở mục 5, để phiên khác đọc là làm tiếp được.
+- **Tiết kiệm quota (chú yêu cầu)**: việc làm theo khuôn (code nháp, sửa hàng loạt, tóm tắt) giao DeepSeek qua công cụ MCP `deepseek`
+  (máy chủ `~/.claude/mcp/deepseek/server.mjs`, đăng ký phạm vi user — mọi phiên Claude Code; khoá trong Keychain service
+  `deepseek-api`; model `deepseek-flash`, có `deepseek-v4-pro`; mặc định chờ 120 s, tối đa 600; flash suy nghĩ ngầm nên đừng đặt
+  `max_tokens` nhỏ). DeepSeek chỉ trả văn bản — Claude tự kiểm tra rồi mới ghi file. Hoặc subagent Sonnet/Haiku. Không dùng
+  `opencode run --auto` chạy nền (đã treo ~15 phút không ra gì).
 
 ## 3. Bản đồ mã nguồn (`src/`)
 | File | Nội dung chính |
@@ -348,6 +355,12 @@ model thử (~625 MB) không nằm trong git.
   khoá ngang (Android), gợi ý xoay ngang khi cầm dọc; iPhone: "Thêm vào MH chính" (manifest fullscreen/landscape).
 
 ## 5. Việc còn mở / cần chú ý
+- **Map Cao tốc HLG — có thể làm tiếp** (chưa ai nhận): số làn thật theo đoạn (OSM `lanes`: 2–4 mỗi chiều; game đang 3);
+  sông / lạch cắt chéo đúng góc thật (đang vuông góc tuyến); mặt nước lạch dài ±400 m rồi dừng; địa hình phẳng (chưa có độ cao
+  thật, có thể lấy SRTM); biển tốc độ dựng bên đường còn theo mẫu Đại lộ (HUD đã đúng biển thật); Cầu Long Thành dùng tháp dây văng
+  chung của Đại lộ (chưa đối chiếu ảnh thật); nút giao chưa có tên đường cắt ngang cho Nhơn Trạch / QL51 / Long Thành / Cẩm Mỹ
+  (`cross` null trong dữ liệu); trạm thu phí trên nhánh QL51 bị bỏ. Chưa xem trên máy thật / Good / Ultra.
+  Dữ liệu tạo lại: `node scripts/fetch-hlg.mjs` (cache Overpass `HLG_CACHE`, mặc định `<tmp>/chilldrive-osm`) rồi `check-hlg.mjs`.
 - **Chờ chú**: map mới từ model `landscape_forest__mountains.glb` — chú dặn để lần sau, **hỏi chú trước khi làm**.
 - Chưa kiểm chứng hiệu năng trên máy thật (gương + tia nắng + mưa kính + thác tốn thêm GPU); chưa thử Good/Ultra trên máy ảo.
 - Cảnh dừng xe: đoạn ▶️ quay lại xe mới thử bằng mô phỏng logic (máy ảo quá chậm để chạy trọn).
@@ -364,3 +377,5 @@ model thử (~625 MB) không nằm trong git.
   cài đặt Chill / Drive tách riêng, bảng Animal / Nature, quay màn hình, gộp editor WebGPU + `shared/`, camera dừng xe bám người,
   map Cao tốc HCM – Long Thành – Dầu Giây (OSM) + cầu cạn / cầu nhỏ / lạch nước (giao DeepSeek qua opencode bị treo không ra kết quả,
   tự viết lại; chạy `opencode run` nền dễ treo — nếu dùng, chạy tiền cảnh có giới hạn thời gian).
+- **#1 — Handoff + DeepSeek MCP (21/10/2026)**: dựng máy chủ MCP `deepseek` (ngoài repo, phạm vi user, đã thử thật: 2 model,
+  trả lời ~3 s); ROAD.md mục 2 thêm quy ước handoff + tiết kiệm quota; mục 5 thêm việc mở của map Cao tốc HLG.
