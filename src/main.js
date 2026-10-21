@@ -641,6 +641,7 @@ const applyMap = () => {
   avenue.visible = isAvenue;    // trước địa hình: khung nút giao để đào kênh đường ngang / nền nhánh rẽ
   avenue.prime(drive.s);
   drive.ramp = null;
+  scenery.lampK = isNyc ? 1.35 : 1;   // New York: cột đèn ~15 m, cần vươn dài (đường 18 m)
   scenery.setMap(id);
   terrain.reset();
   terrain.setCar(drive.s);

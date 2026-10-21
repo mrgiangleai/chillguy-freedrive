@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 10/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -128,7 +128,9 @@
   chìm vào vách lồi lõm. Xe (cả NPC) lội qua: nước bắn bánh xe + tiếng "xoè"; tiếng suối to dần khi lại gần. Giữ 2–4 dòng quanh xe,
   dựng ≤1 dòng/khung (~30 ms). Lỗi đã gặp: quầng sáng do lớp ướt PBR; sọc do `along − uTime·speed` (=> `tau` tích phân);
   hạt nước bắn bị mặt đường che (=> kéo về camera 4%).
-- **Đèn đường**: cột 11.1 m; ánh sáng = 3 SpotLight thật dùng chung (gán cột gần camera, mờ trước khi đổi cột; số đèn cố định),
+- **Đèn đường** (22/10/2026): map New York `scenery.lampK` 1.35 (cột ~15 m, cần vươn ×1.35, quầng bóng to theo K); map Drive có
+  "vũng sáng" giả dưới mọi cột (`poolMat` cộng màu, Ø 13 m × K, opacity 0.65 × lamps) => đèn xa vẫn thấy sáng dù chỉ 3 SpotLight thật.
+  Cũ: cột 11.1 m; ánh sáng = 3 SpotLight thật dùng chung (gán cột gần camera, mờ trước khi đổi cột; số đèn cố định),
   140 × lamps (đã giảm 80% theo yêu cầu), nón rộng chếch vào lòng đường.
 - **Xe ngựa cổ tích** (`carriage.js`, model nén `assets/models/carriage.glb` 1.6 MB từ file gốc 11 MB): chạy trên đường như NPC
   (15–30 s/chiếc, tối đa 2, 25–40 km/h, ngựa phi theo tốc độ; phần lớn ngược chiều; không đèn/tiếng lướt). Mây bụi dưới vó là
@@ -392,20 +394,8 @@
 - `QUICK_OPENING = true` (TẠM, đầu game 0.5 s) — bật lại khi chú bảo. Kiểm thử Playwright: vào game bằng `#m-chill` / `#m-drive`.
 
 ## 6. Nhật ký cập nhật
-- Đã tóm tắt tới commit "Map New York: Times Square lượt 1" (gồm: handoff + MCP DeepSeek, HLG số làn / SRTM / nhà Microsoft / cây cao su,
-  tốc độ giao thông km/h, cài đặt Safari làm mặc định, chốt plan + B1 map New York, thứ tự dùng DeepSeek, Times Square lượt 1).
-- **#1 — Times Square: đám đông + taxi vàng / buýt (21/10/2026)**: xem mục 1 (Map New York). Chụp Low: quảng trường đông người, không lỗi console.
-- **#2 — Times Square: kính gương phản chiếu + nút bật / tắt (21/10/2026)**: chụp Low bật / tắt so sánh, không lỗi console.
-- **#3 — NYC: làn sóng xanh + xe ngang thưa (21/10/2026)**: chú chê nhiều đèn đỏ / đường cắt ngang. Mô phỏng + chạy thử không lỗi.
-- **#4 — NYC: kích thước thật, nhà OSM, 4 tòa nổi tiếng, hầm 7 m (21/10/2026)**: check-nyc PASS, Playwright: 1 657 nhà dựng, không lỗi trang.
-- **#5 — NYC: Grand Central + sửa đám đông Times Square (22/10/2026)**: build không cảnh báo, 5 tòa nổi tiếng không chạm đường, 218 người quanh xe.
-- **#6 — NYC: cửa hàng tầng trệt, mái hiên, biển tên đường, ONE WAY, trụ cứu hoả, đèn dọc kiểu Mỹ (22/10/2026)**: chụp Low không lỗi trang.
-- **#7 — Bớt ám xanh "Ban ngày" (22/10/2026)**: chỉ đổi bảng màu trời; chưa chụp so sánh (chú bảo khỏi chụp vì chậm).
-- **#8 — Nút bật / tắt cảnh tai nạn (22/10/2026)**: check traffic / policy / stopscene / nyc PASS.
-- **#9 — Nét 0–50 m trong xe, tường hầm bớt sáng, nhà không lấn đường (22/10/2026)**: tường hầm `0x9a958a` tự sáng rất nhẹ, đèn theo xe 70;
-  fetch-nyc đo nhà ↔ đường từ điểm tim đường (trong đa giác = 0) + kiểm cuối với toàn tuyến (0 nhà còn lấn); Helmsley cổng rỗng (0 tam giác);
-  nhà Times Square đặt theo khung đường tại từng s (7th Ave lệch 3.5 m so với thẳng). Chưa tìm ra chỗ "đi xuyên" khác — cần chú chỉ vị trí.
-- **#10 — Sửa xuyên nhà / đè hình quanh Grand Central – Helmsley + cửa hầm (22/10/2026)**: Helmsley đặt ở đoạn thẳng trước 46 St (đoạn đi qua
-  tòa thật lượn ~60°), đế thu sz 0.7, nới ngang ×1.15, dò sao cho thân xe làn ngoài (±6.4) nằm trong cổng; GCT / MetLife dò chỗ theo khung bao
-  thật của model + tránh Helmsley; kiểm tia đứng 5 làn s 3000–3900: 0 điểm chạm model. Hầm: điểm đường `g` = mặt đường (trước: hầm kín = mặt
-  phố => địa hình dựng tấm chắn cửa hầm); cầu cạn: đáy bản + nhựa dưới gầm chỉ khi gầm > 1.6 m (trước 2 mặt cách 1 cm nhấp nháy).
+- Đã tóm tắt tới commit "đèn đường cao hơn + vũng sáng" (22/10/2026): Times Square đám đông + taxi / buýt, kính gương, làn sóng xanh,
+  kích thước Manhattan + nhà OSM + 5 tòa nổi tiếng + hầm 7 m, Grand Central, cửa hàng / mái hiên / biển tên đường / ONE WAY / đèn dọc kiểu Mỹ,
+  Ban ngày bớt ám xanh, nút cảnh tai nạn, nét 0–50 m trong xe, sửa xuyên nhà quanh Helmsley / cửa hầm / cầu cạn nhấp nháy, đèn đường —
+  chi tiết ở mục 1 (Map New York), mục 2 và NYC_PLAN.md. Đang chạy nền (scratchpad `lm2/`, `run.sh`: MiniMax → DeepSeek): model Waldorf
+  Astoria, Seagram, Lever House, Macy's, Madison Square Garden — chưa ghép vào game (`logs/status.txt` báo DONE / FAIL).
