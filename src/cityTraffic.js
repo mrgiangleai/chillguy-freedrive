@@ -205,7 +205,7 @@ const MODES = {
     mix: MIX },
   // New York (B1): đường một chiều — mọi xe đường chính chạy chiều +s trên cả 4 làn (±1.75 / ±5.25); chậm lại ở góc rẽ vuông
   // taxi vàng ~40 %, buýt MTA (xanh / trắng), không xe kei / xe máy
-  nyc: { lanes: CITY.lanes, laneK: [1, 1], ahead: AHEAD, behind: BEHIND, gap: MAIN_GAP, cross: true, oneway: true,
+  nyc: { lanes: [1.8, 5.4], laneK: [1, 1], ahead: AHEAD, behind: BEHIND, gap: MAIN_GAP, cross: true, oneway: true,
     mix: [['taxi', 0.4], ['sedan', 0.32], ['van', 0.16], ['bus', 0.12]], colors: { taxi: ['#f3b80c', '#f6c21a', '#e9ad06'], bus: ['#1f5fa8', '#e9ecef'] } },
   avenue: { lanes: AVENUE.lanes, laneK: [1.12, 1, 0.84], ahead: 900, behind: 300, gap: [50, 120], cross: false,
     mix: [['sedan', 0.36], ['kei', 0.1], ['taxi', 0.08], ['van', 0.16], ['bus', 0.1], ['truck', 0.12], ['container', 0.08]] },

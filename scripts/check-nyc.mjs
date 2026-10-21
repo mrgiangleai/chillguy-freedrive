@@ -31,7 +31,7 @@ ok(jump < 0.6 && gap < 0.05, `đường liên tục (hướng đổi tối đa $
 ok(D.corners.length === 4, `4 góc rẽ: ${D.corners.map((c) => `${c.name} @${c.s.toFixed(0)}`).join(', ')}`);
 for (const c of D.corners) {
   const turn = road.heading(L + c.s + 30) - road.heading(L + c.s - 30), k = road.curvature(L + c.s);
-  ok(Math.abs(turn - Math.PI / 2) < 0.2 && 1 / k > 11 && 1 / k < 20, `${c.name}: rẽ trái ${(turn * 180 / Math.PI).toFixed(0)}°, bán kính ${(1 / k).toFixed(1)} m`);
+  ok(Math.abs(turn - Math.PI / 2) < 0.2 && 1 / k > 16 && 1 / k < 26, `${c.name}: rẽ trái ${(turn * 180 / Math.PI).toFixed(0)}°, bán kính ${(1 / k).toFixed(1)} m`);
   // tiếp tuyến: từ đầu cung (s − arc) tới góc vuông ≈ NYC.tangent (city.js dựng góc theo số này)
   const pa = road.at(L + c.s - 30, {}), pb = road.at(L + c.s + 30, {});
   const fa = [-Math.sin(pa.th), -Math.cos(pa.th)], fb = [-Math.sin(pb.th), -Math.cos(pb.th)], det = fa[0] * fb[1] - fa[1] * fb[0];
@@ -51,7 +51,7 @@ ok(sharp < 35 * Math.PI / 180, `ngoài 4 góc + cầu cạn: đổi hướng t�
 let lat = 0, vc = 0;
 for (let s = 0; s < L; s += 2) { const k = Math.abs(road.curvature(L + s)); if (k > 1e-3) lat = Math.max(lat, road.curveV(L + s) ** 2 * k); }
 for (const c of D.corners) vc = Math.max(vc, road.curveV(L + c.s));
-ok(lat <= 2.5 && vc * 3.6 <= 25, `vào cua: gia tốc ngang tối đa ${lat.toFixed(2)} m/s², tâm góc rẽ ${(vc * 3.6).toFixed(0)} km/h`);
+ok(lat <= 2.5 && vc * 3.6 <= 27, `vào cua: gia tốc ngang tối đa ${lat.toFixed(2)} m/s², tâm góc rẽ ${(vc * 3.6).toFixed(0)} km/h`);
 
 // ngã tư: cách nhau ≥ 40 m (đại lộ ~80 m), góc rẽ là ngã tư có đèn; không có ngã tư ở đoạn hầm / cầu cạn
 const J = D.junctions, gaps = J.map((j, i) => (i ? j.s - J[i - 1].s : j.s + L - J.at(-1).s));
@@ -76,7 +76,7 @@ for (let s = 0; s < L; s += 1) {
 ok(grade <= NYC.maxGrade + 0.002, `dốc lớn nhất ${(grade * 100).toFixed(1)} %`);
 ok(roof >= 250 && lo <= -5, `hầm Park Ave: sâu ${(-lo).toFixed(1)} m, trần kín ${roof} m (OSM ${D.tunnels.map((t) => `${t.s0.toFixed(0)}–${t.s1.toFixed(0)}`)})`);
 ok(high >= 150 && hi >= 5.5, `cầu cạn Park Ave: cao ${hi.toFixed(1)} m, ≥ 5 m trên ${high} m (OSM ${D.bridges.map((t) => `${t.s0.toFixed(0)}–${t.s1.toFixed(0)}`)})`);
-const p = road.at(L + D.tunnels[0].s0 + 100, {}), st = road.street.at(L + D.tunnels[0].s0 + 100, {});
+const p = road.at(L + D.tunnels[0].s0 + 250, {}), st = road.street.at(L + D.tunnels[0].s0 + 250, {});
 ok(Math.abs(st.y - p.y - NYC.depth) < 0.01, `mặt phố trên hầm cao hơn mặt đường ${(st.y - p.y).toFixed(2)} m`);
 
 console.log(fail ? `\n${fail} lỗi` : '\nTất cả PASS');

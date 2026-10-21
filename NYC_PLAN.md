@@ -49,7 +49,7 @@ camera, qua đường thành đợt khi đèn đi bộ xanh; map Phố hiện t�
 (ODbL) trong README + ⓘ; cập nhật ROAD.md; thử Low trên máy ảo, chú thử hiệu năng điện thoại.
 
 ## Trạng thái
-- [x] B1  - [ ] B2  - [ ] B3  - [ ] B4  - [ ] B5   (cập nhật ô này + ROAD.md sau mỗi bước)
+- [x] B1  - [~] B2 (nhà OSM + 4 tòa nổi tiếng; còn Grand Central, mặt tiền chi tiết, đồ phố)  - [ ] B3  - [ ] B4  - [ ] B5   (cập nhật ô này + ROAD.md sau mỗi bước)
 - **Phản hồi chú sau B1 (21/10/2026)**: "nhìn không khác map Phố, không giống Times Square" — chú muốn kiểu ảnh low-poly Times Square
   (tháp One Times Square phủ biển LED ở giữa, nhà chọc trời kính, biển quảng cáo lớn nhiều tầng, quảng trường lát gạch + bậc đỏ TKTS).
   => ưu tiên làm **B4 (Times Square)** gộp phần nhà cao tầng của B2 cho đoạn 7th Ave 42–47 St trước, rồi mới phủ nhà thật cả vòng.

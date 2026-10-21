@@ -9,7 +9,10 @@ import { CITY } from './road.js';
 
 // start: xe vào map ở s = length + start (1 vòng trước còn chỗ cho phía sau xe). Hầm sâu `depth`, cầu cạn cao `high` so với mặt phố;
 // trần hầm kín khi mặt đường thấp hơn mặt phố quá `roof` (m). maxGrade: dốc tối đa của các đoạn dốc dẫn.
-export const NYC = { data: DATA, length: DATA.length, start: 30, depth: 5.5, high: 6, roof: -4.8, maxGrade: 0.06, arc: 12, tangent: 15.3 };
+export const NYC = { data: DATA, length: DATA.length, start: 30, depth: 7, high: 6, roof: -5.6, maxGrade: 0.06, arc: 16, tangent: 20.4 };
+// kích thước phố Manhattan (thay CITY của map Phố khi vào map New York): đại lộ 4 làn 3.6 m + lề đỗ xe (mép 9 m), vỉa hè 5.5 m,
+// phố ngang 9 m + vỉa hè 3 m
+export const NYC_DIM = { hw: 9, walk: 5.5, side: 4.5, sideWalk: 3, lanes: [1.8, 5.4] };
 const sm = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 
 // mốc độ cao [s, h] dọc vòng: xuống hầm từ đầu dốc dẫn thật (way "Park Avenue Tunnel" hở), lên thẳng cầu cạn sau cửa hầm phía bắc

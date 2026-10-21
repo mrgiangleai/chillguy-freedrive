@@ -10,19 +10,19 @@ import { adAtlas } from './adAtlas.js';
 
 // s (trong vòng) của vùng Times Square + mép khối (ngã tư 47 … 42 St lấy từ dữ liệu)
 export const TS = { s0: 470, s1: 960, depth: 175 };
-const FRONT = CITY.hw + CITY.walk + 0.4, GAP = CITY.side + CITY.sideWalk + 0.4;
+let FRONT = 0, GAP = 0;              // theo kích thước phố lúc dựng (NYC_DIM)
 
 function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
 // mặt tiền kính: lưới cửa sổ (map) + cửa sổ sáng đèn ban đêm (emissiveMap); 1 ô texture = 4 tầng × 4 ô cửa (12 × 14 m)
-function facadeTex(kind) {
+export function facadeTex(kind) {
   const W = 256, H = 256, c = document.createElement('canvas'), e = document.createElement('canvas');
   c.width = e.width = W; c.height = e.height = H;
   const g = c.getContext('2d'), ge = e.getContext('2d'), r = rng(kind * 97 + 5);
-  const [wall, glass, glass2] = [['#2b333b', '#5d7790', '#3a4f63'], ['#a89a83', '#2d3640', '#46525e'], ['#1d2126', '#46596b', '#2a3744'], ['#20262c', '#3c4d5c', '#27333f']][kind];
+  const [wall, glass, glass2] = [['#2b333b', '#5d7790', '#3a4f63'], ['#a89a83', '#2d3640', '#46525e'], ['#1d2126', '#46596b', '#2a3744'], ['#20262c', '#3c4d5c', '#27333f'], ['#7b4433', '#262b31', '#3a4048']][kind];   // 4: gạch đỏ nâu (nhà thấp)
   g.fillStyle = wall; g.fillRect(0, 0, W, H); ge.fillStyle = '#000'; ge.fillRect(0, 0, W, H);
   for (let fy = 0; fy < 4; fy++) for (let fx = 0; fx < 4; fx++) {
-    const x = fx * 64 + (kind === 1 ? 10 : 4), y = fy * 64 + (kind === 1 ? 12 : 6), w = kind === 1 ? 44 : 56, h = kind === 1 ? 40 : 52;
+    const pun = kind === 1 || kind === 4, x = fx * 64 + (pun ? 10 : 4), y = fy * 64 + (pun ? 12 : 6), w = pun ? 44 : 56, h = pun ? 40 : 52;   // tường đá / gạch: cửa sổ đục lỗ
     const gr = g.createLinearGradient(x, y, x + w, y + h); gr.addColorStop(0, glass); gr.addColorStop(1, glass2);
     g.fillStyle = gr; g.fillRect(x, y, w, h);
     if (r() < 0.45) { ge.fillStyle = ['#ffd9a0', '#fff1d6', '#cfe4ff'][Math.floor(r() * 3)]; ge.fillRect(x + 2, y + 2, w - 4, h - 4); }
@@ -86,6 +86,7 @@ export class TimesSquare {
   }
   set visible(v) { this.group.visible = v; if (v && !this.built) this._build(); this.city.exclude = v ? this._excl : null; this.city.extraObb = v ? this.obb : null; }
   get visible() { return this.group.visible; }
+  get excl() { return this._excl; }
   // lamps 0..1: cửa sổ sáng + biển sáng hơn ban đêm
   update(dt, lamps, car) {
     this.uTime.value += dt;
@@ -97,6 +98,7 @@ export class TimesSquare {
 
   _build() {
     this.built = true;
+    FRONT = CITY.hw + CITY.walk + 0.4; GAP = CITY.side + CITY.sideWalk + 0.4;
     const road = this.road.street, L = NYC.length, base = L, P = {}, r = rng(4242);
     // khung theo đường: 7th Ave đoạn này thẳng => 1 khung cho cả vùng
     road.at(base + TS.s0, P);

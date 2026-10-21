@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { ROAD, ROAD_HW, CITY, AVENUE, IC, icS, icIndex, rampU, avHump, TOLL, tollDist, tollIndex, riverIndex, CAM, camS, camIndex, avLimit, setLayout, laneCount, Road } from './road.js';
 import { HLG, hlgLayout, hlgDem } from './hlg.js';
 import { HlgEnv } from './hlgEnv.js';
-import { NYC, nycLoop, nycStreet, NycWorks } from './nyc.js';
+import { NYC, NYC_DIM, nycLoop, nycStreet, NycWorks } from './nyc.js';
 import { TimesSquare } from './timesSquare.js';
+import { NycBuildings } from './nycBuildings.js';
 // mặc định của game = bộ cài đặt chú chỉnh trên Safari (xuất localStorage 21/10/2026): người chơi mới nhận bộ này,
 // nút "Mặc định" trong các bảng chỉnh trả về số của bộ này (không phải số gốc trong code)
 import DEF from './default-settings.json' with { type: 'json' };
@@ -137,10 +138,13 @@ const cityTraffic = new CityTraffic(scene, road, city);      // map Phố: xe d�
 const cityPeople = new CityPeople(scene, road, city);        // map Phố: người đi bộ
 const _yp = {};
 cityPeople.yAt = (s, u, y) => avLowY(s, u) ?? (onNyc() && Math.abs(u) > CITY.hw ? road.street.at(s, _yp).y : y);   // đại lộ: nhánh rẽ / đường ngang ở cao độ nền; New York: vỉa hè ở mặt phố
+const CITY_DIM = { hw: CITY.hw, walk: CITY.walk, side: CITY.side, sideWalk: CITY.sideWalk, lanes: CITY.lanes };   // kích thước map Phố (gốc)
 const nycWorks = new NycWorks(scene, road, scenery.roadMat);   // map New York: tường + trần hầm Park Ave, cầu cạn quanh Grand Central
 const timesSq = new TimesSquare(scene, road, city);
 try { timesSq.setMirror(localStorage.getItem('chilldrive.nyc.mirror') !== '0'); } catch { /* chế độ riêng tư */ }            // map New York: Times Square (nhà chọc trời, biển LED, quảng trường, đám đông)
 cityPeople.extra = () => (timesSq.visible ? timesSq.near : []);
+const nycBld = new NycBuildings(scene, timesSq, road);               // map New York: nhà thật OSM (footprint + chiều cao)
+nycBld.onReady = () => { if (nycBld.visible) city.extraObb = timesSq.obb.concat(nycBld.obb); };
 const avenue = new Avenue(scene, road, scenery.cityTex);     // map Đại lộ: vạch kẻ 6 làn + dải phân cách + nút giao (xe: cityTraffic chế độ avenue)
 const hlgEnv = new HlgEnv(scene, road, city, avenue);       // map Cao tốc HLG: nhà / cây / màu đất theo bản đồ thật (tải assets/hlg-env.json)
 hlgEnv.onLand = () => { if (hlgEnv.visible) { terrain.reset(); terrain.setCar(drive.s); } };   // lưới màu đất sẵn sàng => tô lại địa hình
@@ -618,6 +622,7 @@ const applyMap = () => {
   if (isNyc) Object.assign(TP, { hill: 0, mount: 0 });         // Manhattan: phẳng, không đồi núi xa
   hlgEnv.visible = isHlg;
   if (isHlg) hlgEnv.setDir(hlgDir);
+  Object.assign(CITY, isNyc ? NYC_DIM : CITY_DIM);              // New York: đường / vỉa hè rộng theo Manhattan
   const isCity = id === 'city', isAvenue = id === 'avenue', isTraffic = isCity || isAvenue;   // nhóm Drive: Phố + Đại lộ + Cao tốc HLG
   ROAD.halfWidth = isCity ? CITY.hw : isAvenue ? AVENUE.hw : ROAD_HW;   // phố: 4 làn; đại lộ: 6 làn + lề
   // cao tốc HLG: vào map luôn ở An Phú, chiều đi Dầu Giây; bố trí công trình theo dữ liệu thật (Đại lộ: theo chu kỳ)
@@ -647,6 +652,8 @@ const applyMap = () => {
   city.nyc = isNyc;
   timesSq.density = state.quality === QUALITY.findIndex((q) => q.id === 'low') ? 0.6 : 1;   // đám đông Times Square: Low ít người hơn
   timesSq.visible = isNyc;      // trước khi dựng khối phố: vùng loại nhà map Phố
+  nycBld.visible = isNyc;
+  if (isNyc) { city.exclude = () => true; nycBld.onReady(); }   // New York: không dựng nhà map Phố (nhà thật OSM thay)
   city.reset();                 // Phố ↔ New York: khối nhà dựng theo hình đường cũ
   city.visible = isCity;
   city.prime(drive.s);
@@ -717,7 +724,7 @@ function hlgEnd(dt) {
 }
 // New York: tốc độ tối đa khi tới khúc cua gắt (góc rẽ vuông, cầu cạn quanh Grand Central): ~22 km/h trong cua, phanh êm từ xa
 let nycTurn = null, lastSteerT = -1e9, nycChecked = null;
-const NYC_L4 = [-CITY.lanes[1], -CITY.lanes[0], CITY.lanes[0], CITY.lanes[1]];   // 4 làn cùng chiều (trái → phải)
+const NYC_L4 = [-NYC_DIM.lanes[1], -NYC_DIM.lanes[0], NYC_DIM.lanes[0], NYC_DIM.lanes[1]];   // 4 làn cùng chiều (trái → phải)
 function nycCornerV() {
   if (!onNyc() || !state.started) return Infinity;
   return road.curveV(drive.s);
@@ -1870,6 +1877,7 @@ function frame(now) {
   }
   avenue.update(drive.s, 1, dt); avenue.setLamps(st.lamps);
   hlgEnv.update(drive.s, st.lamps);
+  if (nycBld.visible) nycBld.setLamps(st.lamps);
   if (timesSq.visible) { timesSq.update(dt, st.lamps, drive.pos); timesSq.capture(renderer, scene, dt, st.lamps); }
   if (nycWorks.visible) { nycWorks.setLamps(st.lamps); nycWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
   minimap.update(dt);
@@ -2045,4 +2053,4 @@ async function init() {
 init();
 
 // hook phục vụ debug / kiểm thử
-window.__app = { get crashFx() { return crashFx; }, get blinker() { return blinker; }, get violations() { return violations; }, minimap, avenue, hlgEnv, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { nycBld, timesSq, get crashFx() { return crashFx; }, get blinker() { return blinker; }, get violations() { return violations; }, minimap, avenue, hlgEnv, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

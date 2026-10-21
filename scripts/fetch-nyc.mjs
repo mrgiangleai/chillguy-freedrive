@@ -13,7 +13,7 @@ const CACHE = path.join(process.env.HLG_CACHE || path.join(os.tmpdir(), 'chilldr
 const OUT = 'src/nyc-data.json';
 const BB = '40.742,-73.992,40.768,-73.966';
 const STEP = 5;               // bước dữ liệu xuất ra (m)
-const FILLET = 24;            // cửa sổ làm mượt hướng (m) => góc vuông thành cung bán kính ~FILLET·2/π ≈ 15 m
+const FILLET = 32;            // cửa sổ làm mượt hướng (m) => góc vuông thành cung bán kính ~FILLET·2/π ≈ 20 m (đại lộ rộng 18 m)
 const EPS = ['https://overpass.kumi.systems/api/interpreter', 'https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
 const DRIVE = '^(primary|secondary|tertiary|residential|unclassified|trunk|primary_link|secondary_link|tertiary_link|living_street|pedestrian)$';
 // tuyến: 4 góc (giao của 2 tên đường) + tên đường được đi của mỗi chặng (chặng k: góc k → góc k+1)
@@ -251,3 +251,56 @@ const data = {
 };
 fs.writeFileSync(OUT, JSON.stringify(data));
 console.log(`=> ${OUT}: ${(fs.statSync(OUT).size / 1024).toFixed(0)} KB, ${junctions.length} ngã tư (${junctions.filter((j) => j.signal).length} có đèn), hầm ${tunnels.map((t) => `${t.s0}–${t.s1}`)}, cầu ${bridges.map((t) => `${t.s0}–${t.s1}`)}`);
+
+// ---------- nhà thật (OSM building, cache nyc/buildings.json) => docs/assets/nyc-buildings.json ----------
+// Mỗi nhà dời theo độ lệch của đường đã làm mượt tại điểm tuyến gần nhất (đoạn quanh góc rẽ: nội suy từ 2 bên => không kéo nhà theo cung cua),
+// mặt tiền lấn vào vỉa hè (gần tim đường hơn FRONT) thì lùi ra (≤ 9 m, quá thì bỏ — nhà vắt qua đường như Helmsley do model riêng thay).
+const BF = path.join(CACHE, 'buildings.json');
+if (fs.existsSync(BF)) {
+  const FRONT = 9 + 5.5 + 0.4, RANGE = 230;
+  const off = R1.map((p, j) => [Q[j][0] - p[0], Q[j][1] - p[1]]);
+  for (const ci of cornerIdx) {                                   // vùng góc ±45 m: nội suy tuyến tính độ lệch 2 đầu
+    const c = Math.round(cum[ci] / d1), a = c - 45, b = c + 45, A = off[(a + N1) % N1], B = off[b % N1];
+    for (let j = a; j <= b; j++) { const t = (j - a) / (b - a); off[(j + N1) % N1] = [A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t]; }
+  }
+  const ll = (g) => [(g.lon - lon0) * KE, (g.lat - lat0) * KN];
+  const nearest = (E, N, arr) => { let bj = 0, bd = Infinity; for (let j = 0; j < arr.length; j += 2) { const d = (arr[j][0] - E) ** 2 + (arr[j][1] - N) ** 2; if (d < bd) { bd = d; bj = j; } } return [bj, Math.sqrt(bd)]; };
+  const segD = (E, N, j) => {            // khoảng cách tới tim đường đã làm mượt quanh mẫu j
+    let bd = Infinity;
+    for (let k = j - 30; k < j + 30; k++) { const a = Q[(k + N1) % N1], b = Q[(k + 1 + N1) % N1], dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((E - a[0]) * dx + (N - a[1]) * dy) / l2)); bd = Math.min(bd, Math.hypot(E - a[0] - dx * t, N - a[1] - dy * t)); }
+    return bd;
+  };
+  const hOf = (t) => { const h = parseFloat(t.height); if (h > 2) return h; const l = parseFloat(t['building:levels']); if (l > 0) return l * 3.6 + 2; return null; };
+  const out = []; let drop = 0, moved = 0, noH = 0;
+  for (const w of JSON.parse(fs.readFileSync(BF, 'utf8')).elements) {
+    if (!w.geometry || w.geometry.length < 4 || w.tags.building === 'roof' || w.tags.building === 'construction') continue;
+    let P = w.geometry.map(ll); P.pop();
+    const cE = P.reduce((a, p) => a + p[0], 0) / P.length, cN = P.reduce((a, p) => a + p[1], 0) / P.length;
+    const [j, dist] = nearest(cE, cN, R1);
+    if (dist > RANGE) continue;
+    P = P.map(([E, N]) => [E + off[j][0], N + off[j][1]]);
+    const jq = nearest(cE + off[j][0], cN + off[j][1], Q)[0];
+    let md = Infinity; for (const [E, N] of P) md = Math.min(md, segD(E, N, jq));
+    if (md < FRONT + 0.3) {
+      const dl = FRONT + 0.3 - md; if (dl > 9) { drop++; continue; }
+      const q = Q[jq], c = [cE + off[j][0], cN + off[j][1]], nl = Math.hypot(c[0] - q[0], c[1] - q[1]) || 1, nx = (c[0] - q[0]) / nl, ny = (c[1] - q[1]) / nl;
+      P = P.map(([E, N]) => [E + nx * dl, N + ny * dl]); moved++;
+    }
+    const pts = []; for (const [E, N] of P) { const l = pts.length; if (l && Math.hypot(pts[l - 2] - E, pts[l - 1] + N) < 0.8) continue; pts.push(+E.toFixed(1), +(-N).toFixed(1)); }
+    if (pts.length < 6) continue;
+    let h = hOf(w.tags); if (!h) { noH++; h = 14 + 10 * Math.random(); }
+    const mat = (w.tags['building:material'] || w.tags['building:facade:material'] || '').toLowerCase();
+    const cls = /glass/.test(mat) || h >= 110 ? (Math.random() < 0.4 ? 3 : 0) : /brick/.test(mat) || h < 30 ? 4 : /stone|concrete|lime/.test(mat) || h < 110 ? 1 : 2;
+    out.push([+Math.min(h, 450).toFixed(1), cls, +sOf(j * d1).toFixed(0), pts]);
+  }
+  // toạ độ thật của tòa nhà nổi tiếng không nằm sát tuyến (model riêng, game bỏ nhà OSM trùng chỗ)
+  const lm = {};
+  for (const [name, lat, lon] of [['empire', 40.74844, -73.985664], ['chrysler', 40.751621, -73.975502]]) {
+    const [E, N] = ll({ lat, lon }), [j] = nearest(E, N, R1);
+    lm[name] = [+(E + off[j][0]).toFixed(1), +(-(N + off[j][1])).toFixed(1)];
+  }
+  const BO = 'docs/assets/nyc-buildings.json';
+  fs.writeFileSync(BO, JSON.stringify({ source: 'OpenStreetMap contributors (ODbL)', lm, b: out }));
+  console.log(`=> ${BO}: ${(fs.statSync(BO).size / 1024).toFixed(0)} KB, ${out.length} nhà (lùi ${moved}, bỏ ${drop}, không có chiều cao ${noH})`);
+}

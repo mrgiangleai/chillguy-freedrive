@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { NYC } from './nyc.js';
 import { CITY } from './road.js';
 import { withMist } from './mist.js';
 import { hLow } from './terrain-noise.js';
@@ -20,7 +21,7 @@ const POLE_GAP = 30;
 const WAVE = 40 / 3.6;                // tốc độ "làn sóng xanh" của map New York (m/s)
 // góc rẽ New York (cung tròn bán kính ~15 m): arc = nửa chiều dài cung, tan = khoảng tiếp tuyến tới góc vuông, stop = vạch dừng
 // cách tâm cung, arm = độ dài 2 nhánh đường đi tiếp vẽ thêm ở góc
-const CORNER = { arc: 12, tan: 15.3, stop: 16.6, arm: 120 };
+const CORNER = { arc: NYC.arc, tan: NYC.tangent, stop: NYC.tangent + 1.3, arm: 120 };
 // đèn giao thông mỗi ngã tư (chu kỳ 46 s, lệch pha ngẫu nhiên theo ngã tư): đường chính xanh 22 s → vàng 3 s → đỏ;
 // đường ngang xanh 15.5 s → vàng 3 s; giữa hai pha đỏ cả hai 1.5 s
 export const SIGNAL = { cycle: 46, mainG: 22, y: 3, allRed: 1.5, crossG: 15.5, stopA: 11.45 };
@@ -720,6 +721,7 @@ export class City {
     const r = rng(n * 7919 + 17);
     const floors = (type, far) => {
       const k = r();
+      if (this.nyc) return type === 2 ? 14 + Math.floor(k * (far ? 40 : 26)) : type === 1 ? 9 + Math.floor(k * 22) : 5 + Math.floor(k * k * 14);   // Midtown: phần lớn 15–40 tầng
       if (type === 3) return 2;
       if (type === 2) return 5 + Math.floor(k * (far ? 14 : 8));
       if (type === 1) return 4 + Math.floor(k * (far ? 9 : 6));
@@ -813,11 +815,12 @@ export class City {
       const sEnd = sK - (cK ? CORNER.arc + 0.4 : CW + SWK + 0.4);
       let lastGap = s;
       while (s < sEnd - 4) {
-        const k = r(), canGap = s > iA && s < iB - 20 && s - lastGap > 25;
+        const k = r(), canGap = !this.nyc && s > iA && s < iB - 20 && s - lastGap > 25;   // New York: dãy nhà liền, không hẻm / bãi trống / chung cư kiểu Nhật
         if (canGap && k < 0.13) { s = this._alley(s, 2.6 + 1.3 * r(), su, walk, wires, ground, FRONT); lastGap = s; continue; }
         if (canGap && k < 0.21) { s = this._lot(s, 10 + 8 * r(), su, lot, wires, ground, FRONT); lastGap = s; continue; }
         if (canGap && k < 0.3 && iB - s > 40) { s = apartment(s, 28 + 6 * r(), su, r() < 0.5 ? 0 : 1); lastGap = s; continue; }
-        const w = Math.min(sEnd - s, 5 + 9 * r() * r() + 2 * r()), d = 10 + 8 * r();
+        const big = this.nyc ? 1.9 : 1;                          // New York: lô rộng / sâu hơn
+        const w = Math.min(sEnd - s, (5 + 9 * r() * r() + 2 * r()) * big), d = (10 + 8 * r()) * (this.nyc ? 1.6 : 1);
         const p = road.at(s + w / 2, this._p);
         const u = su * (FRONT + d / 2);
         const x = p.x + Math.cos(p.th) * u, z = p.z - Math.sin(p.th) * u;
@@ -825,13 +828,13 @@ export class City {
         const type = pickType(true), shop = type !== 3 && r() < 0.8;
         const g0 = p.y + WALK_Y;
         const h = add(x, z, yaw, w, d, type, shop, false, g0);
-        if (type === 0 && h > 9 && r() < 0.6) {
+        if (type === 0 && h > 9 && !this.nyc && r() < 0.6) {          // biển dọc kiểu Nhật: không có ở New York
           const lx = (r() < 0.5 ? -1 : 1) * (w / 2 - 0.45), lz = d / 2 + 0.42;
           const hs = Math.min(h - 5, 3 + 4 * r());
           const cs = Math.cos(yaw), sn = Math.sin(yaw);
           signs.push([x + cs * lx + sn * lz, z - sn * lx + cs * lz, yaw, g0 + 4.3, hs, Math.floor(r() * 16)]);
         }
-        if (shop && h > 0 && r() < 0.22) {
+        if (shop && h > 0 && !this.nyc && r() < 0.22) {
           const sv = s + 0.8 + r() * Math.max(0.1, w - 1.6), pv = road.at(sv, this._q), uv = su * (HW + SW - 0.05);
           vends.push([pv.x + Math.cos(pv.th) * uv, pv.y + WALK_Y, pv.z - Math.sin(pv.th) * uv, yaw]);
         }
@@ -1040,8 +1043,8 @@ export class City {
     slab(HW, ARM, HW, FRONT); slab(HW, ARM, -FRONT, -HW);     // 2 bên nhánh A+
     slab(HW, FRONT, FRONT, ARM); slab(-FRONT, -HW, FRONT, ARM);   // 2 bên nhánh B−
     // vạch qua đường (sọc dọc chiều xe chạy) + vạch dừng nhánh B− (xe từ B− đi vào góc)
-    for (let u = -HW + 0.35; u < HW - 0.4; u += 0.9) { rect(mark, -13.5, -9.5, u, u + 0.45, MARK_Y, WHITE, false); rect(mark, HW + 0.6, HW + 4.6, u, u + 0.45, MARK_Y, WHITE, false); }
-    for (let a = -HW + 0.35; a < HW - 0.4; a += 0.9) { rect(mark, a, a + 0.45, -13.5, -9.5, MARK_Y, WHITE, false); rect(mark, a, a + 0.45, HW + 0.6, HW + 4.6, MARK_Y, WHITE, false); }
+    for (let u = -HW + 0.35; u < HW - 0.4; u += 0.9) { rect(mark, -HW - 5.2, -HW - 1.2, u, u + 0.45, MARK_Y, WHITE, false); rect(mark, HW + 0.6, HW + 4.6, u, u + 0.45, MARK_Y, WHITE, false); }
+    for (let a = -HW + 0.35; a < HW - 0.4; a += 0.9) { rect(mark, a, a + 0.45, -HW - 5.2, -HW - 1.2, MARK_Y, WHITE, false); rect(mark, a, a + 0.45, HW + 0.6, HW + 4.6, MARK_Y, WHITE, false); }
     rect(mark, -HW + 0.3, HW - 0.3, HW + 5.2, HW + 5.65, MARK_Y, WHITE, false);
     // 2 nhánh: mép vàng / trắng liền + chia làn đứt
     for (const [o, sgn] of [[-HW + 0.32, 1], [HW - 0.32, 0]]) {
