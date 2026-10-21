@@ -31,6 +31,32 @@ export function facadeTex(kind) {
   return [mk(c), mk(e)];
 }
 
+// màu trung bình 16 ô atlas: thu nhỏ 64×64 (mỗi ô 16×16), kéo kênh lớn nhất = 1 (giữ sắc) rồi pha 15 % trắng
+function adColors(tex) {
+  const N = 64, cv = document.createElement('canvas'), g = cv.getContext('2d');
+  cv.width = cv.height = N;
+  g.drawImage(tex.image, 0, 0, N, N);
+  const d = g.getImageData(0, 0, N, N).data, out = [], white = new THREE.Color(1, 1, 1);
+  for (let i = 0; i < 16; i++) {
+    const cx = (i % 4) * 16, cy = Math.floor(i / 4) * 16;
+    let r = 0, gg = 0, b = 0;
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const k = ((cy + y) * N + cx + x) * 4; r += d[k]; gg += d[k + 1]; b += d[k + 2]; }
+    const c = new THREE.Color().setRGB(r / 65280, gg / 65280, b / 65280, THREE.SRGBColorSpace);
+    out.push(c.multiplyScalar(1 / (Math.max(c.r, c.g, c.b) || 1)).lerp(white, 0.15));
+  }
+  return out;
+}
+
+// vệt sáng tròn (trắng giữa → trong suốt ở mép) cho ánh sáng tràn xuống mặt đất
+function glowTex() {
+  const S = 128, cv = document.createElement('canvas'), g = cv.getContext('2d');
+  cv.width = cv.height = S;
+  const gr = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.55, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, S, S);
+  return new THREE.CanvasTexture(cv);
+}
+
 export class TimesSquare {
   constructor(scene, road, city) {
     this.road = road; this.city = city;
@@ -38,6 +64,7 @@ export class TimesSquare {
     this.built = false; this.obb = [];
     this.crowd = []; this.near = []; this.density = 1;     // đám đông: density theo chất lượng (Low 0.6)
     this.uTime = { value: 0 }; this.uK = { value: 1 };
+    this.signK = 1; this.winK = 1;                       // bảng 💡 Lighting: độ sáng biển LED / cửa sổ nhà (main applyLightTune)
     this.mats = [0, 1, 2, 3].map((k) => { const [map, em] = facadeTex(k); return withMist(new THREE.MeshStandardMaterial({ map, emissiveMap: em, emissive: 0xffffff, emissiveIntensity: 0, roughness: k === 1 ? 0.8 : 0.3, metalness: k === 1 ? 0 : 0.35 })); });
     // kính gương (kiểu 3, ~35 % tòa): phản chiếu cảnh Times Square chụp bằng CubeCamera đặt giữa phố (chụp lại khi trời đổi sáng / mỗi 15 s)
     this.cubeRT = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
@@ -63,6 +90,16 @@ export class TimesSquare {
     };
     this.adMat.customProgramCacheKey = () => 'ts-ad';
     withMist(this.adMat);
+    this.adColors = adColors(atlas.texture);
+    // đèn điểm màu lấy từ biển (tạo 1 lần, không thêm / bớt để số đèn trong shader luôn cố định)
+    this.plights = [];
+    for (let i = 0; i < 2; i++) {                        // 2 đèn (4 đèn làm mỗi khung hình nặng hẳn — máy ảo quá 30 s / khung)
+      const l = new THREE.PointLight(0xffffff, 0, 45, 1.6);
+      l.userData = { tc: new THREE.Color(), tp: new THREE.Vector3(), ti: 0 };
+      this.group.add(l); this.plights.push(l);
+    }
+    this.spillMat = new THREE.MeshBasicMaterial({ map: glowTex(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -4 });
+    this.adInfo = []; this.spill = []; this.spillMesh = null; this._lt = 0;
   }
   // bật / tắt phản chiếu kính (bảng 🚦 ở map New York)
   setMirror(on) {
@@ -91,9 +128,43 @@ export class TimesSquare {
   update(dt, lamps, car) {
     this.uTime.value += dt;
     if (this.built) this._crowd(dt, car);
-    this.uK.value = 0.85 + 0.75 * lamps;
-    for (const m of this.mats) m.emissiveIntensity = (m === this.mats[3] && this.mirror ? 0.8 : 1.4) * lamps;
+    this.uK.value = (0.85 + 0.75 * lamps) * this.signK;
+    for (const m of this.mats) m.emissiveIntensity = (m === this.mats[3] && this.mirror ? 0.8 : 1.4) * lamps * this.winK;
     this.red.emissiveIntensity = 0.2 + 1.2 * lamps;
+    if (this.built) { this._spill(lamps); this._lights(dt, lamps, car); }
+  }
+  // ánh sáng màu của biển tràn xuống mặt đường (instanceColor của vệt sáng)
+  _spill(lamps) {
+    const t = this.uTime.value, C = this.adColors, col = this.spillMesh.instanceColor;
+    const k = this.uK.value * (0.25 + 0.75 * lamps) * 0.35;
+    for (let i = 0; i < this.spill.length; i++) {
+      const a = this.spill[i], c = C[((a.base + Math.floor(t / a.rate + a.phase)) % 16 + 16) % 16];
+      col.setXYZ(i, c.r * k, c.g * k, c.b * k);
+    }
+    col.needsUpdate = true;
+  }
+  // 4 đèn điểm: 0.25 s chọn lại 4 biển lớn gần xe nhất, mỗi khung hình làm mượt màu + cường độ
+  _lights(dt, lamps, car) {
+    const P = this.plights, k = 1 - Math.exp(-dt * 4), t = this.uTime.value, C = this.adColors;
+    if (!car) { for (const l of P) l.intensity = 0; return; }
+    this._lt -= dt;
+    if (this._lt <= 0) {
+      this._lt = 0.25;
+      const cand = [];
+      for (const a of this.adInfo) if (a.w * a.h > 60) cand.push([(a.x - car.x) ** 2 + (a.z - car.z) ** 2, a]);
+      cand.sort((p, q) => p[0] - q[0]);
+      for (let i = 0; i < P.length; i++) {
+        const u = P[i].userData, a = cand[i] && cand[i][1];
+        if (!a) { u.ti = 0; continue; }
+        u.ti = 60 * this.signK * (0.3 + 0.7 * lamps);
+        u.tc.copy(C[((a.base + Math.floor(t / a.rate + a.phase)) % 16 + 16) % 16]);
+        u.tp.set(a.x + a.nx * 4, a.y, a.z + a.nz * 4);
+      }
+    }
+    for (const l of P) {
+      const u = l.userData;
+      l.position.lerp(u.tp, k); l.color.lerp(u.tc, k); l.intensity += (u.ti - l.intensity) * k;
+    }
   }
 
   _build() {
@@ -233,10 +304,25 @@ export class TimesSquare {
       const nx = du ? F.rx * du : -F.fx * ds, nz = du ? F.rz * du : -F.fz * ds;      // pháp tuyến mặt biển
       q.setFromAxisAngle(up, Math.atan2(nx, nz));
       m4.compose(v.set(x, y0 + y, z), q, sc.set(w, h, 1)); im.setMatrixAt(i, m4);
-      aAd.set([Math.floor(r() * 16), r() * 7, 5 + r() * 6], i * 3);
+      const cell0 = Math.floor(r() * 16), phase = r() * 7, rate = 5 + r() * 6;
+      aAd.set([cell0, phase, rate], i * 3);
+      this.adInfo.push({ x, y: y0 + y, z, nx, nz, w, h, base: cell0, phase, rate });
     });
     pg.setAttribute('aAd', new THREE.InstancedBufferAttribute(aAd, 3));
     im.frustumCulled = false; this.group.add(im);
+    // vệt sáng trên mặt đất trước mỗi biển thấp (đáy dưới 25 m so với mặt phố)
+    this.spill = this.adInfo.filter((a) => a.y - y0 - a.h / 2 < 25);
+    const sg = new THREE.PlaneGeometry(1, 1); sg.rotateX(-Math.PI / 2);
+    const sm = new THREE.InstancedMesh(sg, this.spillMat, this.spill.length);
+    sm.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(this.spill.length * 3), 3);
+    const sq = new THREE.Quaternion(), sv = new THREE.Vector3(), ss = new THREE.Vector3();
+    this.spill.forEach((a, i) => {
+      const dep = Math.min(18, 6 + a.h * 0.6);
+      sq.setFromAxisAngle(up, Math.atan2(a.nx, a.nz));
+      m4.compose(sv.set(a.x + a.nx * dep / 2, y0 + 0.25, a.z + a.nz * dep / 2), sq, ss.set(a.w * 1.3, 1, dep));
+      sm.setMatrixAt(i, m4);
+    });
+    sm.frustumCulled = false; this.group.add(sm); this.spillMesh = sm;
     this.W = W; this.F = F; this.y0 = y0;
     this._spawnCrowd();
     this.count = { buildings: geo[0].length + geo[1].length + geo[2].length, ads: ads.length };

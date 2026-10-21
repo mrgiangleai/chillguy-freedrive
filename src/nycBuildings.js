@@ -39,7 +39,7 @@ export class NycBuildings {
   }
   set visible(v) { this.group.visible = v; if (v && this.state === 'idle') this._load(); }
   get visible() { return this.group.visible; }
-  setLamps(k) { this.brick.emissiveIntensity = 1.2 * k; this.shop.emissiveIntensity = 0.15 + 1.3 * k; }
+  setLamps(k) { const w = this.winK ?? 1; this.brick.emissiveIntensity = 1.2 * k * w; this.shop.emissiveIntensity = (0.15 + 1.3 * k) * w; }
 
   async _load() {
     this.state = 'loading';

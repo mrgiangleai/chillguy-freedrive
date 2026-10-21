@@ -355,6 +355,8 @@ function applyLightTune() {
   city.uWin.value = lightTune.windows; city.uSignK.value = lightTune.signs;
   cityTraffic.uNpc.value = lightTune.npc; traffic.lampK = lightTune.npc;
   cityTraffic.emK = lightTune.emergency;
+  timesSq.signK = lightTune.signs; timesSq.winK = lightTune.windows;   // New York: biển LED + cửa sổ Times Square theo bảng Lighting
+  nycBld.winK = lightTune.windows;
 }
 const trafficTune = trafficDefaults();
 // sương sát đất (lớp MIST): lưu riêng cho nhóm Chill / Drive; mỗi kiểu thời tiết có độ phủ + độ dày (0..1), mỗi giờ có hệ số độ dày
