@@ -6,6 +6,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import zlib from 'node:zlib';
+import readline from 'node:readline';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 
 const CACHE = process.env.HLG_CACHE || path.join(os.tmpdir(), 'chilldrive-osm');
 const ONLY = process.env.ONLY || '';
@@ -185,6 +189,90 @@ const LU_MAP = (tags) => {
   return null;
 };
 
+// ---------- Microsoft Global ML Building Footprints ----------
+const MS_INDEX = 'https://minedbuildings.z5.web.core.windows.net/global-buildings/dataset-links.csv';
+const MSDIR = path.join(CACHE, 'ms'); fs.mkdirSync(MSDIR, { recursive: true });
+async function download(url, f) {
+  if (fs.existsSync(f) && fs.statSync(f).size > 0) return;
+  for (let t = 0; t < 5; t++) {
+    try {
+      const r = await fetch(url, { headers: { 'User-Agent': 'chilldrive-mapgen/1.0' } });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      await pipeline(Readable.fromWeb(r.body), fs.createWriteStream(f + '.part')); fs.renameSync(f + '.part', f); return;
+    } catch (e) { console.log('lỗi tải', url.slice(-60), e.message); await sleep(4000); }
+  }
+  throw new Error('không tải được ' + url);
+}
+// các quadkey zoom 9 phủ bbox hành lang (tim đường ±700 m)
+function corridorQuadkeys(Z = 9) {
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (let s = 0; s <= LEN; s += 50) for (const u of [-700, 0, 700]) { const [x, z] = toXZ(s, u); x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+  const a = xzToLL(x0, z1), c = xzToLL(x1, z0), n = 2 ** Z;
+  const tx = (lon) => Math.floor((lon + 180) / 360 * n);
+  const ty = (lat) => { const r = lat * Math.PI / 180; return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n); };
+  const qs = [];
+  for (let X = tx(a[1]); X <= tx(c[1]); X++) for (let Y = ty(c[0]); Y <= ty(a[0]); Y++) {
+    let q = ''; for (let i = Z; i > 0; i--) { const m = 1 << (i - 1); q += (X & m ? 1 : 0) + (Y & m ? 2 : 0); } qs.push(q);
+  }
+  return { qs, bbox: [a[0], a[1], c[0], c[1]] };
+}
+const hash01 = (x, z) => { let h = (Math.round(x * 10) * 73856093) ^ (Math.round(z * 10) * 19349663); h = Math.imul(h ^ (h >>> 13), 0x5bd1e995); h ^= h >>> 15; return (h >>> 0) / 4294967296; };
+// ô 100 m cách tim ≤ ~520 m (lọc nhanh trước khi gọi toSU)
+function corridorCells() {
+  const set = new Set();
+  for (let s = 0; s <= LEN; s += 40) { const [x, z] = toXZ(s, 0); for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++) set.add((Math.floor(x / 100) + dx) + ',' + (Math.floor(z / 100) + dz)); }
+  return set;
+}
+async function loadMS() {
+  const { qs, bbox } = corridorQuadkeys();
+  const lines = fs.existsSync(path.join(MSDIR, 'index.csv')) ? null : (await download(MS_INDEX, path.join(MSDIR, 'index.csv')), 0);
+  const rows = fs.readFileSync(path.join(MSDIR, 'index.csv'), 'utf8').split('\n').slice(1).map((l) => l.split(',')).filter((c) => c.length >= 3);
+  const locs = [...new Set(rows.map((c) => c[0]))].filter((l) => /^viet/i.test(l));
+  console.log('MS index: Location khớp', locs.join('|'), '; quadkey zoom 9 phủ hành lang:', qs.join(' '), 'bbox', bbox.map((v) => v.toFixed(3)).join(','));
+  const mine = rows.filter((c) => /^viet/i.test(c[0]) && qs.includes(c[1]));
+  console.log('tệp MS cần dùng:', mine.map((c) => c[1] + ' ' + c[3]).join(', '));
+  const cells = corridorCells(), out = [];
+  let seen = 0, near = 0;
+  for (const c of mine) {
+    const f = path.join(MSDIR, c[1] + '-' + (c[2].match(/part-(\d+)/) || [])[1] + '.csv.gz');
+    await download(c[2], f);
+    const rl = readline.createInterface({ input: fs.createReadStream(f).pipe(zlib.createGunzip()), crlfDelay: Infinity });
+    for await (const line of rl) {
+      seen++;
+      const i = line.indexOf('[[['); if (i < 0) continue;
+      const m = /^\[\[\[(-?[\d.]+),\s*(-?[\d.]+)/.exec(line.slice(i)); if (!m) continue;
+      const [x0, z0] = llToXZ(+m[2], +m[1]);
+      if (!cells.has(Math.floor(x0 / 100) + ',' + Math.floor(z0 / 100))) continue;
+      near++;
+      let ft; try { ft = JSON.parse(line); } catch { continue; }
+      const g = ft.geometry; if (!g) continue;
+      const ring = g.type === 'Polygon' ? g.coordinates[0] : g.type === 'MultiPolygon' ? g.coordinates[0][0] : null; if (!ring || ring.length < 4) continue;
+      const pr = ft.properties || {}; if (pr.confidence != null && pr.confidence >= 0 && pr.confidence < 0.6) continue;
+      const pts = ring.slice(0, -1).map((p) => llToXZ(p[1], p[0]));
+      const area = polyArea(pts); if (area < 25) continue;
+      let cx = 0, cz = 0; for (const p of pts) { cx += p[0]; cz += p[1]; } cx /= pts.length; cz /= pts.length;
+      const su = toSU(cx, cz); if (!su.ok || Math.abs(su.u) < 22 || Math.abs(su.u) > 450) continue;
+      const bx = minBox(pts); if (!bx) continue;
+      out.push({ area, ph: pr.height > 0 ? +pr.height : 0, s: su.s, u: su.u, bx, pts });
+    }
+    console.log(`  ${c[1]}: đã đọc tổng ${seen} dòng, gần hành lang ${near}, giữ ${out.length}`);
+  }
+  return out;
+}
+function msClassify(o) {
+  const { area, bx, ph } = o, r = hash01(bx.cx, bx.cz), asp = Math.max(bx.w, bx.d) / Math.max(1, Math.min(bx.w, bx.d));
+  let h = ph, ind = false;
+  if (!(h > 0)) {
+    if (area < 150) h = (r < 0.6 ? 2 : r < 0.9 ? 1 : 3) * 3.3;
+    else if (area < 600) h = (r < 0.6 ? 2 : 3) * 3.3;
+    else if (area <= 3000) { if (asp >= 2.5 || area > 1500) { h = 8 + 2 * r; ind = true; } else h = 3 * 3.3; }
+    else { h = 10; ind = true; }
+  }
+  let kind;
+  if (h >= 20) kind = 1; else if (ind || (area > 1200 && h < 14)) kind = 3; else if (area >= 300 && area <= 1200 && h >= 9) kind = 2; else kind = 0;
+  return { h: Math.max(2.5, h), kind };
+}
+
 async function doEnv() {
   // --- tải nhà + đất theo các đoạn tim đường ---
   const NB = 18, NL = 6, bld = new Map();
@@ -212,13 +300,38 @@ async function doEnv() {
     const su = toSU(bx.cx, bx.cz); if (!su.ok || Math.abs(su.u) > 600 || Math.abs(su.u) < 22) continue;
     const area = polyArea(pts), { h, kind } = classify(e.tags || {}, area);
     const w = Math.max(4, bx.w), d = Math.max(4, bx.d), rel = wrapHalf(bx.a - HD[segOf(su.s)]);
-    items.push({ id: e.id, area, h, kind, s: su.s, u: su.u, w, d, rel, x: bx.cx, z: bx.cz });
+    items.push({ id: e.id, area, h, kind, s: su.s, u: su.u, w, d, rel, x: bx.cx, z: bx.cz, a: bx.a });
   }
-  const MAXB = 40000;
+  const nOsm = items.length;
+  for (const it of items) it.src = 'osm';
+  // --- Microsoft footprints, gộp (OSM thắng) ---
+  const ms = await loadMS();
+  const GC = 50, grid = new Map();
+  for (const it of items) { const k = Math.floor(it.x / GC) + ',' + Math.floor(it.z / GC); (grid.get(k) || grid.set(k, []).get(k)).push(it); }
+  const insideOsm = (px, pz) => {
+    const gx = Math.floor(px / GC), gz = Math.floor(pz / GC);
+    for (let a = -1; a <= 1; a++) for (let c = -1; c <= 1; c++) for (const it of grid.get((gx + a) + ',' + (gz + c)) || []) {
+      const dx = px - it.x, dz = pz - it.z;
+      if (Math.hypot(dx, dz) <= 3) return true;
+      const ca = Math.cos(it.a), sa = Math.sin(it.a);
+      if (Math.abs(dx * ca - dz * sa) <= it.w / 2 + 0.5 && Math.abs(dx * sa + dz * ca) <= it.d / 2 + 0.5) return true;
+    }
+    return false;
+  };
+  let nMs = 0, dup = 0;
+  for (const o of ms) {
+    if (insideOsm(o.bx.cx, o.bx.cz)) { dup++; continue; }
+    const su = toSU(o.bx.cx, o.bx.cz); if (!su.ok || Math.abs(su.u) < 22 || Math.abs(su.u) > 450) continue;
+    const { h, kind } = msClassify(o);
+    items.push({ src: 'ms', ring: o.pts, area: o.area, h, kind, s: su.s, u: su.u, w: Math.max(4, o.bx.w), d: Math.max(4, o.bx.d), rel: wrapHalf(o.bx.a - HD[segOf(su.s)]), x: o.bx.cx, z: o.bx.cz }); nMs++;
+  }
+  console.log(`MS: ${ms.length} bóng sau lọc, trùng OSM bỏ ${dup}, thêm ${nMs}; OSM ${nOsm}; gộp ${items.length}`);
+  const MAXB = 70000;
   let kept = items;
   if (items.length > MAXB) {
-    const tall = items.filter((b) => b.h >= 20), rest = items.filter((b) => b.h < 20).sort((a, b) => b.area - a.area);
+    const tall = items.filter((b) => b.h >= 20), rest = items.filter((b) => b.h < 20).sort((a, b) => ((Math.abs(a.u) > 200) - (Math.abs(b.u) > 200)) || b.area - a.area);
     kept = tall.concat(rest.slice(0, Math.max(0, MAXB - tall.length)));
+    console.log(`vượt ${MAXB}: bỏ ${items.length - kept.length} nhà nhỏ xa đường`);
   }
   kept.sort((a, b) => a.s - b.s);
   const b = []; for (const k of kept) b.push(Math.round(k.s), Math.round(k.u * 10), Math.round(k.w * 10), Math.round(k.d * 10), Math.round(k.rel * 1000), Math.round(k.h * 10), k.kind);
@@ -272,13 +385,51 @@ async function doEnv() {
     rows.push(line);
   }
 
-  const out = { src: '© OpenStreetMap contributors (ODbL)', fetched: new Date().toISOString(), b, bn: kept.length, lu: { ds: LDS, du: LDU, u0: LU0, rows } };
+  // --- điền ô '-' : mật độ nhà, sau đó DEM ---
+  const hist0 = { ...hist };
+  const cnt = new Float32Array(LR * LC), ar = new Float32Array(LR * LC), indA = new Float32Array(LR * LC), indN = new Int32Array(LR * LC);
+  for (const k of kept) {
+    const r = Math.round(k.s / LDS), c = Math.round((k.u - LU0) / LDU); if (r < 0 || r >= LR || c < 0 || c >= LC) continue;
+    const i = r * LC + c; cnt[i]++; ar[i] += k.w * k.d; if (k.kind === 3) { indA[i] += k.w * k.d; indN[i]++; }
+  }
+  const nbSum = (arr, r, c) => { let t = 0; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const rr = r + a, cc = c + b; if (rr >= 0 && rr < LR && cc >= 0 && cc < LC) t += arr[rr * LC + cc]; } return t; };
+  let dem = null; try { dem = JSON.parse(fs.readFileSync('src/hlg-dem.json', 'utf8')); } catch {}
+  const elev = (s, u) => {
+    const fr = Math.max(0, Math.min(dem.rows - 1.001, s / dem.ds)), fc = Math.max(0, Math.min(dem.cols - 1.001, (u - dem.u0) / dem.du)), r = Math.floor(fr), c = Math.floor(fc), tr = fr - r, tc = fc - c, H = (a, b) => dem.h[(r + a) * dem.cols + c + b];
+    return (H(0, 0) * (1 - tc) + H(0, 1) * tc) * (1 - tr) + (H(1, 0) * (1 - tc) + H(1, 1) * tc) * tr;
+  };
+  const nearW = (r, c) => { for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) { const rr = r + a, cc = c + b; if (rr >= 0 && rr < LR && cc >= 0 && cc < LC && rows[rr][cc] === 'w') return true; } return false; };
+  const orig = rows.slice(), fillN = { r: 0, i: 0, p: 0, f: 0, left: 0 };
+  for (let r = 0; r < LR; r++) {
+    const chars = orig[r].split('');
+    for (let c = 0; c < LC; c++) {
+      if (orig[r][c] !== '-') continue;
+      const i = r * LC + c, nA = nbSum(ar, r, c), nI = nbSum(indA, r, c); let ch = '-';
+      if (indN[i] > 0 || (nI >= 400 && nI >= 0.5 * nA)) ch = 'i';
+      else if (cnt[i] >= 2 || ar[i] >= 400) ch = 'r';
+      else if (dem) {
+        const e = elev(r * LDS, LU0 + c * LDU), hv = hash01(Math.floor(r / 5), Math.floor(c / 5));
+        if (e < 5) ch = nearW(r, c) ? '-' : 'p';
+        else if (e < 14) ch = hv < 0.5 ? 'p' : 'f';
+        else ch = hv < 0.15 ? 'p' : 'f';
+      }
+      if (ch === '-') fillN.left++; else fillN[ch]++;
+      chars[c] = ch;
+    }
+    rows[r] = chars.join('');
+  }
+  for (const k of Object.keys(hist)) delete hist[k];
+  for (const l of rows) for (const ch of l) hist[ch] = (hist[ch] || 0) + 1;
+  console.log('đất trước khi điền:', Object.entries(hist0).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}:${v}`).join('  '), '; đã điền:', JSON.stringify(fillN), dem ? '' : '(không có DEM)');
+
+  const out = { src: '© OpenStreetMap contributors (ODbL); Microsoft Global ML Building Footprints (ODbL)', fetched: new Date().toISOString(), b, bn: kept.length, lu: { ds: LDS, du: LDU, u0: LU0, rows } };
   fs.mkdirSync('docs/assets', { recursive: true });
   fs.writeFileSync('docs/assets/hlg-env.json', JSON.stringify(out));
 
   // --- báo cáo ---
   const names = ['nhà ở', 'chung cư', 'thương mại', 'công nghiệp', 'khác'], bk = [0, 0, 0, 0, 0];
   for (const k of kept) bk[k.kind]++;
+  console.log(`OSM ${items.filter((k) => k.src === 'osm').length} / MS ${items.filter((k) => k.src === 'ms').length} / gộp ${items.length}; giữ theo nguồn OSM ${kept.filter((k) => k.src === 'osm').length} MS ${kept.filter((k) => k.src === 'ms').length}`);
   console.log(`nhà trong hành lang: ${items.length}, giữ ${kept.length}; theo loại: ` + bk.map((n, i) => `${i}-${names[i]}:${n}`).join('  ') + `; h≥20: ${kept.filter((k) => k.h >= 20).length}`);
   console.log(`hlg-env.json: ${(fs.statSync('docs/assets/hlg-env.json').size / 1024).toFixed(0)} KB`);
   console.log('đất (số ô):', Object.entries(hist).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}:${v}`).join('  '), ` (vùng đất dùng: ${feats.length})`);
@@ -291,10 +442,11 @@ async function doEnv() {
   }
   // kiểm tra 3 nhà: dựng lại từ (s,u) → lat/lon, xác nhận điểm nằm trong footprint OSM
   console.log('kiểm tra dựng lại:');
+  const msIdx = kept.map((k, i) => (k.src === 'ms' ? i : -1)).filter((i) => i >= 0);
   for (const q of [0.15, 0.5, 0.85]) {
-    const i = Math.floor(kept.length * q), k = kept[i], [x, z] = toXZ(Math.round(k.s), Math.round(k.u * 10) / 10), [la, lo] = xzToLL(x, z);
-    const hit = bld.get(k.id), ring = hit.geometry.map((p) => llToXZ(p.lat, p.lon));
-    console.log(`  #${i} s=${Math.round(k.s)} u=${k.u.toFixed(1)} → ${la.toFixed(6)},${lo.toFixed(6)}  way/${k.id}  trong footprint: ${inRing(x, z, ring)}  lệch tâm hộp ${Math.hypot(x - k.x, z - k.z).toFixed(1)} m  ${k.w.toFixed(0)}×${k.d.toFixed(0)} h=${k.h.toFixed(0)} kind=${k.kind}`);
+    const i = msIdx[Math.floor(msIdx.length * q)], k = kept[i], [x, z] = toXZ(Math.round(k.s), Math.round(k.u * 10) / 10), [la, lo] = xzToLL(x, z);
+    const ring = k.src === 'ms' ? k.ring : bld.get(k.id).geometry.map((p) => llToXZ(p.lat, p.lon));
+    console.log(`  #${i} s=${Math.round(k.s)} u=${k.u.toFixed(1)} → ${la.toFixed(6)},${lo.toFixed(6)}  ${k.src === 'ms' ? 'MS' : 'way/' + k.id}  trong footprint: ${inRing(x, z, ring)}  lệch tâm hộp ${Math.hypot(x - k.x, z - k.z).toFixed(1)} m  ${k.w.toFixed(0)}×${k.d.toFixed(0)} h=${k.h.toFixed(0)} kind=${k.kind}`);
   }
 }
 

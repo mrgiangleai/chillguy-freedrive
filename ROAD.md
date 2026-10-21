@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -235,9 +235,10 @@ model thử (~625 MB) không nằm trong git.
   nhập làn giữa nếu đang tự lái ở làn 3. **Độ cao thật** (SRTM 30 m, `src/hlg-dem.json` 546 × 31 theo (s, u) ±1.5 km, làm mượt 5×5
   ~500 m): `hlgDem(lay)` → lưới thế giới 50 m, `TP.dem` cộng vào `hLow` (shared) + GLSL `tDem` (texelFetch, khớp CPU; reeds đẩy
   `uDem/uDemBox/uDemN`). HLG: `TP.low 1.5, mount 0` (bỏ núi xa). Cao độ đường ~2 m (Thủ Đức) → 13 (Long Thành) → ~199 m (Dầu Giây),
-  dốc tối đa 5.9% (cầu vượt nút giao Long Thành). **Cảnh quan** (`hlgEnv.js`): OSM rất thưa — 522 nhà (433 ở km 0–5), sử dụng đất
-  55–100% ô chưa có dữ liệu (km 30–35 trống hẳn) => phần lớn tuyến vẫn trống; hướng làm tiếp: footprint Microsoft / Google Open
-  Buildings + suy loại đất từ độ cao / mật độ nhà (xem mục 5).
+  dốc tối đa 5.9% (cầu vượt nút giao Long Thành). **Cảnh quan** (`hlgEnv.js`): 8 401 nhà = OSM 522 + Microsoft Global ML Building
+  Footprints 7 879 (ODbL, 2 ô quadkey zoom 9, |u| 22–450 m; OSM thắng khi trùng); 21 chung cư ≥ 20 m, 378 thương mại, 138 xưởng.
+  Ô đất OSM trống được lấp: mật độ nhà => 'r' / 'i'; còn lại theo độ cao SRTM: < 5 m ruộng 'p', 5–14 m pha ruộng / rừng theo mảng
+  ~200 m, ≥ 14 m rừng cao su 'f' (15% trảng). Cây 'f': 3 / ô khi |u| < 160 m, 1 / ô tới 360 m.
   **Map Đại lộ** (`avenue`, 🛣️, nhóm Drive cùng Phố; M trong Drive: Phố ↔ Đại lộ): cao tốc 6 làn (`AVENUE`: tâm làn ±2.25 / ±5.75 /
   ±9.25, dải phân cách ±0.5, mép làn ±11, lề khẩn cấp tới ±13), đường cong rất thoải (bán kính ≥ ~2 km), địa hình `avenue` (đồi cỏ
   thấp, cỏ cao `meadow` hai bên), hộ lan thép 2 bên, đèn đường 2 bên xen kẽ. Xe: `cityTraffic` chế độ avenue (3 làn mỗi chiều, tốc
@@ -365,7 +366,7 @@ model thử (~625 MB) không nằm trong git.
   khoá ngang (Android), gợi ý xoay ngang khi cầm dọc; iPhone: "Thêm vào MH chính" (manifest fullscreen/landscape).
 
 ## 5. Việc còn mở / cần chú ý
-- **Map Cao tốc HLG — có thể làm tiếp**: ĐANG LÀM nhà theo footprint thật ngoài OSM (OSM chỉ 522 nhà); sông / lạch cắt chéo
+- **Map Cao tốc HLG — có thể làm tiếp**: footprint Microsoft không có chiều cao ở VN => cao theo diện tích (đoán); sông / lạch cắt chéo
   đúng góc thật (đang vuông góc tuyến); mặt nước lạch dài ±400 m rồi dừng; cỏ cao `meadow` vẫn phủ cả khu dân cư; biển tốc độ dựng bên đường còn theo mẫu Đại lộ (HUD đã đúng biển thật); Cầu Long Thành dùng tháp dây văng
   chung của Đại lộ (chưa đối chiếu ảnh thật); nút giao chưa có tên đường cắt ngang cho Nhơn Trạch / QL51 / Long Thành / Cẩm Mỹ
   (`cross` null trong dữ liệu); trạm thu phí trên nhánh QL51 bị bỏ. Chưa xem trên máy thật / Good / Ultra.
@@ -393,3 +394,6 @@ model thử (~625 MB) không nằm trong git.
 - **#2 — HLG: số làn thật, độ cao SRTM, nhà / cây / màu đất theo OSM (21/10/2026)**: xem mục trạng thái Map Cao tốc + `hlgEnv.js`.
   check-hlg (thêm số làn) / traffic / traffic-policy / steering / car-switch PASS; GUI Low: đường + địa hình theo độ cao thật, không
   núi xa, nhà OSM ở km 0–5. Dữ liệu do subagent Sonnet tải (`fetch-hlg-env.mjs`).
+- **#3 — HLG: nhà theo footprint Microsoft + lấp loại đất (21/10/2026)**: `fetch-hlg-env.mjs` thêm nguồn Microsoft (cache `<tmp>/chilldrive-osm/ms/`,
+  2 file 257 MB, chạy lại vài giây), `hlg-env.json` 272 KB. GUI Low: km 2.6 nhà dân hai bên, km 46 (cao 93 m) ruộng + hàng cây xa,
+  console không lỗi. check-hlg PASS.

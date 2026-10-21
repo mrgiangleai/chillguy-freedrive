@@ -155,7 +155,9 @@ export class HlgEnv {
         const uF = L.u0 + cI * L.du, ch = this._lu(sF, uF);
         const s = rev ? Lr - sF : sF, u = rev ? -uF : uF;
         if (ch === 'f') {
-          for (let t = 0; t < 4; t++) {
+          // rừng / vườn cao su: dày gần đường, thưa dần (máy yếu); xa hơn 360 m bỏ (địa hình đã tô màu rừng)
+          const nT = Math.abs(uF) < 160 ? 3 : Math.abs(uF) < 360 ? 1 : 0;
+          for (let t = 0; t < nT; t++) {
             const ds = (hashS(sF + t * 13, uF) - 0.5) * L.ds, du = (hashS(uF + t * 7, sF * 0.5) - 0.5) * L.du;
             if (this._blocked(s + ds, u + du, 4)) continue;
             const P = pose(s + ds, u + du);
