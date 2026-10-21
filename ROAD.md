@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -133,6 +133,13 @@ model thử (~625 MB) không nằm trong git.
   ghế/khung). Hạt mưa ngoài trời bị loại trong thể tích xe; âm thanh ngoài −60% + mưa lộp độp trên kính.
 - **Thời tiết / giờ**: "Trời trong" (đổi tên từ "Trời nắng"); đã bỏ mốc "Giờ vàng".
 - **Ánh sáng**: nắng gắt cân bằng kiểu máy ảnh: nắng ×2.3, ánh trời ×0.5, phơi sáng ×0.7. Đêm có trăng (đổ bóng).
+- **Mặc định = cài đặt của chú** (`src/default-settings.json` = `DEF`, xuất từ localStorage Safari của chú 21/10/2026: `tuning`
+  (chill / drive / traffic / mist), `scopes` city / avenue / hlg, `quality`): chưa có bản lưu => nạp `DEF.tuning`; nhóm thiếu => lấy
+  của `DEF`; map có bộ riêng chưa lưu => `DEF.scopes[map]`; nút "Mặc định" của mọi bảng = số gốc trong code rồi phủ `defSet()`
+  (bộ `DEF` của nhóm Chill / Drive đang dùng; sương / giao thông từ `DEF.tuning.mist / traffic`). Muốn đổi mặc định: chú chỉnh trên
+  trình duyệt rồi xuất lại (Console: `copy(JSON.stringify(Object.fromEntries(Object.keys(localStorage).filter(k => k.startsWith
+  ('chilldrive')).map(k => [k, localStorage.getItem(k)]))))`) và chuyển thành file này. Giao thông mặc định theo chú: không ngẫu
+  nhiên, mật độ 2.5, tự dừng đèn đỏ, không chấm điểm, Phố 60–104 / cao tốc 120–208 km/h (đổi từ `speed: 2` cũ).
 - **Lưu thông số chỉnh tay** (`chilldrive.tuning.v1`, `v: 2`): bảng camera / thời tiết / thời gian (ánh sáng chung) / Lighting /
   dừng xe lưu RIÊNG nhóm Chill và Drive (`tuneSets`, `switchTuneGroup` gọi trong applyMap; bản lưu cũ chung => khởi đầu cho cả 2).
   Giao thông (`traffic`, chỉ Drive) và sương (`mist`, đã chia nhóm) lưu chung tệp. Chất lượng (Low / Good / Ultra) vẫn dùng chung.
@@ -403,5 +410,8 @@ model thử (~625 MB) không nằm trong git.
   2 file 257 MB, chạy lại vài giây), `hlg-env.json` 272 KB. GUI Low: km 2.6 nhà dân hai bên, km 46 (cao 93 m) ruộng + hàng cây xa,
   console không lỗi. check-hlg PASS.
 - **#4 — Tốc độ giao thông chỉnh bằng km/h ở mọi map (21/10/2026)**: xem mục bảng 🚦. check traffic / traffic-policy / hlg / car-switch /
-  steering PASS; GUI: Chill 2 ô km/h lưu được, cao tốc NPC 36–115 km/h (60–104 × mức ngẫu nhiên × làn). **Đang chờ chú**: dán cài đặt
-  Safari (localStorage `chilldrive.*`) để đặt làm mặc định.
+  steering PASS; GUI: Chill 2 ô km/h lưu được, cao tốc NPC 36–115 km/h (60–104 × mức ngẫu nhiên × làn). Cài đặt Safari của chú đã thành mặc định
+  ở mục #5.
+- **#5 — Cài đặt Safari của chú thành mặc định (21/10/2026)**: `default-settings.json` + `loadTraffic` / `loadMist` / `defSet`. GUI
+  (xoá localStorage): Chill phơi sáng 1.25, quay quanh 30 m; Drive phơi sáng 0.73; HLG gió lớn / ban ngày / cam Sát mặt đường; cao tốc
+  mật độ 2.5, 120–208 km/h; nút Mặc định camera trả về 1.75 m. Check scripts PASS, console không lỗi.

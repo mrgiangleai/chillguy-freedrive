@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { ROAD, ROAD_HW, CITY, AVENUE, IC, icS, icIndex, rampU, avHump, TOLL, tollDist, tollIndex, riverIndex, CAM, camS, camIndex, avLimit, setLayout, laneCount, Road } from './road.js';
 import { HLG, hlgLayout, hlgDem } from './hlg.js';
 import { HlgEnv } from './hlgEnv.js';
+// mặc định của game = bộ cài đặt chú chỉnh trên Safari (xuất localStorage 21/10/2026): người chơi mới nhận bộ này,
+// nút "Mặc định" trong các bảng chỉnh trả về số của bộ này (không phải số gốc trong code)
+import DEF from './default-settings.json' with { type: 'json' };
 import { Avenue } from './avenue.js';
 import { Minimap } from './minimap.js';
 import { City, SIGNAL } from './city.js';
@@ -411,6 +414,20 @@ function loadTuneSet(src) {
   for (const [id, v] of Object.entries(src.weather || {})) if (env.weatherProfiles[id]) Object.assign(env.weatherProfiles[id], v);
   for (const k of ['environment', 'carLights', 'streetLights', 'lighting', 'park', 'fireflies', 'cows', 'nature', 'natureReed']) if (src[k]) Object.assign(P[k], src[k]);
 }
+// giao thông đã lưu (bản cũ có `speed` × => đổi sang km/h) / sương đã lưu của nhóm g
+function loadTraffic(t) {
+  if (!t) return;
+  const { kmh, speed, ...rest } = t;
+  Object.assign(trafficTune, rest);
+  if (kmh) { for (const g of Object.keys(TRAFFIC_KMH)) if (Array.isArray(kmh[g]) && kmh[g].length === 2) trafficTune.kmh[g] = kmh[g].map(Number); }
+  else if (speed && speed !== 1) for (const g of ['city', 'avenue']) trafficTune.kmh[g] = TRAFFIC_KMH[g].map((v) => Math.round(v * speed));
+}
+function loadMist(g, sv, w = null) {
+  if (!sv) return;
+  for (const [k, v] of Object.entries(sv.w || {})) if (mistTune[g].w[k] && (!w || k === w)) Object.assign(mistTune[g].w[k], v);
+  if (!w) Object.assign(mistTune[g].t, sv.t || {});
+}
+const defSet = () => DEF.tuning[tuneGroup] || {};             // bộ mặc định (của chú) cho nhóm Chill / Drive đang dùng
 function switchTuneGroup(g) {
   if (g === tuneGroup) return;
   tuneSets[tuneGroup] = cloneJ(tuneParts());
@@ -420,24 +437,15 @@ function switchTuneGroup(g) {
   if (tuneKind) renderTune();
 }
 try {
-  savedTuning = JSON.parse(localStorage.getItem(TUNE_KEY));
-  if (savedTuning?.v === 2) { tuneSets.chill = savedTuning.chill || null; tuneSets.drive = savedTuning.drive || null; }
+  savedTuning = JSON.parse(localStorage.getItem(TUNE_KEY)) || cloneJ(DEF.tuning);
+  if (savedTuning?.v === 2) { tuneSets.chill = savedTuning.chill || cloneJ(DEF.tuning.chill); tuneSets.drive = savedTuning.drive || cloneJ(DEF.tuning.drive); }
   else if (savedTuning) {                                           // bản lưu cũ (chung): làm điểm khởi đầu cho cả 2 nhóm
     const legacy = {}; for (const k of Object.keys(TUNE_BASE)) if (savedTuning[k]) legacy[k] = savedTuning[k];
     tuneSets.chill = cloneJ(legacy); tuneSets.drive = cloneJ(legacy);
   }
   loadTuneSet(tuneSets[tuneGroup]); meadow.applyTune(); reeds.applyTune();
-  if (savedTuning?.traffic) {
-    const { kmh, speed, ...rest } = savedTuning.traffic;
-    Object.assign(trafficTune, rest);
-    if (kmh) for (const g of Object.keys(TRAFFIC_KMH)) if (Array.isArray(kmh[g]) && kmh[g].length === 2) trafficTune.kmh[g] = kmh[g].map(Number);
-    else if (speed && speed !== 1) for (const g of ['city', 'avenue']) trafficTune.kmh[g] = TRAFFIC_KMH[g].map((v) => Math.round(v * speed));   // bản lưu cũ: hệ số ×
-  }
-  for (const g of ['chill', 'drive']) {
-    const sv = savedTuning?.mist?.[g]; if (!sv) continue;
-    for (const [k, v] of Object.entries(sv.w || {})) if (mistTune[g].w[k]) Object.assign(mistTune[g].w[k], v);
-    Object.assign(mistTune[g].t, sv.t || {});
-  }
+  loadTraffic(savedTuning?.traffic);
+  for (const g of ['chill', 'drive']) loadMist(g, savedTuning?.mist?.[g]);
   if (savedTuning?.carLights) Object.assign(cars.headlights.tune, savedTuning.carLights);
   if (savedTuning?.streetLights) Object.assign(scenery.lampTune, savedTuning.streetLights);
 } catch { /* thông số cũ/hỏng: dùng mặc định trong code */ }
@@ -649,7 +657,7 @@ const applyMap = () => {
   if (prevMap !== mapId) {
     if (SCOPED[prevMap]) saveScope(prevMap);
     else if (prevMap !== null && SCOPED[mapId]) saveScope('world');
-    if (SCOPED[mapId]) restoreScope(scopes[mapId] || (isHlg && scopes.avenue) || (isAvenue && scopes.city) || cityDefaults());
+    if (SCOPED[mapId]) restoreScope(scopes[mapId] || DEF.scopes[mapId] || (isHlg && scopes.avenue) || (isAvenue && scopes.city) || cityDefaults());
     else if (SCOPED[prevMap] && scopes.world) restoreScope(scopes.world);
   }
   rig.sideDist = isCity ? 13 : isAvenue ? 17 : null;   // phố / đại lộ: camera bên hông đứng trên đường (không chui vào nhà / ra ngoài hộ lan)
@@ -1268,19 +1276,22 @@ tuneMode.onchange = () => {
 };
 $('tune-close').onclick = closeTune;
 $('tune-reset').onclick = () => {
-  if (tuneKind === 'camera') { rig.resetTune(CAMERAS[state.cam].id); onCamChange(); }
+  // về số gốc trong code rồi phủ bộ mặc định của chú (`DEF`, theo nhóm Chill / Drive)
+  const D = defSet(), g = isDriveMap(state.map) ? 'drive' : 'chill';
+  if (tuneKind === 'camera') { const id = CAMERAS[state.cam].id; rig.resetTune(id); Object.assign(rig.tune[id], D.camera?.[id] || {}); rig.setMode(state.cam); onCamChange(); }
   else if (tuneKind === 'weather') {
-    const w = WEATHERS[state.weather].id === 'auto' ? env.weather : WEATHERS[state.weather].id; env.resetWeather(w); env.resetTune(); env.snapWeather(w);
-    const g = isDriveMap(state.map) ? 'drive' : 'chill', d = MIST_DEFAULTS[g].w[w]; if (d) Object.assign(mistTune[g].w[w], { cover: d[0], dens: d[1] });
+    const w = WEATHERS[state.weather].id === 'auto' ? env.weather : WEATHERS[state.weather].id; env.resetWeather(w); Object.assign(env.weatherProfiles[w] || {}, D.weather?.[w] || {});
+    env.resetTune(); Object.assign(env.tune, D.environment || {}); env.snapWeather(w);
+    const d = MIST_DEFAULTS[g].w[w]; if (d) Object.assign(mistTune[g].w[w], { cover: d[0], dens: d[1] }); loadMist(g, DEF.tuning.mist?.[g], w);
   }
-  else if (tuneKind === 'time') { env.resetTune(); env.setTime(TIMES[state.time].hour); const g = isDriveMap(state.map) ? 'drive' : 'chill'; Object.assign(mistTune[g].t, MIST_DEFAULTS[g].t); }
-  else if (tuneKind === 'carLight') Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS);
-  else if (tuneKind === 'traffic') { Object.assign(trafficTune, trafficDefaults()); $('b-score').hidden = !cityTraffic.visible; if (trafficStartT <= 0 && !trafficLevel) pickTrafficLevel(false); else applyTrafficTune(); }
-  else if (tuneKind === 'park') Object.assign(stop.tune, PARK_DEFAULTS);
-  else if (tuneKind === 'animals') { Object.assign(fireflies.tune, FIREFLY_DEFAULTS); Object.assign(cows.tune, COW_DEFAULTS); retuneAnimals(); }
-  else if (tuneKind === 'nature') { const f = MAPS[state.map].id === 'reed' ? reeds : meadow; Object.assign(f.tune, f.defaults); f.applyTune(); }
-  else if (tuneKind === 'lighting') { Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS); Object.assign(scenery.lampTune, STREETLIGHT_DEFAULTS); Object.assign(lightTune, LIGHT_DEFAULTS); applyLightTune(); }
-  else Object.assign(scenery.lampTune, STREETLIGHT_DEFAULTS);
+  else if (tuneKind === 'time') { env.resetTune(); Object.assign(env.tune, D.environment || {}); env.setTime(TIMES[state.time].hour); Object.assign(mistTune[g].t, MIST_DEFAULTS[g].t, DEF.tuning.mist?.[g]?.t || {}); }
+  else if (tuneKind === 'carLight') Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS, D.carLights || {});
+  else if (tuneKind === 'traffic') { Object.assign(trafficTune, trafficDefaults()); loadTraffic(DEF.tuning.traffic); $('b-score').hidden = !cityTraffic.visible || !trafficTune.score; if (trafficTune.auto && trafficStartT <= 0 && !trafficLevel) pickTrafficLevel(false); else { if (!trafficTune.auto) trafficLevel = null; applyTrafficTune(); } }
+  else if (tuneKind === 'park') Object.assign(stop.tune, PARK_DEFAULTS, D.park || {});
+  else if (tuneKind === 'animals') { Object.assign(fireflies.tune, FIREFLY_DEFAULTS, D.fireflies || {}); Object.assign(cows.tune, COW_DEFAULTS, D.cows || {}); retuneAnimals(); }
+  else if (tuneKind === 'nature') { const reed = MAPS[state.map].id === 'reed', f = reed ? reeds : meadow; Object.assign(f.tune, f.defaults, (reed ? D.natureReed : D.nature) || {}); f.applyTune(); }
+  else if (tuneKind === 'lighting') { Object.assign(cars.headlights.tune, HEADLIGHT_DEFAULTS, D.carLights || {}); Object.assign(scenery.lampTune, STREETLIGHT_DEFAULTS, D.streetLights || {}); Object.assign(lightTune, LIGHT_DEFAULTS, D.lighting || {}); applyLightTune(); }
+  else Object.assign(scenery.lampTune, STREETLIGHT_DEFAULTS, D.streetLights || {});
   saveTuning(); refreshUI(); renderTune();
 };
 el.car.onclick = nextCar;
