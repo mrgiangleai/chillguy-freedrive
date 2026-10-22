@@ -42,7 +42,7 @@ for (const [name, s, d, cam, wait] of shots) {
   await go(2 * L + s, d, cam); await p.waitForTimeout(wait || 9000);
   await p.evaluate(() => { const A = window.__app; A.terrain.prime(A.drive.pos); });
   await p.waitForTimeout(3000);
-  await p.evaluate(([cam, T]) => { const A = window.__app; A.state.time = 0; A.env.setTime(T); if (cam !== null) { A.state.cam = cam; A.rig.setMode(cam); } }, [cam, +(process.env.TIME || 13)]);
+  await p.evaluate(([cam, T, W]) => { const A = window.__app; A.state.time = 0; A.env.setTime(T); A.env.setWeather(W); if (cam !== null) { A.state.cam = cam; A.rig.setMode(cam); } }, [cam, +(process.env.TIME || 13), process.env.WX || 'clear']);   // New York có thời tiết / giờ Tự động => đặt lại trước mỗi ảnh
   await p.waitForTimeout(4000);
   await p.evaluate(([hide, near, range]) => {
     const A = window.__app, G = { buildings: A.nycBld, ts: A.timesSq, people: A.cityPeople, traffic: A.cityTraffic, props: A.nycProps, net: A.nycNet, works: A.nycWorks, city: A.city };

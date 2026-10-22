@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { CITY } from './road.js';
 import { NYC } from './nyc.js';
 import { withMist } from './mist.js';
+import { withWetGlass } from './wetGlass.js';
 import { adAtlas } from './adAtlas.js';
 
 // s (trong vòng) của vùng Times Square + mép khối (ngã tư 47 … 42 St lấy từ dữ liệu)
@@ -55,7 +56,8 @@ export class TimesSquare {
     this.crowd = []; this.near = []; this.density = 1;     // đám đông: density theo chất lượng (Low 0.6)
     this.uTime = { value: 0 }; this.uK = { value: 1 };
     this.signK = 1; this.winK = 1;                       // bảng 💡 Lighting: độ sáng biển LED / cửa sổ nhà (main applyLightTune)
-    this.mats = [0, 1, 2, 3].map((k) => { const [map, em] = facadeTex(k); return withMist(new THREE.MeshStandardMaterial({ map, emissiveMap: em, emissive: 0xffffff, emissiveIntensity: 0, roughness: k === 1 ? 0.8 : 0.3, metalness: k === 1 ? 0 : 0.35 })); });
+    this.mats = [0, 1, 2, 3].map((k) => { const [map, em] = facadeTex(k); const m = new THREE.MeshStandardMaterial({ map, emissiveMap: em, emissive: 0xffffff, emissiveIntensity: 0, roughness: k === 1 ? 0.8 : 0.3, metalness: k === 1 ? 0 : 0.35 });
+      return withMist(k === 1 ? m : withWetGlass(m, { grid: true })); });   // kính (kiểu 0 / 2 / 3) ướt khi mưa; đá (1) không
     // kính gương (kiểu 3, ~35 % tòa): phản chiếu cảnh Times Square chụp bằng CubeCamera đặt giữa phố (chụp lại khi trời đổi sáng / mỗi 15 s)
     this.cubeRT = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
     this.cube = new THREE.CubeCamera(2, 2500, this.cubeRT);
@@ -64,7 +66,7 @@ export class TimesSquare {
     this.setMirror(true);
     this.dark = withMist(new THREE.MeshStandardMaterial({ color: 0x1d2024, roughness: 0.6, metalness: 0.3 }));
     this.red = withMist(new THREE.MeshStandardMaterial({ color: 0xc4141c, emissive: 0x8a0008, emissiveIntensity: 0.2, roughness: 0.25 }));
-    this.glass = withMist(new THREE.MeshStandardMaterial({ color: 0x9fb8c8, roughness: 0.1, metalness: 0.5, transparent: true, opacity: 0.55 }));
+    this.glass = withMist(withWetGlass(new THREE.MeshStandardMaterial({ color: 0x9fb8c8, roughness: 0.1, metalness: 0.5, transparent: true, opacity: 0.55 })));
     this.green = withMist(new THREE.MeshStandardMaterial({ color: 0x3d6b2e, roughness: 0.9 }));
     // biển LED: MeshBasic (tự sáng), mỗi biển 1 ô atlas đổi theo thời gian (aAd: ô gốc, lệch pha, giây / hình)
     const atlas = adAtlas(THREE);

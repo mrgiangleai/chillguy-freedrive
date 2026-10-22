@@ -29,6 +29,7 @@ import { ChillAudio } from './audio.js';
 import { ReedField } from './reeds.js';
 import { Post } from './post.js';
 import { installMist, MIST } from './mist.js';
+import { WET } from './wetGlass.js';
 import { WetReflection } from './reflection.js';
 import { Person } from './person.js';
 import { StopScene, PARK_DEFAULTS } from './stopscene.js';
@@ -1994,6 +1995,7 @@ function frame(now) {
   MIST.uMistCover.value = mistCover;
   MIST.uMistBase.value = drive.pos.y - 1.5;
   MIST.uMistT.value = now / 1000;
+  WET.uGlassWet.value = st.wet; WET.uGlassT.value = now / 1000;        // kính ướt khi mưa (wetGlass.js)
   MIST.uMistWind.value.copy(st.windDir).multiplyScalar(0.0012 + 0.006 * st.wind);
   MIST.uMistColor.value.copy(st.mistColor);
   env.mistCover = mistCover; env.mistDens = mistDens;                // sương phủ cả bầu trời
