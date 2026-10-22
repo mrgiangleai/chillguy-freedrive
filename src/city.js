@@ -655,20 +655,22 @@ export class City {
     // ---- New York: góc rẽ trái thay cho ngã tư thường ----
     if (cJ) this._corner(FcJ, { quad, cross, walk, mark, WHITE });
     // ---- ngã tư n: đường ngang + vỉa hè dọc đường ngang + vạch ----
+    // New York: phố cắt ngang chỉ vẽ phần miệng ngã tư (phố thật — kể cả Broadway chéo — do nycNet vẽ tiếp)
+    const JD = this.nyc ? FRONT + 6 : DEPTH;
     if (!cJ) for (const su of [-1, 1]) {
-      const uA = su * HW, uB = su * DEPTH;
+      const uA = su * HW, uB = su * JD;
       jquad(cross, -CW, CW, uA, uB, 0.05, null, (a, u) => [(a + CW) / (2 * CW), u / 12]);
       for (const sa of [-1, 1]) {
         jquad(walk, sa * CW, sa * (CW + SWK), su * FRONT, uB, WALK_Y, null, (a, u) => [a / 2, u / 2]);
-        for (let u = FRONT; u < DEPTH; u += 4) {                // bó vỉa dọc đường ngang
-          const u1 = Math.min(DEPTH, u + 4);
+        for (let u = FRONT; u < JD; u += 4) {                // bó vỉa dọc đường ngang
+          const u1 = Math.min(JD, u + 4);
           quad(walk, [J(sa * CW, su * u, 0.03), J(sa * CW, su * u1, 0.03), J(sa * CW, su * u1, WALK_Y), J(sa * CW, su * u, WALK_Y)],
             [-sa * F.fx, 0, -sa * F.fz], null, [[0, u / 2], [0, u1 / 2], [0.1, u1 / 2], [0.1, u / 2]]);
         }
       }
       for (let a = -CW + 0.35; a < CW - 0.3; a += 0.9) jquad(mark, a, a + 0.45, su * (HW + 0.7), su * (HW + 3.4), MARK_Y, WHITE);
       jquad(mark, su * 0.15, su * (CW - 0.2), su * (HW + 4.0), su * (HW + 4.45), MARK_Y, WHITE);
-      for (let u = FRONT + 3; u < DEPTH - 3; u += 6) jquad(mark, -0.07, 0.07, su * u, su * (u + 3), MARK_Y, WHITE);
+      for (let u = FRONT + 3; u < JD - 3; u += 6) jquad(mark, -0.07, 0.07, su * u, su * (u + 3), MARK_Y, WHITE);
     }
     if (!cJ) for (const sa of [-1, 1]) for (let u = -HW + 0.35; u < HW - 0.4; u += 0.9) jquad(mark, sa * 6.4, sa * 10.4, u, u + 0.45, MARK_Y, WHITE);
     if (this.nyc) { if (!cJ) jquad(mark, -11.9, -11.45, -HW + 0.3, HW - 0.3, MARK_Y, WHITE); }   // một chiều: vạch dừng cả mặt đường
@@ -1164,12 +1166,14 @@ export class City {
     // biển báo: vạch qua đường (2 phía tới), "止まれ" trên đường ngang, tốc độ 40 + cấm đỗ giữa khối
     const signs = [];
     const sign = (a, u, fx, fz, cell, h = 2.5) => { const [x, z] = P(a, u); signs.push([x, gJ(u) + 0.2, z, Math.atan2(fx, fz), cell, h]); };
+    if (!this.nyc) {                                            // New York: biển kiểu VN (vạch qua đường, 止まれ, tốc độ, cấm đỗ) không dùng
     sign(-14.2, HW + 0.55, -F.fx, -F.fz, 0);                    // chiều mình tới ngã tư: biển vạch qua đường bên phải
     sign(14.2, -(HW + 0.55), F.fx, F.fz, 0);                    // chiều ngược lại
     sign(CW + 0.7, HW + 4.6, F.rx, F.rz, 1, 2.2);              // đường ngang phía phải: dừng lại
     if (!corner) sign(-(CW + 0.7), -(HW + 4.6), -F.rx, -F.rz, 1, 2.2);
     sign(60, HW + 0.55, -F.fx, -F.fz, 2);                       // giữa khối: tốc độ tối đa 40
     sign(95, -(HW + 0.55), F.fx, F.fz, 3);                      // cấm đỗ
+    }
     const mkPlates = (mat, back) => {
       const g = new THREE.BufferGeometry();
       for (const k of ['position', 'normal', 'uv']) g.setAttribute(k, this.signPlate.attributes[k].clone());

@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -428,3 +428,4 @@
 - **#6 — Thử worker GLM 5.3 flash free + script check-nyc-buildings (22/10/2026)**: GLM đạt; sửa 16 nhà OSM < 4 m (nâng 4 m).
 - **#7 — Thử MiniMax vs DeepSeek dựng model 3D 2 mức chi tiết (22/10/2026)**: kết quả ở mục 2.
 - **#8 — One Vanderbilt vào game + GLB (22/10/2026)**: 11 model, 0 điểm làn xe chạm, 0 chồng nhau, GLB không lỗi.
+- **#9 — Kiểm 2 lỗi chú gửi ảnh (22/10/2026)**: đường đâm nhà ở cầu cạn đã hết (tia 5 làn: 0); nhà chắn phố ngang chỉ còn ở Broadway / 32 St (phố chéo) => NYC: phố ngang city.js chỉ vẽ miệng ngã tư (`JD` = FRONT + 6, nycNet vẽ phố thật), bỏ biển kiểu VN.
