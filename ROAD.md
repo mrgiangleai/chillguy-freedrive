@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -121,6 +121,9 @@
   ghế/khung). Hạt mưa ngoài trời bị loại trong thể tích xe; âm thanh ngoài −60% + mưa lộp độp trên kính.
 - **Thời tiết / giờ**: "Trời trong" (đổi tên từ "Trời nắng"); đã bỏ mốc "Giờ vàng".
   "Ban ngày" bớt ám xanh (chú yêu cầu 22/10/2026): `shared/sky.js` mốc 22° / 50° — chân trời `#cbd6e0` / dải `#e3e8eb` (trước `#b4d4f2` / `#d2e5f3`, làm sương + ánh sáng nền xanh), đỉnh trời dịu hơn.
+- **Kính ướt khi mưa** (`src/wetGlass.js`, dùng chung mọi map — gắn như `withMist`: `withWetGlass(mat, { grid })`; `WET.uGlassWet` = `st.wet`):
+  kính tối ×0.78 + nhám ×0.55 theo độ ướt, chỉ vài phép nhân trong shader (không thêm lượt vẽ). Đã bỏ vệt nước chảy: xe không tới sát tòa nên
+  không thấy (chú dặn: nặng thì bỏ, nhẹ thì giữ). `grid`: chỉ ô kính của `facadeTex`. Gắn: mặt tiền kính kiểu 0 / 2 / 3 (New York), kính quầy TKTS.
 - **Ánh sáng**: nắng gắt cân bằng kiểu máy ảnh: nắng ×2.3, ánh trời ×0.5, phơi sáng ×0.7. Đêm có trăng (đổ bóng).
 - **Mặc định = cài đặt của chú** (`src/default-settings.json` = `DEF`, xuất từ localStorage Safari của chú 21/10/2026: `tuning`
   (chill / drive / traffic / mist), `scopes` city / avenue / hlg, `quality`): chưa có bản lưu => nạp `DEF.tuning`; nhóm thiếu => lấy
@@ -459,6 +462,12 @@
   - **Nhánh worker CHƯA gộp**: `worker/debug-20261022-190719` — bậc lùi (`src/bld/tiers.js`), gờ mái (`cornice.js`), bồn nước + máy + ăng-ten (`roof.js`)
     trong `nycBuildings._build`. Codex đo: dựng 73 → 1 581 ms, tam giác 141k → 428k, 16 → 44 MB => QUÁ NẶNG. Định sửa: gờ mái + đồ trên mái chỉ cho
     nhà gần tuyến (< ~80 m), cache tiers. Chú CHƯA chốt giữ bồn nước — hỏi lại. Nhánh này tách trước bản tòa nổi tiếng => gộp cẩn thận `nycBuildings.js`.
+  - **Việc chú duyệt 23/10/2026, CHƯA làm** (đề sẵn ở scratchpad `tasks/yield.md, props.md, sidecam.md` — mất khi hết phiên, ý chính ở đây):
+    (a) xe NPC (đường chính + ngang) phanh nhường người đi bộ trong làn (kể cả đám đông Times Square), ~10 % người băng qua khi đỏ
+    (xe đang đi xuyên qua người); (b) hơi nước nắp cống + xe bán đồ ăn + Koreatown 32 St (biển chữ Hàn dọc); (c) camera Bên hông bị biển
+    LED Times Square che: thêm hộp biển vào `city.extraObb` cho `collide`; (d) HLG: tên đường cắt ngang nút giao (`cross` null) + sông / lạch
+    cắt chéo đúng góc. Chú bỏ: đồ trên mái (đã xoá `src/bld` + nhánh), Mazda chưa cần. Máy thật đã mượt (tài nguyên lưu sẵn) — máy ảo chỉ để xem
+    gần (`RANGE=`), không phụ thuộc thời tiết / giờ.
   - opencode DeepSeek free hết lượt 23/10/2026 sáng (thử lại sau ~7 giờ); khi hết thì Claude tự làm việc đã rõ, hỏi chú trước khi dùng credit API.
   - **Đã gộp + push**: nắp hầm dày 1.5 m + tường đầu 2 cửa hầm (GLM), bóng nắng xa (DeepSeek; nay là ÁNH SÁNG DÙNG CHUNG mọi map, nút "Bóng nắng xa"
     ở bảng Lighting mục "Nắng", `chilldrive.farShadow`, mặc định tắt; Codex review → sửa nhớ / trả cỡ bóng theo chất lượng). Chú tự thử.
@@ -499,11 +508,15 @@
 - **#2 — Map Landmark 81 – TP.HCM, B1 (23/10/2026)**: chú chọn vòng sông + hầm + cầu, nhà OSM + Landmark 81 dựng code; vào map luôn Hoàng hôn + Nhiều mây.
   `fetch-sgn.mjs` → `sgn-data.json` (17.86 km), `sgn.js`, MAPS `sgn` 🌆, `check-sgn.mjs` PASS (check-nyc / traffic / hlg / car-switch vẫn PASS).
   Chụp Low: 0 lỗi; trước Landmark, trong hầm, cầu Sài Gòn hiện đúng. Thứ tự dự phòng DeepSeek mới (mục 2). Chi tiết mục 1 + `SGN_PLAN.md`.
-- **#3 — Landmark: biết đang ở đâu + tháp Landmark 81 (23/10/2026)**: tên đường + khu dưới tốc độ, chữ lớn giữa màn hình khi vào đường / khu mới,
+- **#3 — Kính ướt khi mưa (23/10/2026)**: `src/wetGlass.js` (xem mục 3), gắn mặt tiền kính New York / Times Square. `shot-nyc.mjs` đặt lại thời tiết trước mỗi ảnh
+  (New York có thời tiết Tự động). Build + check-nyc / buildings / landmark-roads PASS; chưa xem hình.
+- **#4 — Kính ướt bản nhẹ (23/10/2026)**: bỏ vệt nước chảy (không tới sát tòa nên không thấy), giữ kính tối + bóng khi mưa. One Times Square bị biển che kín — không cần kính.
+- **#5 — Dọn mái nhà + xếp việc (23/10/2026)**: xoá `src/bld` (bậc lùi / gờ mái / bồn nước chưa ghép) + nhánh worker; 4 việc chú duyệt ghi ở mục 5 — chưa làm vì mọi model free opencode hết lượt.
+- **#6 — Landmark: biết đang ở đâu + tháp Landmark 81 (23/10/2026)**: tên đường + khu dưới tốc độ, chữ lớn giữa màn hình khi vào đường / khu mới,
   bản đồ tròn vẽ cả vòng + tên đường / khu (chú so với bản đồ thật); Codex soát (2 lỗi: chữ giữa còn khi rời map, nhãn sát mép bị cắt — đã sửa).
   Model Landmark 81: DeepSeek API dựng (free hết lượt), đặt vào map. Chụp Low: 0 lỗi.
-- **#4 — Landmark: đổi tuyến qua khu Vinhomes (23/10/2026)**: chú muốn đường nội khu Vinhomes là điểm nhấn chính (chi tiết, chính xác), khu ngoài
+- **#7 — Landmark: đổi tuyến qua khu Vinhomes (23/10/2026)**: chú muốn đường nội khu Vinhomes là điểm nhấn chính (chi tiết, chính xác), khu ngoài
   chỉnh sau. Tuyến mới chiều kim đồng hồ: NHC → Vạn Hoa 4 → Vạn Hoa 3 → Trần Trọng Kim (sát Landmark 81) → quay đầu ĐBP → cầu Sài Gòn 2 → Q2
   → Mai Chí Thọ → hầm Thủ Thiêm → Q1 → NHC. check-sgn PASS.
-- **#5 — Landmark 81 GLB + bỏ nhà map Phố trong khu Vinhomes (23/10/2026)**: dùng model CC-BY chú tải (đẹp hơn bản code), ghi công README + ⓘ;
+- **#8 — Landmark 81 GLB + bỏ nhà map Phố trong khu Vinhomes (23/10/2026)**: dùng model CC-BY chú tải (đẹp hơn bản code), ghi công README + ⓘ;
   nhà map Phố kiểu Nhật không còn trong khu Vinhomes (để trống chờ B3). check-sgn PASS.
