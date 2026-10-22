@@ -68,6 +68,7 @@ export class CityPeople {
   constructor(scene, road, city) {
     this.road = road;
     this.city = city;
+    city.people = this;                    // xe NPC (cityTraffic) hỏi người đang ở trong làn
     this.group = new THREE.Group();
     this.group.visible = false;
     scene.add(this.group);
@@ -174,6 +175,19 @@ export class CityPeople {
     for (const p of this.peds) if (p.mode === 'cross' && Math.abs(p.s - s) < 3 && Math.abs(p.u - d) < 3.5) return true;
     return false;
   }
+  // làn sát vỉa phía người đang đứng (làn đầu tiên họ bước vào khi qua đường) có trống trong 25 m?
+  // dùng cho người lách qua khi đèn đỏ; không có xe NPC => được qua
+  _jayClear(p) {
+    const T = this.city.traffic;
+    if (!T) return true;
+    const lanes = T.lanes || CITY.lanes;
+    const lane = (Math.sign(p.side) || 1) * lanes[lanes.length - 1];
+    for (const c of T.cars) {
+      if (c.cross || c.xr || c.crashed) continue;
+      if (Math.abs(c.s - p.s) < 25 && Math.abs(c.d - lane) < 2.2) return false;
+    }
+    return true;
+  }
 
   update(dt, s) {
     if (!this.group.visible) return;
@@ -227,10 +241,25 @@ export class CityPeople {
       } else if (p.crossing) {
         const ph = city._phase(p.n);
         const remain = ph.crossEnd - ph.t;                            // còn bao lâu đèn đi bộ (đường ngang xanh) — xem SIGNAL
-        if (p.mode === 'wait' && ph.cross === 0 && remain > 9) p.mode = 'cross';
+        if (p.mode === 'wait') {
+          if (ph.cross === 0 && remain > 9) { p.mode = 'cross'; p.jay = undefined; }
+          else if (ph.cross !== 0) {
+            // ~10 % người tới mép vỉa hè lúc đèn đỏ vẫn qua (đi nhanh hơn chút), chỉ khi làn sát vỉa trống 25 m
+            // và mỗi ngã tư tối đa 2 người lách đèn cùng lúc
+            if (p.jay === undefined) p.jay = Math.random() < 0.1;
+            if (p.jay) {
+              let jw = 0;
+              for (const q of this.peds) if (q.jaywalk && q.mode === 'cross' && q.n === p.n) jw++;
+              if (jw < 2 && this._jayClear(p)) { p.mode = 'cross'; p.jaywalk = true; }
+            }
+          }
+        }
         if (p.mode === 'cross') {
-          vu = -p.side * p.speed * 1.15;
-          if (p.u * p.side < -(HW + 0.9)) { p.crossing = false; p.mode = 'walk'; p.u = -p.side * (HW + 1.2 + Math.random() * 2); p.dir = Math.random() < 0.5 ? -1 : 1; }
+          vu = -p.side * p.speed * (p.jaywalk ? 1.35 : 1) * 1.15;
+          if (p.u * p.side < -(HW + 0.9)) {
+            p.crossing = false; p.mode = 'walk'; p.jaywalk = false; p.jay = undefined;
+            p.u = -p.side * (HW + 1.2 + Math.random() * 2); p.dir = Math.random() < 0.5 ? -1 : 1;
+          }
         }
       } else {
         // đi dọc vỉa hè; tới đường ngang thì chờ đèn đường chính xanh
