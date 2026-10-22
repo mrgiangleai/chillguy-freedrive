@@ -165,6 +165,7 @@ export class NycStreetNet {
     try {
       const res = await fetch('assets/nyc-streets.json');
       const data = await res.json();
+      this.streets = data.s;                         // cho bản đồ tròn
       const net = buildNet(THREE, data.s, { asphalt: this.asphalt, walk: this.walk, mark: this.mark }, this.groundAt);
       this.group.add(net);
       this.built = true;

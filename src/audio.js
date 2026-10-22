@@ -361,9 +361,11 @@ export class ChillAudio {
     }
     let f;
     if (kind === 'police') f = 650 + 700 * (0.5 - 0.5 * Math.cos(t * Math.PI / 2));
+    else if (kind === 'wail') f = 620 + 820 * (0.5 - 0.5 * Math.cos(t * Math.PI / 3));   // New York: còi hụ xa rú chậm (chu kỳ 6 s)
     else f = Math.floor(t / 0.65) % 2 ? 770 : 960;
-    v.o.frequency.setTargetAtTime(f, t, kind === 'police' ? 0.05 : 0.008);
-    v.o2.frequency.setTargetAtTime(f * 2.01, t, kind === 'police' ? 0.05 : 0.008);
+    const tc = kind === 'police' || kind === 'wail' ? 0.05 : 0.008;
+    v.o.frequency.setTargetAtTime(f, t, tc);
+    v.o2.frequency.setTargetAtTime(f * 2.01, t, tc);
     v.g.gain.setTargetAtTime(0.11 * Math.max(0, Math.min(1, level)), t, 0.25);
     v.p.pan.setTargetAtTime(Math.max(-1, Math.min(1, pan)), t, 0.1);
   }

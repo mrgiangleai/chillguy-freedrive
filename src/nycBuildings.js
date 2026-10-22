@@ -48,6 +48,7 @@ export class NycBuildings {
       const r = await fetch('assets/nyc-buildings.json');
       const D = await r.json();
       this._landmarks(D.lm || {});
+      this.foot = D.b;                                    // footprint cho bản đồ tròn
       this._build(D.b);
       this.state = 'ready';
       if (this.onReady) this.onReady();

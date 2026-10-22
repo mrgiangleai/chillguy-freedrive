@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -20,7 +20,7 @@
   `goto(..., { waitUntil: 'domcontentloaded' })`; map có cài đặt "Tự động" ghi đè camera / giờ => đặt lại ngay trước khi chụp.
   Máy chậm => môi trường (env map) chưa kịp chụp lại khi đổi giờ: gọi `__app.env.update(0.016, drive.pos); env._captureEnv()`.
 - **Kiểm tra tự động** (node, không cần trình duyệt; đều PASS): `scripts/check-traffic.mjs`, `check-traffic-policy.mjs`, `check-steering.mjs`,
-  `check-stopscene.mjs`, `check-hlg.mjs`, `check-nyc.mjs`, `check-nyc-wave.mjs`, `check-nyc-buildings.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
+  `check-stopscene.mjs`, `check-hlg.mjs`, `check-nyc.mjs`, `check-nyc-wave.mjs`, `check-nyc-buildings.mjs`, `check-nyc-sound.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
   `check-waterfalls.mjs`, `check-rear-glass.mjs [model.glb]`. Model tải lên nặng: nén bằng `npx @gltf-transform/cli@4 webp … --quality 82`
   rồi `meshopt` (giữ file gốc); sóng biển bake bằng `node scripts/bake-ocean.mjs`. **Fixture GUI** `scripts/*-preview.js` (giữ cảnh cố định để chụp):
   bundle bằng esbuild ra `docs/<tên>-check.js`, sao `docs/index.html` thành trang riêng đổi script sang bundle đó; chụp xong
@@ -266,6 +266,12 @@
   "biển hiệu" => `timesSq.signK`, "cửa sổ" => cửa sổ Times Square + nhà OSM (`winK`).
   **Kính gương** (~35 % tòa, kiểu mặt tiền 3): envMap = `CubeCamera` 256 px đặt giữa Times Square cao 22 m (`capture`: lần đầu, đèn đổi > 0.12,
   mỗi 15 s; tắt envMap của chính nó lúc chụp) => phản chiếu nhà + biển LED. Bật / tắt ở bảng 🚦 mục "New York" (`chilldrive.nyc.mirror`, mặc định bật).
+  Phố ngang NYC: city.js chỉ vẽ miệng ngã tư (`JD` = FRONT + 6; phố thật do nycNet vẽ — tránh đâm nhà ở phố chéo như Broadway / 32 St), không biển kiểu VN.
+  **GLB**: `node scripts/export-nyc-landmarks.mjs` => `docs/assets/models/nyc/*.glb` (11 tòa, màu đỉnh, glTF-Validator không lỗi); game vẫn dựng bằng code.
+  **Âm thanh** (`nycSound.js`, DeepSeek viết theo đề + `scripts/check-nyc-sound.mjs`): còi xe xa ngẫu nhiên 0.22 / s (Times Square × 1.8, hầm × 0.3,
+  25 % có còi đáp), còi hụ xa đi ngang mỗi 50–140 s (`audio.setSiren('wail')`: rú chậm chu kỳ 6 s, lia trái ↔ phải 14–22 s), đám đông Times Square
+  (chatter slot 3 / 4, to dần trong 180 m quanh s 470–960; hầm × 0.2). **Bản đồ tròn**: map New York vẽ footprint nhà OSM + mạng phố thật
+  (`nycBld.foot`, `nycNet.streets`), tuyến màu vàng rộng `CITY.hw`. Ghi công OSM cho New York trong ⓘ + README.
   **Map Đại lộ** (`avenue`, 🛣️, nhóm Drive cùng Phố; M trong Drive: Phố ↔ Đại lộ): cao tốc 6 làn (`AVENUE`: tâm làn ±2.25 / ±5.75 /
   ±9.25, dải phân cách ±0.5, mép làn ±11, lề khẩn cấp tới ±13), đường cong rất thoải (bán kính ≥ ~2 km), địa hình `avenue` (đồi cỏ
   thấp, cỏ cao `meadow` hai bên), hộ lan thép 2 bên, đèn đường 2 bên xen kẽ. Xe: `cityTraffic` chế độ avenue (3 làn mỗi chiều, tốc
@@ -394,9 +400,9 @@
   khoá ngang (Android), gợi ý xoay ngang khi cầm dọc; iPhone: "Thêm vào MH chính" (manifest fullscreen/landscape).
 
 ## 5. Việc còn mở / cần chú ý
-- **TIẾP THEO — Map New York** 🗽: B1 + Times Square lượt 1 xong, chờ chú xem. Còn: biển LED quấn góc nhà / cong, đám đông quảng trường
-  (B4: qua đường thành đợt), nhà thật cả vòng (B2), Grand Central / Helmsley, đường ngang dưới cầu cạn + trên hầm, góc trong khúc cua trống.
-  Ảnh chụp Low: ban đêm biển sáng rõ; camera Bên hông dễ bị 1 tấm biển che kín khung hình.
+- **Map New York** 🗽: B1–B5 xong (22/10/2026). Có thể làm thêm: bề rộng đường theo đoạn (đang 4 làn mọi nơi, 32 / 55 St thật hẹp hơn),
+  cửa tàu điện ngầm, đèn đi bộ bàn tay / người; chưa thử máy thật / Good / Ultra (gương CubeCamera + 2 PointLight + ~3 200 nhà).
+  Camera Bên hông dễ bị 1 tấm biển che kín khung hình.
 - **Map Cao tốc HLG — có thể làm tiếp**: footprint Microsoft không có chiều cao ở VN => cao theo diện tích (đoán); sông / lạch cắt chéo
   đúng góc thật (đang vuông góc tuyến); mặt nước lạch dài ±400 m rồi dừng; cỏ cao `meadow` vẫn phủ cả khu dân cư; biển tốc độ dựng bên đường còn theo mẫu Đại lộ (HUD đã đúng biển thật); Cầu Long Thành dùng tháp dây văng
   chung của Đại lộ (chưa đối chiếu ảnh thật); nút giao chưa có tên đường cắt ngang cho Nhơn Trạch / QL51 / Long Thành / Cẩm Mỹ
@@ -416,16 +422,6 @@
 - `QUICK_OPENING = true` (TẠM, đầu game 0.5 s) — bật lại khi chú bảo. Kiểm thử Playwright: vào game bằng `#m-chill` / `#m-drive`.
 
 ## 6. Nhật ký cập nhật
-- Đã tóm tắt tới commit "đèn đường cao hơn + vũng sáng" (22/10/2026): Times Square đám đông + taxi / buýt, kính gương, làn sóng xanh,
-  kích thước Manhattan + nhà OSM + 5 tòa nổi tiếng + hầm 7 m, Grand Central, cửa hàng / mái hiên / biển tên đường / ONE WAY / đèn dọc kiểu Mỹ,
-  Ban ngày bớt ám xanh, nút cảnh tai nạn, nét 0–50 m trong xe, sửa xuyên nhà quanh Helmsley / cửa hầm / cầu cạn nhấp nháy, đèn đường —
-  chi tiết ở mục 1 (Map New York), mục 2 và NYC_PLAN.md. Worker nền: scratchpad `lm2/run.sh <tên>` (MiniMax 8 phút → DeepSeek 8 phút, log ở `lm2/logs/`).
-- **#1 — 5 tòa nổi tiếng mới trên tuyến (22/10/2026)**: 10 model tổng, 0 điểm làn xe chạm.
-- **#2 — Biển quảng cáo phát sáng màu + bảng Lighting có tác dụng ở New York (22/10/2026)**: chụp Low ban đêm OK, không lỗi trang.
-- **#3 — Xuất 10 model tòa nổi tiếng ra GLB (22/10/2026)**: `node scripts/export-nyc-landmarks.mjs` => `docs/assets/models/nyc/*.glb` (màu đỉnh, ~8 MB, glTF-Validator: không lỗi). Game vẫn dựng bằng code, chưa dùng file GLB.
-- **#4 — Times Square: Broadway chéo, biển cong góc nhà, người qua đường thành đợt (22/10/2026)**: chụp Low không lỗi trang.
-- **#5 — Phố thông sang đại lộ bên cạnh (mạng đường OSM + nhà tới 420 m), vào map ở Times Square (22/10/2026)**: chụp nhìn ngang phố 39 St: kín nhà, không trống.
-- **#6 — Thử worker GLM 5.3 flash free + script check-nyc-buildings (22/10/2026)**: GLM đạt; sửa 16 nhà OSM < 4 m (nâng 4 m).
-- **#7 — Thử MiniMax vs DeepSeek dựng model 3D 2 mức chi tiết (22/10/2026)**: kết quả ở mục 2.
-- **#8 — One Vanderbilt vào game + GLB (22/10/2026)**: 11 model, 0 điểm làn xe chạm, 0 chồng nhau, GLB không lỗi.
-- **#9 — Kiểm 2 lỗi chú gửi ảnh (22/10/2026)**: đường đâm nhà ở cầu cạn đã hết (tia 5 làn: 0); nhà chắn phố ngang chỉ còn ở Broadway / 32 St (phố chéo) => NYC: phố ngang city.js chỉ vẽ miệng ngã tư (`JD` = FRONT + 6, nycNet vẽ phố thật), bỏ biển kiểu VN.
+- Đã tóm tắt tới commit "New York: âm thanh phố + bản đồ tròn lưới phố thật + ghi công OSM" (22/10/2026): 5 + 1 tòa nổi tiếng (One Vanderbilt),
+  biển phát sáng màu, GLB, Times Square lượt 3, mạng đường thật, thử worker GLM / 3D MiniMax vs DeepSeek, phố ngang chỉ vẽ miệng ngã tư,
+  âm thanh New York, bản đồ tròn — chi tiết ở mục 1 (Map New York), mục 2 và NYC_PLAN.md.

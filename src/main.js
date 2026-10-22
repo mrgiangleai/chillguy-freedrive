@@ -7,6 +7,7 @@ import { TimesSquare } from './timesSquare.js';
 import { NycBuildings } from './nycBuildings.js';
 import { NycStreetProps } from './nycStreet.js';
 import { NycStreetNet } from './nycNet.js';
+import { NycSound } from './nycSound.js';
 // mặc định của game = bộ cài đặt chú chỉnh trên Safari (xuất localStorage 21/10/2026): người chơi mới nhận bộ này,
 // nút "Mặc định" trong các bảng chỉnh trả về số của bộ này (không phải số gốc trong code)
 import DEF from './default-settings.json' with { type: 'json' };
@@ -103,6 +104,7 @@ rig.eyeAt = (out) => {
   return true;
 };
 const audio = new ChillAudio();
+const nycSound = new NycSound(audio);                         // map New York: còi xe xa, còi hụ, đám đông Times Square
 const post = new Post(renderer, QUALITY[QUALITY_DEFAULT].msaa);
 const refl = new WetReflection(renderer);
 const person = new Person();
@@ -161,6 +163,7 @@ cityTraffic.avenue = avenue;
 const _mmP = {}, _mmX = {};
 const minimap = new Minimap({
   road, city, avenue,
+  nyc: () => (state.map >= 0 && MAPS[state.map].id === 'nyc' ? { streets: nycNet.streets, bld: nycBld.foot } : null),
   visible: () => state.started && isDriveMap(state.map),      // chỉ chế độ Drive (Phố, Đại lộ)
   mapId: () => mapKind(MAPS[state.map].id),
   s: () => drive.s,
@@ -1818,6 +1821,7 @@ function frame(now) {
       cityTraffic.update(dt, drive.s, drive.d, drive.v, st.lamps, cars.dim.length);
       cityPeople.update(dt, drive.s);
       chatter();
+      nycSound.update(dt, { on: onNyc() && state.started, s: drive.s, L: NYC.length, speed: drive.v, tunnel: Math.min(1, Math.max(0, -road.elevAt(drive.s) - 4) / 2), tsA: 470, tsB: 960 });
       if (state.started) updateTrafficLevel(dt);
       // xe mình đứng yên > 7 s (không phải đang chờ đèn đỏ ngay trước mặt) => xe kẹt phía sau bấm còi + nháy đèn
       const redAhead = city.stopAhead(drive.s + cars.dim.length / 2, 1, 0) < 25;
@@ -1870,6 +1874,7 @@ function frame(now) {
       traffic.ctrl.lane = null; traffic.ctrl.maxV = maxV;
     } else {
       chatter(true);
+      nycSound.update(dt, { on: false });
       traffic.update(dt, drive.s, drive.d, road, st.lamps, cars.current.def.id, obstacles, audio);
       // các map khác: đụng xe NPC => khựng lại, rung, khói (không có cảnh sát)
       hitCool = Math.max(0, hitCool - dt);

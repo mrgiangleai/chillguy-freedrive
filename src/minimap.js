@@ -5,9 +5,9 @@ import { ROAD, CITY, IC, tollS, tollIndex, camS, camIndex } from './road.js';
 // (hướng đi luôn lên trên), vẽ ~8 lần/giây. Bấm vào: phóng to giữa màn hình, hướng Bắc lên trên, kéo để di chuyển (pan), lăn chuột /
 // chụm 2 ngón để zoom, nút ◎ về lại xe, nút × (hoặc Esc / bấm ra ngoài) để thu nhỏ.
 const BG = {
-  reed: '#cdbb84', forest: '#7fa05a', mountain: '#8fae6a', meadow: '#8db86a', sea: '#7fb6d6', city: '#e8e5df', avenue: '#9cc27a',
+  nyc: '#e3e0d8', reed: '#cdbb84', forest: '#7fa05a', mountain: '#8fae6a', meadow: '#8db86a', sea: '#7fb6d6', city: '#e8e5df', avenue: '#9cc27a',
 };
-const ROADC = { city: '#ffffff', avenue: '#f6cf6a' };
+const ROADC = { city: '#ffffff', avenue: '#f6cf6a', nyc: '#fbe3a0' };
 
 export class Minimap {
   // src: { road, mapId(), player() => {x, z, th}, cars() => [[x, z]], city, avenue }
@@ -76,7 +76,7 @@ export class Minimap {
   }
 
   _draw() {
-    const g = this.g, W = this.W, R = W / 2, S = this.src, id = S.mapId(), road = S.road, P = S.player();
+    const g = this.g, W = this.W, R = W / 2, S = this.src, N = S.nyc?.(), id = N ? 'nyc' : S.mapId(), road = S.road, P = S.player();
     const big = this.big, z = big ? this.bigZoom : this.zoom;
     const cx = big && this.center ? this.center.x : P.x, cz = big && this.center ? this.center.z : P.z;
     const rot = big ? 0 : P.th;                                // thu nhỏ: hướng xe lên trên
@@ -99,15 +99,30 @@ export class Minimap {
     const stride = Math.max(1, Math.floor(2 / z / step));
     const main = [];
     for (let i = i0; i <= i1; i += stride) main.push([pts[i].x, pts[i].z]);
-    const hw = ROAD.halfWidth;
+    const hw = N ? CITY.hw : ROAD.halfWidth;
     // ---- map Phố: khối nhà hai bên + đường ngang ----
-    if (id === 'city' && S.city) {
+    if (id === 'city' && S.city && !N) {
       const n0 = road.junctionIndex(sNow - span * 1.6), n1 = road.junctionIndex(sNow + span * 1.6);
       const blocks = []; for (let i = i0; i <= i1; i += stride) blocks.push([pts[i].x, pts[i].z]);
       line(blocks, 2 * 120, '#d5d1c8', 0);                      // dải nhà (tới ~120 m mỗi bên)
       for (let n = n0; n <= n1; n++) {
         const F = S.city._frame(road.junction(n));
         line([[F.x - F.rx * 180, F.z - F.rz * 180], [F.x + F.rx * 180, F.z + F.rz * 180]], CITY.side * 2 + 2, '#ffffff', 1.5);
+      }
+    }
+    // ---- map New York: nhà thật (footprint OSM) + mạng phố thật (bề rộng thật) ----
+    if (N) {
+      const near = (p) => Math.abs(p[0] - cx) < span + 150 && Math.abs(p[1] - cz) < span + 150;
+      g.fillStyle = '#c9c4b9';
+      for (const [, , , p] of N.bld || []) {
+        if (!near(p)) continue;
+        g.beginPath(); g.moveTo(p[0], p[1]); for (let i = 2; i < p.length; i += 2) g.lineTo(p[i], p[i + 1]); g.closePath(); g.fill();
+      }
+      for (const [w, ped, , p] of N.streets || []) {
+        let hit = false; for (let i = 0; i < p.length && !hit; i += 2) hit = Math.abs(p[i] - cx) < span + 50 && Math.abs(p[i + 1] - cz) < span + 50;
+        if (!hit) continue;
+        const q = []; for (let i = 0; i < p.length; i += 2) q.push([p[i], p[i + 1]]);
+        line(q, w, ped ? '#f1ece2' : '#ffffff', 1);
       }
     }
     // ---- map Đại lộ: đường ngang, nhánh, đường gom, nhà, trạm thu phí ----
