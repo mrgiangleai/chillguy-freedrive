@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -44,6 +44,11 @@
   GLM 90 s / 257 dòng gọn hơn, kết quả giống hệt, đều đúng. Mẫu chạy: thư mục scratchpad riêng + TASK.md + check.sh, `perl -e 'alarm 480; exec @ARGV'
   opencode run --standalone --auto -m <model> "Read TASK.md …"`, log để NGOÀI thư mục làm việc. Claude chỉ tự code việc vài dòng / khó giải thích.
   Chia việc: mặc định mỗi worker 1 việc độc lập chạy song song; chỉ giao trùng 1 việc cho cả 2 khi việc khó / dễ sai hoặc 1 worker hay treo.
+  Model 3D / hình ảnh: MiniMax + DeepSeek (DeepSeek làm tốt cả 2). Khó: giao song song cả 2, lấy bản tốt hơn; dễ: lần lượt (MiniMax trước).
+  Thử 22/10/2026 (One Vanderbilt, 4 lượt song song, 10 phút): MiniMax ít chi tiết — không ra file; MiniMax nhiều chi tiết — đạt sau ~6.5 phút
+  (17.5k tam giác, đúng khối nhưng mặt trơn); DeepSeek ít chi tiết — đẹp + chi tiết nhất nhưng tự sửa tụt dưới mức tam giác tối thiểu (1 232);
+  DeepSeek nhiều chi tiết — dừng sau 3.5 phút không ghi file (file dài dễ bị cắt). => DeepSeek mạnh về thẩm mỹ với model gọn, nên đặt trần tam giác
+  vừa phải (≤ 8k) và nhắc "write model.js early, then refine"; MiniMax hợp model lớn. Bài: scratchpad `bench3d/`.
 - **Tiết kiệm quota (chú yêu cầu)**: việc làm theo khuôn (code nháp, sửa hàng loạt, tóm tắt) giao DeepSeek theo thứ tự:
   1) **opencode free** `opencode run --standalone -m opencode/deepseek-v4.1-flash-free` (ưu tiên; `opencode/deepseek-v4.1-flash` trả phí
   và `vibi/…` đã hết tiền); 2) bản free hết giới hạn => **hỏi chú trước** rồi mới dùng credit API riêng của chú: công cụ MCP `deepseek`
@@ -420,3 +425,4 @@
 - **#4 — Times Square: Broadway chéo, biển cong góc nhà, người qua đường thành đợt (22/10/2026)**: chụp Low không lỗi trang.
 - **#5 — Phố thông sang đại lộ bên cạnh (mạng đường OSM + nhà tới 420 m), vào map ở Times Square (22/10/2026)**: chụp nhìn ngang phố 39 St: kín nhà, không trống.
 - **#6 — Thử worker GLM 5.3 flash free + script check-nyc-buildings (22/10/2026)**: GLM đạt; sửa 16 nhà OSM < 4 m (nâng 4 m).
+- **#7 — Thử MiniMax vs DeepSeek dựng model 3D 2 mức chi tiết (22/10/2026)**: kết quả ở mục 2.
