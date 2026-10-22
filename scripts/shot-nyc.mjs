@@ -15,7 +15,7 @@ const errs = [];
 p.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errs.push(m.type() + ': ' + m.text().slice(0, 300)); });
 p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
 await p.goto('http://localhost:' + (process.env.PORT || 8080) + '/', { waitUntil: 'domcontentloaded', timeout: 120000 });
-await p.evaluate((M) => { localStorage.clear(); localStorage.setItem('chilldrive.quality', process.env.Q || 'low'); localStorage.setItem('chilldrive.nyc.mirror', M); }, process.env.MIRROR || '1');
+await p.evaluate(([M, Q]) => { localStorage.clear(); localStorage.setItem('chilldrive.quality', Q); localStorage.setItem('chilldrive.nyc.mirror', M); }, [process.env.MIRROR || '1', process.env.Q || 'low']);
 await p.reload({ waitUntil: 'domcontentloaded', timeout: 120000 });
 await p.waitForTimeout(15000);
 await p.evaluate(() => document.getElementById('m-drive').click());
