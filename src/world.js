@@ -327,7 +327,7 @@ export class Environment {
 
   resetTune() { Object.assign(this.tune, ENV_TUNE_DEFAULTS); this.envKey = ''; }
 
-  // Bóng nắng xa (map New York): shadow camera rộng ±320 m + mặt trời cách focus 1000 m
+  // Bóng nắng xa (mọi map, nút ở bảng Lighting): shadow camera rộng ±320 m + mặt trời cách focus 1000 m
   // để nhà cao tầng đổ bóng lên nhà khác / mặt đường. Mặc định tắt; tắt thì trả đúng thông số gốc.
   setFarShadow(on) {
     on = !!on;

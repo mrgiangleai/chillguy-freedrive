@@ -15,7 +15,7 @@ const errs = [];
 p.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errs.push(m.type() + ': ' + m.text().slice(0, 300)); });
 p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
 await p.goto('http://localhost:' + (process.env.PORT || 8080) + '/', { waitUntil: 'domcontentloaded', timeout: 120000 });
-await p.evaluate(([Q, M, F]) => { localStorage.clear(); localStorage.setItem('chilldrive.quality', Q); localStorage.setItem('chilldrive.nyc.mirror', M); localStorage.setItem('chilldrive.nyc.farShadow', F); }, [process.env.Q || 'low', process.env.MIRROR || '1', process.env.FARSHADOW === '1' ? '1' : '0']);
+await p.evaluate(([Q, M, F]) => { localStorage.clear(); localStorage.setItem('chilldrive.quality', Q); localStorage.setItem('chilldrive.nyc.mirror', M); localStorage.setItem('chilldrive.farShadow', F); }, [process.env.Q || 'low', process.env.MIRROR || '1', process.env.FARSHADOW === '1' ? '1' : '0']);
 await p.reload({ waitUntil: 'domcontentloaded', timeout: 120000 });
 await p.waitForTimeout(15000);
 await p.evaluate(() => document.getElementById('m-drive').click());

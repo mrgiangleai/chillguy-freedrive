@@ -147,8 +147,8 @@ const CITY_DIM = { hw: CITY.hw, walk: CITY.walk, side: CITY.side, sideWalk: CITY
 const nycWorks = new NycWorks(scene, road, scenery.roadMat);   // map New York: tường + trần hầm Park Ave, cầu cạn quanh Grand Central
 const timesSq = new TimesSquare(scene, road, city);
 try { timesSq.setMirror(localStorage.getItem('chilldrive.nyc.mirror') !== '0'); } catch { /* chế độ riêng tư */ }            // map New York: Times Square (nhà chọc trời, biển LED, quảng trường, đám đông)
-let farShadowSaved = false;                                                                                                  // map New York: bóng nắng xa (mặc định tắt)
-try { farShadowSaved = localStorage.getItem('chilldrive.nyc.farShadow') === '1'; } catch { /* chế độ riêng tư */ }
+let farShadowSaved = false;                                                                                                  // bóng nắng xa — ánh sáng dùng chung mọi map (mặc định tắt)
+try { farShadowSaved = localStorage.getItem('chilldrive.farShadow') === '1'; } catch { /* chế độ riêng tư */ }
 cityPeople.extra = () => (timesSq.visible ? timesSq.near : []);
 const nycBld = new NycBuildings(scene, timesSq, road);
 const nycNet = new NycStreetNet(scene, city.walkMat);          // map New York: mạng đường thật quanh tuyến (phố thông sang đại lộ bên cạnh)
@@ -666,7 +666,7 @@ const applyMap = () => {
   timesSq.density = state.quality === QUALITY.findIndex((q) => q.id === 'low') ? 0.6 : 1;   // đám đông Times Square: Low ít người hơn
   timesSq.visible = isNyc;      // trước khi dựng khối phố: vùng loại nhà map Phố
   nycBld.visible = isNyc;
-  env.setFarShadow(isNyc && farShadowSaved);   // rời New York: tắt; vào lại: theo cài đặt
+  env.setFarShadow(farShadowSaved);            // bóng nắng xa: mọi map (theo cài đặt)
   nycProps.visible = isNyc;
   nycNet.visible = isNyc;
   if (isNyc) { city.exclude = () => true; nycBld.onReady(); }   // New York: không dựng nhà map Phố (nhà thật OSM thay)
@@ -1210,10 +1210,6 @@ renderTune = () => {
       addToggle({ label: 'Phản chiếu kính (một số tòa nhà Times Square)', get: () => timesSq.mirror, set: (v) => {
         timesSq.setMirror(v); try { localStorage.setItem('chilldrive.nyc.mirror', v ? '1' : '0'); } catch { /* chế độ riêng tư */ }
         toast(v ? 'Đã bật phản chiếu kính' : 'Đã tắt phản chiếu kính'); } });
-      addToggle({ label: 'Bóng nắng xa (nhà cao đổ bóng — nặng hơn)', get: () => !!env.farShadow, set: (v) => {
-        farShadowSaved = v; env.setFarShadow(v);
-        try { localStorage.setItem('chilldrive.nyc.farShadow', v ? '1' : '0'); } catch { /* chế độ riêng tư */ }
-        toast(v ? 'Đã bật bóng nắng xa' : 'Đã tắt bóng nắng xa — nhẹ máy hơn'); } });
     }
     addHeading('Xe của chú');
     addToggle({ label: 'Tự giữ khoảng cách (tránh đâm xe trước)', get: () => trafficTune.avoid, set: (v) => { trafficTune.avoid = v; toast(v ? 'Đã bật tự giữ khoảng cách' : 'Đã tắt tự giữ khoảng cách — chú tự phanh, đâm là có cảnh sát tới', !v); } });
@@ -1294,6 +1290,11 @@ renderTune = () => {
     tuneMode.hidden = true;
     $('tune-title').textContent = 'Lighting';
     const H = cars.headlights.tune, Lp = scenery.lampTune;
+    addHeading('Nắng');
+    addToggle({ label: 'Bóng nắng xa (nhà, cây, núi đổ bóng xa ±320 m — nặng hơn)', get: () => !!env.farShadow, set: (v) => {
+      farShadowSaved = v; env.setFarShadow(v);
+      try { localStorage.setItem('chilldrive.farShadow', v ? '1' : '0'); } catch { /* chế độ riêng tư */ }
+      toast(v ? 'Đã bật bóng nắng xa' : 'Đã tắt bóng nắng xa — nhẹ máy hơn'); } });
     addHeading('Đèn pha xe chú');
     [['intensity','Cường độ',0,300,1],['distance','Tầm chiếu (m)',10,250,1],['angle','Góc mở (rad)',.1,1.55,.01],['penumbra','Độ mềm viền',0,1,.01],
       ['glowOpacity','Độ sáng quầng',0,2,.01],['glowSize','Kích thước quầng',.2,8,.05]]
