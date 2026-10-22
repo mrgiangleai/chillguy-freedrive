@@ -15,12 +15,12 @@ const errs = [];
 p.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errs.push(m.type() + ': ' + m.text().slice(0, 300)); });
 p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
 await p.goto('http://localhost:' + (process.env.PORT || 8080) + '/', { waitUntil: 'domcontentloaded', timeout: 120000 });
-await p.evaluate((M) => { localStorage.clear(); localStorage.setItem('chilldrive.quality', process.env.Q || 'low'); localStorage.setItem('chilldrive.nyc.mirror', M); }, process.env.MIRROR || '1');
+await p.evaluate(([Q, M, F]) => { localStorage.clear(); localStorage.setItem('chilldrive.quality', Q); localStorage.setItem('chilldrive.nyc.mirror', M); localStorage.setItem('chilldrive.nyc.farShadow', F); }, [process.env.Q || 'low', process.env.MIRROR || '1', process.env.FARSHADOW === '1' ? '1' : '0']);
 await p.reload({ waitUntil: 'domcontentloaded', timeout: 120000 });
 await p.waitForTimeout(15000);
 await p.evaluate(() => document.getElementById('m-drive').click());
 await p.waitForTimeout(4000);
-await p.evaluate(([T, W]) => { const A = window.__app; for (let k = 0; k < 6 && A.state.map !== 8; k++) A.nextMap(); A.env.setTime(T); A.env.setWeather(W); }, [+(process.env.TIME || 13), process.env.WX || 'clear']);
+await p.evaluate(([T, W]) => { const A = window.__app; for (let k = 0; k < 6 && A.state.map !== 8; k++) A.nextMap(); A.env.setTime(T); A.env.hour = T; A.env.tween = null; A.env.snapWeather(W); }, [+(process.env.TIME || 13), process.env.WX || 'clear']);
 for (let k = 0; k < 30; k++) {             // tải map dần (preload) có thể đặt lại map sau khi vào Drive => chờ tới khi ổn định ở New York
   await p.waitForTimeout(4000);
   const m = await p.evaluate(() => { const A = window.__app; if (A.state.map !== 8) for (let k = 0; k < 9 && A.state.map !== 8; k++) A.nextMap(); return A.state.map + ':' + !!A.road.loop; });
@@ -37,11 +37,27 @@ for (const [name, s, d, cam, wait] of shots) {
   await go(2 * L + s, d, cam); await p.waitForTimeout(wait || 9000);
   await p.evaluate(() => { const A = window.__app; A.terrain.prime(A.drive.pos); });
   await p.waitForTimeout(3000);
-  await p.evaluate(([cam, T]) => { const A = window.__app; A.state.time = 0; A.env.setTime(T); if (cam !== null) { A.state.cam = cam; A.rig.setMode(cam); } }, [cam, +(process.env.TIME || 13)]);
+  await p.evaluate(([cam, T]) => { const A = window.__app; A.state.time = 0; A.env.setTime(T); A.env.hour = T; A.env.tween = null; if (cam !== null) { A.state.cam = cam; A.rig.setMode(cam); } }, [cam, +(process.env.TIME || 13)]);
   await p.waitForTimeout(4000);
   await p.screenshot({ path: OUT + name + '.png', timeout: 150000 }); if (name === 'c-tunnel') { await p.evaluate(() => window.__app.minimap.open()); await p.waitForTimeout(3000); await p.screenshot({ path: OUT + 'c-minimap.png', timeout: 150000 }); await p.evaluate(() => window.__app.minimap.close()); }
   console.log('shot', name, await p.evaluate(() => { const A = window.__app; return JSON.stringify({ props: A.nycProps.count, bld: A.nycBld.count, crowd: A.timesSq.near.length, nan: A.timesSq.crowd.filter((p) => !Number.isFinite(p.s)).length, s: A.drive.s.toFixed(0), y: A.drive.pos.y.toFixed(2), cars: A.cityTraffic.cars.length, peds: A.cityPeople.peds.length, blocks: A.city.blocks.size }); }));
 }
+if (process.env.FPS) {   // đo FPS 15 s khi tắt / bật bóng nắng xa (Times Square, camera sau xe)
+  await go(2 * L + 640, 5.25, 0);
+  await p.waitForTimeout(6000);
+  for (const on of [false, true]) {
+    await p.evaluate((on) => window.__app.env.setFarShadow(on), on);
+    await p.waitForTimeout(15000);
+    const fps = await p.evaluate(() => new Promise((res) => {
+      let n = 0; const t0 = performance.now();
+      const f = () => { n++; const dt = performance.now() - t0; if (dt < 30000) requestAnimationFrame(f); else res(+(n / (dt / 1000)).toFixed(2)); };
+      requestAnimationFrame(f);
+    }));
+    console.log('fps', on ? 'far-on' : 'far-off', fps);
+  }
+  await p.evaluate(() => window.__app.env.setFarShadow(false));
+}
+
 if (DRIVE) {          // tự lái thật qua góc 7th Ave → 32nd St từ làn ngoài phải
   const c = 2 * L + 1716.7;
   await go(c - 230, 5.25, 0);

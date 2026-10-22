@@ -327,6 +327,31 @@ export class Environment {
 
   resetTune() { Object.assign(this.tune, ENV_TUNE_DEFAULTS); this.envKey = ''; }
 
+  // Bóng nắng xa (map New York): shadow camera rộng ±320 m + mặt trời cách focus 1000 m
+  // để nhà cao tầng đổ bóng lên nhà khác / mặt đường. Mặc định tắt; tắt thì trả đúng thông số gốc.
+  setFarShadow(on) {
+    on = !!on;
+    if (on === !!this.farShadow) return;
+    this.farShadow = on;
+    const sh = this.sun.shadow, sc = sh.camera;
+    const tex = this.renderer?.capabilities?.maxTextureSize || 0;
+    const size = on ? (tex >= 4096 ? 4096 : 2048) : 2048;   // điện thoại yếu: lui về 2048
+    const half = on ? 320 : 38;
+    sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half;
+    sc.near = 1; sc.far = on ? 2200 : 260;
+    sc.updateProjectionMatrix();
+    if (on) {   // bù theo texel (2*half/size) cho không sọc bóng trên mặt nhà và mặt đường
+      const texel = (2 * half) / size;
+      sh.bias = -0.00025;
+      sh.normalBias = Math.min(1.2, texel * 2);
+    } else {
+      sh.bias = -0.0004;
+      sh.normalBias = 0.04;
+    }
+    sh.mapSize.set(size, size);
+    sh.map?.dispose(); sh.map = null;
+  }
+
   // hour: đặt giờ (chuyển cảnh mượt). null => bật chế độ tự chạy
   setTime(hour) {
     if (hour == null) { this.auto = true; this.tween = null; return; }
@@ -491,7 +516,7 @@ export class Environment {
       this.sun.color.copy(C_SUN_DAY).lerp(C_SUN_LOW, clamp(warm * 1.3, 0, 1));
     }
     if (focus) {
-      this.sun.position.copy(focus).addScaledVector(lightDir, 120);
+      this.sun.position.copy(focus).addScaledVector(lightDir, this.farShadow ? 1000 : 120);
       this.sun.target.position.copy(focus);
     }
     this.hemi.color.copy(fogC).lerp(this._c.set('#6f8cd0'), night * 0.75).lerp(this._c.set('#c4d4ff'), flash);
