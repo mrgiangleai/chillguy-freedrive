@@ -122,7 +122,7 @@ export class HlgEnv {
       if (Math.abs(t) < IC.rampLen + 20 && a < 70 + r) return true;
     }
     for (const R of L.rivers) if (Math.abs(s - R.s) < R.hw + 25 + r) return true;
-    for (const D of L.decks) if (Math.abs(s - D.s) < D.half + 150) for (const C of D.creeks) if (Math.abs(s - D.s - C.t) < C.hw + 10 + r) return true;
+    for (const D of L.decks) if (Math.abs(s - D.s) < D.half + 150) for (const C of D.creeks) if (Math.abs(s - D.s - C.t) < C.hw / Math.max(0.5, Math.cos(C.ang || 0)) + 10 + r) return true;
     return false;
   }
 
