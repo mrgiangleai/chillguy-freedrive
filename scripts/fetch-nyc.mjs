@@ -257,7 +257,7 @@ console.log(`=> ${OUT}: ${(fs.statSync(OUT).size / 1024).toFixed(0)} KB, ${junct
 // mặt tiền lấn vào vỉa hè (gần tim đường hơn FRONT) thì lùi ra (≤ 9 m, quá thì bỏ — nhà vắt qua đường như Helmsley do model riêng thay).
 const BF = path.join(CACHE, 'buildings.json');
 if (fs.existsSync(BF)) {
-  const FRONT = 9 + 5.5 + 0.4, RANGE = 230;
+  const FRONT = 9 + 5.5 + 0.4, RANGE = 420;   // nhà tới 420 m quanh tuyến: nhìn dọc phố ngang thấy nhà tới đại lộ bên cạnh
   const off = R1.map((p, j) => [Q[j][0] - p[0], Q[j][1] - p[1]]);
   for (const ci of cornerIdx) {                                   // vùng góc ±45 m: nội suy tuyến tính độ lệch 2 đầu
     const c = Math.round(cum[ci] / d1), a = c - 45, b = c + 45, A = off[(a + N1) % N1], B = off[b % N1];
@@ -354,6 +354,22 @@ if (fs.existsSync(BF)) {
     broadway.length = 0; broadway.push([+(mx + dx * t0).toFixed(1), +(mz + dz * t0).toFixed(1)], [+(mx + dx * t1).toFixed(1), +(mz + dz * t1).toFixed(1)]); }
   const DD = JSON.parse(fs.readFileSync(OUT, 'utf8')); DD.broadway = broadway; fs.writeFileSync(OUT, JSON.stringify(DD));
   console.log(`Broadway (Times Square): ${broadway.length} điểm`);
+  // mạng đường thật quanh tuyến (≤ 450 m, trừ chính tuyến, hầm / cầu, và đường đôi song song sát tuyến) => docs/assets/nyc-streets.json
+  // mỗi đường: [bề rộng mặt đường m, loại 0 xe / 1 đi bộ, một chiều 0 / 1, [x, z, …] toạ độ game, dời theo độ lệch đường đã làm mượt]
+  const routeIds = new Set(wpath.map((w) => w.id)), WID = { trunk: 18, primary: 18, secondary: 14, tertiary: 12, residential: 10, unclassified: 9, living_street: 8, pedestrian: 10 };
+  const net = [];
+  for (const w of ways) {
+    if (routeIds.has(w.id) || w.tags.tunnel || w.tags.bridge || /_link$/.test(w.tags.highway)) continue;
+    const pts = [], dd = [];
+    for (const g of w.geometry) { const [E, N] = ll(g), [j, d] = nearest(E, N, R1); pts.push([E + off[j][0], N + off[j][1]]); dd.push(d); }
+    if (Math.min(...dd) > 450) continue;
+    // đường đôi chạy song song sát tuyến (vd. Park Ave chiều nam): mọi điểm nằm trong FRONT + 4 m của tim tuyến => bỏ
+    if (pts.every(([E, N]) => { const [k, d0] = nearest(E, N, Q); return d0 < FRONT + 4; })) continue;
+    const flat = []; for (const [E, N] of pts) flat.push(+E.toFixed(1), +(-N).toFixed(1));
+    net.push([WID[w.tags.highway] || 9, w.tags.highway === 'pedestrian' ? 1 : 0, ow(w) ? 1 : 0, flat]);
+  }
+  fs.writeFileSync('docs/assets/nyc-streets.json', JSON.stringify({ source: 'OpenStreetMap contributors (ODbL)', s: net }));
+  console.log(`=> docs/assets/nyc-streets.json: ${(fs.statSync('docs/assets/nyc-streets.json').size / 1024).toFixed(0)} KB, ${net.length} đoạn đường`);
   const BO = 'docs/assets/nyc-buildings.json';
   fs.writeFileSync(BO, JSON.stringify({ source: 'OpenStreetMap contributors (ODbL)', lm, b: out }));
   console.log(`=> ${BO}: ${(fs.statSync(BO).size / 1024).toFixed(0)} KB, ${out.length} nhà (lùi ${moved}, bỏ ${drop} + ${drop2} khi kiểm cuối, không có chiều cao ${noH})`);

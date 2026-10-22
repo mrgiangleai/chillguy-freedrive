@@ -7,9 +7,9 @@ import * as THREE from 'three';
 import DATA from './nyc-data.json' with { type: 'json' };
 import { CITY } from './road.js';
 
-// start: xe vào map ở s = length + start (1 vòng trước còn chỗ cho phía sau xe). Hầm sâu `depth`, cầu cạn cao `high` so với mặt phố;
+// start: xe vào map ở s = length + start (1 vòng trước còn chỗ cho phía sau xe); 580 = 7th Ave giữa 46 – 45 St, nhìn xuôi Times Square (chú chọn). Hầm sâu `depth`, cầu cạn cao `high` so với mặt phố;
 // trần hầm kín khi mặt đường thấp hơn mặt phố quá `roof` (m). maxGrade: dốc tối đa của các đoạn dốc dẫn.
-export const NYC = { data: DATA, length: DATA.length, start: 30, depth: 7, high: 6, roof: -5.6, maxGrade: 0.06, arc: 16, tangent: 20.4 };
+export const NYC = { data: DATA, length: DATA.length, start: 580, depth: 7, high: 6, roof: -5.6, maxGrade: 0.06, arc: 16, tangent: 20.4 };
 // kích thước phố Manhattan (thay CITY của map Phố khi vào map New York): đại lộ 4 làn 3.6 m + lề đỗ xe (mép 9 m), vỉa hè 5.5 m,
 // phố ngang 9 m + vỉa hè 3 m
 export const NYC_DIM = { hw: 9, walk: 5.5, side: 4.5, sideWalk: 3, lanes: [1.8, 5.4] };

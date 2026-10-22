@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -247,6 +247,9 @@
   **Times Square lượt 3** (DeepSeek viết theo đề, Claude soát): Broadway chéo (`nyc-data.json` `broadway` = đường thẳng khớp OSM, cắt 7th Ave
   ở s 696): dải lát gạch 24 m + vạch trắng qua lòng đường, nhà / biển trong 14 m bị bỏ; biển cong ¼ trụ R 5 m ở 2 góc mỗi khối (`aAd` riêng);
   người qua đường thành đợt (zone 'cross' 14 người / ngã tư, chờ `_phase(n).cross` xanh, trễ 0–1.5 s; n theo vòng của xe: `update(…, carS)`).
+  **Mạng đường thật** (`nycNet.js` ← `docs/assets/nyc-streets.json` 85 KB, 786 đoạn ≤ 450 m quanh tuyến, trừ tuyến / hầm / cầu / đường đôi sát tuyến;
+  DeepSeek viết): vỉa hè + mặt nhựa + vạch (2 chiều: vàng đôi; 1 chiều: trắng đứt), chia ô 300 m. Nhà OSM nới tới 420 m (3 282 nhà, 420 KB).
+  Vào map ở s = 580 (đầu Times Square, chú chọn — `NYC.start`).
   **Biển phát sáng màu** (22/10/2026, DeepSeek viết theo đề, Claude soát): `adColors` (màu trung bình 16 ô atlas, chuẩn hoá sáng), vệt sáng cộng màu
   dưới mỗi biển thấp (`spillMesh`, màu theo hình đang chiếu), 2 PointLight màu cho 2 biển lớn gần xe (4 đèn => máy ảo > 30 s / khung). Bảng 💡:
   "biển hiệu" => `timesSq.signK`, "cửa sổ" => cửa sổ Times Square + nhà OSM (`winK`).
@@ -410,3 +413,4 @@
 - **#2 — Biển quảng cáo phát sáng màu + bảng Lighting có tác dụng ở New York (22/10/2026)**: chụp Low ban đêm OK, không lỗi trang.
 - **#3 — Xuất 10 model tòa nổi tiếng ra GLB (22/10/2026)**: `node scripts/export-nyc-landmarks.mjs` => `docs/assets/models/nyc/*.glb` (màu đỉnh, ~8 MB, glTF-Validator: không lỗi). Game vẫn dựng bằng code, chưa dùng file GLB.
 - **#4 — Times Square: Broadway chéo, biển cong góc nhà, người qua đường thành đợt (22/10/2026)**: chụp Low không lỗi trang.
+- **#5 — Phố thông sang đại lộ bên cạnh (mạng đường OSM + nhà tới 420 m), vào map ở Times Square (22/10/2026)**: chụp nhìn ngang phố 39 St: kín nhà, không trống.

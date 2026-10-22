@@ -6,6 +6,7 @@ import { NYC, NYC_DIM, nycLoop, nycStreet, NycWorks } from './nyc.js';
 import { TimesSquare } from './timesSquare.js';
 import { NycBuildings } from './nycBuildings.js';
 import { NycStreetProps } from './nycStreet.js';
+import { NycStreetNet } from './nycNet.js';
 // mặc định của game = bộ cài đặt chú chỉnh trên Safari (xuất localStorage 21/10/2026): người chơi mới nhận bộ này,
 // nút "Mặc định" trong các bảng chỉnh trả về số của bộ này (không phải số gốc trong code)
 import DEF from './default-settings.json' with { type: 'json' };
@@ -145,6 +146,7 @@ const timesSq = new TimesSquare(scene, road, city);
 try { timesSq.setMirror(localStorage.getItem('chilldrive.nyc.mirror') !== '0'); } catch { /* chế độ riêng tư */ }            // map New York: Times Square (nhà chọc trời, biển LED, quảng trường, đám đông)
 cityPeople.extra = () => (timesSq.visible ? timesSq.near : []);
 const nycBld = new NycBuildings(scene, timesSq, road);
+const nycNet = new NycStreetNet(scene, city.walkMat);          // map New York: mạng đường thật quanh tuyến (phố thông sang đại lộ bên cạnh)
 const nycProps = new NycStreetProps(scene, road);            // map New York: biển tên đường, ONE WAY, trụ cứu hoả, thùng rác               // map New York: nhà thật OSM (footprint + chiều cao)
 nycBld.onReady = () => { if (nycBld.visible) city.extraObb = timesSq.obb.concat(nycBld.obb); };
 const avenue = new Avenue(scene, road, scenery.cityTex);     // map Đại lộ: vạch kẻ 6 làn + dải phân cách + nút giao (xe: cityTraffic chế độ avenue)
@@ -632,7 +634,7 @@ const applyMap = () => {
   // cao tốc HLG: vào map luôn ở An Phú, chiều đi Dầu Giây; bố trí công trình theo dữ liệu thật (Đại lộ: theo chu kỳ)
   setLayout(isHlg ? hlgDir : null);
   road.setShape(isHlg ? 'hlg' : isNyc ? 'nyc' : id, isHlg ? hlgDir.real : isNyc ? nycLoop() : null);   // phố: đường thẳng theo đoạn + ngã tư; đại lộ: cong rất thoải; New York: vòng thật
-  // New York: vào map ở 7th Ave gần 55th St (1 vòng trước còn chỗ cho phía sau xe), chạy làn ngoài phải
+  // New York: vào map ở đầu Times Square (7th Ave 46 – 45 St), chạy làn ngoài phải
   if (isNyc && curMapId !== mapId) { drive.s = NYC.length + NYC.start; drive.d = CITY.lanes[1]; nycTurn = null; }
   if (isAvenue && curMapId !== mapId) { drive.s = isHlg ? HLG.start : 150; drive.ramp = null; }   // vào đại lộ: luôn từ đầu đường (cầu cao ở 700 m, cầu sông 2.2 km)
   road.dirt = id === 'forest';  // đồi thông: có đoạn đường đất xuyên rừng
@@ -659,6 +661,7 @@ const applyMap = () => {
   timesSq.visible = isNyc;      // trước khi dựng khối phố: vùng loại nhà map Phố
   nycBld.visible = isNyc;
   nycProps.visible = isNyc;
+  nycNet.visible = isNyc;
   if (isNyc) { city.exclude = () => true; nycBld.onReady(); }   // New York: không dựng nhà map Phố (nhà thật OSM thay)
   city.reset();                 // Phố ↔ New York: khối nhà dựng theo hình đường cũ
   city.visible = isCity;
