@@ -137,7 +137,7 @@ export class TimesSquare {
   // ánh sáng màu của biển tràn xuống mặt đường (instanceColor của vệt sáng)
   _spill(lamps) {
     const t = this.uTime.value, C = this.adColors, col = this.spillMesh.instanceColor;
-    const k = this.uK.value * (0.25 + 0.75 * lamps) * 0.35;
+    const k = this.uK.value * (0.25 + 0.75 * lamps) * 0.22;
     for (let i = 0; i < this.spill.length; i++) {
       const a = this.spill[i], c = C[((a.base + Math.floor(t / a.rate + a.phase)) % 16 + 16) % 16];
       col.setXYZ(i, c.r * k, c.g * k, c.b * k);
@@ -409,7 +409,7 @@ export class TimesSquare {
     this.spill.forEach((a, i) => {
       const dep = Math.min(18, 6 + a.h * 0.6);
       sq.setFromAxisAngle(up, Math.atan2(a.nx, a.nz));
-      m4.compose(sv.set(a.x + a.nx * dep / 2, y0 + 0.25, a.z + a.nz * dep / 2), sq, ss.set(a.w * 1.3, 1, dep));
+      m4.compose(sv.set(a.x + a.nx * dep / 2, y0 + 0.03, a.z + a.nz * dep / 2), sq, ss.set(a.w * 1.3, 1, dep));
       sm.setMatrixAt(i, m4);
     });
     sm.frustumCulled = false; this.group.add(sm); this.spillMesh = sm;

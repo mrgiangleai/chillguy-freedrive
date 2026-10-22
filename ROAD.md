@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -450,3 +450,8 @@
 - **#3 — Giao diện điện thoại + tải map dần, lưu trên thiết bị (22/10/2026)**: xem mục 1 (Tải trước, Bố cục điện thoại). Thử 844×390 Low:
   thanh tải 0 → 2.5 MB rồi vào game; chạm hiện / kéo không hiện; mở lại tài nguyên lấy từ máy (0 byte mạng); map còn lại tải ngầm đủ.
   check traffic / hlg / nyc / car-switch PASS. Chưa thử trên điện thoại thật.
+- **#4 — Times Square: xe như lún + vệt màu loang trên đường (22/10/2026)**: vệt sáng màu dưới biển quảng cáo (`timesSquare.js` `spillMesh`,
+  cộng màu, không ghi độ sâu) đặt cao 0.25 m trên mặt đường => phủ màu lên nửa dưới bánh xe (camera thấp nhìn như xe lún) và tẩy trắng mặt đường.
+  Hạ xuống 0.03 m (polygonOffset đã chống nhấp nháy), độ sáng 0.35 → 0.22. Đo bằng tia chiếu dọc 7th Ave s 300–1300: không còn mặt nào
+  trên lòng đường ngoài xe. Lưu ý: phần cửa tàu điện ngầm của phiên New York (`nycStreet.js` gọi `./subwayEntrance.js` chưa có) đang dở
+  trong máy, chưa commit — build lỗi tới khi phiên đó thêm file.
