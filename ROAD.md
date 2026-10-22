@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -405,3 +405,4 @@
   chi tiết ở mục 1 (Map New York), mục 2 và NYC_PLAN.md. Worker nền: scratchpad `lm2/run.sh <tên>` (MiniMax 8 phút → DeepSeek 8 phút, log ở `lm2/logs/`).
 - **#1 — 5 tòa nổi tiếng mới trên tuyến (22/10/2026)**: 10 model tổng, 0 điểm làn xe chạm.
 - **#2 — Biển quảng cáo phát sáng màu + bảng Lighting có tác dụng ở New York (22/10/2026)**: chụp Low ban đêm OK, không lỗi trang.
+- **#3 — Xuất 10 model tòa nổi tiếng ra GLB (22/10/2026)**: `node scripts/export-nyc-landmarks.mjs` => `docs/assets/models/nyc/*.glb` (màu đỉnh, ~8 MB, glTF-Validator: không lỗi). Game vẫn dựng bằng code, chưa dùng file GLB.
