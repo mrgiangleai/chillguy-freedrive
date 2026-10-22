@@ -38,11 +38,11 @@ export function hlgLayout(rev = false) {
     const hw = clamp(r.width / 2, 25, 340);
     const half = clamp(br ? Math.min(r.s - br.s0, br.s1 - r.s) : hw + 80, hw + 60, hw + 900), flat = clamp(half - 60, 60, 1100);
     return { ...RIVER, s: S(r.s), name: br?.name || r.name || '', river: r.name || '', hw, viaduct: half, hump: 10, flat, rise: flat + 380,
-      drop: 14, depth: 6, meander: 0, towers: true, br };
+      drop: 14, depth: 6, meander: 0, ang: clamp(r.ang || 0, -1, 1), towers: true, br };
   }).sort((a, b) => a.s - b.s);
 
   // nút giao: cách nhau ≥ 1.3 km (vừa nhánh ra / vào ±480 m), xa 2 đầu tuyến và cầu sông
-  const ics = spaced(DATA.ics.map((c) => ({ s: S(c.s), s0: c.s, name: c.name || '', ref: c.ref || '', cross: c.cross || '' })),
+  const ics = spaced(DATA.ics.map((c) => ({ s: S(c.s), s0: c.s, name: c.name || '', ref: c.ref || '', cross: c.cross || '', crossRef: c.crossRef || '' })),
     1300, (c) => (c.name ? 1 : 0), (s) => inEnds(s, 1100) || near(rivers, s, 600));
 
   // cầu cạn / cầu nhỏ: mọi cầu thật trừ cầu sông lớn, cầu vượt của chính nút giao và 2 đầu tuyến. Cầu chứa nút giao cao bằng cầu
@@ -60,7 +60,7 @@ export function hlgLayout(rev = false) {
     for (let i = 0; i < n; i++) {
       const c = b.s0 + (2 * i + 1) * half;
       const creeks = DATA.rivers.filter((r) => r.width < 300 && r.s > c - half - 20 && r.s < c + half + 20)
-        .map((r) => ({ t: (rev ? -1 : 1) * (r.s - c), hw: Math.min(clamp(r.width / 2, 4, 100), r.s - b.s0 - 3, b.s1 - r.s - 3), name: r.name || '' }))
+        .map((r) => { const ang = clamp(r.ang || 0, -1, 1), ca = Math.cos(ang); return { t: (rev ? -1 : 1) * (r.s - c), hw: Math.min(clamp(r.width / 2, 4, 100), (r.s - b.s0 - 3) * ca, (b.s1 - r.s - 3) * ca), name: r.name || '', ang }; })
         .filter((r) => r.hw >= 3);           // lạch phải nằm gọn dưới cầu (không cắt ngang mặt đường ngoài cầu)
       decks.push({ s: S(c), half, h, flat: half + 0.5, rise: half + 300, name: b.name || '', creeks });
     }
