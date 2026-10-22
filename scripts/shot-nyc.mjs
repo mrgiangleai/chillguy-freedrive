@@ -6,6 +6,7 @@
 //   Ẩn bớt cho nhanh / dễ nhìn lỗi (sửa đường thì ẩn nhà, sửa nhà thì chỉ giữ nhà gần): HIDE=nhóm,nhóm…  nhóm: buildings (nhà OSM + tòa nổi tiếng),
 //   ts (Times Square), people, traffic, props (biển, trụ cứu hoả, cửa tàu), net (phố OSM quanh tuyến), works (hầm / cầu cạn), city (đèn, vạch ngã tư).
 //   NEAR=mét: chỉ giữ các cụm nhà OSM có tâm trong bán kính đó quanh xe (cụm ~300 m tuyến).
+//   RANGE=mét (vd. 50–100): chỉ hiện MỌI vật thể (nhà, phố, biển, hầm / cầu, cây…) chạm vùng bán kính đó quanh xe, ẩn hết phần xa (trời vẫn giữ).
 //   Mỗi ảnh in 1 dòng 'shot …' (số nhà, người, xe…) + cuối cùng số lỗi console. Máy chậm: ~3–6 phút / ảnh.
 import { chromium } from '/Users/keinle/.npm/_npx/e41f203b7505f1fb/node_modules/playwright/index.mjs';
 const OUT = process.env.OUT || 'shots/';   // thư mục ảnh (tạo trước)
@@ -42,11 +43,14 @@ for (const [name, s, d, cam, wait] of shots) {
   await p.waitForTimeout(3000);
   await p.evaluate(([cam, T]) => { const A = window.__app; A.state.time = 0; A.env.setTime(T); if (cam !== null) { A.state.cam = cam; A.rig.setMode(cam); } }, [cam, +(process.env.TIME || 13)]);
   await p.waitForTimeout(4000);
-  await p.evaluate(([hide, near]) => {
+  await p.evaluate(([hide, near, range]) => {
     const A = window.__app, G = { buildings: A.nycBld, ts: A.timesSq, people: A.cityPeople, traffic: A.cityTraffic, props: A.nycProps, net: A.nycNet, works: A.nycWorks, city: A.city };
     for (const k of hide) if (G[k]?.group) G[k].group.visible = false;
     if (near > 0) { const c = A.drive.pos, v = new A.__V3(); for (const m of A.nycBld.group.children) { if (!m.geometry?.boundingSphere) continue; v.copy(m.geometry.boundingSphere.center).applyMatrix4(m.matrixWorld); m.visible = v.distanceTo(c) < near + m.geometry.boundingSphere.radius; } }
-  }, [(process.env.HIDE || '').split(',').filter(Boolean), +(process.env.NEAR || 0)]);
+    if (range > 0) { const c = A.drive.pos, v = new A.__V3(); A.scene.traverse((o) => {
+      if (!o.isMesh || o.isSky || !o.geometry) return; const g = o.geometry; if (!g.boundingSphere) g.computeBoundingSphere(); if (!g.boundingSphere || g.boundingSphere.radius > 5000) return;
+      v.copy(g.boundingSphere.center).applyMatrix4(o.matrixWorld); if (v.distanceTo(c) > range + g.boundingSphere.radius * o.matrixWorld.getMaxScaleOnAxis()) o.visible = false; }); }
+  }, [(process.env.HIDE || '').split(',').filter(Boolean), +(process.env.NEAR || 0), +(process.env.RANGE || 0)]);
   await p.waitForTimeout(1500);
   await p.screenshot({ path: OUT + name + '.png', timeout: 150000 }); if (name === 'c-tunnel') { await p.evaluate(() => window.__app.minimap.open()); await p.waitForTimeout(3000); await p.screenshot({ path: OUT + 'c-minimap.png', timeout: 150000 }); await p.evaluate(() => window.__app.minimap.close()); }
   console.log('shot', name, await p.evaluate(() => { const A = window.__app; return JSON.stringify({ props: A.nycProps.count, bld: A.nycBld.count, crowd: A.timesSq.near.length, nan: A.timesSq.crowd.filter((p) => !Number.isFinite(p.s)).length, s: A.drive.s.toFixed(0), y: A.drive.pos.y.toFixed(2), cars: A.cityTraffic.cars.length, peds: A.cityPeople.peds.length, blocks: A.city.blocks.size }); }));
