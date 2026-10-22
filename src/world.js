@@ -335,7 +335,8 @@ export class Environment {
     this.farShadow = on;
     const sh = this.sun.shadow, sc = sh.camera;
     const tex = this.renderer?.capabilities?.maxTextureSize || 0;
-    const size = on ? (tex >= 4096 ? 4096 : 2048) : 2048;   // điện thoại yếu: lui về 2048
+    if (on) this._nearShadow = sh.mapSize.x;                  // nhớ cỡ bóng của mức chất lượng để trả lại khi tắt
+    const size = on ? (tex >= 4096 ? 4096 : 2048) : (this._nearShadow || 2048);   // điện thoại yếu: lui về 2048
     const half = on ? 320 : 38;
     sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half;
     sc.near = 1; sc.far = on ? 2200 : 260;
@@ -596,6 +597,7 @@ export class Environment {
   }
 
   setShadowSize(n) {
+    if (this.farShadow) { this._nearShadow = n; return; }     // đang bật bóng nắng xa: chỉ nhớ, tắt thì áp dụng
     const sh = this.sun.shadow;
     if (sh.mapSize.x === n) return;
     sh.mapSize.set(n, n);
