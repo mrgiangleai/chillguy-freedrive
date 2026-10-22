@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 10/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -20,7 +20,7 @@
   `goto(..., { waitUntil: 'domcontentloaded' })`; map có cài đặt "Tự động" ghi đè camera / giờ => đặt lại ngay trước khi chụp.
   Máy chậm => môi trường (env map) chưa kịp chụp lại khi đổi giờ: gọi `__app.env.update(0.016, drive.pos); env._captureEnv()`.
 - **Kiểm tra tự động** (node, không cần trình duyệt; đều PASS): `scripts/check-traffic.mjs`, `check-traffic-policy.mjs`, `check-steering.mjs`,
-  `check-stopscene.mjs`, `check-hlg.mjs`, `check-nyc.mjs`, `check-nyc-wave.mjs`, `check-nyc-buildings.mjs`, `check-nyc-sound.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
+  `check-stopscene.mjs`, `check-hlg.mjs`, `check-nyc.mjs`, `check-nyc-wave.mjs`, `check-nyc-buildings.mjs`, `check-nyc-sound.mjs`, `check-nyc-landmark-roads.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
   `check-waterfalls.mjs`, `check-rear-glass.mjs [model.glb]`. Model tải lên nặng: nén bằng `npx @gltf-transform/cli@4 webp … --quality 82`
   rồi `meshopt` (giữ file gốc); sóng biển bake bằng `node scripts/bake-ocean.mjs`. **Fixture GUI** `scripts/*-preview.js` (giữ cảnh cố định để chụp):
   bundle bằng esbuild ra `docs/<tên>-check.js`, sao `docs/index.html` thành trang riêng đổi script sang bundle đó; chụp xong
@@ -259,6 +259,14 @@
   Grand Central (trái đoạn cầu cạn chạy dọc nhà ga, mặt chính quay nam; dò chỗ cùng MetLife: không chạm đường, không chồng nhau). Đề + script
   chấm worker: scratchpad `lm/<tên>/TASK.md, check.mjs, spec.json` — đừng để log trong thư mục làm việc (DeepSeek đọc nhầm log rồi thoát).
   MiniMax free treo > 15 phút ở lượt này. Đã sửa lỗi đám đông Times Square (thuộc tính `z` trùng: vùng / toạ độ => đám đông riêng không hiện).
+  **Tòa nổi tiếng không đè phố** (23/10/2026): `_landmarks(lm, streets)` dò chỗ tránh phố xe nycNet CẢ vỉa hè (lấn ≤ 1 m), toàn vòng: dời ≤ 40 m,
+  thu đều tới 0.8 rồi thu riêng 1 trục tới 0.5 (Macy's 0.35 — model sâu 115 m, khối 34–35 St ~44 m); không có chỗ => bỏ tòa + warn. Phố đi bộ
+  (kể cả 107 vòng kín = viền quảng trường) dưới chân tòa: nycNet không vẽ (`pieceHitsRects`, OBB chính xác; nycNet chờ `nycBld.rectsReady` ≤ 8 s).
+  Hiện: Waldorf dời 40 m / sâu ×0.65, Seagram 10 m / ngang ×0.6, Macy's sâu ×0.45, Chrysler 20, Lever 18 m. Đặt tòa ~0.25 s lúc tải.
+  **Sửa 22/10/2026** (gộp nhật ký): nycNet `routeMask` bỏ phố OSM chạm lòng tuyến (cả dốc hở hầm); chấm đen NaN => post.js `safe()`; quầng / vũng
+  đèn dùng `radialGlowTexture()` (gradient canvas Safari rắc nhiễu); đèn đi bộ kiểu Mỹ (`usPedAtlas.js`, đếm ngược); biển Times Square chỉ còn
+  2 PointLight (bỏ `spillMesh`); 20 cửa tàu điện ngầm OSM (`subwayEntrance.js`); bỏ sọc chéo Broadway; hầm sâu 6 m / cầu cạn ~5.4 m theo OSM
+  (dốc ≤ 8.8 %), nhà OSM thu vào 0.1–0.3 m hết nhấp nháy; nắp hầm dày 1.5 m; bóng nắng xa (mọi map, bảng Lighting).
   **Mặt tiền + đồ phố**: nhà OSM cao > 9 m có tầng trệt cửa hàng 4.8 m (`shopTex`: bảng hiệu màu, kính sáng ấm ban đêm), mặt nhìn ra tuyến có mái
   hiên (393 tấm, 5 màu); `nycStreet.js`: cột ở góc trước-phải mỗi ngã tư (không phải góc rẽ) với biển tên đường xanh lá NYC ("W 53 St" → "53 St",
   "7 Av", tên thật OSM, atlas canvas), biển ONE WAY phố ngang (chiều thật `ow`) + đại lộ, trụ cứu hoả đỏ / vàng 2 cái mỗi khối, thùng rác xanh.
@@ -419,15 +427,11 @@
 
 ## 5. Việc còn mở / cần chú ý
 - **HANDOFF Map New York (22/10/2026 tối — phiên sau làm tiếp từ đây)**:
-  - **Nhánh worker CHƯA gộp** (commit sẵn, `git merge <nhánh>` rồi làm tiếp):
-    1. `worker/debug-20261022-182922` — tòa nổi tiếng dò chỗ tránh phố nycNet + `scripts/check-nyc-landmark-roads.mjs`. Codex review: CHƯA ĐẠT —
-       bỏ qua 107 phố khép vòng (nycNet vẫn vẽ) nên Seagram / Vanderbilt / MetLife còn đè phố; không tìm được chỗ trong 14 m vẫn đặt đè
-       (Waldorf, Lever, Macy's, Vanderbilt). Cần: không bỏ phố vòng kín, mở rộng tìm / thu nhỏ, check quét cả vòng (không chỉ ≤ 150 m quanh GCT).
-       Lỗi gốc: ảnh `shots-ref-gct.jpg` (tòa trắng nhiều bậc chắn phố bên trái khi lên Park Ave sau hầm).
-    2. `worker/debug-20261022-190719` — ghép `src/bld/tiers.js` (bậc lùi, DeepSeek), `cornice.js` (gờ mái + tường chắn, GLM), `roof.js` (bồn nước gỗ +
-       máy + ăng-ten, MiniMax; ảnh mẫu `shots/roof-demo.png`) vào `nycBuildings._build`. Codex đo: dựng 73 → 1 581 ms, tam giác 141k → 428k, 16 → 44 MB
-       => QUÁ NẶNG. Định sửa: gờ mái + đồ trên mái chỉ cho nhà gần tuyến (tâm cách tim đường < ~80 m), có thể cache tiers. Chú CHƯA chốt giữ bồn nước
-       (đã giải thích: bồn nước gỗ là đặc trưng mái Manhattan) — hỏi lại chú.
+  - **Đã gộp (23/10/2026)**: tòa nổi tiếng không đè phố (xem mục New York). Chưa chụp xem Waldorf / Seagram / Macy's sau khi dời / nén.
+  - **Nhánh worker CHƯA gộp**: `worker/debug-20261022-190719` — bậc lùi (`src/bld/tiers.js`), gờ mái (`cornice.js`), bồn nước + máy + ăng-ten (`roof.js`)
+    trong `nycBuildings._build`. Codex đo: dựng 73 → 1 581 ms, tam giác 141k → 428k, 16 → 44 MB => QUÁ NẶNG. Định sửa: gờ mái + đồ trên mái chỉ cho
+    nhà gần tuyến (< ~80 m), cache tiers. Chú CHƯA chốt giữ bồn nước — hỏi lại. Nhánh này tách trước bản tòa nổi tiếng => gộp cẩn thận `nycBuildings.js`.
+  - opencode DeepSeek free hết lượt 23/10/2026 sáng (thử lại sau ~7 giờ); khi hết thì Claude tự làm việc đã rõ, hỏi chú trước khi dùng credit API.
   - **Đã gộp + push**: nắp hầm dày 1.5 m + tường đầu 2 cửa hầm (GLM), bóng nắng xa (DeepSeek; nay là ÁNH SÁNG DÙNG CHUNG mọi map, nút "Bóng nắng xa"
     ở bảng Lighting mục "Nắng", `chilldrive.farShadow`, mặc định tắt; Codex review → sửa nhớ / trả cỡ bóng theo chất lượng). Chú tự thử.
   - **Quy ước phạm vi (chú dặn)**: nhà / đường / người / xe — riêng từng map, hiện chỉ làm New York; đèn, ánh sáng, thời tiết, thiên nhiên, trời — dùng chung mọi map.
@@ -457,43 +461,7 @@
 - `QUICK_OPENING = true` (TẠM, đầu game 0.5 s) — bật lại khi chú bảo. Kiểm thử Playwright: vào game bằng `#m-chill` / `#m-drive`.
 
 ## 6. Nhật ký cập nhật
-- Đã tóm tắt tới commit "New York: âm thanh phố + bản đồ tròn lưới phố thật + ghi công OSM" (22/10/2026): 5 + 1 tòa nổi tiếng (One Vanderbilt),
-  biển phát sáng màu, GLB, Times Square lượt 3, mạng đường thật, thử worker GLM / 3D MiniMax vs DeepSeek, phố ngang chỉ vẽ miệng ngã tư,
-  âm thanh New York, bản đồ tròn — chi tiết ở mục 1 (Map New York), mục 2 và NYC_PLAN.md.
-- **#1 — Sửa Broadway đè làn / xe lún + chấm đen ở vũng / quầng đèn (22/10/2026)**: nycNet `routeMask` bỏ mảnh phố OSM (cả bề rộng vỉa hè)
-  chạm lòng đường tuyến ở mặt phố (không cắt dưới cầu cạn / hầm); vạch chéo Broadway bỏ đoạn chồng vạch qua đường 45 St. Chấm đen = điểm ảnh NaN
-  (pháp tuyến vân nhựa đường `normalize(0)` khi det ≈ 0, hay gặp trên điện thoại) bị xoá phông / bloom làm loang: scenery giữ pháp tuyến cũ,
-  post.js `safe()` đổi NaN / Inf thành 0 ở bright, DOF prep, sceneAt. Chụp Low đêm mưa Times Square: sạch.
-- **#2 — Đèn đi bộ kiểu Mỹ ở mọi ngã tư New York (22/10/2026)**: hộp ngang `pedHeadGeoUS` + mặt `pedFaceMat` (ShaderMaterial, atlas `usPedAtlas.js`
-  1024×128 — DeepSeek thắng thi song song với GLM / MiniMax). city.js `_pedFace(ph, k)`: pha xanh "người" trắng, nửa cuối pha (≤ 12 s) bàn tay
-  nhấp nháy 1 Hz + số đếm ngược, còn lại bàn tay sáng; thuộc tính `aFace` mỗi khung. Map Phố giữ đèn đỏ / xanh cũ. Kiểm trong trang: dữ liệu
-  đổi đúng pha, shader không lỗi (chụp Low quá xa để thấy rõ mặt đèn).
-- **#3 — Giao diện điện thoại + tải map dần, lưu trên thiết bị (22/10/2026)**: xem mục 1 (Tải trước, Bố cục điện thoại). Thử 844×390 Low:
-  thanh tải 0 → 2.5 MB rồi vào game; chạm hiện / kéo không hiện; mở lại tài nguyên lấy từ máy (0 byte mạng); map còn lại tải ngầm đủ.
-  check traffic / hlg / nyc / car-switch PASS. Chưa thử trên điện thoại thật.
-- **#4 — Times Square: xe như lún + vệt màu loang trên đường (22/10/2026)**: vệt sáng màu dưới biển quảng cáo (`timesSquare.js` `spillMesh`,
-  cộng màu, không ghi độ sâu) đặt cao 0.25 m trên mặt đường => phủ màu lên nửa dưới bánh xe (camera thấp nhìn như xe lún) và tẩy trắng mặt đường.
-  Hạ xuống 0.03 m (polygonOffset đã chống nhấp nháy), độ sáng 0.35 → 0.22. Đo bằng tia chiếu dọc 7th Ave s 300–1300: không còn mặt nào
-  trên lòng đường ngoài xe. Lưu ý: phần cửa tàu điện ngầm của phiên New York (`nycStreet.js` gọi `./subwayEntrance.js` chưa có) đang dở
-  trong máy, chưa commit — build lỗi tới khi phiên đó thêm file.
-- **#5 — Times Square: ánh sáng biển quảng cáo kiểu đèn xe cảnh sát (22/10/2026)**: chú thấy vệt dán cộng màu (`spillMesh`, kể cả sau #4) lốm đốm,
-  xấu trên điện thoại => bỏ hẳn (cùng `glowTex`); chỉ còn 2 PointLight (khoảng 55 m, decay 1.3, cường độ 70 × (0.15 + 0.85 đèn đêm)) đặt
-  cao ≤ 9 m, ra trước biển 7 m, màu theo hình đang chiếu, chuyển mượt. Chụp Low đêm mưa: quầng màu mịn trên đường + vỉa hè, không lốm đốm.
-- **#6 — Cửa tàu điện ngầm New York (22/10/2026)**: `scripts/fetch-nyc.mjs` lấy OSM `railway=subway_entrance` sát tuyến (9–24 m) => `nyc-data.json`
-  `subway` (27 cửa; `ONLY=subway node scripts/fetch-nyc.mjs` chỉ cập nhật phần này, không dựng lại nhà vì chiều cao thiếu là ngẫu nhiên).
-  Model `src/subwayEntrance.js` (DeepSeek thắng GLM; lòng cầu thang giả bằng dải tối, lan can sắt xanh, 2 cầu đèn xanh, biển). `nycStreet.js`:
-  giữa vỉa hè bên đó, dời khỏi miệng ngã tư, bỏ quanh hầm / cầu cạn => 20 cửa; cầu đèn tự sáng theo đèn đường (`nycProps.setLamps`).
-  Bỏ ý bề rộng đường theo đoạn: `CITY.hw` dùng ~100 chỗ / 9 file, rủi ro cao. Script chụp: sau khi vào Drive phải chờ map ổn định (preload có thể đặt lại map).
-- **#7 — Bỏ dải vạch sọc chéo Broadway qua 7th Ave (22/10/2026)**: chú gửi ảnh (sọc trắng ~55 m trên lòng đường); ngoài đời người đi bộ qua ở vạch ngã tư 45 St.
-- **#8 — Chấm màu lấm tấm ở quầng đèn đường + vũng sáng dưới đất, mọi map (22/10/2026)**: nguyên nhân chính: `glowTexture()` vẽ bằng gradient
-  canvas — Safari / iPhone tự rắc nhiễu màu (dithering) vào gradient, quầng / vũng cộng sáng khuếch đại thành đốm. Nay `radialGlowTexture()`
-  (textures.js) tính alpha từng điểm ảnh bằng putImageData; avenue.js `glowTex` + `flashTex` dùng chung. Thêm: DOF trọng số Karis 1 / (1 + sáng)
-  (hết đốm sáng lấm tấm ở vùng nhoè), phản chiếu mặt đường chặn NaN / quá sáng. Máy ảo (Chrome) không tái hiện được — cần chú xem trên iPhone.
-  Gradient canvas còn ở adAtlas / dashscreen / mặt tiền Times Square (không cộng sáng mạnh, chưa đổi).
-- **#9 — Hầm / cầu cạn Park Ave đo lại theo OSM + hết đè chớp chớp nhà (22/10/2026)**: `nycElevKeys` mới: sâu 6 m ngay 2 cửa hầm thật
-  (nắp hầm 2763–3192 ≈ OSM 2766–3189, 33 → 40 St), ra hầm leo thẳng lên cầu cạn, vượt 42 St (s 3336) cao ~5.4 m; dốc gần tuyến tính 2 đầu êm,
-  lớn nhất 8.8 % (`maxGrade` 0.09). Trước đó dốc 6 % => rãnh hở 100 m có phố ngang lơ lửng, 42 St cắt ngang đường ở cao 0.9 m.
-  nycNet `routeMask` cắt phố OSM cả ở dốc hở (không cắt trên nắp hầm / dưới cầu cao ≥ 4.2 m). nycBuildings: nhà OSM thu vào 0.1–0.3 m (tường
-  chung không trùng mặt phẳng => hết nhấp nháy), góc nhà lấn tòa nổi tiếng => bỏ (3 185 → 3 161 nhà). `scripts/shot-nyc.mjs`: script chụp cho worker.
-- **#10 — Gộp nắp hầm dày + bóng nắng xa (mọi map), script chụp ?map=nyc / HIDE / NEAR / RANGE, handoff (22/10/2026)**: load headless New York + bóng xa:
-  0 lỗi trang. 2 nhánh worker chưa gộp: xem mục 5 "HANDOFF".
+- Đã tóm tắt tới commit "ROAD.md: handoff map New York (2 nhánh worker chưa gộp + review Codex)…" (22/10/2026): nhật ký #1–#10 (Broadway, đèn
+  đi bộ Mỹ, tải dần + lưu thiết bị, biển Times Square, tàu điện ngầm, chấm màu quầng đèn, hầm Park Ave, nắp hầm, bóng nắng xa) đã gộp vào mục 1 / 3 / 5.
+- **#1 — Tòa nổi tiếng New York không đè phố (23/10/2026)**: gộp `worker/debug-20261022-224930` (DeepSeek + Claude sửa theo 2 lượt Codex review),
+  xoá nhánh cũ `worker/debug-20261022-182922`. 11/11 tòa, `check-nyc-landmark-roads` / `check-nyc` / traffic / car-switch PASS.
