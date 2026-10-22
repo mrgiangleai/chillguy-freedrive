@@ -2,7 +2,11 @@
 // `node scripts/fetch-sgn.mjs` => `sgn-data.json`. Nguyễn Hữu Cảnh (qua Landmark 81, về Ba Son) → Tôn Đức Thắng → Võ Văn Kiệt
 // → hầm Thủ Thiêm (dưới sông Sài Gòn) → Mai Chí Thọ → nút An Phú → Võ Nguyên Giáp → cầu Sài Gòn → Điện Biên Phủ → Nguyễn Hữu Cảnh.
 // Dùng lại map Phố (`mapKind('sgn') = 'city'`, giao thông 2 chiều kiểu VN) + code vòng của New York (`road.setShape('sgn', loop)`).
+import * as THREE from 'three';
 import DATA from './sgn-data.json' with { type: 'json' };
+import * as landmark81 from './landmarks/landmark81.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 // start: xe vào map ở s = length + start (Nguyễn Hữu Cảnh, chạy về phía Ba Son). roof: trần hầm kín khi mặt đường thấp hơn mặt phố quá |roof| m
 export const SGN = { data: DATA, length: DATA.length, start: 60, roof: -5.6 };
@@ -47,4 +51,49 @@ export function sgnStreet(s) {
   let name = S.at(-1).name;
   for (const t of S) if (r >= t.s0) name = t.name;
   return name;
+}
+
+// công trình riêng map Landmark: tháp Landmark 81 ở toạ độ thật. Model chính: `assets/models/sgn/landmark81.glb` ("Landmark 81" — Dave Love,
+// Sketchfab, CC-BY-4.0; nén WebP + meshopt), phóng đúng cao 461 m, tâm thân tháp đặt vào toạ độ thật. Trong lúc tải / tải lỗi: model code
+// `landmarks/landmark81.js` (DeepSeek). Dựng khi vào map lần đầu
+export class SgnScene {
+  constructor(scene, groundAt) {
+    this.groundAt = groundAt;
+    this.group = new THREE.Group();
+    this.group.visible = false;
+    scene.add(this.group);
+    this.built = false;
+  }
+  set visible(v) { this.group.visible = v; if (v && !this.built) this._build(); }
+  get visible() { return this.group.visible; }
+  _build() {
+    this.built = true;
+    const [x, z] = DATA.landmark81, y = this.groundAt(x, z);
+    const { geometry } = landmark81.build(THREE);
+    const code = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.25 }));
+    code.position.set(x, y, z);
+    code.castShadow = true; code.receiveShadow = true;
+    this.group.add(code);
+    this.tower = code;
+    const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
+    loader.load('assets/models/sgn/landmark81.glb', (gltf) => {
+      const root = gltf.scene;
+      root.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(root), k = 461 / (box.max.y - box.min.y);
+      // tâm thân tháp: trung bình x / z các đỉnh ở nửa trên (khối đế lệch một phía không kéo lệch tâm)
+      let sx = 0, sz = 0, n = 0; const v = new THREE.Vector3(), yTop = box.min.y + (box.max.y - box.min.y) * 0.5;
+      root.traverse((o) => {
+        if (!o.isMesh) return;
+        o.castShadow = true; o.receiveShadow = true;
+        const P = o.geometry.attributes.position;
+        for (let i = 0; i < P.count; i += 3) { v.fromBufferAttribute(P, i).applyMatrix4(o.matrixWorld); if (v.y > yTop) { sx += v.x; sz += v.z; n++; } }
+      });
+      const wrap = new THREE.Group();
+      root.position.set(-(n ? sx / n : 0), -box.min.y, -(n ? sz / n : 0));
+      wrap.add(root); wrap.scale.setScalar(k); wrap.position.set(x, y, z);
+      this.group.remove(code); geometry.dispose();
+      this.group.add(wrap);
+      this.tower = wrap;
+    }, undefined, (e) => console.warn('Landmark 81 GLB', e));
+  }
 }

@@ -1,6 +1,6 @@
 // Tải dữ liệu OSM (Overpass) quanh Landmark 81 (TP.HCM) rồi nén thành src/sgn-data.json cho map Landmark (vòng khép kín, không quay đầu):
-// Nguyễn Hữu Cảnh (trước Landmark 81, về Ba Son) → Tôn Đức Thắng → hầm Thủ Thiêm (Hầm Sông Sài Gòn) → Mai Chí Thọ → nút An Phú
-// → Võ Nguyên Giáp (Xa lộ Hà Nội cũ) → cầu Sài Gòn → Điện Biên Phủ → Nguyễn Hữu Cảnh.
+// Nguyễn Hữu Cảnh → khu Vinhomes Central Park (Vạn Hoa 4 / 5, Trần Trọng Kim sát Landmark 81) → cầu Sài Gòn → Võ Nguyên Giáp (Xa lộ Hà Nội cũ)
+// → nút An Phú → Mai Chí Thọ → hầm Thủ Thiêm (Hầm Sông Sài Gòn) → Quận 1 → Tôn Đức Thắng → Nguyễn Hữu Cảnh (xem WAY).
 // Đường VN phần lớn là đường đôi vẽ thành 2 way một chiều => dò từng chặng giữa các điểm mốc bằng Dijkstra trên đồ thị CÓ HƯỚNG
 // (tôn trọng oneway; đường ngoài danh sách tuyến bị phạt ×6, nhánh nối không tên ×1.3, đường gom cùng tên cấp thấp hơn ×1.5).
 // Quy ước toạ độ như fetch-nyc.mjs: E=(lon−lon0)·cos(lat0)·111320, N=(lat−lat0)·110540; game x=E, z=−N; th=atan2(−dE,dN).
@@ -16,16 +16,25 @@ const STEP = 5;               // bước dữ liệu xuất ra (m)
 const FILLET = 36;            // cửa sổ làm mượt hướng (m): nhánh rẽ Điện Biên Phủ → Nguyễn Hữu Cảnh gắt (> 120°) => cung R ≥ 12 m
 const EPS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
 const DRIVE = '^(motorway|trunk|primary|secondary|tertiary|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link|residential|unclassified)$';
-const ROUTE_NAMES = /^(Nguyễn Hữu Cảnh|Tôn Đức Thắng|Hầm Sông Sài Gòn|Võ Văn Kiệt|Mai Chí Thọ|Võ Nguyên Giáp|Cầu Sài Gòn|Điện Biên Phủ|Hầm chui Nguyễn Hữu Cảnh)$/;
-// điểm mốc theo chiều chạy (dir: hướng la bàn của chiều đi, độ — chỉ nhận đoạn way đi đúng hướng ±60°) (ngược chiều kim đồng hồ: rẽ trái là chính); s = 0 tại mốc đầu (Nguyễn Hữu Cảnh trước Landmark 81)
+const ROUTE_NAMES = /^(Nguyễn Hữu Cảnh|Tôn Đức Thắng|Hầm Sông Sài Gòn|Võ Văn Kiệt|Mai Chí Thọ|Võ Nguyên Giáp|Cầu Sài Gòn( 2)?|Điện Biên Phủ|Hầm chui Nguyễn Hữu Cảnh|Cầu vượt Nguyễn Hữu Cảnh|(Đường )?Vạn Hoa \d|Trần Trọng Kim)$/;
+// điểm mốc theo chiều chạy (dir: hướng la bàn của chiều đi, độ — chỉ nhận đoạn way đi đúng hướng ±60°). Chiều kim đồng hồ (chú chốt 23/10/2026):
+// Nguyễn Hữu Cảnh (về phía cầu SG) → rẽ vào khu Vinhomes Central Park: Vạn Hoa 4 → Vạn Hoa 3 → Trần Trọng Kim (sát chân Landmark 81)
+// → vòng bầu dục Điện Biên Phủ → cầu Sài Gòn 2 → Võ Nguyên Giáp → An Phú → Mai Chí Thọ → hầm Thủ Thiêm → Quận 1 → Tôn Đức Thắng → Nguyễn Hữu Cảnh.
+// s = 0 tại mốc đầu (Nguyễn Hữu Cảnh, ~300 m trước chỗ rẽ vào khu)
 const WAY = [
-  { lat: 10.7953, lon: 106.7213, name: /^Nguyễn Hữu Cảnh$/, label: 'Nguyễn Hữu Cảnh', dir: 225 },
-  { lat: 10.7800, lon: 106.7062, name: /^Tôn Đức Thắng$/, label: 'Tôn Đức Thắng', dir: 200 },
-  { lat: 10.7695, lon: 106.7080, name: /^Hầm Sông Sài Gòn$/, label: 'Hầm Thủ Thiêm', tunnel: true, dir: 75, r: 900 },
-  { lat: 10.7790, lon: 106.7340, name: /^Mai Chí Thọ$/, label: 'Mai Chí Thọ', trunk: true, dir: 60 },
-  { lat: 10.7965, lon: 106.7528, name: /^Mai Chí Thọ$/, label: 'Mai Chí Thọ', trunk: true, dir: 10 },
-  { lat: 10.8010, lon: 106.7400, name: /^Võ Nguyên Giáp$/, label: 'Võ Nguyên Giáp', dir: 280 },
-  { lat: 10.7990, lon: 106.7270, name: /^Cầu Sài Gòn$/, label: 'Cầu Sài Gòn', dir: 260 },
+  { lat: 10.7925, lon: 106.7175, name: /^Nguyễn Hữu Cảnh$/, label: 'Nguyễn Hữu Cảnh', dir: 45 },
+  { lat: 10.7948, lon: 106.7198, name: /Vạn Hoa 4$/, label: 'Vạn Hoa 4', dir: 140, r: 200 },
+  { lat: 10.7936, lon: 106.7215, name: /Vạn Hoa 3$/, label: 'Vạn Hoa 3', dir: 90, r: 150 },
+  { lat: 10.7950, lon: 106.7232, name: /^Trần Trọng Kim$/, label: 'Trần Trọng Kim', dir: 15, r: 200 },
+  // nút giao chân cầu (vòng bầu dục Điện Biên Phủ): đi trên đỉnh vòng về tây, vòng qua đầu tây, theo cạnh dưới về đông lên cầu Sài Gòn 2
+  { lat: 10.79905, lon: 106.7215, name: /^Điện Biên Phủ$/, label: 'Điện Biên Phủ', dir: 270, r: 60 },
+  { lat: 10.7977, lon: 106.7218, name: /^Điện Biên Phủ$/, label: 'Điện Biên Phủ', dir: 90, r: 60 },
+  { lat: 10.7990, lon: 106.7280, name: /^Cầu Sài Gòn( 2)?$/, label: 'Cầu Sài Gòn', dir: 75 },
+  { lat: 10.8010, lon: 106.7400, name: /^Võ Nguyên Giáp$/, label: 'Võ Nguyên Giáp', dir: 100 },
+  { lat: 10.7965, lon: 106.7528, name: /^Mai Chí Thọ$/, label: 'Mai Chí Thọ', trunk: true, dir: 190 },
+  { lat: 10.7790, lon: 106.7340, name: /^Mai Chí Thọ$/, label: 'Mai Chí Thọ', trunk: true, dir: 240 },
+  { lat: 10.7695, lon: 106.7080, name: /^Hầm Sông Sài Gòn$/, label: 'Hầm Thủ Thiêm', tunnel: true, dir: 255, r: 900 },
+  { lat: 10.7800, lon: 106.7062, name: /^Tôn Đức Thắng$/, label: 'Tôn Đức Thắng', dir: 20 },
 ];
 
 // ---------- tải + cache ----------
@@ -204,10 +213,27 @@ const DEEP = 11, HIGH = 12, GRADE = 0.055;
 const N5 = Math.round(L / STEP), el = new Float64Array(N5 + 1);
 const cyc = (a, b) => { const d = ((b - a) % L + L) % L; return Math.min(d, L - d); };
 const inSpan = (s, sp) => (sp.s1 - sp.s0 < L / 2 ? s >= sp.s0 && s <= sp.s1 : false);
+// chỗ tuyến tự cắt nhau (vd. dốc lên cầu Sài Gòn 2 vượt qua Trần Trọng Kim): nhánh có độ cao sẵn lớn hơn thành cầu vượt ≥ OVER m
+// (thêm 1 "cầu" ảo dài 40 m tại đó, dốc hai đầu như cầu thật). Dò cắt nhau giữa các đoạn 5 m cách nhau > 300 m dọc tuyến
+const OVER = 6.5, crossings = [];
+{
+  const seg = (i) => [x[i], z[i], x[i + 1], z[i + 1]];
+  const hit = (A, B) => { const d = (B[2] - B[0]) * (A[3] - A[1]) - (B[3] - B[1]) * (A[2] - A[0]); if (Math.abs(d) < 1e-9) return false;
+    const t = ((B[0] - A[0]) * (B[3] - B[1]) - (B[1] - A[1]) * (B[2] - B[0])) / -d, u = ((B[0] - A[0]) * (A[3] - A[1]) - (B[1] - A[1]) * (A[2] - A[0])) / -d;
+    return t >= 0 && t <= 1 && u >= 0 && u <= 1; };
+  for (let i = 0; i < Nout; i++) for (let j = i + 60; j < Nout; j++) {
+    if ((Nout - j) + i < 60) continue;
+    if (Math.abs(x[i] - x[j]) > 12 || Math.abs(z[i] - z[j]) > 12) continue;
+    if (hit(seg(i), seg(j))) crossings.push([i * step, j * step]);
+  }
+}
+const baseUp = (s) => { let up = 0; for (const b of bridges) { const len = b.s1 - b.s0, H = len > 600 ? HIGH : len > 300 ? 7.5 : len > 60 ? 4.5 : 1.2, d = (s >= b.s0 && s <= b.s1) ? 0 : Math.min(cyc(s, b.s0), cyc(s, b.s1)); up = Math.max(up, H - GRADE * d); } return up; };
+for (const [sa, sb] of crossings) { const hi = baseUp(sa) >= baseUp(sb) ? sa : sb; bridges.push({ s0: +(hi - 20).toFixed(1), s1: +(hi + 20).toFixed(1), name: 'cầu vượt', over: true }); }
+if (crossings.length) console.log('  tự cắt:', crossings.map(([a, b]) => `${a.toFixed(0)} × ${b.toFixed(0)}`).join(', '));
 for (let i = 0; i <= N5; i++) {
   const s = i * step; let up = 0, dn = 0;
-  for (const b of bridges) { const len = b.s1 - b.s0, H = len > 600 ? HIGH : len > 300 ? 7.5 : len > 60 ? 4.5 : 1.2, d = inSpan(s, b) ? 0 : Math.min(cyc(s, b.s0), cyc(s, b.s1)); up = Math.max(up, H - GRADE * d); }
-  for (const t of tunnels) { const len = t.s1 - t.s0, D = len > 300 ? DEEP : 6.5, d = inSpan(s, t) ? 0 : Math.min(cyc(s, t.s0), cyc(s, t.s1)); dn = Math.min(dn, -D + GRADE * d * (len > 300 ? 1 : 1.3)); }
+  for (const b of bridges) { const len = b.s1 - b.s0, H = b.over ? OVER : len > 600 ? HIGH : len > 300 ? 7.5 : len > 60 ? 4.5 : 1.2, d = inSpan(s, b) ? 0 : Math.min(cyc(s, b.s0), cyc(s, b.s1)); up = Math.max(up, H - GRADE * d); }
+  for (const t of tunnels) { const len = t.s1 - t.s0, D = len > 300 ? DEEP : 6.5, d = inSpan(s, t) ? 0 : Math.min(cyc(s, t.s0), cyc(s, t.s1)); dn = Math.min(dn, -D + GRADE * d); }
   el[i] = Math.max(0, up) + Math.min(0, dn);
 }
 // làm mượt 40 m (2 đầu dốc êm)
@@ -309,10 +335,12 @@ for (let k = zones.length - 1; k > 0; k--) {
 for (let k = zones.length - 1; k > 0; k--) if (zones[k].name === zones[k - 1].name) zones.splice(k, 1);
 // Landmark 81 (toà tháp): vị trí thật cho bản đồ tròn + bước dựng nhà sau
 const landmark81 = toGame(10.79496, 106.72183);
+// ranh khu Vinhomes Central Park (đa giác gần đúng: bờ đông Nguyễn Hữu Cảnh → chân Điện Biên Phủ → bờ sông) — game không dựng nhà map Phố trong đó
+const vinhomes = [[10.7963, 106.7193], [10.7976, 106.7215], [10.7979, 106.7262], [10.7889, 106.7262], [10.7889, 106.7198], [10.7925, 106.7189]].map(([la, lo]) => toGame(la, lo));
 
 const data = {
   source: 'OpenStreetMap contributors (ODbL)', bbox: BB, origin: [lat0, lon0], step: +step.toFixed(4), length: +L.toFixed(1), turn: +TURN.toFixed(5),
-  corners, streets, tunnels, bridges, junctions, lanes, areas, zones, landmark81, elev, x, z, heading,
+  corners, streets, tunnels, bridges, junctions, lanes, areas, zones, landmark81, vinhomes, elev, x, z, heading,
 };
 fs.writeFileSync(OUT, JSON.stringify(data));
 console.log(`=> ${OUT}: ${(fs.statSync(OUT).size / 1024).toFixed(0)} KB, ${junctions.length} ngã tư (${junctions.filter((j) => j.signal).length} có đèn), ${corners.length} khúc rẽ lớn`);

@@ -13,6 +13,7 @@ const BY_MAP = {
   avenue: ['assets/tex/ocean-waves.png'],
   hlg: ['assets/tex/ocean-waves.png', 'assets/hlg-env.json'],
   nyc: ['assets/nyc-buildings.json', 'assets/nyc-streets.json'],
+  sgn: ['assets/models/sgn/landmark81.glb'],
 };
 // tải sau cùng (chỉ cần khi chú chọn): xe Mazda, nhân vật Chisa
 export const EXTRA = ['assets/models/mazda-rx-vision.glb', 'assets/models/chisa_wuthering_waves.glb'];

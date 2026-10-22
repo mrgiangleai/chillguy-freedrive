@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -70,6 +70,9 @@
 - **Thứ tự dự phòng DeepSeek (chú dặn 23/10/2026, thay thứ tự bên dưới)**: 1) opencode free; 2) không gọi được => **DeepSeek Harness desktop**
   `"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" headless "<việc>"` (`--json`, `-` đọc stdin; thử 23/10: thiếu
   DEEPSEEK_API_KEY — chú cần lưu khoá ở trang Models của app); 3) API DeepSeek của chú trong opencode (`deepseek/deepseek-flash`).
+  Chú cho gọi Codex / API DeepSeek khi cần, không phải hỏi. `oc-worker` chỉ gọi model `opencode/*` (free) => dùng API thì chạy thẳng
+  `opencode run -m deepseek/deepseek-flash "Read TASK.md …"` trong thư mục scratchpad riêng (bản sao file cần + symlink node_modules + `git init`).
+  23/10 ~02:00: opencode free báo hết giới hạn (thử lại sau ~5 giờ).
 - **Tiết kiệm quota (chú yêu cầu)**: việc làm theo khuôn (code nháp, sửa hàng loạt, tóm tắt) giao DeepSeek theo thứ tự:
   1) **opencode free** `opencode run --standalone -m opencode/deepseek-v4.1-flash-free` (ưu tiên; `opencode/deepseek-v4.1-flash` trả phí
   và `vibi/…` đã hết tiền); 2) bản free hết giới hạn => **hỏi chú trước** rồi mới dùng credit API riêng của chú: công cụ MCP `deepseek`
@@ -301,14 +304,27 @@
   25 % có còi đáp), còi hụ xa đi ngang mỗi 50–140 s (`audio.setSiren('wail')`: rú chậm chu kỳ 6 s, lia trái ↔ phải 14–22 s), đám đông Times Square
   (chatter slot 3 / 4, to dần trong 180 m quanh s 470–960; hầm × 0.2). **Bản đồ tròn**: map New York vẽ footprint nhà OSM + mạng phố thật
   (`nycBld.foot`, `nycNet.streets`), tuyến màu vàng rộng `CITY.hw`. Ghi công OSM cho New York trong ⓘ + README.
-  **Map Landmark 81 – TP.HCM** (`sgn`, 🌆, nhóm Drive; `mapKind('sgn') = 'city'`, cài đặt `chilldrive.sgn`; plan: `SGN_PLAN.md`): vòng 17.86 km theo OSM
-  (`scripts/fetch-sgn.mjs` → `src/sgn-data.json`; Dijkstra có hướng qua 7 điểm mốc có hướng la bàn, đường ngoài tuyến phạt ×6): Nguyễn Hữu Cảnh (s 0,
-  qua Landmark) → Tôn Đức Thắng / vòng xoay Mê Linh → Võ Văn Kiệt → hầm Thủ Thiêm (s 5484–6585, sâu 11 m, trần kín ~1.3 km) → Mai Chí Thọ → cầu vượt
-  An Phú → Võ Nguyên Giáp → cầu Sài Gòn (s 15885–16903, cao 12 m) → Điện Biên Phủ → vòng quay đầu 180° chân cầu (R ≈ 12 m, ~19 km/h) → Nguyễn Hữu Cảnh.
+  **Map Landmark 81 – TP.HCM** (`sgn`, 🌆, nhóm Drive; `mapKind('sgn') = 'city'`, cài đặt `chilldrive.sgn`; plan: `SGN_PLAN.md`): vòng 18.45 km theo OSM,
+  chiều kim đồng hồ (chú chốt lại 23/10/2026 — **khu Vinhomes là trọng tâm**): Nguyễn Hữu Cảnh (s 0) → rẽ vào khu Vinhomes Central Park: Vạn Hoa 4
+  → Vạn Hoa 3 → Trần Trọng Kim (cách Landmark 81 84 m) → Điện Biên Phủ (quay đầu thật dưới gầm cầu, R ≈ 12 m) → cầu Sài Gòn 2 (s 2867–3968, cao 12 m,
+  vượt trên Trần Trọng Kim) → Võ Nguyên Giáp → An Phú → Mai Chí Thọ → hầm Thủ Thiêm (sâu 11 m, trần ~1.4 km) → Võ Văn Kiệt (OSM bắt vòng qua
+  Phó Đức Chính / Nguyễn Công Trứ / Tôn Thất Đạm — ngoài khu chính, chỉnh sau) → Tôn Đức Thắng → Nguyễn Hữu Cảnh (hầm chui NHC). Tổng góc 0
+  (vòng chính −2π + vòng quay đầu +2π). `scripts/fetch-sgn.mjs`: Dijkstra có hướng qua 12 điểm mốc có hướng la bàn; chỗ tuyến tự cắt => nhánh cao hơn
+  thành cầu vượt ≥ 6.5 m (`crossings`).
   Độ cao: mảng `elev` mỗi 5 m (dốc ≤ 5.5 %, cầu > 600 m cao 12, 300–600 m 7.5, 60–300 m 4.5). Dùng code vòng NYC: `road.setShape('sgn', sgnLoop())`,
   `NycWorks(…, sgnLoop)` = `sgnWorks` (tường / trần hầm, bản cầu), `city.street = true` (vỉa hè / nhà theo mặt phố, vạch theo mặt đường thật `stripR`),
   `city.exclude = sgnNoHouse` (không nhà map Phố trong 70 m quanh đoạn cao / thấp), giao thông 2 chiều map Phố, giới hạn cua `road.curveV`,
-  báo tên đường khi đổi (`sgnAuto`). Vào map ở s = L + 60, luôn Hoàng hôn + Nhiều mây (chú dặn, để chụp lại), camera giữ lần trước.
+  `sgnAuto`: dưới tốc độ `#place` (đường + khu), đổi đường / khu => `#placename` chữ lớn giữa màn hình 2.6 s (khu = `zones` đoạn s cố định
+  trong sgn-data, 10 khu: Landmark 81 · Vinhomes, Thị Nghè, Ba Son, Quận 1, sông Sài Gòn, Thủ Thiêm, An Khánh, An Phú, Thảo Điền, chân cầu SG).
+  Bản đồ tròn (`S.sgn`): cả vòng + tên đường (cách ~200 px), tên khu (nghiêng, nâu), ô Landmark 81, tên đường ngang ở ngã tư khi phóng to
+  (chữ vẽ theo toạ độ màn hình, đứng thẳng, không chồng / không cắt mép). Tháp Landmark 81 (`SgnScene`, toạ độ thật `landmark81`): GLB
+  `assets/models/sgn/landmark81.glb` (Dave Love, CC-BY-4.0, chú tải; WebP + meshopt 665 KB, phóng cao 461 m, tâm = trung bình đỉnh nửa trên;
+  preload `BY_MAP.sgn`); trong lúc tải / lỗi: `landmarks/landmark81.js` (DeepSeek API, 7 274 tam giác, `check-landmark81.mjs`). Không dựng nhà
+  map Phố trong 95 m quanh tháp và trong đa giác khu Vinhomes (`vinhomes` trong sgn-data) — chờ dựng tháp chung cư thật.
+  **Model chú tải** (`/Volumes/SSD 1TB/VIBE CODING/3d model/saigon`, đều CC-BY-4.0, ghi công khi dùng): landmark_81 (đã dùng), 5 nhà Việt Nam của
+  RimiChama (nhà ống ×2, nhà phố ×2, chung cư mini; 700–10k tam giác, không texture) — để dành cho phố ngoài khu (Bình Thạnh / Q1); Dinh Độc Lập
+  (138k tam giác, 28 MB, không nằm trên tuyến). Sketchfab "Demo Vinhome Central Park" (chú gửi) không cho tải — chỉ làm ảnh tham khảo (SGN_PLAN.md).
+  Vào map ở s = L + 60, luôn Hoàng hôn + Nhiều mây (chú dặn, để chụp lại), camera giữ lần trước.
   Trọng tâm (chú dặn): làm đẹp khu quanh Landmark 81; đoạn khác chỉ cần đúng.
   **Map Đại lộ** (`avenue`, 🛣️, nhóm Drive cùng Phố; M trong Drive: Phố ↔ Đại lộ): cao tốc 6 làn (`AVENUE`: tâm làn ±2.25 / ±5.75 /
   ±9.25, dải phân cách ±0.5, mép làn ±11, lề khẩn cấp tới ±13), đường cong rất thoải (bán kính ≥ ~2 km), địa hình `avenue` (đồi cỏ
@@ -483,3 +499,11 @@
 - **#2 — Map Landmark 81 – TP.HCM, B1 (23/10/2026)**: chú chọn vòng sông + hầm + cầu, nhà OSM + Landmark 81 dựng code; vào map luôn Hoàng hôn + Nhiều mây.
   `fetch-sgn.mjs` → `sgn-data.json` (17.86 km), `sgn.js`, MAPS `sgn` 🌆, `check-sgn.mjs` PASS (check-nyc / traffic / hlg / car-switch vẫn PASS).
   Chụp Low: 0 lỗi; trước Landmark, trong hầm, cầu Sài Gòn hiện đúng. Thứ tự dự phòng DeepSeek mới (mục 2). Chi tiết mục 1 + `SGN_PLAN.md`.
+- **#3 — Landmark: biết đang ở đâu + tháp Landmark 81 (23/10/2026)**: tên đường + khu dưới tốc độ, chữ lớn giữa màn hình khi vào đường / khu mới,
+  bản đồ tròn vẽ cả vòng + tên đường / khu (chú so với bản đồ thật); Codex soát (2 lỗi: chữ giữa còn khi rời map, nhãn sát mép bị cắt — đã sửa).
+  Model Landmark 81: DeepSeek API dựng (free hết lượt), đặt vào map. Chụp Low: 0 lỗi.
+- **#4 — Landmark: đổi tuyến qua khu Vinhomes (23/10/2026)**: chú muốn đường nội khu Vinhomes là điểm nhấn chính (chi tiết, chính xác), khu ngoài
+  chỉnh sau. Tuyến mới chiều kim đồng hồ: NHC → Vạn Hoa 4 → Vạn Hoa 3 → Trần Trọng Kim (sát Landmark 81) → quay đầu ĐBP → cầu Sài Gòn 2 → Q2
+  → Mai Chí Thọ → hầm Thủ Thiêm → Q1 → NHC. check-sgn PASS.
+- **#5 — Landmark 81 GLB + bỏ nhà map Phố trong khu Vinhomes (23/10/2026)**: dùng model CC-BY chú tải (đẹp hơn bản code), ghi công README + ⓘ;
+  nhà map Phố kiểu Nhật không còn trong khu Vinhomes (để trống chờ B3). check-sgn PASS.

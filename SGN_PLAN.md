@@ -7,16 +7,18 @@
 - **Làm đẹp, chi tiết khu quanh Landmark 81**: Vinhomes Central Park, đoạn Nguyễn Hữu Cảnh / Điện Biên Phủ trước Landmark, chân cầu Sài Gòn,
   bờ sông. Các đoạn còn lại (Tôn Đức Thắng, Võ Văn Kiệt, hầm, Mai Chí Thọ, Võ Nguyên Giáp) **chỉ cần đúng** (đường, hầm / cầu, nhà khối đơn giản).
 
-## Tuyến vòng khép kín (đường thật OSM, xe chạy 2 chiều bên phải kiểu Việt Nam)
-```
-        cầu Sài Gòn ←←←←←← Xa lộ Hà Nội ←←←← nút An Phú
-   Điện Biên Phủ ↓                                   ↑
-  Nguyễn Hữu Cảnh ↓ (chân Landmark 81)               ↑ Mai Chí Thọ
-    Ba Son / Tôn Đức Thắng ↓                         ↑
-            Võ Văn Kiệt →→ hầm Thủ Thiêm (dưới sông) →→
-```
-- Bắt đầu ở Nguyễn Hữu Cảnh trước Landmark 81, chạy về Ba Son → Tôn Đức Thắng → Võ Văn Kiệt → hầm Thủ Thiêm → Mai Chí Thọ
-  → nút An Phú → Xa lộ Hà Nội → cầu Sài Gòn → Điện Biên Phủ → Nguyễn Hữu Cảnh. ~11–12 km. Chiều chạy kiểm bằng OSM (một chiều / nhánh).
+## Tuyến vòng khép kín (đường thật OSM, chú chốt lại 23/10/2026 — chiều kim đồng hồ)
+- Nguyễn Hữu Cảnh → **rẽ vào khu Vinhomes Central Park**: Vạn Hoa 4 (xuyên khu) → Vạn Hoa 3 → **Trần Trọng Kim** (đại lộ ven sông, sát chân
+  Landmark 81) → Điện Biên Phủ (quay đầu dưới gầm cầu) → **cầu Sài Gòn 2** → Võ Nguyên Giáp (Thảo Điền) → An Phú → Mai Chí Thọ (Thủ Thiêm)
+  → **hầm Thủ Thiêm** → Võ Văn Kiệt (Q1) → Tôn Đức Thắng → Nguyễn Hữu Cảnh. 18.45 km.
+- **Đường nội khu Vinhomes là điểm nhấn chính** (chi tiết + chính xác: bề rộng / số làn thật, vỉa hè, cây, toà Park / Central / Landmark, công viên,
+  bờ sông). Ngoài khu chỉnh sau (vd. đoạn vòng Q1 Phó Đức Chính / Nguyễn Công Trứ).
+
+## Tham khảo khu Vinhomes (chú gửi 23/10/2026)
+- Sketchfab "Demo Vinhome Central Park" (BI.Beo, 89k mặt): **không cho tải, không giấy phép** => chỉ xem ảnh để dựng lại bằng code, không lấy model.
+  Bố cục trong ảnh: cụm ~15–20 tháp chung cư hộp chữ nhật 40–50 tầng (kính xám sọc dọc) xếp dãy quanh Landmark 81; công viên ven sông rất nhiều
+  cây (cọ + cây tán tròn), lối đi lát màu; góc đông nam là dãy biệt thự mái dốc (Villas). Dựng: footprint + chiều cao OSM (tên Park / Central /
+  Landmark 1–6), công viên + cây theo `leisure=park` OSM, bờ sông.
 
 ## Cách làm: dùng lại khung map New York (vòng khép kín) + map Phố
 - `mapKind('sgn') = 'city'`: đèn giao thông, người đi bộ, tai nạn, chấm điểm, bảng 🚦. Bộ cài đặt riêng `chilldrive.sgn`.
@@ -33,7 +35,7 @@
 **B3 — Nhà**: nhà thật OSM (footprint + chiều cao, thiếu thì đoán theo loại), Landmark 81 dựng code (tháp bó ống bậc thang, chóp),
 Vincom / Bitexco nhìn từ xa, khu Vinhomes Central Park.
 **B4 — Giao thông VN**: nhiều xe máy, taxi xanh, buýt; mạng đường thật quanh tuyến; biển tên đường VN.
-**B5 — Hoàn thiện**: âm thanh, bản đồ tròn, ghi công OSM (README + ⓘ), thử Low.
+**B5 — Hoàn thiện**: âm thanh, (bản đồ tròn + tên đường / khu: xong 23/10), ghi công OSM (README + ⓘ), thử Low.
 
 ## Trạng thái
-- [x] B1 (23/10/2026: vòng 17.86 km, hầm sâu 11 m, cầu Sài Gòn cao 12 m, check-sgn PASS)  - [ ] B2  - [ ] B3  - [ ] B4  - [ ] B5
+- [x] B1 (23/10/2026: vòng 17.86 km, hầm sâu 11 m, cầu Sài Gòn cao 12 m, check-sgn PASS)  - [ ] B2  - [ ] B3 (đã có: tháp Landmark 81 — DeepSeek, `landmarks/landmark81.js`; còn: nhà OSM, Vinhomes Central Park)  - [ ] B4  - [ ] B5

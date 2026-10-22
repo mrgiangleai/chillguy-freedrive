@@ -3,7 +3,7 @@ import { ROAD, ROAD_HW, CITY, AVENUE, IC, icS, icIndex, rampU, avHump, TOLL, tol
 import { HLG, hlgLayout, hlgDem } from './hlg.js';
 import { HlgEnv } from './hlgEnv.js';
 import { NYC, NYC_DIM, nycLoop, nycStreet, NycWorks } from './nyc.js';
-import { SGN, sgnLoop, sgnStreet, sgnZone } from './sgn.js';
+import { SGN, sgnLoop, sgnStreet, sgnZone, SgnScene } from './sgn.js';
 import { TimesSquare } from './timesSquare.js';
 import { NycBuildings } from './nycBuildings.js';
 import { NycStreetProps } from './nycStreet.js';
@@ -147,7 +147,8 @@ const _yp = {};
 cityPeople.yAt = (s, u, y) => avLowY(s, u) ?? ((onNyc() || onSgn()) && Math.abs(u) > CITY.hw ? road.street.at(s, _yp).y : y);   // đại lộ: nhánh rẽ / đường ngang ở cao độ nền; New York: vỉa hè ở mặt phố
 const CITY_DIM = { hw: CITY.hw, walk: CITY.walk, side: CITY.side, sideWalk: CITY.sideWalk, lanes: CITY.lanes };   // kích thước map Phố (gốc)
 const nycWorks = new NycWorks(scene, road, scenery.roadMat);   // map New York: tường + trần hầm Park Ave, cầu cạn quanh Grand Central
-const sgnWorks = new NycWorks(scene, road, scenery.roadMat, sgnLoop);   // map Landmark: tường + trần hầm Thủ Thiêm, bản mặt cầu (cầu Sài Gòn, cầu vượt An Phú…)
+const sgnWorks = new NycWorks(scene, road, scenery.roadMat, sgnLoop);
+const sgnScene = new SgnScene(scene, (x, z) => terrain.heightAt(x, z));   // map Landmark: tháp Landmark 81 (toạ độ thật)   // map Landmark: tường + trần hầm Thủ Thiêm, bản mặt cầu (cầu Sài Gòn, cầu vượt An Phú…)
 const timesSq = new TimesSquare(scene, road, city);
 try { timesSq.setMirror(localStorage.getItem('chilldrive.nyc.mirror') !== '0'); } catch { /* chế độ riêng tư */ }            // map New York: Times Square (nhà chọc trời, biển LED, quảng trường, đám đông)
 let farShadowSaved = false;                                                                                                  // bóng nắng xa — ánh sáng dùng chung mọi map (mặc định tắt)
@@ -683,6 +684,7 @@ const applyMap = () => {
   city.prime(drive.s);
   nycWorks.visible = isNyc;
   sgnWorks.visible = isSgn;
+  sgnScene.visible = isSgn;
   fireflies.ground.clear();     // độ cao mặt đất nhớ theo hình đường cũ
   traffic.policy.city = isCity;
   if (incident.active) incident.finish();
@@ -697,7 +699,7 @@ const applyMap = () => {
   if (tuneKind === 'traffic') renderTune();     // bảng 🚦 đổi nội dung theo nhóm map
   applyTrafficTune(); applyLightTune();
   if (isCity && state.started) toast(isNyc ? 'New York — vòng Midtown (dữ liệu thật © OpenStreetMap): đường một chiều, 4 khúc rẽ trái, hầm + cầu cạn Park Ave'
-    : isSgn ? 'Landmark 81 – TP.HCM (dữ liệu thật © OpenStreetMap): vòng 17.9 km qua hầm Thủ Thiêm + cầu Sài Gòn'
+    : isSgn ? 'Landmark 81 – TP.HCM (dữ liệu thật © OpenStreetMap): vòng 18.4 km qua khu Vinhomes, cầu Sài Gòn, hầm Thủ Thiêm'
     : 'Map Phố: tự phanh khi gặp đèn đỏ — giữ phím Space hoặc nút Space');
   if (isAvenue && state.started) toast(isHlg ? 'Cao tốc TP.HCM – Long Thành – Dầu Giây (dữ liệu thật © OpenStreetMap) — giữ ← / → để đổi làn'
     : 'Map Đại lộ: cao tốc 6 làn — giữ ← / → để đổi làn');
@@ -763,6 +765,7 @@ const nycLaneFree = (u) => !cityTraffic.cars.some((c) => !c.cross && !c.xr && Ma
 // Đầu xe tới đầu khúc cua: chấm lỗi rẽ không từ làn trái / không bật xi nhan trái + báo tên đường mới
 // Landmark: vùng không dựng nhà map Phố — trong 70 m quanh đoạn đường cao / thấp hơn mặt phố > 0.4 m (cầu, dốc cầu, hầm), lưới ô 50 m
 let sgnNoGrid = null;
+const inPoly = (x, z, P) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) if ((P[i][1] > z) !== (P[j][1] > z) && x < P[i][0] + (P[j][0] - P[i][0]) * (z - P[i][1]) / (P[j][1] - P[i][1])) c = !c; return c; };
 function sgnNoHouse(x, z) {
   if (!sgnNoGrid) {
     sgnNoGrid = new Map();
@@ -774,6 +777,9 @@ function sgnNoHouse(x, z) {
       (sgnNoGrid.get(k) || sgnNoGrid.set(k, []).get(k)).push(P.x, P.z);
     }
   }
+  const [lx, lz] = SGN.data.landmark81;
+  if ((x - lx) ** 2 + (z - lz) ** 2 < 95 * 95) return true;   // chân tháp Landmark 81 + khối đế Vincom
+  if (inPoly(x, z, SGN.data.vinhomes)) return true;            // khu Vinhomes Central Park: không nhà map Phố (dựng riêng)
   const gx = Math.floor(x / 50), gz = Math.floor(z / 50);
   for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) {
     const a = sgnNoGrid.get((gx + i) + ',' + (gz + j)); if (!a) continue;
@@ -2174,4 +2180,4 @@ init();
 preload.registerSW();                                            // lưu tài nguyên trên thiết bị (docs/sw.js)
 
 // hook phục vụ debug / kiểm thử
-window.__app = { __Raycaster: THREE.Raycaster, __V3: THREE.Vector3, sgnWorks, nycBld, nycProps, timesSq, nycNet, nycWorks, get crashFx() { return crashFx; }, get blinker() { return blinker; }, get violations() { return violations; }, minimap, avenue, hlgEnv, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { __Raycaster: THREE.Raycaster, __V3: THREE.Vector3, sgnWorks, sgnScene, nycBld, nycProps, timesSq, nycNet, nycWorks, get crashFx() { return crashFx; }, get blinker() { return blinker; }, get violations() { return violations; }, minimap, avenue, hlgEnv, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

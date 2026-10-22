@@ -162,9 +162,10 @@ export class Minimap {
       line(loop, hw * 2 + 1.5, 'rgba(60,60,60,0.35)', 3);
       line(loop, hw * 2, ROADC.sgn, 2.2);
       const at = (s) => { const i = Math.round((((s % D.length) + D.length) % D.length) / D.step); return [D.x[i], D.z[i], D.x[Math.min(D.x.length - 1, i + 2)] - D.x[Math.max(0, i - 2)], D.z[Math.min(D.x.length - 1, i + 2)] - D.z[Math.max(0, i - 2)]]; };
-      // tên đường dọc tuyến: giữa mỗi đoạn tên; đoạn dài > 1.2 km lặp lại mỗi ~1 km
+      // tên đường dọc tuyến: chia đều mỗi đoạn tên, cách nhau ~200 px trên màn hình (250 m – 1 km) => phóng to vẫn thấy tên
+      const gap = Math.min(1000, Math.max(250, 200 / z));
       D.streets.forEach((t, k) => {
-        const s1 = D.streets[k + 1]?.s0 ?? D.length + D.streets[0].s0, len = s1 - t.s0, n = Math.max(1, Math.round(len / 1000));
+        const s1 = D.streets[k + 1]?.s0 ?? D.length + D.streets[0].s0, len = s1 - t.s0, n = Math.max(1, Math.round(len / gap));
         for (let j = 0; j < n; j++) { const [x, zz, dx, dz] = at(t.s0 + len * (j + 0.5) / n); labels.push([x, zz, t.name, 'street', Math.atan2(dz, dx)]); }
       });
       if (big && z > 0.25) for (const j of D.junctions) { const [x, zz, dx, dz] = at(j.s); labels.push([x, zz, j.names[0], 'cross', Math.atan2(dz, dx) + Math.PI / 2]); }
