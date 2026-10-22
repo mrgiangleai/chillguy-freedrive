@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -20,7 +20,7 @@
   `goto(..., { waitUntil: 'domcontentloaded' })`; map có cài đặt "Tự động" ghi đè camera / giờ => đặt lại ngay trước khi chụp.
   Máy chậm => môi trường (env map) chưa kịp chụp lại khi đổi giờ: gọi `__app.env.update(0.016, drive.pos); env._captureEnv()`.
 - **Kiểm tra tự động** (node, không cần trình duyệt; đều PASS): `scripts/check-traffic.mjs`, `check-traffic-policy.mjs`, `check-steering.mjs`,
-  `check-stopscene.mjs`, `check-hlg.mjs`, `check-nyc.mjs`, `check-sgn.mjs`, `check-nyc-wave.mjs`, `check-nyc-buildings.mjs`, `check-nyc-sound.mjs`, `check-nyc-landmark-roads.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
+  `check-stopscene.mjs`, `check-hlg.mjs`, `check-nyc.mjs`, `check-sgn.mjs`, `check-nyc-wave.mjs`, `check-nyc-buildings.mjs`, `check-nyc-sound.mjs`, `check-nyc-landmark-roads.mjs`, `check-ped-yield.mjs`, `check-nyc-props.mjs`, `check-nyc-sidecam.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
   `check-waterfalls.mjs`, `check-rear-glass.mjs [model.glb]`. Model tải lên nặng: nén bằng `npx @gltf-transform/cli@4 webp … --quality 82`
   rồi `meshopt` (giữ file gốc); sóng biển bake bằng `node scripts/bake-ocean.mjs`. **Fixture GUI** `scripts/*-preview.js` (giữ cảnh cố định để chụp):
   bundle bằng esbuild ra `docs/<tên>-check.js`, sao `docs/index.html` thành trang riêng đổi script sang bundle đó; chụp xong
@@ -234,7 +234,9 @@
   'deck' (không đường dưới gầm / tháp, bỏ ±30 m quanh tâm nút giao, tường mố chỉ ở 2 đầu thật), mặt đất dưới cầu giữ tự nhiên.
   **Lạch dưới cầu** (`creeks`, sông / suối < 300 m nằm gọn dưới cầu, 9 lạch: Sông Tắc hw 92, Bà Cua, Nước Trong, Đồng Môn, Suối Sâu,
   Suối Râm…): dải nước phẳng ±400 m (`creekMat`), lòng lạch đào xuống (`carve`, `creekA`), trụ xuống đáy lạch, bản đồ tròn vẽ xanh.
-  Chỉ Đồng Nai dùng mặt nước shader sông. Sông / lạch cắt vuông góc tuyến (đơn giản hoá).
+  Chỉ Đồng Nai dùng mặt nước shader sông. Sông / lạch cắt chéo theo góc thật (`rivers[].ang` từ OSM, kẹp ±1 rad; Đồng Nai 19°): dải nước, lòng đào,
+  trụ, dải shader sông, bản đồ tròn xoay theo `ang`; dải lạch dài `creekLen` (thu ngắn khi đất trũng để nước không treo). Tên đường cắt ngang 9/9
+  nút giao (`cross` / `crossRef`: OSM name/ref ±1 km rồi `destination` của nhánh) lên biển chỉ đường; nút QL51 dời km 23.3 → 22.7 theo dữ liệu mới.
   **Số làn** (`laneCount(s)`, `lay.lanes`): OSM kẹp 2–3 mỗi chiều, quanh nút giao (±620 m) luôn 3; đoạn 2 làn: vạch ngoài cùng (±7.5)
   liền, làn thứ 3 thành làn khẩn cấp — mặt đường giữ bề rộng 3 làn. cityTraffic: không sinh / vượt vào làn 3 ở đoạn 2 làn, xe làn 3
   nhập làn giữa trước khi hết làn (chờ ở 40 m nếu kẹt), 18% xe làn giữa sang làn 3 ở t −640…−560 để ra nhánh (`exitK`); xe mình tự
@@ -276,6 +278,11 @@
   đèn dùng `radialGlowTexture()` (gradient canvas Safari rắc nhiễu); đèn đi bộ kiểu Mỹ (`usPedAtlas.js`, đếm ngược); biển Times Square chỉ còn
   2 PointLight (bỏ `spillMesh`); 20 cửa tàu điện ngầm OSM (`subwayEntrance.js`); bỏ sọc chéo Broadway; hầm sâu 6 m / cầu cạn ~5.4 m theo OSM
   (dốc ≤ 8.8 %), nhà OSM thu vào 0.1–0.3 m hết nhấp nháy; nắp hầm dày 1.5 m; bóng nắng xa (mọi map, bảng Lighting).
+  **Nhường người + đồ phố + camera (23/10/2026)**: cityTraffic `_pedBins` (gom người ô 20 m / khung) + `_pedGap` / `_pedGapCross`: xe đường chính
+  + ngang phanh dừng cách người 2.5 m (5 → 8 m/s² khi gấp), tính cả người đang qua đường sẽ cắt làn và đám đông Times Square; ~10 % người chờ lúc đỏ
+  lách qua (nhanh ×1.35) khi làn sát vỉa trống 25 m, ≤ 2 / ngã tư. nycStreet `planNycProps` (dùng chung với check): 17 nắp cống (6 ống khói sọc cam,
+  hơi = billboard shader ≤ 150 m), 12 xe bán đồ ăn, Koreatown = 32 St Broadway → 5th Av (62 biển chữ Hàn nhô khỏi mặt tiền + 2 biển Korea Way).
+  Camera: `timesSq.signObb` (biển LED phẳng + cong, 8 số / khối) trong `city.collide`, bỏ biển cao hơn camera + 2 m.
   **Mặt tiền + đồ phố**: nhà OSM cao > 9 m có tầng trệt cửa hàng 4.8 m (`shopTex`: bảng hiệu màu, kính sáng ấm ban đêm), mặt nhìn ra tuyến có mái
   hiên (393 tấm, 5 màu); `nycStreet.js`: cột ở góc trước-phải mỗi ngã tư (không phải góc rẽ) với biển tên đường xanh lá NYC ("W 53 St" → "53 St",
   "7 Av", tên thật OSM, atlas canvas), biển ONE WAY phố ngang (chiều thật `ow`) + đại lộ, trụ cứu hoả đỏ / vàng 2 cái mỗi khối, thùng rác xanh.
@@ -462,13 +469,11 @@
   - **Nhánh worker CHƯA gộp**: `worker/debug-20261022-190719` — bậc lùi (`src/bld/tiers.js`), gờ mái (`cornice.js`), bồn nước + máy + ăng-ten (`roof.js`)
     trong `nycBuildings._build`. Codex đo: dựng 73 → 1 581 ms, tam giác 141k → 428k, 16 → 44 MB => QUÁ NẶNG. Định sửa: gờ mái + đồ trên mái chỉ cho
     nhà gần tuyến (< ~80 m), cache tiers. Chú CHƯA chốt giữ bồn nước — hỏi lại. Nhánh này tách trước bản tòa nổi tiếng => gộp cẩn thận `nycBuildings.js`.
-  - **Việc chú duyệt 23/10/2026, CHƯA làm** (đề sẵn ở scratchpad `tasks/yield.md, props.md, sidecam.md` — mất khi hết phiên, ý chính ở đây):
-    (a) xe NPC (đường chính + ngang) phanh nhường người đi bộ trong làn (kể cả đám đông Times Square), ~10 % người băng qua khi đỏ
-    (xe đang đi xuyên qua người); (b) hơi nước nắp cống + xe bán đồ ăn + Koreatown 32 St (biển chữ Hàn dọc); (c) camera Bên hông bị biển
-    LED Times Square che: thêm hộp biển vào `city.extraObb` cho `collide`; (d) HLG: tên đường cắt ngang nút giao (`cross` null) + sông / lạch
-    cắt chéo đúng góc. Chú bỏ: đồ trên mái (đã xoá `src/bld` + nhánh), Mazda chưa cần. Máy thật đã mượt (tài nguyên lưu sẵn) — máy ảo chỉ để xem
-    gần (`RANGE=`), không phụ thuộc thời tiết / giờ.
-  - opencode DeepSeek free hết lượt 23/10/2026 sáng (thử lại sau ~7 giờ); khi hết thì Claude tự làm việc đã rõ, hỏi chú trước khi dùng credit API.
+  - **Đã gộp 23/10/2026** (worker DeepSeek API, chưa xem hình): xe nhường người, đồ phố NYC, camera bên hông, HLG — xem mục 3 / nhật ký #9.
+    Chú để ý khi chạy: nút QL51 HLG dời 600 m; Koreatown chỉ 261 m. Chú bỏ: đồ trên mái (đã xoá), Mazda chưa cần. Máy thật mượt (tài nguyên lưu
+    sẵn) — máy ảo chỉ để xem gần (`RANGE=`), không phụ thuộc thời tiết / giờ.
+  - opencode free (mọi model) hết lượt 23/10/2026 => chú cho dùng DeepSeek API của chú: `oc-worker … --model deepseek/deepseek-flash`
+    (oc-worker nhận model có `/` nguyên tên provider; dự phòng `deepseek/deepseek-v4-pro`).
   - **Đã gộp + push**: nắp hầm dày 1.5 m + tường đầu 2 cửa hầm (GLM), bóng nắng xa (DeepSeek; nay là ÁNH SÁNG DÙNG CHUNG mọi map, nút "Bóng nắng xa"
     ở bảng Lighting mục "Nắng", `chilldrive.farShadow`, mặc định tắt; Codex review → sửa nhớ / trả cỡ bóng theo chất lượng). Chú tự thử.
   - **Quy ước phạm vi (chú dặn)**: nhà / đường / người / xe — riêng từng map, hiện chỉ làm New York; đèn, ánh sáng, thời tiết, thiên nhiên, trời — dùng chung mọi map.
@@ -481,11 +486,8 @@
   Xem `SGN_PLAN.md`. Cache Overpass: `<tmpdir>/chilldrive-osm/sgn/roads.json`. Cần chú xem: trong hầm Thủ Thiêm ảnh chụp thấy mảng tối bên trái (có thể do camera đặt bằng script).
 - **Map New York** 🗽: B1–B5 xong (22/10/2026). Có thể làm thêm: bề rộng đường theo đoạn (đang 4 làn mọi nơi, 32 / 55 St thật hẹp hơn),
   chưa thử máy thật / Good / Ultra (gương CubeCamera + 2 PointLight + ~3 200 nhà).
-  Camera Bên hông dễ bị 1 tấm biển che kín khung hình.
-- **Map Cao tốc HLG — có thể làm tiếp**: footprint Microsoft không có chiều cao ở VN => cao theo diện tích (đoán); sông / lạch cắt chéo
-  đúng góc thật (đang vuông góc tuyến); mặt nước lạch dài ±400 m rồi dừng; cỏ cao `meadow` vẫn phủ cả khu dân cư; biển tốc độ dựng bên đường còn theo mẫu Đại lộ (HUD đã đúng biển thật); Cầu Long Thành dùng tháp dây văng
-  chung của Đại lộ (chưa đối chiếu ảnh thật); nút giao chưa có tên đường cắt ngang cho Nhơn Trạch / QL51 / Long Thành / Cẩm Mỹ
-  (`cross` null trong dữ liệu); trạm thu phí trên nhánh QL51 bị bỏ. Chưa xem trên máy thật / Good / Ultra.
+- **Map Cao tốc HLG — có thể làm tiếp**: footprint Microsoft không có chiều cao ở VN => cao theo diện tích (đoán); mặt nước lạch dài ≤ ±400 m rồi dừng; cỏ cao `meadow` vẫn phủ cả khu dân cư; biển tốc độ dựng bên đường còn theo mẫu Đại lộ (HUD đã đúng biển thật); Cầu Long Thành dùng tháp dây văng
+  chung của Đại lộ (chưa đối chiếu ảnh thật); trạm thu phí trên nhánh QL51 bị bỏ. Chưa xem trên máy thật / Good / Ultra.
   Dữ liệu tạo lại: `node scripts/fetch-hlg.mjs` (cache Overpass `HLG_CACHE`, mặc định `<tmp>/chilldrive-osm`) rồi `check-hlg.mjs`;
   `node scripts/fetch-hlg-env.mjs` (`ONLY=dem|env`; SRTM qua OpenTopoData ~4.5 phút, Overpass hay 502/504 ~23 phút — đừng dùng
   `[maxsize:…]`, chia nhỏ bbox).
@@ -520,3 +522,5 @@
   → Mai Chí Thọ → hầm Thủ Thiêm → Q1 → NHC. check-sgn PASS.
 - **#8 — Landmark 81 GLB + bỏ nhà map Phố trong khu Vinhomes (23/10/2026)**: dùng model CC-BY chú tải (đẹp hơn bản code), ghi công README + ⓘ;
   nhà map Phố kiểu Nhật không còn trong khu Vinhomes (để trống chờ B3). check-sgn PASS.
+- **#9 — Gộp 4 việc (23/10/2026)**: xe nhường người + lách đèn đỏ, đồ phố New York (hơi cống, xe đồ ăn, Koreatown), camera bên hông tránh biển LED,
+  HLG tên đường cắt ngang + góc sông thật. Worker DeepSeek API; 10 check PASS sau gộp; chưa xem hình.
