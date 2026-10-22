@@ -43,6 +43,7 @@
   (`opencode/glm-5.3-flash-free`, opencode không có "glm4.3") chạy song song được — thử cùng 1 việc (script kiểm dữ liệu): DeepSeek 68 s / 469 dòng,
   GLM 90 s / 257 dòng gọn hơn, kết quả giống hệt, đều đúng. Mẫu chạy: thư mục scratchpad riêng + TASK.md + check.sh, `perl -e 'alarm 480; exec @ARGV'
   opencode run --standalone --auto -m <model> "Read TASK.md …"`, log để NGOÀI thư mục làm việc. Claude chỉ tự code việc vài dòng / khó giải thích.
+  Chia việc: mặc định mỗi worker 1 việc độc lập chạy song song; chỉ giao trùng 1 việc cho cả 2 khi việc khó / dễ sai hoặc 1 worker hay treo.
 - **Tiết kiệm quota (chú yêu cầu)**: việc làm theo khuôn (code nháp, sửa hàng loạt, tóm tắt) giao DeepSeek theo thứ tự:
   1) **opencode free** `opencode run --standalone -m opencode/deepseek-v4.1-flash-free` (ưu tiên; `opencode/deepseek-v4.1-flash` trả phí
   và `vibi/…` đã hết tiền); 2) bản free hết giới hạn => **hỏi chú trước** rồi mới dùng credit API riêng của chú: công cụ MCP `deepseek`
