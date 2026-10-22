@@ -85,6 +85,18 @@ export class NycWorks {
     const P = {}, Q = {};
     const pt = (s, u, y) => { road.at(base + s, P); return [P.x + Math.cos(P.th) * u, y, P.z - Math.sin(P.th) * u]; };
     const roadY = (s) => road.at(base + s, P).y, streetY = (s) => roadY(s) - e(s);
+    // tường đầu bê tông ở cửa hầm: od = ±1 là hướng vào lòng hầm từ mặt cửa. Mặt đứng hết bề rộng ±(HW + 0.45),
+    // từ đáy nắp (g − 1.5) lên đỉnh thành chắn đoạn hở (g + 0.9), pháp tuyến quay về phía đoạn hở; dày 0.5 m
+    // về phía hầm kèm mặt trên; dưới đáy nắp để trống (không chắn lòng đường).
+    const headWall = (sp, od) => {
+      const gw = roadY(sp) - e(sp), gn = roadY(sp + od) - e(sp + od);
+      road.at(base + sp, Q);
+      const n = [Math.sin(Q.th) * od, 0, Math.cos(Q.th) * od];    // pháp tuyến về phía đoạn hở
+      quad(B.conc, [pt(sp, -HW - 0.45, gw - 1.5), pt(sp, HW + 0.45, gw - 1.5), pt(sp, HW + 0.45, gw + 0.9), pt(sp, -HW - 0.45, gw + 0.9)], n, P);
+      quad(B.conc, [pt(sp + od, HW + 0.45, gn - 1.5), pt(sp + od, -HW - 0.45, gn - 1.5), pt(sp + od, -HW - 0.45, gn + 0.9), pt(sp + od, HW + 0.45, gn + 0.9)], [-n[0], 0, -n[2]], P);
+      quad(B.conc, [pt(sp, -HW - 0.45, gw + 0.9), pt(sp, HW + 0.45, gw + 0.9), pt(sp + od, HW + 0.45, gn + 0.9), pt(sp + od, -HW - 0.45, gn + 0.9)], 0, P);
+      for (const su of [-1, 1]) quad(B.conc, [pt(sp, su * (HW + 0.45), gw - 1.5), pt(sp + od, su * (HW + 0.45), gn - 1.5), pt(sp + od, su * (HW + 0.45), gn + 0.9), pt(sp, su * (HW + 0.45), gw + 0.9)], su, P);
+    };
     const STEP = 2;
     for (let s = s0; s < s1; s += STEP) {
       const a = s, b = s + STEP, ea = e(a), eb = e(b);
@@ -102,11 +114,13 @@ export class NycWorks {
             quad(B.conc, [pt(a, u, ga + 0.9), pt(b, u, gb + 0.9), pt(b, u2, gb + 0.9), pt(a, u2, ga + 0.9)], 0, P, true);
           }
         }
-        if (cov) {                                        // trần: mặt dưới bê tông, mặt trên là mặt phố (nhựa)
-          const w = HW + 0.3;
-          quad(B.conc, [pt(a, -w, ga - 0.6), pt(b, -w, gb - 0.6), pt(b, w, gb - 0.6), pt(a, w, ga - 0.6)], 0, P, false);
+        if (cov) {                                        // trần: nắp bê tông dày 1.5 m (đáy nắp ở ga − 1.5), mặt trên là mặt phố (nhựa)
+          const w = HW + 0.3, lid = 1.5;
+          quad(B.conc, [pt(a, -w, ga - lid), pt(b, -w, gb - lid), pt(b, w, gb - lid), pt(a, w, ga - lid)], 0, P, false);
           quad(B.top, [pt(a, -w, ga + 0.05), pt(b, -w, gb + 0.05), pt(b, w, gb + 0.05), pt(a, w, ga + 0.05)], 0, P, true, [[0, a / 12], [0, b / 12], [1, b / 12], [1, a / 12]]);
-          if (Math.round(s / STEP) % 6 === 0) for (const u of [-3.5, 3.5]) box(B.lamp, pt(a + 1, u, ga - 0.66), 0.25, 0.08, 1.4, P);   // đèn trần mỗi 12 m
+          if (Math.round(s / STEP) % 6 === 0) for (const u of [-3.5, 3.5]) box(B.lamp, pt(a + 1, u, ga - lid - 0.06), 0.25, 0.08, 1.4, P);   // đèn trần mỗi 12 m, ngay dưới đáy nắp
+          if (e(a - STEP) > NYC.roof) headWall(a, +1);    // cửa trước: đoạn kề trước hở
+          if (e(b + STEP) > NYC.roof) headWall(b, -1);    // cửa sau: đoạn kề sau hở
         }
       }
       // ---- cầu cạn: bản mặt cầu dày 1.1 m + lan can thép; dưới gầm đoạn cao là mặt phố (nhựa) + trụ đôi mỗi 24 m ----
@@ -154,7 +168,7 @@ const mk = () => ({ pos: [], nor: [], uv: [], idx: [] });
 // tứ giác: n = hướng pháp tuyến ngang (±1 theo vector phải của đường tại P, 0 = mặt nằm: up / down), tự lật cho đúng chiều
 function quad(B, V, n, P, up = true, uvs = null) {
   const rx = Math.cos(P.th), rz = -Math.sin(P.th);
-  const N = n ? [rx * n, 0, rz * n] : [0, up ? 1 : -1, 0];
+  const N = n ? (Array.isArray(n) ? n : [rx * n, 0, rz * n]) : [0, up ? 1 : -1, 0];
   const b = B.pos.length / 3;
   for (let i = 0; i < 4; i++) { B.pos.push(...V[i]); B.nor.push(...N); B.uv.push(...(uvs ? uvs[i] : [0, 0])); }
   const ax = V[1][0] - V[0][0], ay = V[1][1] - V[0][1], az = V[1][2] - V[0][2], bx = V[2][0] - V[0][0], by = V[2][1] - V[0][1], bz = V[2][2] - V[0][2];

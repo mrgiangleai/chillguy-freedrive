@@ -93,7 +93,7 @@ const rig = new CameraRig(camera);
 rig.groundAt = (x, z) => (nycCovered() ? drive.pos.y : Math.max(terrain.heightAt(x, z), ocean.group.visible ? ocean.level + 1.2 : -Infinity));   // không chui xuống đất / xuống nước; trong hầm: mặt đường
 // New York: xe đang trong / sát đoạn hầm có trần => camera ở dưới trần (mặt dưới trần thấp hơn mặt phố 0.6 m)
 const nycCovered = () => onNyc() && road.elevAt(drive.s) < NYC.roof + 1.2;
-rig.ceilAt = () => (nycCovered() ? road.street.at(drive.s, {}).y - 1.0 : Infinity);
+rig.ceilAt = () => (nycCovered() ? road.street.at(drive.s, {}).y - 1.9 : Infinity);
 // mắt người lái thật: xương đầu + 9 cm lên, 4 cm về sau (toạ độ thế giới)
 const _eyeF = new THREE.Vector3(), _eyeU = new THREE.Vector3();
 rig.eyeAt = (out) => {
