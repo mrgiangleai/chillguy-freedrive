@@ -656,8 +656,10 @@ export class City {
     };
     const UP = [0, 1, 0];
     // điểm trên đường chính: quãng s, lệch u, cao y so với mặt đường
-    const at = (s, u, y) => { const p = road.at(s, this._p); return [p.x + Math.cos(p.th) * u, p.y + y, p.z - Math.sin(p.th) * u]; };
-    const atR = (s, u, y) => { const p = this.road.at(s, this._p); return [p.x + Math.cos(p.th) * u, p.y + y, p.z - Math.sin(p.th) * u]; };
+    // Landmark: mọi chi tiết ngoài lòng đường đi theo mép nhựa co / nở; tim và vạch giữa giữ nguyên.
+    const fitU = (s, u) => this.street && Math.abs(u) > 3.8 ? u + Math.sign(u) * (this.road.hwAt(s) - HW) : u;
+    const at = (s, u, y) => { const p = road.at(s, this._p), v = fitU(s, u); return [p.x + Math.cos(p.th) * v, p.y + y, p.z - Math.sin(p.th) * v]; };
+    const atR = (s, u, y) => { const p = this.road.at(s, this._p), v = fitU(s, u); return [p.x + Math.cos(p.th) * v, p.y + y, p.z - Math.sin(p.th) * v]; };
     // dải dọc đường chính từ sA tới sB, ngang u0..u1 (lấy mẫu mỗi 2 m theo đường cong)
     const strip = (B, sA, sB, u0, u1, y, col, uvFn) => {
       if (sB <= sA) return;
@@ -674,6 +676,7 @@ export class City {
       const N = Math.max(1, Math.ceil((sB - sA) / 2));
       for (let i = 0; i < N; i++) {
         const a = sA + (sB - sA) * i / N, b = sA + (sB - sA) * (i + 1) / N;
+        if (this.street && Math.abs(Math.abs((u0 + u1) / 2) - 3.5) < 0.2 && this.road.laneCountAt((a + b) / 2) < 2) continue;
         quad(mark, [atR(a, u0, MARK_Y), atR(b, u0, MARK_Y), atR(b, u1, MARK_Y), atR(a, u1, MARK_Y)], UP, col);
       }
     };
@@ -877,7 +880,7 @@ export class City {
         const big = this.nyc ? 1.9 : 1;                          // New York: lô rộng / sâu hơn
         const w = Math.min(sEnd - s, (5 + 9 * r() * r() + 2 * r()) * big), d = (10 + 8 * r()) * (this.nyc ? 1.6 : 1);
         const p = road.at(s + w / 2, this._p);
-        const u = su * (FRONT + d / 2);
+        const u = su * (FRONT + d / 2 + (this.street ? this.road.hwAt(s + w / 2) - HW : 0));
         const x = p.x + Math.cos(p.th) * u, z = p.z - Math.sin(p.th) * u;
         const yaw = p.th + (su > 0 ? -Math.PI / 2 : Math.PI / 2);
         const type = pickType(true), shop = type !== 3 && r() < 0.8;
@@ -890,7 +893,7 @@ export class City {
           signs.push([x + cs * lx + sn * lz, z - sn * lx + cs * lz, yaw, g0 + 4.3, hs, Math.floor(r() * 16)]);
         }
         if (shop && h > 0 && !this.nyc && r() < 0.22) {
-          const sv = s + 0.8 + r() * Math.max(0.1, w - 1.6), pv = road.at(sv, this._q), uv = su * (HW + SW - 0.05);
+          const sv = s + 0.8 + r() * Math.max(0.1, w - 1.6), pv = road.at(sv, this._q), uv = su * ((this.street ? this.road.hwAt(sv) : HW) + SW - 0.05);
           vends.push([pv.x + Math.cos(pv.th) * uv, pv.y + WALK_Y, pv.z - Math.sin(pv.th) * uv, yaw]);
         }
         s += w + (r() < 0.3 ? 0.4 + r() * 1.2 : 0.05);
@@ -1033,14 +1036,14 @@ export class City {
       let k2 = k + 1, s2 = poleAt(k2);
       if (s2 === null) s2 = poleAt(++k2);
       for (const su of [-1, 1]) {
-        const u = su * (HW + 0.45);
+        const u = su * (this.road.hwAt(s) + 0.45);
         const p = road.at(s, this._p);
         poles.push([p.x + Math.cos(p.th) * u, p.y + WALK_Y, p.z - Math.sin(p.th) * u, p.th]);
         if (s2 === null) continue;
         const p2 = road.at(s2, this._q);
         for (const [du, y, sag] of [[-0.9, 9.66, 0.55], [0, 9.66, 0.55], [0.9, 9.66, 0.55], [-0.7, 10.46, 0.45], [0.7, 10.46, 0.45], [0.15, 6.3, 0.8]]) {
-          const ua = u + du;
-          const ax = p.x + Math.cos(p.th) * ua, az = p.z - Math.sin(p.th) * ua, bx = p2.x + Math.cos(p2.th) * ua, bz = p2.z - Math.sin(p2.th) * ua;
+          const ua = u + du, ub = su * (this.road.hwAt(s2) + 0.45) + du;
+          const ax = p.x + Math.cos(p.th) * ua, az = p.z - Math.sin(p.th) * ua, bx = p2.x + Math.cos(p2.th) * ub, bz = p2.z - Math.sin(p2.th) * ub;
           const ay = p.y + WALK_Y + y, by = p2.y + WALK_Y + y;
           const span = Math.hypot(bx - ax, bz - az), sg = sag * span / POLE_GAP;
           let px = ax, py = ay, pz = az;

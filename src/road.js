@@ -131,6 +131,7 @@ export class Road {
     this.avenue = false;          // map Đại lộ: cao tốc cong rất thoải (cả map Cao tốc HLG)
     this.real = null;             // map Cao tốc HLG: { step, heading[] } hướng đi thật theo s (dữ liệu OSM, `hlg.js`)
     this.loop = null;             // map New York: vòng khép kín (`nyc.js`): { length, step, x[], z[], heading[], turn, elev(s), junctions[] }
+    this.widths = null;           // map Landmark: đoạn đường hẹp theo s, đã sắp xếp sẵn
     // map New York: mặt phố (vỉa hè / nhà / người) ở cao độ "street" — khác mặt đường ở hầm / cầu cạn
     this.street = Object.create(this);
     this.street.at = (s, out = {}) => { this.at(s, out); out.y -= this.elevAt(s); return out; };
@@ -145,7 +146,29 @@ export class Road {
     real = kind === 'hlg' ? real : null;
     if (city === this.city && avenue === this.avenue && real === this.real && loop === this.loop) return;
     this.city = city; this.avenue = avenue; this.real = real; this.loop = loop;
+    this.widths = kind === 'sgn' && loop?.widths?.length ? loop.widths.slice().sort((a, b) => a.s0 - b.s0) : null;
     this.pts = [loop ? this._loopPt(0) : { x: 0, z: 0, y: 0 }];
+  }
+  // Nửa rộng và tâm làn theo s. Landmark thu / nở trong 25 m; map khác giữ nguyên hằng số cũ.
+  _widthValue(s, key, base) {
+    if (!this.widths) return base;
+    const L = this.loop.length, r = ((s % L) + L) % L, T = 25;
+    for (const w of this.widths) if (r >= w.s0 && r <= w.s1) {
+      const a = sst(w.s0, w.s0 + T, r), b = 1 - sst(w.s1 - T, w.s1, r);
+      return base + (w[key] - base) * Math.min(a, b);
+    }
+    return base;
+  }
+  hwAt(s) { return this._widthValue(s, 'hw', ROAD.halfWidth); }
+  laneAt(s, k = 1) {
+    const base = CITY.lanes[Math.min(k, CITY.lanes.length - 1)];
+    return this._widthValue(s, 'lane', base);
+  }
+  laneCountAt(s) {
+    if (!this.widths) return CITY.lanes.length;
+    const L = this.loop.length, r = ((s % L) + L) % L;
+    for (const w of this.widths) if (r >= w.s0 && r <= w.s1) return 1;
+    return CITY.lanes.length;
   }
   // ---- vòng khép kín (map New York): s bất kỳ ≥ 0, quấn theo chiều dài vòng ----
   _lf(s) { const L = this.loop, r = ((s % L.length) + L.length) % L.length, f = r / L.step, i = Math.min(L.x.length - 2, Math.floor(f)); return [i, f - i, Math.floor(s / L.length)]; }

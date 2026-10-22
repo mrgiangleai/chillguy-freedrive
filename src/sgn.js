@@ -35,7 +35,7 @@ let LOOP = null;
 export function sgnLoop() {
   if (LOOP) return LOOP;
   LOOP = { loop: true, length: DATA.length, step: DATA.step, x: DATA.x, z: DATA.z, heading: DATA.heading, turn: Math.round(DATA.turn / (2 * Math.PI)) * 2 * Math.PI,
-    elev: sgnElev(), keys: elevKeys(), roof: SGN.roof, junctions: DATA.junctions, corners: DATA.corners, streets: DATA.streets };
+    elev: sgnElev(), keys: elevKeys(), roof: SGN.roof, junctions: DATA.junctions, corners: DATA.corners, streets: DATA.streets, widths: DATA.widths };
   return LOOP;
 }
 // khu vực tại s (đoạn cố định dọc tuyến, '' = ngoài các khu có tên)

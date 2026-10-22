@@ -233,7 +233,7 @@ export class Terrain {
     const h0 = h;                                                 // độ cao tự nhiên (trước khi xẻ theo đường)
     if (near) {
       this._d = this._nd; this._s = this._ns;
-      const t = sstep(CARVE0, CARVE1, this._nd);
+      const hw = this.road.hwAt(this._ns), t = sstep(hw + 1.2, hw + 16, this._nd);
       const ry = this._ny - 0.02;
       h = ry + (h - ry) * t;
       // map núi: chân vách sát lề cũng lồi lõm (khối đá nhô ra ngay sau lề phẳng; không đào rãnh xuống thấp hơn mặt đường)

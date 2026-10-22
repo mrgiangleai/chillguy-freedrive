@@ -432,8 +432,8 @@ export class Scenery {
     for (let i = 0; i <= N; i++) {
       const s = s0 + i * STEP;
       road.at(s, p);
-      const rx = Math.cos(p.th), rz = -Math.sin(p.th), y = p.y + 0.05;
-      pos.set([p.x - rx * HW, y, p.z - rz * HW, p.x + rx * HW, y, p.z + rz * HW], i * 6);
+      const rx = Math.cos(p.th), rz = -Math.sin(p.th), y = p.y + 0.05, hw = road.hwAt(s);
+      pos.set([p.x - rx * hw, y, p.z - rz * hw, p.x + rx * hw, y, p.z + rz * hw], i * 6);
       uv.set([0, s / 12, 1, s / 12], i * 4);
       nor.set([0, 1, 0, 0, 1, 0], i * 6);
       const dk = road.dirtAt(s);
@@ -505,7 +505,7 @@ export class Scenery {
       if (road.elevAt(s) < -0.3) continue;            // New York: không đặt đèn đường trong hầm (trên cầu cạn: đặt trên bản mặt cầu)
       road.at(s, p);
       const side = this.map === 'mountain' ? -1 : (Math.round(s / lampGap) % 2) ? 1 : -1;
-      const off = HW + (city ? 0.9 : this.map === 'avenue' ? 1.0 : 1.4);
+      const off = road.hwAt(s) + (city ? 0.9 : this.map === 'avenue' ? 1.0 : 1.4);
       const x = p.x + Math.cos(p.th) * off * side;
       const z = p.z - Math.sin(p.th) * off * side;
       // tay đòn hướng về tim đường: side=+1 (bên phải) => local -x => yaw = th ; bên trái => xoay thêm PI

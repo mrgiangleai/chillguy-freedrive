@@ -114,11 +114,12 @@ export class CityPeople {
   set ambient(v) { if (v !== this._amb) { this.peds.length = 0; this.filled = false; this.timers.clear(); } this._amb = v; }
   get ambient() { return this._amb ?? true; }
   get visible() { return this.group.visible; }
+  // mép đường tại s: map Landmark co / nở theo đoạn (road.widths); map khác giữ CITY.hw như cũ (kể cả Đại lộ)
+  _hw(s) { return this.road.widths ? this.road.hwAt(s) : CITY.hw; }
 
   _walker(s, side, dir) {
-    const HW = CITY.hw;
-    const r = Math.random();
-    return { s, u: side * (HW + 1.0 + Math.random() * 2.6), vs: 0, vu: 0, dir, speed: 1.1 + Math.random() * 0.5, mode: 'walk',
+    const off = 1.0 + Math.random() * 2.6, r = Math.random();
+    return { s, u: side * (this._hw(s) + off), walkOff: off, vs: 0, vu: 0, dir, speed: 1.1 + Math.random() * 0.5, mode: 'walk',
       ph: Math.random() * 6.28, color: SHIRTS[Math.floor(Math.random() * SHIRTS.length)], acc: r < 0.16 ? 2 : r < 0.3 ? 1 : 0, cool: 5 * Math.random() };
   }
   // người kịch bản tại (s, u), loại officer | medic | driver
@@ -135,7 +136,7 @@ export class CityPeople {
 
   // tai nạn tại (s, u): tối đa max người đi bộ trong 45 m đi tới đứng quanh hiện trường trên vỉa hè phía mình, nhìn về đó
   gather(s, u, max = 9) {
-    const HW = CITY.hw, road = this.road;
+    const road = this.road;
     const cand = this.peds.filter((p) => (p.mode === 'walk' || p.mode === 'wait') && !p.crossing && Math.abs(p.s - s) < 45)
       .sort((a, b) => Math.abs(a.s - s) - Math.abs(b.s - s)).slice(0, max);
     for (const p of cand) {
@@ -144,7 +145,7 @@ export class CityPeople {
       const J = road.nearJunction(ts);                                  // không đứng giữa miệng đường ngang
       if (J !== null && Math.abs(ts - J) < CITY.side + 0.8) ts = J + Math.sign(ts - J || 1) * (CITY.side + 0.8 + Math.random());
       p.mode = 'watch'; p.chatT = 0; p.pauseT = 0; p.mate = null;
-      p.target = [ts, side * (HW + 0.5 + Math.random() * 2.4)]; p.path = null;
+      p.target = [ts, side * (this._hw(ts) + 0.5 + Math.random() * 2.4)]; p.path = null;
       p.look = [s, u]; p.speed = 1.2 + Math.random() * 0.5;
       p.acc0 = p.acc; if (p.acc !== 2 && Math.random() < 0.3) p.acc = 2;   // giơ điện thoại quay
     }
@@ -191,7 +192,7 @@ export class CityPeople {
 
   update(dt, s) {
     if (!this.group.visible) return;
-    const road = this.road, city = this.city, HW = CITY.hw, amb = this.ambient;
+    const road = this.road, city = this.city, amb = this.ambient;
     if (amb && !this.filled) {
       this.filled = true;
       for (let i = 0; i < this.walkers; i++) this.peds.push(this._walker(s - BEHIND + Math.random() * (AHEAD + BEHIND), Math.random() < 0.5 ? -1 : 1, Math.random() < 0.5 ? -1 : 1));
@@ -210,7 +211,7 @@ export class CityPeople {
         tm = 4 + Math.random() * 7;
         const J = road.junction(n), sa = Math.random() < 0.5 ? -1 : 1, su = Math.random() < 0.5 ? -1 : 1;
         const p = this._walker(J + sa * (6.9 + Math.random() * 3), su, 1);
-        p.u = su * (HW + 0.75 + Math.random() * 0.5); p.mode = 'wait'; p.n = n; p.side = su; p.crossing = true;
+        p.u = su * (this._hw(J) + 0.75 + Math.random() * 0.5); p.mode = 'wait'; p.n = n; p.side = su; p.crossing = true;
         this.peds.push(p);
       }
       this.timers.set(n, tm);
@@ -219,6 +220,7 @@ export class CityPeople {
 
     for (const p of this.peds) {
       let vs = 0, vu = 0;
+      const pHW = this._hw(p.s);
       if (p.mode === 'script') {
         if (p.target) {
           const ds = p.target[0] - p.s, du = p.target[1] - p.u, L = Math.hypot(ds, du);
@@ -256,9 +258,9 @@ export class CityPeople {
         }
         if (p.mode === 'cross') {
           vu = -p.side * p.speed * (p.jaywalk ? 1.35 : 1) * 1.15;
-          if (p.u * p.side < -(HW + 0.9)) {
+          if (p.u * p.side < -(pHW + 0.9)) {
             p.crossing = false; p.mode = 'walk'; p.jaywalk = false; p.jay = undefined;
-            p.u = -p.side * (HW + 1.2 + Math.random() * 2); p.dir = Math.random() < 0.5 ? -1 : 1;
+            p.walkOff = 1.2 + Math.random() * 2; p.u = -p.side * (pHW + p.walkOff); p.dir = Math.random() < 0.5 ? -1 : 1;
           }
         }
       } else {
@@ -270,6 +272,7 @@ export class CityPeople {
         const stopHere = dist > 0 && dist < 1.2 && city._phase(n).main !== 0;
         p.mode = stopHere ? 'wait' : 'walk';
         if (!stopHere) vs = p.dir * p.speed;
+        if (p.walkOff && road.widths) p.u += ((Math.sign(p.u) || 1) * (pHW + p.walkOff) - p.u) * Math.min(1, dt * 4);
         if (p.acc === 2 && !stopHere && Math.random() < dt * 0.04) p.pauseT = 3 + Math.random() * 6;
       }
       if (p.cool > 0) p.cool -= dt;
@@ -302,7 +305,7 @@ export class CityPeople {
     for (const p of this.peds) {
       if (i >= MAX) break;
       road.at(p.s, P);
-      const onWalk = amb && Math.abs(p.u) > CITY.hw && road.nearJunction(p.s) !== null && Math.abs(p.s - road.nearJunction(p.s)) > CITY.side;
+      const onWalk = amb && Math.abs(p.u) > this._hw(p.s) && road.nearJunction(p.s) !== null && Math.abs(p.s - road.nearJunction(p.s)) > CITY.side;
       const y = (this.yAt ? this.yAt(p.s, p.u, P.y) : P.y) + (onWalk ? 0.2 : 0.05);   // Đại lộ: nhánh rẽ ở cao độ nền; New York: vỉa hè ở mặt phố
       const rx = Math.cos(P.th), rz = -Math.sin(P.th), fx = -Math.sin(P.th), fz = -Math.cos(P.th);
       const h = p.head ?? (p.mode === 'wait' && p.crossing ? (p.side > 0 ? -Math.PI / 2 : Math.PI / 2) : 0);

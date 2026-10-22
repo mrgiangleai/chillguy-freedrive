@@ -119,10 +119,11 @@ const stop = new StopScene(cars, person);
 const avLowY = (s, u) => (onAvenue() && Math.abs(u) > AVENUE.hw + 0.3 && Math.abs(s - icS(icIndex(s))) < IC.rampLen + 20 ? road.baseY(s) : null);
 stop.groundAt = (x, z) => {
   const rp = roadPosition({ x, z }, road, drive.s), p = road.at(rp.s, {}), a = Math.abs(rp.d);
-  if (a <= ROAD.halfWidth) return p.y + 0.05;
+  const hw = road.hwAt(rp.s);
+  if (a <= hw) return p.y + 0.05;
   const low = avLowY(rp.s, rp.d);
   if (low !== null) return low + 0.05;
-  if (mapKind(MAPS[state.map].id) === 'city' && a <= CITY.hw + CITY.walk + 0.4) {
+  if (mapKind(MAPS[state.map].id) === 'city' && a <= hw + CITY.walk + 0.4) {
     const j = road.nearJunction(rp.s);
     return road.street.at(rp.s, {}).y + (Math.abs(rp.s - j) < CITY.side ? 0.05 : 0.2);   // New York: vỉa hè ở mặt phố (hầm / cầu cạn)
   }
@@ -1814,11 +1815,12 @@ function frame(now) {
   if (steer !== 0) lastSteerT = now;
   nycAuto();
   sgnAuto();
+  if (onSgn() && !drive.manual) drive.home = Math.sign(drive.d || 1) * road.laneAt(drive.s, 1);
   const lane = traffic.ctrl.lane ?? drive.home;
   const wantLat = stop.active ? 0 : steer !== 0 ? steer * (2.2 + drive.v * 0.06) : (lane - drive.d) * 0.8 * Math.min(1, drive.v / 3);
   drive.latVel += (wantLat - drive.latVel) * (1 - Math.exp(-dt * 5));
   drive.d += drive.latVel * dt;
-  const lim = ROAD.halfWidth - 0.9;
+  const lim = road.hwAt(drive.s) - 0.9;
   if (Math.abs(drive.d) > lim && drive.ramp == null) { drive.d = Math.sign(drive.d) * lim; drive.latVel = 0; }
   if (onAvenue() && drive.d < AVENUE.median + 1.25) { drive.d = AVENUE.median + 1.25; drive.latVel = Math.max(0, drive.latVel); }   // đại lộ: không qua dải phân cách
   // đại lộ: lái sang phải quá vạch mép ngoài ở đoạn làn giảm tốc trước nút giao => vào nhánh ra, đi xuống đường ngang dưới cầu,
