@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -446,6 +446,12 @@
   - **Nhánh worker CHƯA gộp**: `worker/debug-20261022-190719` — bậc lùi (`src/bld/tiers.js`), gờ mái (`cornice.js`), bồn nước + máy + ăng-ten (`roof.js`)
     trong `nycBuildings._build`. Codex đo: dựng 73 → 1 581 ms, tam giác 141k → 428k, 16 → 44 MB => QUÁ NẶNG. Định sửa: gờ mái + đồ trên mái chỉ cho
     nhà gần tuyến (< ~80 m), cache tiers. Chú CHƯA chốt giữ bồn nước — hỏi lại. Nhánh này tách trước bản tòa nổi tiếng => gộp cẩn thận `nycBuildings.js`.
+  - **Việc chú duyệt 23/10/2026, CHƯA làm** (đề sẵn ở scratchpad `tasks/yield.md, props.md, sidecam.md` — mất khi hết phiên, ý chính ở đây):
+    (a) xe NPC (đường chính + ngang) phanh nhường người đi bộ trong làn (kể cả đám đông Times Square), ~10 % người băng qua khi đỏ
+    (xe đang đi xuyên qua người); (b) hơi nước nắp cống + xe bán đồ ăn + Koreatown 32 St (biển chữ Hàn dọc); (c) camera Bên hông bị biển
+    LED Times Square che: thêm hộp biển vào `city.extraObb` cho `collide`; (d) HLG: tên đường cắt ngang nút giao (`cross` null) + sông / lạch
+    cắt chéo đúng góc. Chú bỏ: đồ trên mái (đã xoá `src/bld` + nhánh), Mazda chưa cần. Máy thật đã mượt (tài nguyên lưu sẵn) — máy ảo chỉ để xem
+    gần (`RANGE=`), không phụ thuộc thời tiết / giờ.
   - opencode DeepSeek free hết lượt 23/10/2026 sáng (thử lại sau ~7 giờ); khi hết thì Claude tự làm việc đã rõ, hỏi chú trước khi dùng credit API.
   - **Đã gộp + push**: nắp hầm dày 1.5 m + tường đầu 2 cửa hầm (GLM), bóng nắng xa (DeepSeek; nay là ÁNH SÁNG DÙNG CHUNG mọi map, nút "Bóng nắng xa"
     ở bảng Lighting mục "Nắng", `chilldrive.farShadow`, mặc định tắt; Codex review → sửa nhớ / trả cỡ bóng theo chất lượng). Chú tự thử.
@@ -489,3 +495,4 @@
 - **#3 — Kính ướt khi mưa (23/10/2026)**: `src/wetGlass.js` (xem mục 3), gắn mặt tiền kính New York / Times Square. `shot-nyc.mjs` đặt lại thời tiết trước mỗi ảnh
   (New York có thời tiết Tự động). Build + check-nyc / buildings / landmark-roads PASS; chưa xem hình.
 - **#4 — Kính ướt bản nhẹ (23/10/2026)**: bỏ vệt nước chảy (không tới sát tòa nên không thấy), giữ kính tối + bóng khi mưa. One Times Square bị biển che kín — không cần kính.
+- **#5 — Dọn mái nhà + xếp việc (23/10/2026)**: xoá `src/bld` (bậc lùi / gờ mái / bồn nước chưa ghép) + nhánh worker; 4 việc chú duyệt ghi ở mục 5 — chưa làm vì mọi model free opencode hết lượt.
