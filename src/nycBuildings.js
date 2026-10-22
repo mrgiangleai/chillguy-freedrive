@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { hLow } from './terrain-noise.js';
 import { withMist } from './mist.js';
+import { obbHit, SIDE_EXTRA } from './nycNet.js';
 import { facadeTex } from './timesSquare.js';
 import { NYC } from './nyc.js';
 import { CITY } from './road.js';
@@ -31,6 +32,8 @@ export class NycBuildings {
     this.ts = ts; this.road = road;
     this.group = new THREE.Group(); this.group.visible = false; scene.add(this.group);
     this.state = 'idle'; this.obb = [];
+    this.lmRects = [];                                   // khung tòa nổi tiếng (dùng chung với nycNet)
+    this.rectsReady = new Promise((res) => { this._rectsOK = res; });
     const [map, em] = facadeTex(4);
     this.brick = withMist(new THREE.MeshStandardMaterial({ map, emissiveMap: em, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.85 }));
     this.roof = withMist(new THREE.MeshStandardMaterial({ color: 0x4a4c4f, roughness: 0.9 }));
@@ -45,20 +48,22 @@ export class NycBuildings {
   async _load() {
     this.state = 'loading';
     try {
-      const r = await fetch('assets/nyc-buildings.json');
-      const D = await r.json();
-      this._landmarks(D.lm || {});
+      const [D, NS] = await Promise.all([fetch('assets/nyc-buildings.json').then((r) => r.json()),
+        fetch('assets/nyc-streets.json').then((r) => r.json()).catch(() => null)]);
+      this._landmarks(D.lm || {}, NS && NS.s);
+      this._rectsOK(this.lmRects);                         // nycNet chờ khung tòa để cắt phố đi bộ dưới chân tòa
       this.foot = D.b;                                    // footprint cho bản đồ tròn
       this._build(D.b);
       this.state = 'ready';
       if (this.onReady) this.onReady();
-    } catch (e) { console.warn('nyc-buildings', e); this.state = 'idle'; }
+    } catch (e) { console.warn('nyc-buildings', e); this._rectsOK(this.lmRects || []); this.state = 'idle'; }
   }
 
-  // đặt model tòa nổi tiếng (vertex colors). Empire State, Chrysler: toạ độ thật (dữ liệu `lm`); MetLife, Helmsley: theo cầu cạn
-  // (Helmsley: cầu cạn chạy xuyên cổng phía đông — cổng ở x = +9 của model; MetLife: bên trái cầu cạn ngay trước Helmsley)
-  _landmarks(lm) {
+  // `streets` = docs/assets/nyc-streets.json (`s`): phố xe (type 0) phải tránh; phố đi bộ (type 1, kể cả vòng kín) do nycNet cắt
+  // mảnh dưới chân tòa (tòa đứng trên quảng trường riêng). Không tìm được chỗ: bỏ tòa (không đặt lên phố) + console.warn.
+  _landmarks(lm, streets) {
     this.lmRects = [];
+    this.lmStats = { moved: [], scaled: [], skipped: [] };
     const road = this.road.street, L = NYC.length, P = {}, D = NYC.data, HW = CITY.hw;
     const thG = D.heading[Math.round(4100 / D.step)];                // trục lưới phố (Park Ave hướng bắc)
     const mat = withMist(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.15 }));
@@ -72,16 +77,93 @@ export class NycBuildings {
       const { g, hx: GX, hz: GZ } = geo(name), X = 2 * GX * sx, Z = 2 * GZ * sz;
       const m = new THREE.Mesh(g, mat); m.position.set(x, hLow(x, z) - 0.3, z); m.rotation.y = yaw; m.scale.set(sx, 1, sz); m.castShadow = m.receiveShadow = true;
       this.group.add(m);
-      const c = Math.cos(yaw), s = Math.sin(yaw), hx = X / 2 + 4, hz = Z / 2 + 4;
-      this.lmRects.push((px, pz) => { const ex = px - x, ez = pz - z; return Math.abs(ex * c - ez * s) < hx && Math.abs(ex * s + ez * c) < hz; });
+      // khung chính xác (nửa rộng hx × hz); mặc định nới 4 m khi dò nhà OSM (chừa tường), phố dò với 0.5 m
+      const c = Math.cos(yaw), s = Math.sin(yaw), hx = X / 2, hz = Z / 2;
+      const f = (px, pz, mg = 4) => { const ex = px - x, ez = pz - z; return Math.abs(ex * c - ez * s) < hx + mg && Math.abs(ex * s + ez * c) < hz + mg; };
+      f.lm = name; f.rect = [x, z, c, s, hx, hz];
+      this.lmRects.push(f);
       this.obb.push(x, z, c, s, X / 2, Z / 2, hLow(x, z) + 60);
+      return f;
     };
+    // phố xe nycNet: mảnh ≤ 2 m (tim, hướng, nửa dài, nửa bề rộng) trong lưới ô 20 m; phố đi bộ không cần tránh (nycNet cắt)
+    const CELLS = 20, grid = new Map(), segs = [];
+    for (const rec of streets || []) {
+      const pts = rec && rec[3];
+      if (!pts || pts.length < 4 || rec[1] === 1) continue;
+      const hw = rec[0] / 2 + SIDE_EXTRA - 1;               // lòng đường + vỉa hè nycNet vẽ; tòa được lấn 1 m mép ngoài vỉa hè
+      for (let i = 0; i + 3 < pts.length; i += 2) {
+        const X0 = pts[i], Z0 = pts[i + 1], X1 = pts[i + 2], Z1 = pts[i + 3], n = Math.max(1, Math.ceil(Math.hypot(X1 - X0, Z1 - Z0) / 2));
+        for (let q = 0; q < n; q++) {
+          const ax = X0 + (X1 - X0) * q / n, az = Z0 + (Z1 - Z0) * q / n, bx = X0 + (X1 - X0) * (q + 1) / n, bz = Z0 + (Z1 - Z0) * (q + 1) / n;
+          const dx = bx - ax, dz = bz - az, sl = Math.hypot(dx, dz) || 1;
+          const id = segs.push([(ax + bx) / 2, (az + bz) / 2, dx / sl, dz / sl, sl / 2, hw]) - 1;
+          const e = Math.max(hw, sl / 2) + 1;
+          for (let gx = Math.floor((ax - e) / CELLS); gx <= Math.floor((ax + e) / CELLS); gx++)
+            for (let gz = Math.floor((az - e) / CELLS); gz <= Math.floor((az + e) / CELLS); gz++) {
+              const k = gx + '|' + gz, a = grid.get(k);
+              if (a) { if (a[a.length - 1] !== id) a.push(id); } else grid.set(k, [id]);
+            }
+        }
+        if (i > 0) {                                         // đĩa nối ở đỉnh gấp khúc (nycNet vẽ) — coi là ô vuông ±hw như script kiểm
+          const id = segs.push([X0, Z0, 1, 0, hw, hw]) - 1;
+          for (let gx = Math.floor((X0 - hw - 1) / CELLS); gx <= Math.floor((X0 + hw + 1) / CELLS); gx++)
+            for (let gz = Math.floor((Z0 - hw - 1) / CELLS); gz <= Math.floor((Z0 + hw + 1) / CELLS); gz++) {
+              const k = gx + '|' + gz, a = grid.get(k);
+              if (a) a.push(id); else grid.set(k, [id]);
+            }
+        }
+      }
+    }
+    // khung tòa có đè lòng phố xe không (nới `clear` m); phố đã cắt mảnh 2 m nên dò theo lưới là đủ
+    let SEGS = null;                                           // mảnh phố quanh tòa đang dò (lọc 1 lần / tòa), null = dò theo lưới
+    const nearSegs = (x, z, r) => {
+      const ids = new Set();
+      for (let i = Math.floor((x - r) / CELLS); i <= Math.floor((x + r) / CELLS); i++)
+        for (let j = Math.floor((z - r) / CELLS); j <= Math.floor((z + r) / CELLS); j++) for (const id of grid.get(i + '|' + j) || []) ids.add(id);
+      SEGS = [...ids].map((id) => segs[id]).sort((a, b) => (a[0] - x) ** 2 + (a[1] - z) ** 2 - (b[0] - x) ** 2 - (b[1] - z) ** 2);   // gần trước => chạm sớm, dừng sớm
+    };
+    const streetClear = (x, z, c, sn, hx, hz, clear = 0.6) => {
+      const rb = Math.hypot(hx, hz) + clear;
+      if (SEGS) {
+        for (const s of SEGS) {
+          const dx = s[0] - x, dz = s[1] - z, rr = rb + Math.hypot(s[4], s[5]);
+          if (dx * dx + dz * dz > rr * rr) continue;
+          if (obbHit(x, z, c, sn, hx, hz, s[0], s[1], s[2], -s[3], s[4], s[5], clear)) return false;
+        }
+        return true;
+      }
+      const R = rb + 16, i0 = Math.floor((x - R) / CELLS), i1 = Math.floor((x + R) / CELLS), j0 = Math.floor((z - R) / CELLS), j1 = Math.floor((z + R) / CELLS);
+      for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+        const a = grid.get(i + '|' + j); if (!a) continue;
+        for (const id of a) {
+          const s = segs[id], dx = s[0] - x, dz = s[1] - z, rr = rb + Math.hypot(s[4], s[5]);
+          if (dx * dx + dz * dz > rr * rr) continue;                     // xa hẳn: bỏ qua phép OBB (đắt)
+          if (obbHit(x, z, c, sn, hx, hz, s[0], s[1], s[2], -s[3], s[4], s[5], clear)) return false;
+        }
+      }
+      return true;
+    };
+    const boxes = [];                                        // tòa đã đặt: [x, z, c, sn, hx, hz] — không chồng nhau
+    const freeOf = (x, z, c, sn, hx, hz, gap = 0) => !boxes.some((b) => obbHit(x, z, c, sn, hx, hz, b[0], b[1], b[2], b[3], b[4], b[5], gap));
     // toạ độ thật; lấn vỉa hè / đường (mép nhà gần tim đường hơn mép vỉa hè) thì đẩy ra xa từng 2 m theo hướng từ điểm đường gần nhất
-    const FRONT = HW + CITY.walk + 0.4, RQ = {};
-    for (const [name, rot, sx] of REAL) {
+    const FRONT = HW + CITY.walk + 0.4, RQ = {}, ROUTE = [];
+    for (let t = 0; t < L; t += 4) { road.at(L + t, RQ); ROUTE.push(RQ.x, RQ.z); }
+    let NEAR = ROUTE;                                         // điểm tuyến gần tòa đang dò (lọc 1 lần / tòa cho nhanh)
+    const nearRoute = (x, z, r) => { NEAR = []; for (let i = 0; i < ROUTE.length; i += 2) if ((ROUTE[i] - x) ** 2 + (ROUTE[i + 1] - z) ** 2 < r * r) NEAR.push(ROUTE[i], ROUTE[i + 1]); };
+    const routeClear = (x, z, c, sn, hx, hz) => {              // giữ FRONT so với tim tuyến (mọi cao độ, như bản cũ)
+      const ROUTE = NEAR;
+      for (let i = 0; i < ROUTE.length; i += 2) {
+        const ex = ROUTE[i] - x, ez = ROUTE[i + 1] - z, lx = ex * c - ez * sn, lz = ex * sn + ez * c;
+        const dx = Math.max(0, Math.abs(lx) - hx), dz = Math.max(0, Math.abs(lz) - hz);
+        if (dx * dx + dz * dz < FRONT * FRONT) return false;
+      }
+      return true;
+    };
+    for (const [name, rot, sx0] of REAL) {
       if (!lm[name]) continue;
-      let [x, z] = lm[name];
-      const yaw = thG + rot, c = Math.cos(yaw), sn = Math.sin(yaw), hx = geo(name).hx * sx, hz = geo(name).hz;
+      const [rx, rz] = lm[name];
+      let x = rx, z = rz;
+      const yaw = thG + rot, c = Math.cos(yaw), sn = Math.sin(yaw), hx = geo(name).hx * sx0, hz = geo(name).hz;
       for (let it = 0; it < 15; it++) {
         let bd = Infinity, bx = 0, bz = 0;
         for (let t = 0; t < L; t += 3) {
@@ -93,9 +175,41 @@ export class NycBuildings {
         if (bd >= FRONT) break;
         const nl = Math.hypot(x - bx, z - bz) || 1; x += (x - bx) / nl * 2; z += (z - bz) / nl * 2;
       }
-      place(name, x, z, yaw, 1, sx);
-      (this._real = this._real || []).push([x, z, hx, hz]);    // Grand Central / MetLife dò chỗ tránh các tòa này
+      // còn đè phố xe / chồng tòa khác: dời quanh toạ độ thật (lấy chỗ gần nhất), rồi mới thu nhỏ dần;
+      // không có chỗ thì dùng vị trí đã đẩy khỏi làn tuyến (giữ luật FRONT cũ), cuối cùng mới bỏ tòa.
+      // Seagram: nới bán kính dò 40 m, thu tới 0.7. Macy's: model 140 × 115 m sâu hơn hẳn khối phố thật 34–35 St (~60 m)
+      // => cho thu riêng từng trục (0.4–1, giữ trục kia ≥ 0.8), thử theo diện tích giảm dần.
+      // thu đều tới 0.8; chưa được thì thu riêng 1 trục tới 0.5 (trục kia ≥ 0.8) — khối phố Midtown chỉ sâu ~60 m giữa 2 phố ngang
+      // (Macy's 140 × 115 m, Waldorf / Seagram có quảng trường) — thử theo diện tích giảm dần
+      const RMAX = 40, KS = [];
+      for (let k = 1; k >= 0.799; k -= 0.05) KS.push([k, k]);
+      const AX = [];
+      const AMIN = name === 'macys' ? 0.35 : 0.5;              // Macy's: model sâu 115 m, khối 34–35 St trừ vỉa hè chỉ ~44 m
+      for (let a = 0.95; a >= AMIN - 1e-6; a -= 0.05) for (let b = 1; b >= 0.799; b -= 0.05) if (a < b - 1e-6) AX.push([a, b], [b, a]);
+      AX.sort((p, q) => q[0] * q[1] - p[0] * p[1]);
+      KS.push(...AX);
+      nearRoute(rx, rz, RMAX + Math.hypot(hx, hz) + FRONT + 4);
+      nearSegs(rx, rz, RMAX + Math.hypot(hx, hz) + 20);
+      let pick = null, bestD = Infinity;
+      for (const [kx, kz] of KS) {
+        const HX = hx * kx, HZ = hz * kz;
+        const fit = (px, pz) => freeOf(px, pz, c, sn, HX, HZ) && routeClear(px, pz, c, sn, HX, HZ) && streetClear(px, pz, c, sn, HX, HZ);
+        for (let r = 0; r <= RMAX && !pick; r += 2) for (let a = 0; a < 24; a++) {
+          if (!r && a) break;
+          const t = a * Math.PI / 12, px = rx + Math.cos(t) * r, pz = rz + Math.sin(t) * r;
+          if (fit(px, pz)) { pick = [px, pz, kx, kz]; bestD = r; break; }
+        }
+        if (pick) break;
+      }
+      if (!pick && streetClear(x, z, c, sn, hx, hz) && freeOf(x, z, c, sn, hx, hz)) { pick = [x, z, 1, 1]; bestD = Math.hypot(x - rx, z - rz); }
+      if (!pick) { console.warn(`nyc-landmarks: không có chỗ đặt ${name} (không đè phố) — bỏ tòa`); this.lmStats.skipped.push(name); continue; }
+      const [px, pz, kx, kz] = pick;
+      if (bestD > 0.5) this.lmStats.moved.push([name, +bestD.toFixed(1)]);
+      if (kx < 0.999 || kz < 0.999) this.lmStats.scaled.push([name, kx === kz ? +kx.toFixed(2) : `${kx.toFixed(2)}×${kz.toFixed(2)}`]);
+      place(name, px, pz, yaw, kz, sx0 * kx);
+      boxes.push([px, pz, c, sn, hx * kx, hz * kz]);
     }
+    NEAR = ROUTE; SEGS = null;
     const pas = D.passages[0];
     if (pas) {
       // Helmsley: cầu cạn chạy xuyên cổng đông (x ∈ [2, 16] của model). Đoạn qua tòa nhà thật lượn ~60° => đặt ở đoạn thẳng ngay trước
@@ -116,27 +230,44 @@ export class NycBuildings {
               if (Math.abs(lz) < half + 1 && (lx < 2 * SX + 0.2 || lx > 16 * SX - 0.2)) ok = false;
             }
           }
-          if (ok) { place('helmsley', x, z, th, sz, SX); this._helm = [x, z, geo('helmsley').hx * SX, geo('helmsley').hz * sz]; break helm; }
+          const hx = geo('helmsley').hx * SX;
+          if (ok && streetClear(x, z, cs, sn, hx, half)) {
+            const f = place('helmsley', x, z, th, sz, SX);
+            f.portal = [x, z, cs, sn, 2 * SX, 16 * SX, half];                // cổng: tuyến xuyên qua theo thiết kế (miễn trừ khi kiểm)
+            this._helm = [x, z, hx, half];
+            boxes.push([x, z, cs, sn, hx, half]);
+            break helm;
+          }
         }
       }
+      if (!this._helm) { console.warn('nyc-landmarks: không có chỗ đặt helmsley (không đè phố) — bỏ tòa'); this.lmStats.skipped.push('helmsley'); }
       // Grand Central (mặt chính −Z quay về nam / 42 St => yaw + π) rồi MetLife phía bắc: dò chỗ bên trái đoạn cầu cạn chạy dọc nhà ga sao cho
-      // mép đường (±HW) không chạm footprint (nới 1 m) và 2 tòa không chồng nhau
-      const Q = {}, put = [...(this._helm ? [this._helm] : []), ...(this._real || [])];
+      // mép đường (±HW) không chạm footprint (nới 1 m) và không chồng tòa khác
+      const Q = {};
       const clear = (x, z, th, hx, hz) => {
         const c = Math.cos(th), sn = Math.sin(th);
         for (let t = pas.s0 - 420; t < pas.s1 + 40; t += 2) { road.at(L + t, Q); for (const u of [-HW, 0, HW]) {
           const ex = Q.x + Math.cos(Q.th) * u - x, ez = Q.z - Math.sin(Q.th) * u - z;
           if (Math.abs(ex * c - ez * sn) < hx + 1 && Math.abs(ex * sn + ez * c) < hz + 1) return false; } }
-        for (const [px, pz, phx, phz] of put) { const ex = px - x, ez = pz - z; if (Math.abs(ex * c - ez * sn) < hx + phx + 2 && Math.abs(ex * sn + ez * c) < hz + phz + 2) return false; }
-        return true;
+        return freeOf(x, z, c, sn, hx, hz, 2) && streetClear(x, z, c, sn, hx, hz) && routeClear(x, z, c, sn, hx, hz);
       };
       for (const [name, d0, d1, flip] of [['grandcentral', 110, 220, Math.PI], ['metlife', 40, 200, 0]]) {
-        const X = 2 * geo(name).hx, Z = 2 * geo(name).hz;
-        search: for (let ds = d0; ds <= d1; ds += 5) for (let ex = 0; ex <= 40; ex += 5) {
-          road.at(L + pas.s0 - ds, P);
-          const o = HW + 1.5 + X / 2 + ex, x = P.x - Math.cos(P.th) * o, z = P.z + Math.sin(P.th) * o;
-          if (clear(x, z, P.th, X / 2, Z / 2)) { place(name, x, z, P.th + flip); put.push([x, z, X / 2, Z / 2]); break search; }
+        const X0 = 2 * geo(name).hx, Z0 = 2 * geo(name).hz;
+        let done = false;
+        for (let n = 0; n <= 2 && !done; n++) {
+          const k = 1 - n * 0.1;
+          const X = X0 * k, Z = Z0 * k;
+          search: for (let ds = d0; ds <= d1; ds += 5) for (let ex = 0; ex <= 40; ex += 5) {
+            road.at(L + pas.s0 - ds, P);
+            const o = HW + 1.5 + X / 2 + ex, x = P.x - Math.cos(P.th) * o, z = P.z + Math.sin(P.th) * o;
+            if (!clear(x, z, P.th, X / 2, Z / 2)) continue;
+            place(name, x, z, P.th + flip, k, k);
+            boxes.push([x, z, Math.cos(P.th + flip), Math.sin(P.th + flip), X / 2, Z / 2]);
+            if (k < 0.999) this.lmStats.scaled.push([name, +k.toFixed(2)]);
+            done = true; break search;
+          }
         }
+        if (!done) { console.warn(`nyc-landmarks: không có chỗ đặt ${name} (không đè phố) — bỏ tòa`); this.lmStats.skipped.push(name); }
       }
     }
   }
