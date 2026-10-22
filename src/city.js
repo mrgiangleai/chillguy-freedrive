@@ -1013,7 +1013,8 @@ export class City {
       group.add(im);
     }
     // cột điện + dây võng
-    const poleAt = (k) => { const s = k * POLE_GAP + 8, j = road.nearJunction(s); return Math.abs(s - j) < 9 ? null : s; };
+    // noPoles(s): đoạn không có cột điện (map Landmark: khu Vinhomes đi cáp ngầm)
+    const poleAt = (k) => { const s = k * POLE_GAP + 8, j = road.nearJunction(s); return Math.abs(s - j) < 9 || this.noPoles?.(s) ? null : s; };
     const poles = [];
     for (let k = Math.ceil((sJ - 8) / POLE_GAP); k * POLE_GAP + 8 < sK && !this.nyc; k++) {
       const s = poleAt(k);

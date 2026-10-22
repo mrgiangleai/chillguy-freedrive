@@ -156,6 +156,12 @@ export class Minimap {
     // ---- map Landmark: cả vòng tuyến (thấy toàn tuyến khi thu nhỏ bản đồ lớn) ----
     const labels = [];                                         // [x, z, chữ, kiểu, hướng (rad, theo thế giới) | null]
     if (D) {
+      const BL = S.sgnBld?.();                                 // nhà khu Vinhomes (footprint OSM)
+      if (BL) for (const [, cls, , p] of BL) {
+        if (Math.abs(p[0] - cx) > span + 200 || Math.abs(p[1] - cz) > span + 200) continue;
+        g.fillStyle = cls === 0 ? '#b9b3a6' : '#cfc8bb';
+        g.beginPath(); g.moveTo(p[0], p[1]); for (let i = 2; i < p.length; i += 2) g.lineTo(p[i], p[i + 1]); g.closePath(); g.fill();
+      }
       const st = Math.max(1, Math.round(2 / z / D.step)), loop = [];
       for (let i = 0; i < D.x.length; i += st) loop.push([D.x[i], D.z[i]]);
       loop.push([D.x[0], D.z[0]]);

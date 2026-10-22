@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -327,6 +327,12 @@
   **Model chú tải** (`/Volumes/SSD 1TB/VIBE CODING/3d model/saigon`, đều CC-BY-4.0, ghi công khi dùng): landmark_81 (đã dùng), 5 nhà Việt Nam của
   RimiChama (nhà ống ×2, nhà phố ×2, chung cư mini; 700–10k tam giác, không texture) — để dành cho phố ngoài khu (Bình Thạnh / Q1); Dinh Độc Lập
   (138k tam giác, 28 MB, không nằm trên tuyến). Sketchfab "Demo Vinhome Central Park" (chú gửi) không cho tải — chỉ làm ảnh tham khảo (SGN_PLAN.md).
+  **Khu Vinhomes** (`sgnEnv.js` ← `docs/assets/sgn-env.json` 55 KB, tạo trong `fetch-sgn.mjs`, đối chiếu bản vẽ quy hoạch chú gửi): 347 nhà OSM trong
+  ranh khu nới 60 m (14 tháp: Park 1–7 180 m, Central 1–3, Saigon Pearl…; chung cư thiếu chiều cao = 150 m; 309 biệt thự mái dốc), mặt tiền kem +
+  kính (canvas `vhFacade`, cửa sổ sáng đêm theo đèn × `lightTune.windows`), 98 mặt cỏ / sân, 54 mặt nước (sông Sài Gòn ghép từ relation + cắt khung,
+  hồ, hồ bơi, đài phun nước), ~2 240 cây (177 OSM + rải trong công viên 1 / 110 m² + hàng cây 2 bên đường s 20–1500 mỗi 11 m; 30 % cọ); camera
+  không xuyên nhà (`city.extraObb = sgnEnv.obb`); bản đồ tròn vẽ nhà. Không cột / dây điện đoạn s 380–1560 (`city.noPoles`). OSM thiếu Landmark 1–6.
+  Bề rộng đường theo đoạn (Vạn Hoa 4 / 3 hẹp 2 làn, `widths` trong sgn-data) — đang giao Codex (nhánh `worker/sgn-width`).
   Vào map ở s = L + 60, luôn Hoàng hôn + Nhiều mây (chú dặn, để chụp lại), camera giữ lần trước.
   Trọng tâm (chú dặn): làm đẹp khu quanh Landmark 81; đoạn khác chỉ cần đúng.
   **Map Đại lộ** (`avenue`, 🛣️, nhóm Drive cùng Phố; M trong Drive: Phố ↔ Đại lộ): cao tốc 6 làn (`AVENUE`: tâm làn ±2.25 / ±5.75 /
@@ -520,3 +526,4 @@
   → Mai Chí Thọ → hầm Thủ Thiêm → Q1 → NHC. check-sgn PASS.
 - **#8 — Landmark 81 GLB + bỏ nhà map Phố trong khu Vinhomes (23/10/2026)**: dùng model CC-BY chú tải (đẹp hơn bản code), ghi công README + ⓘ;
   nhà map Phố kiểu Nhật không còn trong khu Vinhomes (để trống chờ B3). check-sgn PASS.
+- **#9 — Khu Vinhomes theo OSM (23/10/2026)**: tháp chung cư / biệt thự / cỏ / nước / cây (`sgnEnv.js`), bỏ cột điện nội khu; chụp Low: 0 lỗi.

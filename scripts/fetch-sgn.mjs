@@ -359,3 +359,93 @@ console.log('  đường', streets.map((t) => `${t.s0} ${t.name}`).join(' | '));
 console.log('  hẹp', widths.map((w) => `${w.s0}–${w.s1}`).join(', '));
 console.log('  khu', zones.map((t) => `${t.s0} ${t.name || '–'}`).join(' | '));
 console.log('  rẽ', corners.map((c) => `${c.s} ${c.dir}`).join(', '));
+
+// ---------- khu Vinhomes Central Park (trọng tâm map): nhà, công viên / cỏ, nước (sông Sài Gòn, hồ, hồ bơi), cây => docs/assets/sgn-env.json ----------
+// Toạ độ dời theo độ lệch đường đã làm mượt như các điểm khác (toGame). Chỉ lấy trong khung ENV_BB; nhà chỉ lấy trong ranh khu (đa giác `vinhomes`
+// nới 60 m) — ngoài khu game vẫn dựng nhà map Phố. Nhà lấn lòng đường tuyến (cách tim < 12 m) bỏ.
+{
+  const ENV_BB = [10.7870, 106.7150, 10.8005, 106.7290];
+  const env = (await overpass('vinhomes-env', `[out:json][timeout:120];(way["building"](${ENV_BB});relation["building"](${ENV_BB});way["leisure"](${ENV_BB});way["landuse"](${ENV_BB});way["natural"](10.7850,106.7150,10.8010,106.7320);relation["natural"="water"](10.7850,106.7150,10.8010,106.7320);node["natural"="tree"](${ENV_BB});way["amenity"](${ENV_BB}););out body geom;`)).elements;
+  const r1 = (v) => +v.toFixed(1);
+  const ring = (geom) => { const out = []; for (const g of geom) { const [x, z] = toGame(g.lat, g.lon); out.push(r1(x), r1(z)); } if (out.length > 4 && out[0] === out.at(-2) && out[1] === out.at(-1)) out.length -= 2; return out; };
+  // ranh khu nới 60 m (đa giác lồi gần đúng: nới từ trọng tâm)
+  const cx = vinhomes.reduce((a, p) => a + p[0], 0) / vinhomes.length, cz = vinhomes.reduce((a, p) => a + p[1], 0) / vinhomes.length;
+  const VH = vinhomes.map(([x, z]) => { const l = Math.hypot(x - cx, z - cz) || 1; return [x + (x - cx) / l * 60, z + (z - cz) / l * 60]; });
+  const inPoly = (x, z, P) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) if ((P[i][1] > z) !== (P[j][1] > z) && x < P[i][0] + (P[j][0] - P[i][0]) * (z - P[i][1]) / (P[j][1] - P[i][1])) c = !c; return c; };
+  // khoảng cách nhỏ nhất từ đa giác (mảng phẳng x, z) tới tim tuyến (mẫu 5 m) — lọc nhà lấn đường
+  const routeD = (pts) => { let best = Infinity; for (let i = 0; i < x.length; i++) { const qx = x[i], qz = z[i]; if (Math.abs(qx - pts[0]) > 400 || Math.abs(qz - pts[1]) > 400) continue;
+    for (let k = 0; k < pts.length; k += 2) best = Math.min(best, Math.hypot(pts[k] - qx, pts[k + 1] - qz)); } return best; };
+  const area = (p) => { let a = 0; for (let i = 0, j = p.length - 2; i < p.length; j = i, i += 2) a += (p[j] - p[i]) * (p[j + 1] + p[i + 1]); return Math.abs(a / 2); };
+  const B = [];
+  let dropRoad = 0;
+  for (const e of env) {
+    const t = e.tags || {};
+    if (e.type !== 'way' || !t.building || !e.geometry || e.geometry.length < 4) continue;
+    if (/Vincom Center/.test(t.name || '') || t.building === 'roof' || t.building === 'construction') continue;   // Landmark 81: model GLB riêng
+    const pts = ring(e.geometry), c = [pts.filter((_, i) => i % 2 === 0), pts.filter((_, i) => i % 2 === 1)].map((a) => a.reduce((s, v) => s + v, 0) / a.length);
+    if (!inPoly(c[0], c[1], VH)) continue;
+    if (routeD(pts) < 12) { dropRoad++; continue; }
+    const A = area(pts), lv = parseFloat(t['building:levels']);
+    let h = parseFloat(t.height) > 2 ? parseFloat(t.height) : lv > 0 ? lv * 3.4 + 2 : null;
+    const villa = /^(house|detached|villa|semidetached_house)$/.test(t.building) || (!h && A < 450);
+    if (!h) h = villa ? 9 + (A % 3) : t.building === 'apartments' ? 150 : /school|hospital|commercial|retail|office/.test(t.building) ? 18 : 12;
+    // lớp mặt tiền: 0 tháp kính (≥ 60 m), 1 nhà vừa (trường, bệnh viện, thương mại), 2 biệt thự mái dốc
+    const cls = villa ? 2 : h >= 60 ? 0 : 1;
+    B.push([r1(h), cls, t.name || '', pts]);
+  }
+  // mặt đất: công viên / vườn / cỏ (0), sân thể thao (1), sân chơi / quảng trường (2)
+  const G = [];
+  for (const e of env) {
+    const t = e.tags || {};
+    if (e.type !== 'way' || !e.geometry || e.geometry.length < 4 || t.building) continue;
+    const k = /^(park|garden|golf_course)$/.test(t.leisure) || /^(grass|recreation_ground|village_green)$/.test(t.landuse) || t.natural === 'wood' ? 0
+      : /^(pitch|track)$/.test(t.leisure) ? 1 : /^(playground|fitness_station)$/.test(t.leisure) ? 2 : -1;
+    if (k < 0) continue;
+    G.push([k, ring(e.geometry)]);
+  }
+  // nước: sông Sài Gòn (relation, ghép các way outer rồi cắt theo khung), rạch / hồ / hồ bơi / đài phun nước
+  const W = [];
+  const clip = (P, [s, w, n, e]) => {        // Sutherland–Hodgman theo khung lat/lon
+    const edges = [[(p) => p.lat >= s, (a, b) => a.lat + (b.lat - a.lat) * 0 + 0, 'lat', s], [(p) => p.lat <= n, null, 'lat', n], [(p) => p.lon >= w, null, 'lon', w], [(p) => p.lon <= e, null, 'lon', e]];
+    let out = P;
+    for (const [inside, , key, v] of edges) {
+      const src = out; out = [];
+      for (let i = 0; i < src.length; i++) {
+        const a = src[i], b = src[(i + 1) % src.length], ia = inside(a), ib = inside(b);
+        if (ia) out.push(a);
+        if (ia !== ib) { const f = (v - a[key]) / (b[key] - a[key]); out.push({ lat: a.lat + (b.lat - a.lat) * f, lon: a.lon + (b.lon - a.lon) * f }); }
+      }
+    }
+    return out;
+  };
+  const joinRings = (segs) => {              // nối các way outer thành vòng kín theo điểm đầu / cuối
+    const rings = [], left = segs.map((s) => s.slice());
+    while (left.length) {
+      let cur = left.shift();
+      for (let guard = 0; guard < 500 && left.length; guard++) {
+        const end = cur.at(-1), i = left.findIndex((s) => (s[0].lat === end.lat && s[0].lon === end.lon) || (s.at(-1).lat === end.lat && s.at(-1).lon === end.lon));
+        if (i < 0) break;
+        const s = left.splice(i, 1)[0]; cur = cur.concat(s[0].lat === end.lat && s[0].lon === end.lon ? s.slice(1) : s.reverse().slice(1));
+      }
+      rings.push(cur);
+    }
+    return rings;
+  };
+  const WBB = [10.7850, 106.7150, 10.8010, 106.7320];
+  for (const e of env) {
+    const t = e.tags || {};
+    if (e.type === 'relation' && t.natural === 'water' && t.water === 'river') {
+      for (const R of joinRings(e.members.filter((m) => m.role === 'outer' && m.geometry).map((m) => m.geometry))) {
+        const C = clip(R, WBB); if (C.length >= 3) W.push([0, ring(C)]);
+      }
+    } else if (e.type === 'way' && e.geometry && (t.natural === 'water' || t.leisure === 'swimming_pool' || t.amenity === 'fountain' || t.leisure === 'marina')) {
+      const C = clip(e.geometry, WBB); if (C.length < 3) continue;
+      W.push([t.leisure === 'swimming_pool' ? 2 : t.amenity === 'fountain' ? 3 : t.water === 'river' ? 0 : 1, ring(C)]);
+    }
+  }
+  const T = env.filter((e) => e.type === 'node' && e.tags?.natural === 'tree').map((e) => toGame(e.lat, e.lon).map(r1));
+  const ENVF = 'docs/assets/sgn-env.json';
+  fs.writeFileSync(ENVF, JSON.stringify({ source: 'OpenStreetMap contributors (ODbL)', b: B, g: G, w: W, t: T }));
+  console.log(`=> ${ENVF}: ${(fs.statSync(ENVF).size / 1024).toFixed(0)} KB, ${B.length} nhà (${B.filter((b) => b[1] === 0).length} tháp, ${B.filter((b) => b[1] === 2).length} biệt thự, bỏ ${dropRoad} lấn đường), ${G.length} mặt cỏ / sân, ${W.length} mặt nước, ${T.length} cây`);
+  console.log('  tháp:', B.filter((b) => b[2] && b[1] === 0).map((b) => `${b[2]} ${b[0]}`).join(', '));
+}
