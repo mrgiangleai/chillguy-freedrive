@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -415,7 +415,7 @@
 
 ## 5. Việc còn mở / cần chú ý
 - **Map New York** 🗽: B1–B5 xong (22/10/2026). Có thể làm thêm: bề rộng đường theo đoạn (đang 4 làn mọi nơi, 32 / 55 St thật hẹp hơn),
-  cửa tàu điện ngầm; chưa thử máy thật / Good / Ultra (gương CubeCamera + 2 PointLight + ~3 200 nhà).
+  chưa thử máy thật / Good / Ultra (gương CubeCamera + 2 PointLight + ~3 200 nhà).
   Camera Bên hông dễ bị 1 tấm biển che kín khung hình.
 - **Map Cao tốc HLG — có thể làm tiếp**: footprint Microsoft không có chiều cao ở VN => cao theo diện tích (đoán); sông / lạch cắt chéo
   đúng góc thật (đang vuông góc tuyến); mặt nước lạch dài ±400 m rồi dừng; cỏ cao `meadow` vẫn phủ cả khu dân cư; biển tốc độ dựng bên đường còn theo mẫu Đại lộ (HUD đã đúng biển thật); Cầu Long Thành dùng tháp dây văng
@@ -458,3 +458,8 @@
 - **#5 — Times Square: ánh sáng biển quảng cáo kiểu đèn xe cảnh sát (22/10/2026)**: chú thấy vệt dán cộng màu (`spillMesh`, kể cả sau #4) lốm đốm,
   xấu trên điện thoại => bỏ hẳn (cùng `glowTex`); chỉ còn 2 PointLight (khoảng 55 m, decay 1.3, cường độ 70 × (0.15 + 0.85 đèn đêm)) đặt
   cao ≤ 9 m, ra trước biển 7 m, màu theo hình đang chiếu, chuyển mượt. Chụp Low đêm mưa: quầng màu mịn trên đường + vỉa hè, không lốm đốm.
+- **#6 — Cửa tàu điện ngầm New York (22/10/2026)**: `scripts/fetch-nyc.mjs` lấy OSM `railway=subway_entrance` sát tuyến (9–24 m) => `nyc-data.json`
+  `subway` (27 cửa; `ONLY=subway node scripts/fetch-nyc.mjs` chỉ cập nhật phần này, không dựng lại nhà vì chiều cao thiếu là ngẫu nhiên).
+  Model `src/subwayEntrance.js` (DeepSeek thắng GLM; lòng cầu thang giả bằng dải tối, lan can sắt xanh, 2 cầu đèn xanh, biển). `nycStreet.js`:
+  giữa vỉa hè bên đó, dời khỏi miệng ngã tư, bỏ quanh hầm / cầu cạn => 20 cửa; cầu đèn tự sáng theo đèn đường (`nycProps.setLamps`).
+  Bỏ ý bề rộng đường theo đoạn: `CITY.hw` dùng ~100 chỗ / 9 file, rủi ro cao. Script chụp: sau khi vào Drive phải chờ map ổn định (preload có thể đặt lại map).

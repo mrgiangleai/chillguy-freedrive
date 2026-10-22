@@ -355,6 +355,18 @@ if (fs.existsSync(BF)) {
     broadway.length = 0; broadway.push([+(mx + dx * t0).toFixed(1), +(mz + dz * t0).toFixed(1)], [+(mx + dx * t1).toFixed(1), +(mz + dz * t1).toFixed(1)]); }
   const DD = JSON.parse(fs.readFileSync(OUT, 'utf8')); DD.broadway = broadway; fs.writeFileSync(OUT, JSON.stringify(DD));
   console.log(`Broadway (Times Square): ${broadway.length} điểm`);
+  // cửa tàu điện ngầm (OSM railway=subway_entrance) nằm trên vỉa hè tuyến (cách tim tuyến 9–24 m) => nyc-data.json `subway`: [x, z, s] toạ độ game
+  {
+    const ents = (await overpass('subway', `[out:json][timeout:60];node["railway"="subway_entrance"](${BB});out body;`)).elements, sub = [];
+    for (const g of ents) {
+      const [E, N] = ll(g), [j] = nearest(E, N, R1), x = E + off[j][0], y = N + off[j][1], d = segD(x, y, j);
+      if (d < 9 || d > 24 || sub.some((q) => Math.hypot(q[0] - x, q[1] + y) < 6)) continue;
+      sub.push([+x.toFixed(1), +(-y).toFixed(1), +sOf(j * d1).toFixed(0)]);
+    }
+    const DS = JSON.parse(fs.readFileSync(OUT, 'utf8')); DS.subway = sub; fs.writeFileSync(OUT, JSON.stringify(DS));
+    console.log(`cửa tàu điện ngầm sát tuyến: ${sub.length} / ${ents.length}`);
+    if (process.env.ONLY === 'subway') process.exit(0);      // chỉ cập nhật cửa tàu (không dựng lại nhà: chiều cao nhà thiếu dữ liệu là ngẫu nhiên)
+  }
   // mạng đường thật quanh tuyến (≤ 450 m, trừ chính tuyến, hầm / cầu, và đường đôi song song sát tuyến) => docs/assets/nyc-streets.json
   // mỗi đường: [bề rộng mặt đường m, loại 0 xe / 1 đi bộ, một chiều 0 / 1, [x, z, …] toạ độ game, dời theo độ lệch đường đã làm mượt]
   const routeIds = new Set(wpath.map((w) => w.id)), WID = { trunk: 18, primary: 18, secondary: 14, tertiary: 12, residential: 10, unclassified: 9, living_street: 8, pedestrian: 10 };

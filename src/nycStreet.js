@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { CITY } from './road.js';
 import { NYC, nycStreet } from './nyc.js';
 import { withMist } from './mist.js';
+import { build as subwayGeo } from './subwayEntrance.js';
 
 // "53rd Street" => "53 St", "Madison Avenue" => "Madison Av"; phía đông / tây của 5th Ave: E / W
 const short = (n) => n.replace(/(\d+)(st|nd|rd|th)\b/, '$1').replace(/ Street$/, ' St').replace(/ Avenue$/, ' Av').replace(/^(\d+) Av$/, '$1 Av');
@@ -53,7 +54,9 @@ export class NycStreetProps {
     this.road = road;
     this.group = new THREE.Group(); this.group.visible = false; scene.add(this.group);
     this.built = false;
+    this.uLit = { value: 0 };                                    // cầu đèn xanh cửa tàu điện ngầm sáng về đêm
   }
+  setLamps(k) { this.uLit.value = k; }
   set visible(v) { this.group.visible = v; if (v && !this.built) this._build(); }
   get visible() { return this.group.visible; }
 
@@ -116,6 +119,33 @@ export class NycStreetProps {
     hm.instanceColor.needsUpdate = true;
     inst(new THREE.CylinderGeometry(0.32, 0.28, 0.95, 10).translate(0, 0.475, 0), withMist(new THREE.MeshStandardMaterial({ color: 0x2f5b3a, roughness: 0.7 })), cans,
       ([x, y, z]) => m4.compose(v.set(x, y, z), q.identity(), sc.set(1, 1, 1)));
-    this.count = { names: names.length, signs: signs.length, oneWay: ones.length, hydrants: hyd.length };
+    // cửa tàu điện ngầm: vị trí thật OSM (nyc-data `subway`), đặt giữa vỉa hè bên đó, dời khỏi miệng ngã tư; bỏ đoạn hầm / cầu cạn
+    const D = NYC.data, skip = [...D.portals, ...D.tunnels, ...D.bridges, ...D.passages], subs = [], gap = CW + SWK + 4;
+    for (const [x, z, s0] of D.subway || []) {
+      if (skip.some((r) => s0 > r.s0 - 30 && s0 < r.s1 + 30)) continue;
+      road.at(L + s0, P);
+      const rx = Math.cos(P.th), rz = -Math.sin(P.th), u = (x - P.x) * rx + (z - P.z) * rz, su = u < 0 ? -1 : 1;
+      let s = s0;
+      for (const j of NYC.data.junctions) { const d = s - j.s; if (Math.abs(d) < gap + 2.5) s = j.s + (d < 0 ? -1 : 1) * (gap + 2.5); }
+      if (subs.some((q) => Math.abs(q.s - s) < 7 && q.su === su)) continue;
+      road.at(L + s, P);
+      const ex = Math.cos(P.th), ez = -Math.sin(P.th), uc = su * (HW + WALK * 0.5);
+      subs.push({ s, su, x: P.x + ex * uc, y: P.y + 0.2, z: P.z + ez * uc, th: P.th + (Math.round(s) % 2 ? Math.PI : 0) });
+    }
+    if (subs.length) {
+      const mat = withMist(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.2 }));
+      mat.onBeforeCompile = (sh) => {
+        sh.uniforms.uLit = this.uLit;
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uLit;')
+          .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vColor * step(0.7, vColor.g) * step(vColor.r, 0.5) * (0.25 + 2.2 * uLit);');   // cầu kính xanh
+      };
+      const sg = subwayGeo(THREE).geometry, sp = sg.attributes.position, scol = sg.attributes.color;
+      for (let i = 0; i < sp.count; i++) {                       // lòng cầu thang (dải xám thấp sát mặt hè) tối hẳn: nhìn như lối xuống sâu
+        const r = scol.getX(i), g = scol.getY(i), b = scol.getZ(i);
+        if (sp.getY(i) < 0.06 && Math.abs(sp.getX(i)) < 0.86 && r < 0.3 && Math.abs(r - g) < 0.05 && Math.abs(g - b) < 0.05) scol.setXYZ(i, r * 0.25, g * 0.25, b * 0.25);
+      }
+      inst(sg, mat, subs, (e) => m4.compose(v.set(e.x, e.y, e.z), q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), e.th), sc.set(1, 1, 1)));
+    }
+    this.count = { names: names.length, signs: signs.length, oneWay: ones.length, hydrants: hyd.length, subway: subs.length };
   }
 }
