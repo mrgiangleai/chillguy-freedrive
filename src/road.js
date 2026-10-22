@@ -140,8 +140,8 @@ export class Road {
   // đổi hình đường: kind 'city' (Phố) | 'avenue' (Đại lộ) | 'hlg' (cao tốc thật, real = { step, heading[] }) | 'nyc' (vòng khép kín,
   // real = { loop: true, … }) | khác (đường lượn các map ngắm cảnh) => tính lại toàn bộ điểm đường
   setShape(kind, real = null) {
-    const city = kind === 'city' || kind === 'nyc', avenue = kind === 'avenue' || kind === 'hlg';
-    const loop = kind === 'nyc' ? real : null;
+    const city = kind === 'city' || kind === 'nyc' || kind === 'sgn', avenue = kind === 'avenue' || kind === 'hlg';
+    const loop = kind === 'nyc' || kind === 'sgn' ? real : null;   // vòng khép kín: New York, Landmark TP.HCM
     real = kind === 'hlg' ? real : null;
     if (city === this.city && avenue === this.avenue && real === this.real && loop === this.loop) return;
     this.city = city; this.avenue = avenue; this.real = real; this.loop = loop;

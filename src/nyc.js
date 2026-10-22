@@ -55,8 +55,10 @@ export function nycStreet(s) {
 
 // ---------- công trình: hầm + cầu cạn (dựng 1 lần cho cả vòng, chỉ quanh Park Ave) ----------
 export class NycWorks {
-  constructor(scene, road, roadMat) {
+  // loop: vòng dùng để dựng (mặc định New York; map Landmark truyền sgnLoop()) — cần { length, keys, elev, roof }
+  constructor(scene, road, roadMat, loop = null) {
     this.road = road;
+    this.loopOf = loop || nycLoop;
     this.roadMat = roadMat;
     this.group = new THREE.Group();
     this.group.visible = false;
@@ -78,7 +80,7 @@ export class NycWorks {
 
   _build() {
     this.built = true;
-    const road = this.road, HW = CITY.hw, L = NYC.length, keys = nycLoop().keys, e = nycLoop().elev;
+    const LP = this.loopOf(), road = this.road, HW = CITY.hw, L = LP.length, keys = LP.keys, e = LP.elev, ROOF = LP.roof ?? NYC.roof;
     // dựng ở vòng thứ 1 (s ∈ [L, 2L)) và vòng 2 — xe chạy vòng nào cũng thấy (vị trí thế giới trùng nhau)
     const s0 = keys[0][0] - 10, s1 = keys.at(-1)[0] + 10, base = L;
     const B = { conc: mk(), tile: mk(), top: mk(), steel: mk(), lamp: mk() };
@@ -103,7 +105,7 @@ export class NycWorks {
       const ya = roadY(a), yb = roadY(b), ga = ya - ea, gb = yb - eb;
       // ---- hầm: tường ốp gạch hai bên (từ mặt đường lên mặt phố), lan can bê tông 0.9 m ở đoạn hở ----
       if (ea < -0.15 || eb < -0.15) {
-        const cov = ea <= NYC.roof && eb <= NYC.roof;
+        const cov = ea <= ROOF && eb <= ROOF;
         for (const su of [-1, 1]) {
           const u = su * (HW + 0.15);
           quad(B.tile, [pt(a, u, ya), pt(b, u, yb), pt(b, u, gb), pt(a, u, ga)], -su, P);
@@ -119,8 +121,8 @@ export class NycWorks {
           quad(B.conc, [pt(a, -w, ga - lid), pt(b, -w, gb - lid), pt(b, w, gb - lid), pt(a, w, ga - lid)], 0, P, false);
           quad(B.top, [pt(a, -w, ga + 0.05), pt(b, -w, gb + 0.05), pt(b, w, gb + 0.05), pt(a, w, ga + 0.05)], 0, P, true, [[0, a / 12], [0, b / 12], [1, b / 12], [1, a / 12]]);
           if (Math.round(s / STEP) % 6 === 0) for (const u of [-3.5, 3.5]) box(B.lamp, pt(a + 1, u, ga - lid - 0.06), 0.25, 0.08, 1.4, P);   // đèn trần mỗi 12 m, ngay dưới đáy nắp
-          if (e(a - STEP) > NYC.roof) headWall(a, +1);    // cửa trước: đoạn kề trước hở
-          if (e(b + STEP) > NYC.roof) headWall(b, -1);    // cửa sau: đoạn kề sau hở
+          if (e(a - STEP) > ROOF) headWall(a, +1);    // cửa trước: đoạn kề trước hở
+          if (e(b + STEP) > ROOF) headWall(b, -1);    // cửa sau: đoạn kề sau hở
         }
       }
       // ---- cầu cạn: bản mặt cầu dày 1.1 m + lan can thép; dưới gầm đoạn cao là mặt phố (nhựa) + trụ đôi mỗi 24 m ----
