@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 10/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -418,6 +418,23 @@
   khoá ngang (Android), gợi ý xoay ngang khi cầm dọc; iPhone: "Thêm vào MH chính" (manifest fullscreen/landscape).
 
 ## 5. Việc còn mở / cần chú ý
+- **HANDOFF Map New York (22/10/2026 tối — phiên sau làm tiếp từ đây)**:
+  - **Nhánh worker CHƯA gộp** (commit sẵn, `git merge <nhánh>` rồi làm tiếp):
+    1. `worker/debug-20261022-182922` — tòa nổi tiếng dò chỗ tránh phố nycNet + `scripts/check-nyc-landmark-roads.mjs`. Codex review: CHƯA ĐẠT —
+       bỏ qua 107 phố khép vòng (nycNet vẫn vẽ) nên Seagram / Vanderbilt / MetLife còn đè phố; không tìm được chỗ trong 14 m vẫn đặt đè
+       (Waldorf, Lever, Macy's, Vanderbilt). Cần: không bỏ phố vòng kín, mở rộng tìm / thu nhỏ, check quét cả vòng (không chỉ ≤ 150 m quanh GCT).
+       Lỗi gốc: ảnh `shots-ref-gct.jpg` (tòa trắng nhiều bậc chắn phố bên trái khi lên Park Ave sau hầm).
+    2. `worker/debug-20261022-190719` — ghép `src/bld/tiers.js` (bậc lùi, DeepSeek), `cornice.js` (gờ mái + tường chắn, GLM), `roof.js` (bồn nước gỗ +
+       máy + ăng-ten, MiniMax; ảnh mẫu `shots/roof-demo.png`) vào `nycBuildings._build`. Codex đo: dựng 73 → 1 581 ms, tam giác 141k → 428k, 16 → 44 MB
+       => QUÁ NẶNG. Định sửa: gờ mái + đồ trên mái chỉ cho nhà gần tuyến (tâm cách tim đường < ~80 m), có thể cache tiers. Chú CHƯA chốt giữ bồn nước
+       (đã giải thích: bồn nước gỗ là đặc trưng mái Manhattan) — hỏi lại chú.
+  - **Đã gộp + push**: nắp hầm dày 1.5 m + tường đầu 2 cửa hầm (GLM), bóng nắng xa (DeepSeek; nay là ÁNH SÁNG DÙNG CHUNG mọi map, nút "Bóng nắng xa"
+    ở bảng Lighting mục "Nắng", `chilldrive.farShadow`, mặc định tắt; Codex review → sửa nhớ / trả cỡ bóng theo chất lượng). Chú tự thử.
+  - **Quy ước phạm vi (chú dặn)**: nhà / đường / người / xe — riêng từng map, hiện chỉ làm New York; đèn, ánh sáng, thời tiết, thiên nhiên, trời — dùng chung mọi map.
+  - **Quy trình** (chú khen hiệu quả): khoanh vùng → worker opencode (tối đa 2–3 song song, cách 30 s; 3D làm cơ bản trước) tự sửa + tự chụp
+    (`scripts/shot-nyc.mjs`: `?map=nyc`, HIDE / NEAR / RANGE / FARSHADOW) → Codex review (`codex exec -m gpt-5.6-sol -c model_reasoning_effort=medium -s read-only`)
+    → Claude xem nhẹ, gộp (hỏi chú trước khi merge nhánh worker), báo cáo. `~/.claude/bin/oc-worker` timeout 15 phút (hay hết giờ ở bước chụp — dùng `fix` nối tiếp).
+  - Còn có thể làm: Koreatown 32 St, hơi nước nắp cống, xe bán đồ ăn, Carnegie Hall; người băng qua khi đỏ (cần xe phanh nhường); kiểm máy thật.
 - **Map New York** 🗽: B1–B5 xong (22/10/2026). Có thể làm thêm: bề rộng đường theo đoạn (đang 4 làn mọi nơi, 32 / 55 St thật hẹp hơn),
   chưa thử máy thật / Good / Ultra (gương CubeCamera + 2 PointLight + ~3 200 nhà).
   Camera Bên hông dễ bị 1 tấm biển che kín khung hình.
@@ -478,3 +495,5 @@
   lớn nhất 8.8 % (`maxGrade` 0.09). Trước đó dốc 6 % => rãnh hở 100 m có phố ngang lơ lửng, 42 St cắt ngang đường ở cao 0.9 m.
   nycNet `routeMask` cắt phố OSM cả ở dốc hở (không cắt trên nắp hầm / dưới cầu cao ≥ 4.2 m). nycBuildings: nhà OSM thu vào 0.1–0.3 m (tường
   chung không trùng mặt phẳng => hết nhấp nháy), góc nhà lấn tòa nổi tiếng => bỏ (3 185 → 3 161 nhà). `scripts/shot-nyc.mjs`: script chụp cho worker.
+- **#10 — Gộp nắp hầm dày + bóng nắng xa (mọi map), script chụp ?map=nyc / HIDE / NEAR / RANGE, handoff (22/10/2026)**: load headless New York + bóng xa:
+  0 lỗi trang. 2 nhánh worker chưa gộp: xem mục 5 "HANDOFF".
