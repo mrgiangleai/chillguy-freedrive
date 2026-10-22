@@ -155,6 +155,7 @@ try { farShadowSaved = localStorage.getItem('chilldrive.farShadow') === '1'; } c
 cityPeople.extra = () => (timesSq.visible ? timesSq.near : []);
 const nycBld = new NycBuildings(scene, timesSq, road);
 const nycNet = new NycStreetNet(scene, city.walkMat);          // map New York: mạng đường thật quanh tuyến (phố thông sang đại lộ bên cạnh)
+nycNet.landmarks = () => nycBld.rectsReady;                    // nycNet chờ khung tòa nổi tiếng rồi mới dựng (cắt phố đi bộ dưới chân tòa)
 const nycProps = new NycStreetProps(scene, road);            // map New York: biển tên đường, ONE WAY, trụ cứu hoả, thùng rác               // map New York: nhà thật OSM (footprint + chiều cao)
 nycBld.onReady = () => { if (nycBld.visible) city.extraObb = timesSq.obb.concat(nycBld.obb); };
 const avenue = new Avenue(scene, road, scenery.cityTex);     // map Đại lộ: vạch kẻ 6 làn + dải phân cách + nút giao (xe: cityTraffic chế độ avenue)
