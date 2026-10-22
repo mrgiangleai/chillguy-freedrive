@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -20,7 +20,7 @@
   `goto(..., { waitUntil: 'domcontentloaded' })`; map có cài đặt "Tự động" ghi đè camera / giờ => đặt lại ngay trước khi chụp.
   Máy chậm => môi trường (env map) chưa kịp chụp lại khi đổi giờ: gọi `__app.env.update(0.016, drive.pos); env._captureEnv()`.
 - **Kiểm tra tự động** (node, không cần trình duyệt; đều PASS): `scripts/check-traffic.mjs`, `check-traffic-policy.mjs`, `check-steering.mjs`,
-  `check-stopscene.mjs`, `check-hlg.mjs`, `check-nyc.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
+  `check-stopscene.mjs`, `check-hlg.mjs`, `check-nyc.mjs`, `check-nyc-wave.mjs`, `check-nyc-buildings.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
   `check-waterfalls.mjs`, `check-rear-glass.mjs [model.glb]`. Model tải lên nặng: nén bằng `npx @gltf-transform/cli@4 webp … --quality 82`
   rồi `meshopt` (giữ file gốc); sóng biển bake bằng `node scripts/bake-ocean.mjs`. **Fixture GUI** `scripts/*-preview.js` (giữ cảnh cố định để chụp):
   bundle bằng esbuild ra `docs/<tên>-check.js`, sao `docs/index.html` thành trang riêng đổi script sang bundle đó; chụp xong
@@ -39,6 +39,10 @@
   mặc định KHÔNG `#high`, chỉ dùng cho việc 3D khó), chạy trong thư mục riêng ở scratchpad với `TASK.md` (tiêu chí + lệnh chấm +
   tối đa 5 vòng tự sửa) và script chấm; `perl -e 'alarm 300; exec @ARGV'` ~5 phút / việc, chạy nền chờ thông báo, chỉ chấm sản phẩm
   cuối. Việc vài dòng: tự sửa. Ví dụ: cây cao su (1 vòng tự sửa, ~5 phút). Bản free lúc nhanh (1 phút) lúc treo (> 10 phút).
+- **Worker code (22/10/2026, chú yêu cầu)**: DeepSeek free (`opencode/deepseek-v4.1-flash-free`) là coder chính; **GLM free**
+  (`opencode/glm-5.3-flash-free`, opencode không có "glm4.3") chạy song song được — thử cùng 1 việc (script kiểm dữ liệu): DeepSeek 68 s / 469 dòng,
+  GLM 90 s / 257 dòng gọn hơn, kết quả giống hệt, đều đúng. Mẫu chạy: thư mục scratchpad riêng + TASK.md + check.sh, `perl -e 'alarm 480; exec @ARGV'
+  opencode run --standalone --auto -m <model> "Read TASK.md …"`, log để NGOÀI thư mục làm việc. Claude chỉ tự code việc vài dòng / khó giải thích.
 - **Tiết kiệm quota (chú yêu cầu)**: việc làm theo khuôn (code nháp, sửa hàng loạt, tóm tắt) giao DeepSeek theo thứ tự:
   1) **opencode free** `opencode run --standalone -m opencode/deepseek-v4.1-flash-free` (ưu tiên; `opencode/deepseek-v4.1-flash` trả phí
   và `vibi/…` đã hết tiền); 2) bản free hết giới hạn => **hỏi chú trước** rồi mới dùng credit API riêng của chú: công cụ MCP `deepseek`
@@ -414,3 +418,4 @@
 - **#3 — Xuất 10 model tòa nổi tiếng ra GLB (22/10/2026)**: `node scripts/export-nyc-landmarks.mjs` => `docs/assets/models/nyc/*.glb` (màu đỉnh, ~8 MB, glTF-Validator: không lỗi). Game vẫn dựng bằng code, chưa dùng file GLB.
 - **#4 — Times Square: Broadway chéo, biển cong góc nhà, người qua đường thành đợt (22/10/2026)**: chụp Low không lỗi trang.
 - **#5 — Phố thông sang đại lộ bên cạnh (mạng đường OSM + nhà tới 420 m), vào map ở Times Square (22/10/2026)**: chụp nhìn ngang phố 39 St: kín nhà, không trống.
+- **#6 — Thử worker GLM 5.3 flash free + script check-nyc-buildings (22/10/2026)**: GLM đạt; sửa 16 nhà OSM < 4 m (nâng 4 m).

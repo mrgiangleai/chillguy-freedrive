@@ -326,6 +326,7 @@ if (fs.existsSync(BF)) {
     const pts = []; for (const [E, N] of P) { const l = pts.length; if (l && Math.hypot(pts[l - 2] - E, pts[l - 1] + N) < 0.8) continue; pts.push(+E.toFixed(1), +(-N).toFixed(1)); }
     if (pts.length < 6) continue;
     let h = hOf(w.tags); if (!h) { noH++; h = 14 + 10 * Math.random(); }
+    h = Math.max(h, 4);                                            // vài nhà OSM ghi < 4 m (1 tầng thấp) => tối thiểu 4 m
     const mat = (w.tags['building:material'] || w.tags['building:facade:material'] || '').toLowerCase();
     const cls = /glass/.test(mat) || h >= 110 ? (Math.random() < 0.4 ? 3 : 0) : /brick/.test(mat) || h < 30 ? 4 : /stone|concrete|lime/.test(mat) || h < 110 ? 1 : 2;
     out.push([+Math.min(h, 450).toFixed(1), cls, +sOf(j * d1).toFixed(0), pts]);
