@@ -337,8 +337,12 @@ export class TimesSquare {
       mesh(PB, this.city.walkMat, false);
       // vạch kẻ ngang dải (0,5 m mỗi 1,1 m) trên lòng đường; 2 đầu dải nằm dưới vỉa hè nên bị che
       const SB = mk(), stripeMat = new THREE.MeshStandardMaterial({ color: 0xe8e8e2, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -4 });
+      const f6x = -Math.sin(P6.th), f6z = -Math.cos(P6.th), fk = P6.x * f6x + P6.z * f6z, xw = CITY.side + CITY.sideWalk + 4;
+      const nearJ = NYC.data.junctions.filter((j) => !j.corner && Math.abs(j.s - 696) < 80).map((j) => j.s - 696);
       for (let t = 0.55; t < len; t += 1.1) {
         if (Math.abs(U(ax + ux * t, az + uz * t)) > CITY.hw) continue;
+        const sa = (ax + ux * t) * f6x + (az + uz * t) * f6z - fk;               // vị trí dọc tuyến so với s 696
+        if (nearJ.some((d) => Math.abs(sa - d) < xw)) continue;          // không chồng lên vạch qua đường của ngã tư (45 St)
         const a0 = t - 0.25, a1 = t + 0.25;
         polyUp(SB, [
           [ax + ux * a0 + px * half, y0 + 0.06, az + uz * a0 + pz * half],

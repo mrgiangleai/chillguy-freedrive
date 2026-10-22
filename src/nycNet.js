@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { hLow } from './terrain-noise.js';
 import { withMist } from './mist.js';
+import { NYC, NYC_DIM, nycElev, nycElevKeys } from './nyc.js';
 
 const CELL = 300;          // kích thước ô lưới (m)
 const SIDE_EXTRA = 4;      // vỉa hè rộng thêm mỗi bên (phố xe)
@@ -49,8 +50,29 @@ function disk(b, x, z, r, y, col) {
   for (let i = 0; i < N; i++) b.idx.push(c, ring[(i + 1) % N], ring[i]);
 }
 
-// builder thuần: list = mảng street của json, mats = { asphalt, walk, mark }, groundAt(x, z) -> y
-export function buildNet(THREE, list, mats, groundAt) {
+// vùng lòng đường của tuyến (chỉ đoạn ngang mặt phố, không hầm / cầu cạn): hit(x, z, r) = đĩa bán kính r quanh (x, z) chạm lòng đường
+// (cách tim tuyến < hw). Dùng để không vẽ phố OSM đè lên làn xe của tuyến (vd. Broadway chạy gần song song 7th Ave ở Times Square).
+export function routeMask(D, elev, hw) {
+  const G = 20, cells = new Map(), n = D.x.length;
+  for (let i = 0; i + 1 < n; i++) {
+    if (Math.abs(elev(i * D.step)) > 0.3 || Math.abs(elev((i + 1) * D.step)) > 0.3) continue;
+    const k = Math.floor(D.x[i] / G) + '|' + Math.floor(D.z[i] / G);
+    if (!cells.has(k)) cells.set(k, []);
+    cells.get(k).push(i);
+  }
+  return (x, z, r) => {
+    const R = hw + r, cx = Math.floor(x / G), cz = Math.floor(z / G), m = Math.ceil(R / G) + 1;
+    for (let a = -m; a <= m; a++) for (let b = -m; b <= m; b++) for (const i of cells.get(cx + a + '|' + (cz + b)) || []) {
+      const ax = D.x[i], az = D.z[i], dx = D.x[i + 1] - ax, dz = D.z[i + 1] - az, L2 = dx * dx + dz * dz || 1;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L2));
+      if (Math.hypot(x - ax - dx * t, z - az - dz * t) < R) return true;
+    }
+    return false;
+  };
+}
+
+// builder thuần: list = mảng street của json, mats = { asphalt, walk, mark }, groundAt(x, z) -> y; onRoute(x, z, r) => bỏ mảnh chạm lòng đường tuyến
+export function buildNet(THREE, list, mats, groundAt, onRoute = () => false) {
   const group = new THREE.Group();
   group.name = 'nycNet';
   const buckets = new Map();
@@ -69,9 +91,11 @@ export function buildNet(THREE, list, mats, groundAt) {
     let acc = 0;   // quãng đường dọc polyline (giữ nhịp vạch đứt liên tục)
 
     for (let i = 0; i + 3 < pts.length; i += 2) {
-      const x0 = pts[i], z0 = pts[i + 1], x1 = pts[i + 2], z1 = pts[i + 3];
+     const X0 = pts[i], Z0 = pts[i + 1], X1 = pts[i + 2], Z1 = pts[i + 3], SL = Math.hypot(X1 - X0, Z1 - Z0), NP = Math.max(1, Math.ceil(SL / 2));
+     for (let q = 0; q < NP; q++) {                 // mảnh ≤ 2 m: mảnh nào (cả bề rộng vỉa hè) chạm lòng đường tuyến thì bỏ
+      const x0 = X0 + (X1 - X0) * q / NP, z0 = Z0 + (Z1 - Z0) * q / NP, x1 = X0 + (X1 - X0) * (q + 1) / NP, z1 = Z0 + (Z1 - Z0) * (q + 1) / NP;
       const dx = x1 - x0, dz = z1 - z0, len = Math.hypot(dx, dz);
-      if (len < 0.5) { acc += len; continue; }
+      if (len < 0.5 || onRoute((x0 + x1) / 2, (z0 + z1) / 2, hwWalk + len / 2)) { acc += len; continue; }
       const tx = dx / len, tz = dz / len;
       const nx = -tz, nz = tx;
       const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
@@ -105,11 +129,13 @@ export function buildNet(THREE, list, mats, groundAt) {
         }
       }
       acc += len;
+     }
     }
 
     // 3. lấp mối nối tại các đỉnh gấp khúc bên trong
     for (let i = 2; i + 3 < pts.length; i += 2) {
       const x = pts[i], z = pts[i + 1], g = groundAt(x, z);
+      if (onRoute(x, z, hwWalk)) continue;
       disk(bucket(x, z, 'walk'), x, z, hwWalk, g + 0.03, null);
       if (kind === 0) disk(bucket(x, z, 'asphalt'), x, z, hwRoad, g + 0.045, null);
     }
@@ -166,7 +192,7 @@ export class NycStreetNet {
       const res = await fetch('assets/nyc-streets.json');
       const data = await res.json();
       this.streets = data.s;                         // cho bản đồ tròn
-      const net = buildNet(THREE, data.s, { asphalt: this.asphalt, walk: this.walk, mark: this.mark }, this.groundAt);
+      const net = buildNet(THREE, data.s, { asphalt: this.asphalt, walk: this.walk, mark: this.mark }, this.groundAt, routeMask(NYC.data, nycElev(nycElevKeys()), NYC_DIM.hw + 0.3));
       this.group.add(net);
       this.built = true;
     } catch (err) {

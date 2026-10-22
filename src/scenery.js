@@ -275,7 +275,8 @@ export class Scenery {
             float det = dot(dpx, r1);
             float fade = (1.0 - smoothstep(0.25, 0.9, fwidth(vRW.x * 83.0) + fwidth(vRW.z * 83.0))) * (1.0 - puddle);
             vec3 grad = sign(det) * (dFdx(gh) * r1 + dFdy(gh) * r2);
-            normal = normalize(abs(det) * normal - grad * 0.22 * fade);
+            vec3 nb = abs(det) * normal - grad * 0.22 * fade;
+            if (dot(nb, nb) > 0.0) normal = normalize(nb);        // det ≈ 0 (xa / góc nghiêng, độ chính xác thấp trên điện thoại) => giữ pháp tuyến cũ, tránh NaN = chấm đen
           }`)
         .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n// trời âm u / mưa: mặt trời bị mây che => vũng nước không loé sáng như soi mặt trời\nreflectedLight.directSpecular *= 1.0 - uSunHide * puddle;')
         .replace('#include <opaque_fragment>', ROAD_REFL + '\n#include <opaque_fragment>');

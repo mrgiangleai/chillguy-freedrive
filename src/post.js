@@ -25,13 +25,15 @@ const DISPLAY = `
     return mix(pow(c, vec3(0.41666)) * 1.055 - vec3(0.055), c * 12.92, vec3(lessThanEqual(c, vec3(0.0031308))));
   }`;
 
+const SAFE = `vec3 safe(vec3 v) { return any(isnan(v)) || any(isinf(v)) ? vec3(0.0) : v; }   // điểm ảnh NaN / Inf => 0 (không loang thành đốm đen qua xoá phông / bloom)`;
 const BRIGHT = `
   uniform sampler2D tSrc; uniform vec2 uTexel; uniform float uThresh;
   varying vec2 vUv;
   ${DISPLAY}
+  ${SAFE}
   void main() {
-    vec3 c = (toDisplay(texture2D(tSrc, vUv + uTexel * vec2(-1.0, -1.0)).rgb) + toDisplay(texture2D(tSrc, vUv + uTexel * vec2(1.0, -1.0)).rgb)
-            + toDisplay(texture2D(tSrc, vUv + uTexel * vec2(-1.0, 1.0)).rgb) + toDisplay(texture2D(tSrc, vUv + uTexel * vec2(1.0, 1.0)).rgb)) * 0.25;
+    vec3 c = (toDisplay(safe(texture2D(tSrc, vUv + uTexel * vec2(-1.0, -1.0)).rgb)) + toDisplay(safe(texture2D(tSrc, vUv + uTexel * vec2(1.0, -1.0)).rgb))
+            + toDisplay(safe(texture2D(tSrc, vUv + uTexel * vec2(-1.0, 1.0)).rgb)) + toDisplay(safe(texture2D(tSrc, vUv + uTexel * vec2(1.0, 1.0)).rgb))) * 0.25;
     float l = max(c.r, max(c.g, c.b));
     gl_FragColor = vec4(c * smoothstep(uThresh, uThresh + 0.07, l), 1.0);
   }`;
@@ -50,6 +52,7 @@ const BLUR = `
 // màu (nửa độ phân giải) + CoC có dấu, tính bằng pixel ảnh gốc; âm = ở trước điểm lấy nét
 const DOF_PREP = `
   uniform sampler2D tScene, tDepth; uniform vec2 uTexel;
+  ${SAFE}
   uniform float uNear, uFar, uFocus, uFocusRange, uCocK, uMaxCoc;
   varying vec2 vUv;
   float dist(vec2 uv) { float d = texture2D(tDepth, uv).x; return uNear * uFar / (uFar - d * (uFar - uNear)); }
@@ -57,8 +60,8 @@ const DOF_PREP = `
   float coc(float z) { float d = z - uFocus; d = sign(d) * max(abs(d) - uFocusRange, 0.0); return clamp(uCocK * d / max(z, 1e-3), -uMaxCoc, uMaxCoc); }
   void main() {
     vec2 o = uTexel * 0.5;
-    vec3 c = (texture2D(tScene, vUv + vec2(-o.x, -o.y)).rgb + texture2D(tScene, vUv + vec2(o.x, -o.y)).rgb
-            + texture2D(tScene, vUv + vec2(-o.x, o.y)).rgb + texture2D(tScene, vUv + vec2(o.x, o.y)).rgb) * 0.25;
+    vec3 c = (safe(texture2D(tScene, vUv + vec2(-o.x, -o.y)).rgb) + safe(texture2D(tScene, vUv + vec2(o.x, -o.y)).rgb)
+            + safe(texture2D(tScene, vUv + vec2(-o.x, o.y)).rgb) + safe(texture2D(tScene, vUv + vec2(o.x, o.y)).rgb)) * 0.25;
     // lấy CoC "gần nhất" trong 4 điểm ảnh gốc để viền tiền cảnh không bị hụt
     float z = min(min(dist(vUv + vec2(-o.x, -o.y)), dist(vUv + vec2(o.x, -o.y))), min(dist(vUv + vec2(-o.x, o.y)), dist(vUv + vec2(o.x, o.y))));
     gl_FragColor = vec4(min(c, vec3(64.0)), coc(z));
@@ -258,8 +261,9 @@ const FINAL = `
   varying vec2 vUv;
   ${DISPLAY}
   float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+  ${SAFE}
   vec3 sceneAt(vec2 uv) {
-    vec3 s = texture2D(tScene, uv).rgb;
+    vec3 s = safe(texture2D(tScene, uv).rgb);
     if (uDof > 0.0) { vec4 d = texture2D(tDof, uv); s = mix(s, d.rgb, clamp(d.a, 0.0, 1.0) * uDof); }
     return s;
   }

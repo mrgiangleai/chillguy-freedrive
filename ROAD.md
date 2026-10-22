@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -425,3 +425,7 @@
 - Đã tóm tắt tới commit "New York: âm thanh phố + bản đồ tròn lưới phố thật + ghi công OSM" (22/10/2026): 5 + 1 tòa nổi tiếng (One Vanderbilt),
   biển phát sáng màu, GLB, Times Square lượt 3, mạng đường thật, thử worker GLM / 3D MiniMax vs DeepSeek, phố ngang chỉ vẽ miệng ngã tư,
   âm thanh New York, bản đồ tròn — chi tiết ở mục 1 (Map New York), mục 2 và NYC_PLAN.md.
+- **#1 — Sửa Broadway đè làn / xe lún + chấm đen ở vũng / quầng đèn (22/10/2026)**: nycNet `routeMask` bỏ mảnh phố OSM (cả bề rộng vỉa hè)
+  chạm lòng đường tuyến ở mặt phố (không cắt dưới cầu cạn / hầm); vạch chéo Broadway bỏ đoạn chồng vạch qua đường 45 St. Chấm đen = điểm ảnh NaN
+  (pháp tuyến vân nhựa đường `normalize(0)` khi det ≈ 0, hay gặp trên điện thoại) bị xoá phông / bloom làm loang: scenery giữ pháp tuyến cũ,
+  post.js `safe()` đổi NaN / Inf thành 0 ở bright, DOF prep, sceneAt. Chụp Low đêm mưa Times Square: sạch.
