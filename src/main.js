@@ -155,6 +155,8 @@ const sgnScene = new SgnScene(scene, (x, z) => terrain.heightAt(x, z));   // map
 const sgnEnv = new SgnEnv(scene, (x, z) => terrain.heightAt(x, z));       // map Landmark: khu Vinhomes (tháp chung cư, biệt thự, công viên, hồ, sông, cây — OSM)
 sgnEnv.onReady = () => { if (sgnEnv.visible) city.extraObb = sgnEnv.obb; };
 sgnEnv.avoid = (x, z) => sgnNear(x, z, 13);                  // cây không mọc trên lòng đường / vỉa hè tuyến
+sgnEnv.base = SGN.data.vinhomes; sgnEnv.walk = CITY.walk;                              // nền thảm cỏ cả khu Vinhomes
+sgnEnv.roadGap = (x, z) => { const [d, s] = sgnNearest(x, z); return d - road.hwAt(SGN.length + s); };   // nền cỏ: khoảng cách tới mép nhựa thật
 // hàng cây hai bên đường từ Nguyễn Hữu Cảnh qua Vạn Hoa 4 / 3, Trần Trọng Kim (s 0–1500), mỗi 11 m, trên vỉa hè sát lề (tính khi dựng)
 sgnEnv.street = {
   * [Symbol.iterator]() {
@@ -781,12 +783,22 @@ const nycLaneFree = (u) => !cityTraffic.cars.some((c) => !c.cross && !c.xr && Ma
 // qua góc 40 m thì về lại làn ngoài phải (xi nhan phải). Chú vừa lái tay (≤ 8 s) thì không tự đổi làn.
 // Đầu xe tới đầu khúc cua: chấm lỗi rẽ không từ làn trái / không bật xi nhan trái + báo tên đường mới
 // Landmark: vùng không dựng nhà map Phố — trong 70 m quanh đoạn đường cao / thấp hơn mặt phố > 0.4 m (cầu, dốc cầu, hầm), lưới ô 50 m
-let sgnNoGrid = null, sgnAllGrid = null;
+let sgnNoGrid = null, sgnAllGrid = null, sgnIdxGrid = null;
+// [khoảng cách, s] từ (x, z) tới điểm tim tuyến gần nhất (mẫu 5 m, tìm trong 3 × 3 ô 50 m; xa hơn => [Infinity, 0])
+function sgnNearest(x, z) {
+  sgnNear(0, 0, 0);
+  const gx = Math.floor(x / 50), gz = Math.floor(z / 50), D = SGN.data; let bd = Infinity, bi = 0;
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+    const a = sgnIdxGrid.get((gx + i) + ',' + (gz + j)); if (!a) continue;
+    for (const k of a) { const d = (D.x[k] - x) ** 2 + (D.z[k] - z) ** 2; if (d < bd) { bd = d; bi = k; } }
+  }
+  return [Math.sqrt(bd), bi * D.step];
+}
 // điểm (x, z) cách tim tuyến (mọi đoạn, mẫu 5 m) dưới r m?
 function sgnNear(x, z, r) {
   if (!sgnAllGrid) {
-    sgnAllGrid = new Map(); const D = SGN.data;
-    for (let i = 0; i < D.x.length; i++) { const k = Math.floor(D.x[i] / 50) + ',' + Math.floor(D.z[i] / 50); (sgnAllGrid.get(k) || sgnAllGrid.set(k, []).get(k)).push(D.x[i], D.z[i]); }
+    sgnAllGrid = new Map(); sgnIdxGrid = new Map(); const D = SGN.data;
+    for (let i = 0; i < D.x.length; i++) { const k = Math.floor(D.x[i] / 50) + ',' + Math.floor(D.z[i] / 50); (sgnAllGrid.get(k) || sgnAllGrid.set(k, []).get(k)).push(D.x[i], D.z[i]); (sgnIdxGrid.get(k) || sgnIdxGrid.set(k, []).get(k)).push(i); }
   }
   const gx = Math.floor(x / 50), gz = Math.floor(z / 50);
   for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {

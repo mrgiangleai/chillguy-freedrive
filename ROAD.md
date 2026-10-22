@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -339,7 +339,10 @@
   kính (canvas `vhFacade`, cửa sổ sáng đêm theo đèn × `lightTune.windows`), 98 mặt cỏ / sân, 54 mặt nước (sông Sài Gòn ghép từ relation + cắt khung,
   hồ, hồ bơi, đài phun nước), ~2 240 cây (177 OSM + rải trong công viên 1 / 110 m² + hàng cây 2 bên đường s 20–1500 mỗi 11 m; 30 % cọ); camera
   không xuyên nhà (`city.extraObb = sgnEnv.obb`); bản đồ tròn vẽ nhà. Không cột / dây điện đoạn s 380–1560 (`city.noPoles`). OSM thiếu Landmark 1–6.
-  Bề rộng đường theo đoạn (Vạn Hoa 4 / 3 hẹp 2 làn, `widths` trong sgn-data) — đang giao Codex (nhánh `worker/sgn-width`).
+  **Bề rộng đường theo đoạn** (Codex viết, Claude soát): `road.hwAt(s)` / `laneAt(s, k)` / `laneCountAt(s)` (road.js; chỉ map có `widths`, map khác
+  = hằng số cũ), `widths` trong sgn-data: Vạn Hoa 4 / 3 (s 494–930) mép 4 m, 1 làn mỗi chiều tâm ±1.9, nối dần 25 m; nhựa (scenery), vỉa hè / vạch / nhà
+  / cột (city.js `fitU`), xe mình + NPC (một làn, không vượt), người đi bộ (`cityPeople._hw`), xẻ đất (terrain) theo đó. `scripts/check-sgn-width.mjs`.
+  **Nền cỏ cả khu**: lưới ô 6 m trong đa giác `vinhomes`, sát đường ô 2 m luồn dưới vỉa hè (`roadGap` = khoảng tới mép nhựa thật, `sgnNearest`).
   Vào map ở s = L + 60, luôn Hoàng hôn + Nhiều mây (chú dặn, để chụp lại), camera giữ lần trước.
   Trọng tâm (chú dặn): làm đẹp khu quanh Landmark 81; đoạn khác chỉ cần đúng.
   **Map Đại lộ** (`avenue`, 🛣️, nhóm Drive cùng Phố; M trong Drive: Phố ↔ Đại lộ): cao tốc 6 làn (`AVENUE`: tâm làn ±2.25 / ±5.75 /
@@ -513,3 +516,5 @@
   Vinhomes theo OSM" (23/10/2026): New York — tòa nổi tiếng không đè phố, kính ướt khi mưa (bản nhẹ), xoá `src/bld`, xe nhường người đi bộ,
   hơi cống / xe đồ ăn / Koreatown, camera tránh biển LED; HLG tên đường cắt ngang + góc sông (xem mục 1 / 3 / 5). Map Landmark 81 – TP.HCM: B1 →
   tuyến qua khu Vinhomes, tên đường / khu trên HUD + bản đồ, tháp Landmark 81 GLB, khu Vinhomes OSM (xem mục 1 "Map Landmark", mục 5, SGN_PLAN.md).
+- **#1 — Khu Vinhomes: đường nội khu đúng bề rộng + nền cỏ (23/10/2026)**: Vạn Hoa 4 / 3 hẹp 2 làn (Codex, chặn chỉ map Landmark), thảm cỏ cả khu;
+  check sgn-width / sgn / nyc / traffic / policy / hlg / ped-yield PASS; chụp Low 0 lỗi.

@@ -32,7 +32,7 @@ export class SgnEnv {
   constructor(scene, groundAt) {
     this.groundAt = groundAt;
     this.group = new THREE.Group(); this.group.visible = false; scene.add(this.group);
-    this.state = 'idle'; this.obb = []; this.foot = null; this.winK = 1;
+    this.state = 'idle'; this.obb = []; this.foot = null; this.winK = 1; this.walk = 4;   // walk: bề rộng vỉa hè tuyến (main đặt)
     const [map, em] = vhFacade();
     this.wall = withMist(new THREE.MeshStandardMaterial({ map, emissiveMap: em, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.55, metalness: 0.05 }));
     this.mid = withMist(new THREE.MeshStandardMaterial({ color: 0xe6e0d4, roughness: 0.8 }));
@@ -41,6 +41,7 @@ export class SgnEnv {
     this.tile = withMist(new THREE.MeshStandardMaterial({ color: 0x4a4f57, roughness: 0.7 }));        // mái dốc biệt thự (ngói xám)
     const flat = (color, rough = 1, extra = {}) => withMist(new THREE.MeshStandardMaterial({ color, roughness: rough, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, ...extra }));
     this.ground = [flat(0x5f8a3e), flat(0x3f7a4a), flat(0xc8b38a)];                                // cỏ, sân thể thao, sân chơi
+    this.lawn = flat(0x7a9160);                                       // nền cả khu (thảm cỏ cắt tỉa) — dưới cỏ công viên / nước
     this.water = [flat(0x2f5568, 0.12, { metalness: 0.2 }), flat(0x3b6b78, 0.1, { metalness: 0.2 }), flat(0x4fb3c8, 0.08), flat(0x7cc4d4, 0.1)];
     this.trunk = withMist(new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 0.9 }));
     this.leaf = withMist(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }));
@@ -112,9 +113,30 @@ export class SgnEnv {
       const shape = []; for (let i = 0; i < n; i++) shape.push(new THREE.Vector2(pts[2 * i], pts[2 * i + 1]));
       upPoly(B, shape, THREE.ShapeUtils.triangulateShape(shape, []), y + dy);
     };
-    for (const [k, pts] of D.g) flatPoly(grounds[k], pts, 0.06);
+    // nền cả khu: lưới ô 6 m trong ranh `this.base` (đa giác [x, z][]), chừa lòng đường + vỉa hè tuyến (this.avoidRoad), cao hơn đất 15 cm
+    const lawn = mk();
+    if (this.base) {
+      const P = this.base.flat(), C = 6;
+      let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+      for (const [x, z] of this.base) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+      // roadGap(x, z): khoảng còn trống tới mép lòng đường (âm = trên mặt nhựa); ô sát đường chia nhỏ 2 m để luồn kín dưới vỉa hè
+      const cell = (x, z, c) => {
+        // ô lớn: theo góc cao nhất (đất gồ không trồi lên); ô nhỏ sát đường: góc thấp nhất (không trồi lên mặt vỉa hè)
+        const y = (c < C ? Math.min : Math.max)(G(x, z), G(x + c, z), G(x, z + c), G(x + c, z + c)) + (c < C ? 0.08 : 0.12), b0 = lawn.pos.length / 3;
+        lawn.pos.push(x, y, z, x + c, y, z, x + c, y, z + c, x, y, z + c); lawn.nor.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0); lawn.uv.push(0, 0, 0, 0, 0, 0, 0, 0);
+        lawn.idx.push(b0, b0 + 2, b0 + 1, b0, b0 + 3, b0 + 2);
+      };
+      for (let x = x0; x < x1; x += C) for (let z = z0; z < z1; z += C) {
+        if (!inPoly(x + C / 2, z + C / 2, P)) continue;
+        const gap = this.roadGap ? this.roadGap(x + C / 2, z + C / 2) : Infinity;
+        // mép cỏ: ô 2 m có tâm cách mép nhựa > vỉa hè − 1 m => mọi góc ô nằm dưới vỉa hè (cỏ thấp hơn mặt vỉa hè, không hở đất), cách mặt nhựa ≥ 1.6 m
+        if (gap > this.walk + C) { cell(x, z, C); continue; }
+        for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) { const sx = x + i * 2, sz = z + j * 2; if (this.roadGap(sx + 1, sz + 1) > this.walk - 1) cell(sx, sz, 2); }
+      }
+    }
+    for (const [k, pts] of D.g) flatPoly(grounds[k], pts, 0.22);   // cao hơn mặt đất 22 cm: lưới địa hình thô không trồi lên che
     for (const [k, pts] of D.w) {
-      flatPoly(waters[k], pts, k === 0 ? 0.12 : 0.1);
+      flatPoly(waters[k], pts, k === 0 ? 0.3 : 0.28);
       let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
       for (let i = 0; i < pts.length; i += 2) { x0 = Math.min(x0, pts[i]); x1 = Math.max(x1, pts[i]); z0 = Math.min(z0, pts[i + 1]); z1 = Math.max(z1, pts[i + 1]); }
       blockers.push([x0, z0, x1, z1, pts]);
@@ -122,6 +144,7 @@ export class SgnEnv {
     let tris = 0;
     walls.forEach((B, k) => { tris += mesh(this.group, B, [this.wall, this.mid, this.villa][k]); });
     tris += mesh(this.group, roofs, this.roof); tris += mesh(this.group, tiles, this.tile);
+    tris += mesh(this.group, lawn, this.lawn, false);
     grounds.forEach((B, k) => { tris += mesh(this.group, B, this.ground[k], false); });
     waters.forEach((B, k) => { tris += mesh(this.group, B, this.water[k], false); });
     // ---- cây: OSM + rải trong công viên / bãi cỏ (1 cây / ~110 m², tối đa 2 600) + hàng cây đường nội khu ----

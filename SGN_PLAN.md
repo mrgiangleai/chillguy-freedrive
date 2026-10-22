@@ -38,4 +38,4 @@ Vincom / Bitexco nhìn từ xa, khu Vinhomes Central Park.
 **B5 — Hoàn thiện**: âm thanh, (bản đồ tròn + tên đường / khu: xong 23/10), ghi công OSM (README + ⓘ), thử Low.
 
 ## Trạng thái
-- [x] B1 (23/10/2026: vòng 17.86 km, hầm sâu 11 m, cầu Sài Gòn cao 12 m, check-sgn PASS)  - [ ] B2  - [ ] B3 (đã có: tháp Landmark 81 — DeepSeek, `landmarks/landmark81.js`; còn: nhà OSM, Vinhomes Central Park)  - [ ] B4  - [ ] B5
+- [x] B1 (23/10/2026: vòng 17.86 km, hầm sâu 11 m, cầu Sài Gòn cao 12 m, check-sgn PASS)  - [ ] B2  - [x] B3 khu Vinhomes (23/10: tháp Landmark 81 GLB, 347 nhà OSM, cỏ / nước / ~2 240 cây, đường nội khu đúng bề rộng; thiếu Landmark 1–6 trong OSM)  - [ ] B4  - [ ] B5
