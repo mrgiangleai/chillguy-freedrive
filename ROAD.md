@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -49,6 +49,8 @@
   (17.5k tam giác, đúng khối nhưng mặt trơn); DeepSeek ít chi tiết — đẹp + chi tiết nhất nhưng tự sửa tụt dưới mức tam giác tối thiểu (1 232);
   DeepSeek nhiều chi tiết — dừng sau 3.5 phút không ghi file (file dài dễ bị cắt). => DeepSeek mạnh về thẩm mỹ với model gọn, nên đặt trần tam giác
   vừa phải (≤ 8k) và nhắc "write model.js early, then refine"; MiniMax hợp model lớn. Bài: scratchpad `bench3d/`.
+  **Việc 3D / hình (chú dặn 22/10/2026)**: đề luôn bắt làm bản cơ bản trước (khối / hình tổng thể đúng tỉ lệ, ghi file, chạy check) rồi mới
+  sửa thêm chi tiết — đi từ chi tiết lên tổng thể rất lâu, worker hay hết giờ không ra file. Việc khó: gọi song song DeepSeek + MiniMax + GLM.
 - **Tiết kiệm quota (chú yêu cầu)**: việc làm theo khuôn (code nháp, sửa hàng loạt, tóm tắt) giao DeepSeek theo thứ tự:
   1) **opencode free** `opencode run --standalone -m opencode/deepseek-v4.1-flash-free` (ưu tiên; `opencode/deepseek-v4.1-flash` trả phí
   và `vibi/…` đã hết tiền); 2) bản free hết giới hạn => **hỏi chú trước** rồi mới dùng credit API riêng của chú: công cụ MCP `deepseek`
@@ -401,7 +403,7 @@
 
 ## 5. Việc còn mở / cần chú ý
 - **Map New York** 🗽: B1–B5 xong (22/10/2026). Có thể làm thêm: bề rộng đường theo đoạn (đang 4 làn mọi nơi, 32 / 55 St thật hẹp hơn),
-  cửa tàu điện ngầm, đèn đi bộ bàn tay / người; chưa thử máy thật / Good / Ultra (gương CubeCamera + 2 PointLight + ~3 200 nhà).
+  cửa tàu điện ngầm; chưa thử máy thật / Good / Ultra (gương CubeCamera + 2 PointLight + ~3 200 nhà).
   Camera Bên hông dễ bị 1 tấm biển che kín khung hình.
 - **Map Cao tốc HLG — có thể làm tiếp**: footprint Microsoft không có chiều cao ở VN => cao theo diện tích (đoán); sông / lạch cắt chéo
   đúng góc thật (đang vuông góc tuyến); mặt nước lạch dài ±400 m rồi dừng; cỏ cao `meadow` vẫn phủ cả khu dân cư; biển tốc độ dựng bên đường còn theo mẫu Đại lộ (HUD đã đúng biển thật); Cầu Long Thành dùng tháp dây văng
@@ -429,3 +431,7 @@
   chạm lòng đường tuyến ở mặt phố (không cắt dưới cầu cạn / hầm); vạch chéo Broadway bỏ đoạn chồng vạch qua đường 45 St. Chấm đen = điểm ảnh NaN
   (pháp tuyến vân nhựa đường `normalize(0)` khi det ≈ 0, hay gặp trên điện thoại) bị xoá phông / bloom làm loang: scenery giữ pháp tuyến cũ,
   post.js `safe()` đổi NaN / Inf thành 0 ở bright, DOF prep, sceneAt. Chụp Low đêm mưa Times Square: sạch.
+- **#2 — Đèn đi bộ kiểu Mỹ ở mọi ngã tư New York (22/10/2026)**: hộp ngang `pedHeadGeoUS` + mặt `pedFaceMat` (ShaderMaterial, atlas `usPedAtlas.js`
+  1024×128 — DeepSeek thắng thi song song với GLM / MiniMax). city.js `_pedFace(ph, k)`: pha xanh "người" trắng, nửa cuối pha (≤ 12 s) bàn tay
+  nhấp nháy 1 Hz + số đếm ngược, còn lại bàn tay sáng; thuộc tính `aFace` mỗi khung. Map Phố giữ đèn đỏ / xanh cũ. Kiểm trong trang: dữ liệu
+  đổi đúng pha, shader không lỗi (chụp Low quá xa để thấy rõ mặt đèn).

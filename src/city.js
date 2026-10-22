@@ -5,6 +5,7 @@ import { withMist } from './mist.js';
 import { hLow } from './terrain-noise.js';
 import { houseGeometry } from './town.js';
 import { broadleafGeometry } from './scenery.js';
+import { usPedAtlas } from './usPedAtlas.js';
 
 // Map Phố (kiểu phố Nhật): dựng theo từng "khối phố" n = đoạn đường giữa ngã tư n và n+1 (road.junction).
 // Mỗi khối: đường ngang + vỉa hè + vạch kẻ của ngã tư n, vạch kẻ đường chính trong khối, vỉa hè hai bên, nhà (dãy mặt tiền,
@@ -362,6 +363,9 @@ export class City {
     this.headGeo = new THREE.BoxGeometry(1.3, 0.44, 0.3);
     this.headGeoV = new THREE.BoxGeometry(0.44, 1.3, 0.3);      // New York: đầu đèn dọc (đỏ trên)
     this.pedHeadGeo = new THREE.BoxGeometry(0.34, 0.62, 0.2);
+    this.pedHeadGeoUS = new THREE.BoxGeometry(0.62, 0.36, 0.2);   // New York: hộp đèn đi bộ ngang (biểu tượng trái, số đếm ngược phải)
+    this.pedFaceGeo = new THREE.PlaneGeometry(0.56, 0.3);
+    this.pedFaceMat = null;                                       // tạo khi dựng ngã tư New York đầu tiên (atlas canvas)
     this.lensGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.04, 14).rotateX(Math.PI / 2);
     this.sigPoleGeo = new THREE.CylinderGeometry(0.1, 0.12, 1, 8).translate(0, 0.5, 0);
     this.armGeo = new THREE.BoxGeometry(1, 0.1, 0.1).translate(0.5, 0, 0);
@@ -426,6 +430,36 @@ export class City {
     const S = this.sig, left = k === 2 ? S.mainG + S.y + S.allRed + S.crossG - ph.t : S.mainG - ph.t;
     if (g && left < 4 && Math.floor(ph.t * 2.5) % 2) return false;
     return (g ? 0 : 2) === col;
+  }
+
+  // đèn đi bộ kiểu Mỹ (New York), kiểu k 2 / 3 như _lensOn => [biểu tượng 0 bàn tay / 1 người, số đếm ngược (−1 tắt), sáng 0 / 1]:
+  // pha xanh của hướng qua đường: "người" trắng, nửa cuối pha (tối đa 12 s) bàn tay nhấp nháy 1 Hz + đếm ngược; còn lại bàn tay sáng đứng yên
+  _pedFace(ph, k) {
+    const S = this.sig, g = (k === 2 ? ph.cross : ph.main) === 0;
+    if (!g) return [0, -1, 1];
+    const len = k === 2 ? S.crossG : S.mainG, left = k === 2 ? S.mainG + S.y + S.allRed + S.crossG - ph.t : S.mainG - ph.t;
+    if (left > Math.min(12, Math.round(len * 0.5))) return [1, -1, 1];
+    return [0, Math.max(0, Math.ceil(left)), Math.floor(ph.t * 2) % 2 ? 0 : 1];
+  }
+  _pedFaceMat() {
+    if (this.pedFaceMat) return this.pedFaceMat;
+    const t = new THREE.CanvasTexture(usPedAtlas()); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    return (this.pedFaceMat = new THREE.ShaderMaterial({
+      uniforms: { tAtlas: { value: t }, uK: { value: 1.4 } },
+      vertexShader: `attribute vec3 aFace; varying vec2 vUv; varying vec3 vF;
+        void main() { vUv = uv; vF = aFace; gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0); }`,
+      // atlas 1024×128: bàn tay 0–128, người 128–256, bản tắt 256–512, chữ số d ở 512 + 48·d
+      fragmentShader: `uniform sampler2D tAtlas; uniform float uK; varying vec2 vUv; varying vec3 vF;
+        void main() {
+          vec3 c = vec3(0.04);
+          if (vUv.x < 0.5) { float cell = vF.z > 0.5 ? vF.x : vF.x + 2.0; c = texture2D(tAtlas, vec2((cell + vUv.x * 2.0) * 0.125, vUv.y)).rgb; }
+          else if (vF.y >= 0.0) {
+            float uu = (vUv.x - 0.5) * 4.0, hi = floor(vF.y / 10.0), d = uu < 1.0 ? hi : mod(vF.y, 10.0);
+            if (uu >= 1.0 || hi > 0.0) c = texture2D(tAtlas, vec2((512.0 + (d + fract(uu)) * 48.0) / 1024.0, vUv.y)).rgb;
+          }
+          gl_FragColor = vec4(c * uK, 1.0);
+        }`,
+    }));
   }
 
   // khoảng cách tới vạch dừng phía trước (theo chiều dir) nếu đèn bắt dừng; Infinity nếu được đi.
@@ -529,7 +563,13 @@ export class City {
         }
         a.needsUpdate = true;
       }
+      if (L.pedFace) {
+        const F = L.pedFace;
+        for (let i = 0; i < F.kind.length; i++) F.aFace.setXYZ(i, ...this._pedFace(ph, F.kind[i]));
+        F.aFace.needsUpdate = true;
+      }
     }
+    if (this.pedFaceMat) this.pedFaceMat.uniforms.uK.value = 1.4 + 1.2 * lamps;
     this.lastS = s;
     this.uLit.value = lamps;
     this.uGlow.value = (0.15 + 1.6 * lamps) * this.uSignK.value;
@@ -1110,7 +1150,16 @@ export class City {
     add(this.sigPoleGeo, this.sigMat, poles, ([x, y, z, h]) => m.compose(v.set(x, y, z), q.identity(), sc.set(1, h, 1)));
     add(this.armGeo, this.sigMat, arms, ([x, y, z, a, L]) => m.compose(v.set(x, y, z), q.setFromAxisAngle(this._up, a), sc.set(L, 1, 1)));
     add(this.nyc ? this.headGeoV : this.headGeo, this.sigMat, heads, ([x, y, z, yw]) => m.compose(v.set(x, y, z), q.setFromAxisAngle(this._up, yw), sc.set(1, 1, 1)));
-    add(this.pedHeadGeo, this.sigMat, peds, ([x, y, z, yw]) => m.compose(v.set(x, y, z), q.setFromAxisAngle(this._up, yw), sc.set(1, 1, 1)));
+    add(this.nyc ? this.pedHeadGeoUS : this.pedHeadGeo, this.sigMat, peds, ([x, y, z, yw]) => m.compose(v.set(x, y, z), q.setFromAxisAngle(this._up, yw), sc.set(1, 1, 1)));
+    let pedFace = null;
+    if (this.nyc) {                                                  // mặt đèn đi bộ kiểu Mỹ: bàn tay cam / người trắng + số đếm ngược
+      const fg = this.pedFaceGeo.clone(); fg.userData.own = true;
+      const aFace = new THREE.InstancedBufferAttribute(new Float32Array(peds.length * 3), 3);
+      fg.setAttribute('aFace', aFace);
+      const fm = add(fg, this._pedFaceMat(), peds, ([x, y, z, yw]) => m.compose(v.set(x + Math.sin(yw) * 0.105, y, z + Math.cos(yw) * 0.105), q.setFromAxisAngle(this._up, yw), sc.set(1, 1, 1)));
+      fm.castShadow = false;
+      pedFace = { aFace, kind: Int8Array.from(peds.map((e) => e[4])) };
+    }
     const lens = [], kind = [], col = [];
     for (const [x, y, z, yw, k] of heads) {
       const cs = Math.cos(yw), sn = Math.sin(yw);
@@ -1120,7 +1169,7 @@ export class City {
         kind.push(k); col.push(i);
       }
     }
-    for (const [x, y, z, yw, k] of peds) {                          // đèn đi bộ: đỏ trên, xanh dưới, thấu kính nhỏ
+    for (const [x, y, z, yw, k] of this.nyc ? [] : peds) {          // đèn đi bộ: đỏ trên, xanh dưới, thấu kính nhỏ (New York: mặt atlas ở trên)
       const cs = Math.cos(yw), sn = Math.sin(yw), lz = 0.11;
       for (const [i, dy] of [[2, 0.15], [0, -0.15]]) {
         lens.push([x + sn * lz, y + dy, z + cs * lz, yw, 0.62]);
@@ -1140,7 +1189,7 @@ export class City {
     const glow = new THREE.Points(gg, this.sigGlowMat);
     glow.frustumCulled = false; glow.renderOrder = 6;
     group.add(glow);
-    group.userData.lens = { mesh: lm, kind: Int8Array.from(kind), col: Int8Array.from(col), glow };
+    group.userData.lens = { mesh: lm, kind: Int8Array.from(kind), col: Int8Array.from(col), glow, pedFace };
 
     // đèn đường 4 góc ngã tư (tay đòn chĩa vào tâm ngã tư)
     const S = this.scenery, lamps = [], bulbs = [];
