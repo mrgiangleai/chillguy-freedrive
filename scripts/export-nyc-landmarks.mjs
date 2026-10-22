@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as THREE from 'three';
 
-const NAMES = ['empire', 'chrysler', 'grandcentral', 'metlife', 'helmsley', 'waldorf', 'seagram', 'lever', 'macys', 'msg'];
+const NAMES = ['empire', 'chrysler', 'grandcentral', 'metlife', 'helmsley', 'waldorf', 'seagram', 'lever', 'macys', 'msg', 'vanderbilt'];
 const OUT = 'docs/assets/models/nyc';
 fs.mkdirSync(OUT, { recursive: true });
 

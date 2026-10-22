@@ -334,7 +334,7 @@ if (fs.existsSync(BF)) {
   // toạ độ thật của tòa nhà nổi tiếng không nằm sát tuyến (model riêng, game bỏ nhà OSM trùng chỗ)
   const lm = {};
   for (const [name, lat, lon] of [['empire', 40.74844, -73.985664], ['chrysler', 40.751621, -73.975502], ['waldorf', 40.756584, -73.973839],
-    ['seagram', 40.758419, -73.972345], ['lever', 40.75953, -73.973176], ['macys', 40.750795, -73.989091], ['msg', 40.750505, -73.993439]]) {
+    ['seagram', 40.758419, -73.972345], ['lever', 40.75953, -73.973176], ['macys', 40.750795, -73.989091], ['msg', 40.750505, -73.993439], ['vanderbilt', 40.75301, -73.97856]]) {
     const [E, N] = ll({ lat, lon }), [j] = nearest(E, N, R1);
     lm[name] = [+(E + off[j][0]).toFixed(1), +(-(N + off[j][1])).toFixed(1)];
   }

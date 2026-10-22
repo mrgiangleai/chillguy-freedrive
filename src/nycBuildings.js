@@ -18,12 +18,13 @@ import * as seagram from './landmarks/seagram.js';
 import * as lever from './landmarks/lever.js';
 import * as macys from './landmarks/macys.js';
 import * as msg from './landmarks/msg.js';
+import * as vanderbilt from './landmarks/vanderbilt.js';
 // tòa nổi tiếng: [module, kích thước X (đông–tây), Z (bắc–nam)]
 const LANDMARKS = { empire: [empire, 129, 57], chrysler: [chrysler, 61, 58], metlife: [metlife, 90, 50], helmsley: [helmsley, 90, 60], grandcentral: [grandcentral, 90, 120],
-  waldorf: [waldorf], seagram: [seagram], lever: [lever], macys: [macys], msg: [msg] };
+  waldorf: [waldorf], seagram: [seagram], lever: [lever], macys: [macys], msg: [msg], vanderbilt: [vanderbilt] };
 // tòa đặt theo toạ độ thật (`lm` từ fetch-nyc): [tên, góc xoay so với lưới phố (mặt chính −Z: 0 = bắc, π/2 = tây, −π/2 = đông, π = nam), co theo X]
 const REAL = [['empire', 0, 1], ['chrysler', 0, 1], ['waldorf', Math.PI, 0.61], ['seagram', Math.PI / 2, 1], ['lever', -Math.PI / 2, 1],
-  ['macys', Math.PI, 1], ['msg', -Math.PI / 2, 1]];
+  ['macys', Math.PI, 1], ['msg', -Math.PI / 2, 1], ['vanderbilt', Math.PI, 1]];
 
 export class NycBuildings {
   constructor(scene, ts, road) {
@@ -92,6 +93,7 @@ export class NycBuildings {
         const nl = Math.hypot(x - bx, z - bz) || 1; x += (x - bx) / nl * 2; z += (z - bz) / nl * 2;
       }
       place(name, x, z, yaw, 1, sx);
+      (this._real = this._real || []).push([x, z, hx, hz]);    // Grand Central / MetLife dò chỗ tránh các tòa này
     }
     const pas = D.passages[0];
     if (pas) {
@@ -118,7 +120,7 @@ export class NycBuildings {
       }
       // Grand Central (mặt chính −Z quay về nam / 42 St => yaw + π) rồi MetLife phía bắc: dò chỗ bên trái đoạn cầu cạn chạy dọc nhà ga sao cho
       // mép đường (±HW) không chạm footprint (nới 1 m) và 2 tòa không chồng nhau
-      const Q = {}, put = this._helm ? [this._helm] : [];
+      const Q = {}, put = [...(this._helm ? [this._helm] : []), ...(this._real || [])];
       const clear = (x, z, th, hx, hz) => {
         const c = Math.cos(th), sn = Math.sin(th);
         for (let t = pas.s0 - 420; t < pas.s1 + 40; t += 2) { road.at(L + t, Q); for (const u of [-HW, 0, HW]) {

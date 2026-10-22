@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -237,6 +237,7 @@
   Empire State, Chrysler (toạ độ thật `lm`), Helmsley (cầu cạn xuyên cổng đông x = +9), MetLife (tự dò chỗ trái cầu cạn không chạm đường);
   Thêm (22/10/2026, MiniMax 4 + DeepSeek 1): Waldorf Astoria (co X 0.61), Seagram, Lever House, Macy's, Madison Square Garden — toạ độ thật (`lm`),
   xoay mặt chính về phố (`REAL`), tự đẩy ra khi lấn vỉa hè; kiểm tia đứng 5 làn cả vòng: 0 chạm.
+  One Vanderbilt (DeepSeek, 1.2k tam giác, toạ độ thật Vanderbilt Ave / 42 St); GCT / MetLife dò chỗ tránh cả các tòa toạ độ thật (`_real`); kiểm khung xoay: 0 chồng.
   Grand Central (trái đoạn cầu cạn chạy dọc nhà ga, mặt chính quay nam; dò chỗ cùng MetLife: không chạm đường, không chồng nhau). Đề + script
   chấm worker: scratchpad `lm/<tên>/TASK.md, check.mjs, spec.json` — đừng để log trong thư mục làm việc (DeepSeek đọc nhầm log rồi thoát).
   MiniMax free treo > 15 phút ở lượt này. Đã sửa lỗi đám đông Times Square (thuộc tính `z` trùng: vùng / toạ độ => đám đông riêng không hiện).
@@ -426,3 +427,4 @@
 - **#5 — Phố thông sang đại lộ bên cạnh (mạng đường OSM + nhà tới 420 m), vào map ở Times Square (22/10/2026)**: chụp nhìn ngang phố 39 St: kín nhà, không trống.
 - **#6 — Thử worker GLM 5.3 flash free + script check-nyc-buildings (22/10/2026)**: GLM đạt; sửa 16 nhà OSM < 4 m (nâng 4 m).
 - **#7 — Thử MiniMax vs DeepSeek dựng model 3D 2 mức chi tiết (22/10/2026)**: kết quả ở mục 2.
+- **#8 — One Vanderbilt vào game + GLB (22/10/2026)**: 11 model, 0 điểm làn xe chạm, 0 chồng nhau, GLB không lỗi.
