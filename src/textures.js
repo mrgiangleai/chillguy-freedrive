@@ -59,17 +59,24 @@ export function softGlowTexture() {
   return t;
 }
 
-export function glowTexture() {
-  const [c, g] = canvas(128, 128);
-  const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-  grd.addColorStop(0, 'rgba(255,255,255,1)');
-  grd.addColorStop(0.2, 'rgba(255,255,255,0.55)');
-  grd.addColorStop(0.5, 'rgba(255,255,255,0.12)');
-  grd.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = grd; g.fillRect(0, 0, 128, 128);
+// Quầng sáng tròn mềm, tính từng điểm ảnh (không dùng gradient canvas: Safari / iPhone tự rắc nhiễu màu vào gradient => dùng làm
+// quầng đèn cộng sáng bị lấm tấm chấm màu như côn trùng bu đèn). stops: [[t 0..1, độ sáng 0..1], …] theo bán kính, rgb: màu (0..255)
+export function radialGlowTexture(size = 128, stops = [[0, 1], [0.2, 0.55], [0.5, 0.12], [1, 0]], rgb = [255, 255, 255]) {
+  const [c, g] = canvas(size, size), img = g.createImageData(size, size), d = img.data, h = size / 2;
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const t = Math.min(1, Math.hypot(x + 0.5 - h, y + 0.5 - h) / h);
+    let k = 1; while (k < stops.length - 1 && stops[k][0] < t) k++;
+    const [t0, a0] = stops[k - 1], [t1, a1] = stops[k], a = a0 + (a1 - a0) * Math.min(1, Math.max(0, (t - t0) / (t1 - t0 || 1)));
+    const i = (y * size + x) * 4;
+    d[i] = rgb[0]; d[i + 1] = rgb[1]; d[i + 2] = rgb[2]; d[i + 3] = Math.round(a * 255);
+  }
+  g.putImageData(img, 0, 0);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
+}
+export function glowTexture() {
+  return radialGlowTexture(128);
 }
 
 // Đám mây mềm: nhiều vòng tròn gradient chồng nhau

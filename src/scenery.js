@@ -221,6 +221,7 @@ if (uReflOn > 0.5) {
   float spread = mix(0.012, 0.004, puddle);                 // đường ướt (không vũng) => phản chiếu kéo dọc, nhoè
   for (int k = 0; k < 4; k++) refl += texture2D(uReflTex, ruv + vec2(0.0, float(k) * spread)).rgb;
   refl *= 0.25;
+  refl = any(isnan(refl)) ? vec3(0.0) : min(refl, vec3(6.0));   // ảnh phản chiếu có điểm lỗi / quá sáng => không thành đốm màu trên vũng đèn
   vec3 V = normalize(cameraPosition - vRW);
   float fres = 0.02 + 0.98 * pow(1.0 - clamp(V.y, 0.0, 1.0), 5.0);
   float fade = (1.0 - smoothstep(1.0, 4.0, abs(vRW.y - uPlaneY))) * (1.0 - smoothstep(90.0, 170.0, length(vRW - cameraPosition)));

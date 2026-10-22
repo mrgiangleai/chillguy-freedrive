@@ -102,7 +102,9 @@ const DOF_BLUR = `
     float cc = abs(c0.a);
     float R = clamp(max(cc, texture2D(tNear, vUv).r), 0.0, uMaxCoc);
     if (R < 0.75) { gl_FragColor = vec4(c0.rgb, 0.0); return; }
-    vec3 col = c0.rgb; float tot = 1.0; float fg = 0.0;
+    // trọng số Karis 1 / (1 + độ sáng): mẫu rất sáng (bóng đèn, biển LED, vũng đèn) không áp đảo => hết đốm màu lấm tấm ("côn trùng bu đèn")
+    float w0 = 1.0 / (1.0 + max(c0.r, max(c0.g, c0.b)));
+    vec3 col = c0.rgb * w0; float tot = w0; float fg = 0.0;
     float rot = hash12(gl_FragCoord.xy) * 6.2831853;
     float fN = float(uN);
     float band = R * (1.0 / sqrt(fN)) + 0.5;
@@ -114,8 +116,9 @@ const DOF_BLUR = `
       float cs = abs(s.a);
       if (s.a > c0.a) cs = min(cs, cc * 2.0);             // mẫu ở sau: không lem lên vật phía trước đang nét
       float m = smoothstep(r - band, r + band, cs);
-      col += mix(col / tot, s.rgb, m);
-      tot += 1.0;
+      float w = m / (1.0 + max(s.r, max(s.g, s.b)));
+      col += s.rgb * w;
+      tot += w;
       fg += m * step(s.a, c0.a - 1.0);                     // phần tiền cảnh phủ lên điểm này
     }
     col /= tot;

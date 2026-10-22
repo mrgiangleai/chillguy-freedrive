@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { radialGlowTexture } from './textures.js';
 import { AVENUE, IC, icS, icIndex, rampU, tollS, tollIndex, CAM, camS, camIndex, flyS, flyIndex, flyP, riverS, riverIndex, riverP, deckS, deckIndex, deckP, laneCount, layout } from './road.js';
 import { hLow } from './terrain-noise.js';
 import { withMist } from './mist.js';
@@ -146,11 +147,8 @@ function hlgSign(k) {
 const icUV = (i, x0 = 0, x1 = 1) => { const u = (i % 2) / 2, v = 1 - Math.floor(i / 2) / 3; return [u + x0 / 2, v - 1 / 3, u + x1 / 2, v]; };
 // quầng đèn mềm (điểm sáng ban đêm trên cầu / thuyền)
 function glowTex() {
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,0.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
-  return new THREE.CanvasTexture(c);
+  const t = radialGlowTexture(64, [[0, 1], [0.25, 0.55], [1, 0]]); t.colorSpace = THREE.NoColorSpace;   // giữ như bản canvas cũ
+  return t;
 }
 // thuyền dựng bằng code (màu đỉnh), dài theo trục +x, đáy ở y = −draft: 0 = sà lan chở cát dài 30 m, 1 = thuyền nhỏ 9 m
 function boatGeometry(kind) {
@@ -1079,9 +1077,7 @@ export class Avenue {
     const DARK = [0.13, 0.14, 0.16], GREY = [0.55, 0.56, 0.58], WHITE = [0.9, 0.9, 0.88];
     const flashes = [];
     this.flashTex ||= (() => {
-      const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
-      const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(235,245,255,0.7)'); gr.addColorStop(1, 'rgba(200,220,255,0)');
-      g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
+      const t = radialGlowTexture(64, [[0, 1], [0.25, 0.7], [1, 0]], [235, 245, 255]); t.colorSpace = THREE.NoColorSpace; return t;
     })();
     for (const dir of [1, -1]) {
       const sd = dir;

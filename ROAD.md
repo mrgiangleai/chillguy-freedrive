@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -464,3 +464,8 @@
   giữa vỉa hè bên đó, dời khỏi miệng ngã tư, bỏ quanh hầm / cầu cạn => 20 cửa; cầu đèn tự sáng theo đèn đường (`nycProps.setLamps`).
   Bỏ ý bề rộng đường theo đoạn: `CITY.hw` dùng ~100 chỗ / 9 file, rủi ro cao. Script chụp: sau khi vào Drive phải chờ map ổn định (preload có thể đặt lại map).
 - **#7 — Bỏ dải vạch sọc chéo Broadway qua 7th Ave (22/10/2026)**: chú gửi ảnh (sọc trắng ~55 m trên lòng đường); ngoài đời người đi bộ qua ở vạch ngã tư 45 St.
+- **#8 — Chấm màu lấm tấm ở quầng đèn đường + vũng sáng dưới đất, mọi map (22/10/2026)**: nguyên nhân chính: `glowTexture()` vẽ bằng gradient
+  canvas — Safari / iPhone tự rắc nhiễu màu (dithering) vào gradient, quầng / vũng cộng sáng khuếch đại thành đốm. Nay `radialGlowTexture()`
+  (textures.js) tính alpha từng điểm ảnh bằng putImageData; avenue.js `glowTex` + `flashTex` dùng chung. Thêm: DOF trọng số Karis 1 / (1 + sáng)
+  (hết đốm sáng lấm tấm ở vùng nhoè), phản chiếu mặt đường chặn NaN / quá sáng. Máy ảo (Chrome) không tái hiện được — cần chú xem trên iPhone.
+  Gradient canvas còn ở adAtlas / dashscreen / mặt tiền Times Square (không cộng sáng mạnh, chưa đổi).
