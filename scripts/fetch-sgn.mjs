@@ -288,6 +288,15 @@ for (let i = 0; i < wpath.length; i++) {
   if (last && last.n === n && Math.abs(a - last.s1) < 1) last.s1 = +(a + cum[i + 1] - cum[i]).toFixed(1);
   else lanes.push({ s0: +a.toFixed(1), s1: +(a + cum[i + 1] - cum[i]).toFixed(1), n });
 }
+// bề rộng theo đoạn: đường nội khu Vinhomes hẹp (Vạn Hoa 4 hai chiều 2 làn, Vạn Hoa 3 một chiều 2 làn => game: 2 làn, mép 4 m, tâm làn ±1.9);
+// còn lại dùng bề rộng mặc định của map (4 làn, mép 7.2 m). widths: [{ s0, s1, hw, lane }] (s1 > s0; game nối dần 25 m hai đầu)
+const NARROW = /Vạn Hoa \d$/;
+const widths = [];
+for (let i = 0; i < wpath.length; i++) {
+  if (!NARROW.test(wpath[i].tags.name || '')) continue;
+  const a = nodeS[i], b = nodeS[i + 1], last = widths.at(-1);
+  if (last && a - last.s1 < 30) last.s1 = +b.toFixed(1); else widths.push({ s0: +a.toFixed(1), s1: +b.toFixed(1), hw: 4, lane: 1.9 });
+}
 // tên đường theo đoạn (bỏ nhánh không tên, gộp liền nhau)
 const streets = [];
 for (let i = 0; i < wpath.length; i++) {
@@ -340,12 +349,13 @@ const vinhomes = [[10.7963, 106.7193], [10.7976, 106.7215], [10.7979, 106.7262],
 
 const data = {
   source: 'OpenStreetMap contributors (ODbL)', bbox: BB, origin: [lat0, lon0], step: +step.toFixed(4), length: +L.toFixed(1), turn: +TURN.toFixed(5),
-  corners, streets, tunnels, bridges, junctions, lanes, areas, zones, landmark81, vinhomes, elev, x, z, heading,
+  corners, streets, tunnels, bridges, junctions, lanes, areas, zones, landmark81, vinhomes, widths, elev, x, z, heading,
 };
 fs.writeFileSync(OUT, JSON.stringify(data));
 console.log(`=> ${OUT}: ${(fs.statSync(OUT).size / 1024).toFixed(0)} KB, ${junctions.length} ngã tư (${junctions.filter((j) => j.signal).length} có đèn), ${corners.length} khúc rẽ lớn`);
 console.log('  hầm', tunnels.map((t) => `${t.name} ${t.s0}–${t.s1}`).join('; '));
 console.log('  cầu', bridges.map((t) => `${t.name} ${t.s0}–${t.s1}`).join('; '));
 console.log('  đường', streets.map((t) => `${t.s0} ${t.name}`).join(' | '));
+console.log('  hẹp', widths.map((w) => `${w.s0}–${w.s1}`).join(', '));
 console.log('  khu', zones.map((t) => `${t.s0} ${t.name || '–'}`).join(' | '));
 console.log('  rẽ', corners.map((c) => `${c.s} ${c.dir}`).join(', '));
