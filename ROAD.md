@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -20,7 +20,7 @@
   `goto(..., { waitUntil: 'domcontentloaded' })`; map có cài đặt "Tự động" ghi đè camera / giờ => đặt lại ngay trước khi chụp.
   Máy chậm => môi trường (env map) chưa kịp chụp lại khi đổi giờ: gọi `__app.env.update(0.016, drive.pos); env._captureEnv()`.
 - **Kiểm tra tự động** (node, không cần trình duyệt; đều PASS): `scripts/check-traffic.mjs`, `check-traffic-policy.mjs`, `check-steering.mjs`,
-  `check-stopscene.mjs`, `check-hlg.mjs`, `check-nyc.mjs`, `check-nyc-wave.mjs`, `check-nyc-buildings.mjs`, `check-nyc-sound.mjs`, `check-nyc-landmark-roads.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
+  `check-stopscene.mjs`, `check-hlg.mjs`, `check-nyc.mjs`, `check-sgn.mjs`, `check-nyc-wave.mjs`, `check-nyc-buildings.mjs`, `check-nyc-sound.mjs`, `check-nyc-landmark-roads.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
   `check-waterfalls.mjs`, `check-rear-glass.mjs [model.glb]`. Model tải lên nặng: nén bằng `npx @gltf-transform/cli@4 webp … --quality 82`
   rồi `meshopt` (giữ file gốc); sóng biển bake bằng `node scripts/bake-ocean.mjs`. **Fixture GUI** `scripts/*-preview.js` (giữ cảnh cố định để chụp):
   bundle bằng esbuild ra `docs/<tên>-check.js`, sao `docs/index.html` thành trang riêng đổi script sang bundle đó; chụp xong
@@ -67,6 +67,9 @@
   (đoạn s, giờ: lỗi đèn => đêm, camera, chất lượng) rồi giao worker (GLM / DeepSeek) chạy `scripts/shot-nyc.mjs` (hướng dẫn ở đầu file,
   cần `npx http-server docs -p 8080 -c-1 -s`), worker tự xem ảnh và báo ngắn; Claude chỉ đọc báo cáo + 1–2 ảnh.
   Script vào thẳng New York bằng `?map=nyc`; ẩn theo nhóm cho nhanh: `HIDE=buildings,people,traffic,…` (sửa đường thì ẩn nhà), `NEAR=150` (sửa nhà: chỉ giữ nhà gần), `RANGE=50…100` (chỉ hiện mọi vật thể trong bán kính đó quanh xe).
+- **Thứ tự dự phòng DeepSeek (chú dặn 23/10/2026, thay thứ tự bên dưới)**: 1) opencode free; 2) không gọi được => **DeepSeek Harness desktop**
+  `"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" headless "<việc>"` (`--json`, `-` đọc stdin; thử 23/10: thiếu
+  DEEPSEEK_API_KEY — chú cần lưu khoá ở trang Models của app); 3) API DeepSeek của chú trong opencode (`deepseek/deepseek-flash`).
 - **Tiết kiệm quota (chú yêu cầu)**: việc làm theo khuôn (code nháp, sửa hàng loạt, tóm tắt) giao DeepSeek theo thứ tự:
   1) **opencode free** `opencode run --standalone -m opencode/deepseek-v4.1-flash-free` (ưu tiên; `opencode/deepseek-v4.1-flash` trả phí
   và `vibi/…` đã hết tiền); 2) bản free hết giới hạn => **hỏi chú trước** rồi mới dùng credit API riêng của chú: công cụ MCP `deepseek`
@@ -301,6 +304,15 @@
   25 % có còi đáp), còi hụ xa đi ngang mỗi 50–140 s (`audio.setSiren('wail')`: rú chậm chu kỳ 6 s, lia trái ↔ phải 14–22 s), đám đông Times Square
   (chatter slot 3 / 4, to dần trong 180 m quanh s 470–960; hầm × 0.2). **Bản đồ tròn**: map New York vẽ footprint nhà OSM + mạng phố thật
   (`nycBld.foot`, `nycNet.streets`), tuyến màu vàng rộng `CITY.hw`. Ghi công OSM cho New York trong ⓘ + README.
+  **Map Landmark 81 – TP.HCM** (`sgn`, 🌆, nhóm Drive; `mapKind('sgn') = 'city'`, cài đặt `chilldrive.sgn`; plan: `SGN_PLAN.md`): vòng 17.86 km theo OSM
+  (`scripts/fetch-sgn.mjs` → `src/sgn-data.json`; Dijkstra có hướng qua 7 điểm mốc có hướng la bàn, đường ngoài tuyến phạt ×6): Nguyễn Hữu Cảnh (s 0,
+  qua Landmark) → Tôn Đức Thắng / vòng xoay Mê Linh → Võ Văn Kiệt → hầm Thủ Thiêm (s 5484–6585, sâu 11 m, trần kín ~1.3 km) → Mai Chí Thọ → cầu vượt
+  An Phú → Võ Nguyên Giáp → cầu Sài Gòn (s 15885–16903, cao 12 m) → Điện Biên Phủ → vòng quay đầu 180° chân cầu (R ≈ 12 m, ~19 km/h) → Nguyễn Hữu Cảnh.
+  Độ cao: mảng `elev` mỗi 5 m (dốc ≤ 5.5 %, cầu > 600 m cao 12, 300–600 m 7.5, 60–300 m 4.5). Dùng code vòng NYC: `road.setShape('sgn', sgnLoop())`,
+  `NycWorks(…, sgnLoop)` = `sgnWorks` (tường / trần hầm, bản cầu), `city.street = true` (vỉa hè / nhà theo mặt phố, vạch theo mặt đường thật `stripR`),
+  `city.exclude = sgnNoHouse` (không nhà map Phố trong 70 m quanh đoạn cao / thấp), giao thông 2 chiều map Phố, giới hạn cua `road.curveV`,
+  báo tên đường khi đổi (`sgnAuto`). Vào map ở s = L + 60, luôn Hoàng hôn + Nhiều mây (chú dặn, để chụp lại), camera giữ lần trước.
+  Trọng tâm (chú dặn): làm đẹp khu quanh Landmark 81; đoạn khác chỉ cần đúng.
   **Map Đại lộ** (`avenue`, 🛣️, nhóm Drive cùng Phố; M trong Drive: Phố ↔ Đại lộ): cao tốc 6 làn (`AVENUE`: tâm làn ±2.25 / ±5.75 /
   ±9.25, dải phân cách ±0.5, mép làn ±11, lề khẩn cấp tới ±13), đường cong rất thoải (bán kính ≥ ~2 km), địa hình `avenue` (đồi cỏ
   thấp, cỏ cao `meadow` hai bên), hộ lan thép 2 bên, đèn đường 2 bên xen kẽ. Xe: `cityTraffic` chế độ avenue (3 làn mỗi chiều, tốc
@@ -443,6 +455,9 @@
     (`scripts/shot-nyc.mjs`: `?map=nyc`, HIDE / NEAR / RANGE / FARSHADOW) → Codex review (`codex exec -m gpt-5.6-sol -c model_reasoning_effort=medium -s read-only`)
     → Claude xem nhẹ, gộp (hỏi chú trước khi merge nhánh worker), báo cáo. `~/.claude/bin/oc-worker` timeout 15 phút (hay hết giờ ở bước chụp — dùng `fix` nối tiếp).
   - Còn có thể làm: Koreatown 32 St, hơi nước nắp cống, xe bán đồ ăn, Carnegie Hall; người băng qua khi đỏ (cần xe phanh nhường); kiểm máy thật.
+- **Map Landmark 81 – TP.HCM** 🌆: B1 xong (23/10/2026). Tiếp: B2 sông Sài Gòn (mặt nước theo OSM, đang là đất phẳng dưới cầu) + vỉa hè dưới cầu,
+  B3 nhà OSM + Landmark 81 / Vinhomes Central Park (trọng tâm, làm đẹp), B4 xe máy / taxi VN + mạng đường quanh Landmark, B5 âm thanh, bản đồ tròn, ghi công OSM.
+  Xem `SGN_PLAN.md`. Cache Overpass: `<tmpdir>/chilldrive-osm/sgn/roads.json`. Cần chú xem: trong hầm Thủ Thiêm ảnh chụp thấy mảng tối bên trái (có thể do camera đặt bằng script).
 - **Map New York** 🗽: B1–B5 xong (22/10/2026). Có thể làm thêm: bề rộng đường theo đoạn (đang 4 làn mọi nơi, 32 / 55 St thật hẹp hơn),
   chưa thử máy thật / Good / Ultra (gương CubeCamera + 2 PointLight + ~3 200 nhà).
   Camera Bên hông dễ bị 1 tấm biển che kín khung hình.
@@ -469,5 +484,8 @@
   đi bộ Mỹ, tải dần + lưu thiết bị, biển Times Square, tàu điện ngầm, chấm màu quầng đèn, hầm Park Ave, nắp hầm, bóng nắng xa) đã gộp vào mục 1 / 3 / 5.
 - **#1 — Tòa nổi tiếng New York không đè phố (23/10/2026)**: gộp `worker/debug-20261022-224930` (DeepSeek + Claude sửa theo 2 lượt Codex review),
   xoá nhánh cũ `worker/debug-20261022-182922`. 11/11 tòa, `check-nyc-landmark-roads` / `check-nyc` / traffic / car-switch PASS.
-- **#2 — Kính ướt khi mưa (23/10/2026)**: `src/wetGlass.js` (xem mục 3), gắn mặt tiền kính New York / Times Square. `shot-nyc.mjs` đặt lại thời tiết trước mỗi ảnh
+- **#2 — Map Landmark 81 – TP.HCM, B1 (23/10/2026)**: chú chọn vòng sông + hầm + cầu, nhà OSM + Landmark 81 dựng code; vào map luôn Hoàng hôn + Nhiều mây.
+  `fetch-sgn.mjs` → `sgn-data.json` (17.86 km), `sgn.js`, MAPS `sgn` 🌆, `check-sgn.mjs` PASS (check-nyc / traffic / hlg / car-switch vẫn PASS).
+  Chụp Low: 0 lỗi; trước Landmark, trong hầm, cầu Sài Gòn hiện đúng. Thứ tự dự phòng DeepSeek mới (mục 2). Chi tiết mục 1 + `SGN_PLAN.md`.
+- **#3 — Kính ướt khi mưa (23/10/2026)**: `src/wetGlass.js` (xem mục 3), gắn mặt tiền kính New York / Times Square. `shot-nyc.mjs` đặt lại thời tiết trước mỗi ảnh
   (New York có thời tiết Tự động). Build + check-nyc / buildings / landmark-roads PASS; chưa xem hình.

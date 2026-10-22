@@ -51,6 +51,7 @@ export const MAPS = [
   { id: 'avenue', name: 'Đại lộ', icon: '🛣️' },
   { id: 'hlg', name: 'Cao tốc HCM – Long Thành – Dầu Giây', icon: '🛣️' },
   { id: 'nyc', name: 'New York', icon: '🗽' },
+  { id: 'sgn', name: 'Landmark 81 – TP.HCM', icon: '🌆' },
 ];
 
 export const WEATHERS = [

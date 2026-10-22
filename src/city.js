@@ -356,6 +356,7 @@ export class City {
     this.camF = 1;
     this.clock = 0;                                              // đồng hồ đèn giao thông (s)
     this.nyc = false;                                            // map New York: vòng thật, đường một chiều, góc rẽ vuông (main đặt)
+    this.street = false;                                         // vòng có hầm / cầu (New York, Landmark): vỉa hè / nhà theo mặt phố `road.street` (main đặt)
     this.clockRate = 1;                                          // < 1 => pha đèn dài hơn (bảng 🚦)
     this.sigMat = new THREE.MeshStandardMaterial({ color: 0x2b2d30, roughness: 0.6, metalness: 0.3 });
     this.lensMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
@@ -606,14 +607,14 @@ export class City {
 
   // khung toạ độ tại quãng s: tâm đường + vector phải r + vector tiến f
   _frame(s) {
-    const p = (this.nyc ? this.road.street : this.road).at(s, {});
+    const p = (this.nyc || this.street ? this.road.street : this.road).at(s, {});
     return { x: p.x, y: p.y, z: p.z, rx: Math.cos(p.th), rz: -Math.sin(p.th), fx: -Math.sin(p.th), fz: -Math.cos(p.th), th: p.th };
   }
 
 
   _build(n) {
     // New York: mặt phố (vỉa hè, nhà) theo cao độ phố `road.street`; vạch kẻ trên mặt đường thật (hầm / cầu cạn) dùng `atR`
-    const road = this.nyc ? this.road.street : this.road, group = new THREE.Group();
+    const road = this.nyc || this.street ? this.road.street : this.road, group = new THREE.Group();
     const sJ = road.junction(n), sK = road.junction(n + 1);
     const cJ = this.nyc && !!road.junctionInfo(n)?.corner, cK = this.nyc && !!road.junctionInfo(n + 1)?.corner;
     const FcJ = cJ ? this._cornerFrame(sJ) : null, FcK = cK ? this._cornerFrame(sK) : null;
@@ -729,17 +730,17 @@ export class City {
       if (cK) stripR(sK - CORNER.stop - 0.45, sK - CORNER.stop, -HW + 0.3, HW - 0.3, WHITE);   // vạch dừng trước góc rẽ
     }
     if (!this.nyc) for (const su of [-1, 1]) {
-      strip(mark, zA, zB, su * 0.1, su * 0.25, MARK_Y, YEL);
-      strip(mark, sJ + 6, sK - 6, su * (HW - 0.4), su * (HW - 0.25), MARK_Y, WHITE);
+      stripR(zA, zB, su * 0.1, su * 0.25, YEL);                  // vạch theo mặt đường thật (Landmark: hầm / cầu)
+      stripR(sJ + 6, sK - 6, su * (HW - 0.4), su * (HW - 0.25), WHITE);
       const lA = sJ + 12, lB = sK - 12;
-      strip(mark, lA, Math.min(lB, lA + 30), su * 3.42, su * 3.58, MARK_Y, WHITE);
-      strip(mark, Math.max(lA, lB - 30), lB, su * 3.42, su * 3.58, MARK_Y, WHITE);
-      for (let k = Math.ceil((lA + 30) / 10); k * 10 + 5 < lB - 30; k++) strip(mark, k * 10, k * 10 + 5, su * 3.42, su * 3.58, MARK_Y, WHITE);
+      stripR(lA, Math.min(lB, lA + 30), su * 3.42, su * 3.58, WHITE);
+      stripR(Math.max(lA, lB - 30), lB, su * 3.42, su * 3.58, WHITE);
+      for (let k = Math.ceil((lA + 30) / 10); k * 10 + 5 < lB - 30; k++) stripR(k * 10, k * 10 + 5, su * 3.42, su * 3.58, WHITE);
     }
     if (!this.nyc) for (const lu of CITY.lanes) {
       const sa = sK - 11.9 - 8;
-      strip(mark, sa - 3.2, sa, lu - 0.08, lu + 0.08, MARK_Y, WHITE);
-      for (let k = 0; k < 4; k++) { const w = 0.45 - k * 0.11; strip(mark, sa + k * 0.25, sa + (k + 1) * 0.25, lu - w, lu + w, MARK_Y, WHITE); }
+      stripR(sa - 3.2, sa, lu - 0.08, lu + 0.08, WHITE);
+      for (let k = 0; k < 4; k++) { const w = 0.45 - k * 0.11; stripR(sa + k * 0.25, sa + (k + 1) * 0.25, lu - w, lu + w, WHITE); }
     }
 
     // ---- vỉa hè đường chính ----
