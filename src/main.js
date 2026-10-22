@@ -11,6 +11,7 @@ import { NycSound } from './nycSound.js';
 // mặc định của game = bộ cài đặt chú chỉnh trên Safari (xuất localStorage 21/10/2026): người chơi mới nhận bộ này,
 // nút "Mặc định" trong các bảng chỉnh trả về số của bộ này (không phải số gốc trong code)
 import DEF from './default-settings.json' with { type: 'json' };
+import * as preload from './preload.js';
 import { Avenue } from './avenue.js';
 import { Minimap } from './minimap.js';
 import { City, SIGNAL } from './city.js';
@@ -1510,9 +1511,28 @@ const wake = () => {
   if (performance.now() < wakeFrom) return;
   document.body.classList.remove('idle');
   clearTimeout(idleTimer);
-  idleTimer = setTimeout(() => document.body.classList.add('idle'), 2000);
+  const hide = () => { if (uiHeld.size) idleTimer = setTimeout(hide, 500); else document.body.classList.add('idle'); };   // đang giữ nút (◀ ▶ Space) thì chưa ẩn
+  idleTimer = setTimeout(hide, 2000);
 };
-['pointermove', 'pointerdown', 'touchstart'].forEach((ev) => window.addEventListener(ev, wake, { passive: true }));
+const uiHeld = new Set();
+// chỉ hiện khi CHẠM / BẤM vào màn hình (nhấc tay ngay, không kéo) hoặc rê chuột không bấm; giữ kéo để xoay camera (pan) thì không hiện.
+// Chạm vào chính các nút giao diện (đang hiện) thì giữ cho giao diện hiện tiếp.
+const tapStart = new Map();
+window.addEventListener('pointerdown', (e) => {
+  tapStart.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now() });
+  if (e.target !== canvas) uiHeld.add(e.pointerId);
+  if (e.target !== canvas && !document.body.classList.contains('idle')) wake();
+}, { passive: true });
+window.addEventListener('pointermove', (e) => {
+  const t = tapStart.get(e.pointerId);
+  if (t && Math.hypot(e.clientX - t.x, e.clientY - t.y) > 10) t.moved = true;
+  if (e.pointerType === 'mouse' && e.buttons === 0) wake();
+}, { passive: true });
+window.addEventListener('pointerup', (e) => {
+  const t = tapStart.get(e.pointerId); tapStart.delete(e.pointerId); uiHeld.delete(e.pointerId);
+  if (t && !t.moved && performance.now() - t.t < 450) wake();
+}, { passive: true });
+window.addEventListener('pointercancel', (e) => { tapStart.delete(e.pointerId); uiHeld.delete(e.pointerId); }, { passive: true });
 // bấm nút xong thì bỏ focus (không thì phím Space bấm lại nút đó thay vì phanh)
 window.addEventListener('pointerup', () => { if (document.activeElement?.tagName === 'BUTTON') document.activeElement.blur(); });
 document.body.classList.add('idle');
@@ -2064,12 +2084,35 @@ async function init() {
     refreshUI();
   };
   // phím: Enter / 1 = Chill, 2 = Drive
-  const onKey = (e) => { if (e.code === 'Enter' || e.code === 'Digit1') go('chill'); else if (e.code === 'Digit2') go('drive'); };
-  $('m-chill').onclick = () => go('chill');
-  $('m-drive').onclick = () => go('drive');
+  const onKey = (e) => { if (e.code === 'Enter' || e.code === 'Digit1') begin('chill'); else if (e.code === 'Digit2') begin('drive'); };
+  // bấm Chill / Drive: tải đủ dữ liệu map đầu của chế độ (thanh tiến độ thật, lưu vào thiết bị — lần sau bỏ qua), rồi vào game và
+  // tải ngầm tiếp các map còn lại theo thứ tự trong danh sách map
+  const firstMap = (mode) => MAPS[mode === 'drive' ? CITY_MAP : snap.map].id;
+  let starting = false;
+  const begin = async (mode) => {
+    if (state.started || starting) return;
+    starting = true;
+    const bar = $('loadbar'), fill = bar.querySelector('.lb-fill'), text = bar.querySelector('.lb-text'), mb = (b) => (b / 1048576).toFixed(1);
+    $('modes').hidden = true;
+    let shown = false;
+    await preload.ensure(preload.assetsFor(firstMap(mode)), (k, done, total) => {
+      if (!shown && k < 1) { shown = true; bar.hidden = false; }
+      fill.style.width = (k * 100).toFixed(1) + '%';
+      text.textContent = total ? `Đang tải dữ liệu về máy… ${mb(done)} / ${mb(total)} MB` : 'Đã có sẵn trên máy';
+    });
+    bar.hidden = true;
+    go(mode);
+    const rest = MAPS.map((m) => m.id).filter((id) => id !== firstMap(mode));
+    setTimeout(() => preload.queue(rest.flatMap(preload.assetsFor)), 4000);   // Mazda / Chisa (~42 MB) chỉ tải khi chú chọn
+  };
+  $('m-chill').onclick = () => begin('chill');
+  $('m-drive').onclick = () => begin('drive');
   window.addEventListener('keydown', onKey);
+  // màn hình chờ: tải ngầm trước dữ liệu map đầu của Chill rồi của Drive
+  preload.queue([...preload.assetsFor(firstMap('chill')), ...preload.assetsFor(firstMap('drive'))]);
 }
 init();
+preload.registerSW();                                            // lưu tài nguyên trên thiết bị (docs/sw.js)
 
 // hook phục vụ debug / kiểm thử
 window.__app = { __Raycaster: THREE.Raycaster, __V3: THREE.Vector3, nycBld, nycProps, timesSq, get crashFx() { return crashFx; }, get blinker() { return blinker; }, get violations() { return violations; }, minimap, avenue, hlgEnv, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

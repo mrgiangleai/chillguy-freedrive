@@ -303,3 +303,27 @@ body.mapopen #quick, body.mapopen #corner, body.mapopen #brake, body.mapopen .st
 #rec-time:empty { display: none; }
 @keyframes recblink { to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { #b-rec.on .dot { animation: none; } }
+
+/* thanh tải dữ liệu (bấm Chill / Drive lần đầu): tải về thiết bị, lần sau mở lại không phải tải */
+#loadbar { width: min(420px, 78vw); margin-top: 22px; text-align: center; }
+#loadbar[hidden] { display: none; }
+#loadbar .lb-track { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .18); overflow: hidden; }
+#loadbar .lb-fill { height: 100%; width: 0; border-radius: 3px; background: #fff; transition: width .15s linear; }
+#loadbar .lb-text { margin-top: 10px; font-size: 13px; letter-spacing: .06em; opacity: .85; }
+
+/* ---- bố cục điện thoại (chú yêu cầu): 3 nút lái ◀ Space ▶ cao hơn hàng nút góc (Setting / chụp ảnh / quay) để không đè nhau;
+   bản đồ tròn xuống sát đáy khung hình (trên hàng nút góc, trong viền cine); menu trái lên cao (dưới nút ⓘ) ---- */
+:root { --ctl-up: 58px; }
+#brake, .steer { bottom: calc(max(18px, env(safe-area-inset-bottom)) + var(--ctl-up)); }
+body.cine #brake, body.cine .steer { bottom: calc(max(14px, calc(var(--bar) / 2 - 29px)) + var(--ctl-up)); }
+#minimap:not(.big) { top: auto; transform: none;
+  bottom: max(calc(var(--bar) + 12px), calc(max(18px, env(safe-area-inset-bottom)) + 56px)); }
+#quick { top: calc(max(env(safe-area-inset-top), var(--bar)) + 58px); transform: none; }
+@media (max-height: 500px), (max-width: 640px) {
+  :root { --ctl-up: 46px; }
+  #brake, .steer { bottom: calc(max(10px, env(safe-area-inset-bottom)) + var(--ctl-up)); }
+  body.cine #brake, body.cine .steer { bottom: calc(max(8px, calc(var(--bar) / 2 - 18px)) + var(--ctl-up)); }
+  #minimap:not(.big) { bottom: max(calc(var(--bar) + 8px), calc(max(10px, env(safe-area-inset-bottom)) + 46px)); }
+  #quick { top: calc(max(env(safe-area-inset-top), var(--bar)) + 40px); }
+  .qbox { height: 32px; }                 /* 8 hộp vừa màn ngang thấp kể cả có viền cine */
+}

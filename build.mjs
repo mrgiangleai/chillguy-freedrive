@@ -24,6 +24,22 @@ for (const f of ['docs/app.js', 'docs/style.css']) {
   console.log(`${f.padEnd(16)} ${(raw / 1024).toFixed(1).padStart(7)} KB  (gzip ${(gz / 1024).toFixed(1)} KB)`);
 }
 
+// danh sách tài nguyên + hash (cho service worker / tải trước có thanh tiến độ: src/preload.js, docs/sw.js)
+{
+  const { readdirSync } = await import('node:fs');
+  const out = {};
+  const walk = (dir) => {
+    for (const e of readdirSync('docs/' + dir, { withFileTypes: true })) {
+      if (e.name.startsWith('.')) continue;
+      const rel = dir + '/' + e.name;
+      if (e.isDirectory()) walk(rel);
+      else out[rel] = [statSync('docs/' + rel).size, createHash('md5').update(readFileSync('docs/' + rel)).digest('hex').slice(0, 10)];
+    }
+  };
+  walk('assets');
+  writeFileSync('docs/assets-manifest.json', JSON.stringify(out));
+}
+
 // gắn ?v=<hash> vào index.html để trình duyệt lấy bản mới ngay khi file thay đổi (tránh dính cache cũ)
 let html = readFileSync('docs/index.html', 'utf8');
 for (const f of ['app.js', 'style.css']) {

@@ -12,8 +12,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Chill Drive</title>
-  <link rel="stylesheet" href="style.css?v=27079cf3">
-  <link rel="modulepreload" href="app.js?v=63ab36b1">
+  <link rel="stylesheet" href="style.css?v=44671dc3">
+  <link rel="modulepreload" href="app.js?v=9b35dda3">
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -26,6 +26,7 @@
       <button class="mode" id="m-chill" type="button">Chill<small>Thả trôi ngắm cảnh</small></button>
       <button class="mode" id="m-drive" type="button">Drive<small>Tập lái trong phố</small></button>
     </div>
+    <div id="loadbar" hidden><div class="lb-track"><div class="lb-fill"></div></div><div class="lb-text">Đang tải dữ liệu…</div></div>
   </div>
 
   <div id="stats"><div class="spd"><span id="limit" hidden>120</span><span id="speed">0</span><small>km/h</small></div><div id="clock">--:--</div><div id="scoremini" hidden></div><div id="blink"><b class="l">◀</b><b class="r">▶</b></div></div>
@@ -129,6 +130,6 @@
   </div></div>
   <div id="fade"></div>
   <div id="modename"></div>
-  <script type="module" src="app.js?v=63ab36b1"></script>
+  <script type="module" src="app.js?v=9b35dda3"></script>
 </body>
 </html>

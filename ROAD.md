@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -25,6 +25,18 @@
   rồi `meshopt` (giữ file gốc); sóng biển bake bằng `node scripts/bake-ocean.mjs`. **Fixture GUI** `scripts/*-preview.js` (giữ cảnh cố định để chụp):
   bundle bằng esbuild ra `docs/<tên>-check.js`, sao `docs/index.html` thành trang riêng đổi script sang bundle đó; chụp xong
   **xoá** các file tạm trong `docs/`.
+
+- **Tải trước + lưu trên thiết bị** (`src/preload.js` + `docs/sw.js`): `build.mjs` tạo `docs/assets-manifest.json` ({"assets/…":
+  [bytes, hash md5 10 ký tự]}); khoá Cache Storage `chilldrive-assets-v1` = đường dẫn + `?h=hash` (KHÔNG dùng `#`: Cache API bỏ fragment)
+  => file đổi chỉ tải lại file đó, sửa code chỉ tải lại `app.js`. `sw.js`: `assets/*` lấy bộ nhớ trước; trang / code lấy mạng trước (mất
+  mạng dùng bản lưu, bỏ bản `?v=` cũ). `COMMON` (Mustang, người, cây, xe ngựa, texture đất đá) + `BY_MAP` (sea / avenue / hlg:
+  ocean-waves.png; hlg: hlg-env.json; nyc: nyc-buildings / nyc-streets.json) — thêm map / tài nguyên mới thì nhớ thêm vào đây. Màn hình
+  chờ: `queue` ngầm COMMON + map đầu Chill + Phố; bấm Chill / Drive: `ensure` có thanh `#loadbar` theo byte thật (đã lưu thì vào ngay);
+  4 s sau khi vào game `queue` các map còn lại theo thứ tự MAPS. Mazda / Chisa (~42 MB) chỉ tải khi chọn. Thử Playwright: SW giữ bản cũ
+  => xoá `caches` + unregister trước khi thử.
+- **Bố cục điện thoại**: 3 nút ◀ Space ▶ cao hơn hàng nút góc (`--ctl-up` 58 / điện thoại 46 px); bản đồ tròn ở góc phải dưới (trên hàng
+  nút góc, trong viền cine); menu trái lên cao (top = viền + 58 / 40 px, điện thoại hộp cao 32 px). Giao diện chỉ hiện khi CHẠM (nhấc tay
+  < 450 ms, không kéo > 10 px) hoặc rê chuột không bấm — kéo xoay camera không hiện; đang giữ nút (◀ ▶ Space) không tự ẩn (`uiHeld`).
 
 ## 2. Quy ước làm việc
 - Trả lời tiếng Việt, xưng "cháu", gọi người dùng là "chú". Đẩy từng phần (chú không thích chờ lâu).
@@ -435,3 +447,6 @@
   1024×128 — DeepSeek thắng thi song song với GLM / MiniMax). city.js `_pedFace(ph, k)`: pha xanh "người" trắng, nửa cuối pha (≤ 12 s) bàn tay
   nhấp nháy 1 Hz + số đếm ngược, còn lại bàn tay sáng; thuộc tính `aFace` mỗi khung. Map Phố giữ đèn đỏ / xanh cũ. Kiểm trong trang: dữ liệu
   đổi đúng pha, shader không lỗi (chụp Low quá xa để thấy rõ mặt đèn).
+- **#3 — Giao diện điện thoại + tải map dần, lưu trên thiết bị (22/10/2026)**: xem mục 1 (Tải trước, Bố cục điện thoại). Thử 844×390 Low:
+  thanh tải 0 → 2.5 MB rồi vào game; chạm hiện / kéo không hiện; mở lại tài nguyên lấy từ máy (0 byte mạng); map còn lại tải ngầm đủ.
+  check traffic / hlg / nyc / car-switch PASS. Chưa thử trên điện thoại thật.
