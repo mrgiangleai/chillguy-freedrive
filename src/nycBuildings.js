@@ -146,10 +146,15 @@ export class NycBuildings {
     // trục lưới phố Manhattan (Park Ave đi bắc) cho obb camera
     const th = NYC.data.heading[Math.round(4100 / NYC.data.step)], cs = Math.cos(th), sn = Math.sin(th);
     const chunks = new Map(), awn = [], road = this.road.street, RP = {}, FRONT = CITY.hw + CITY.walk + 0.4, SHOP = 4.8;
-    for (const [h, cls, s, pts] of list) {
-      const n = pts.length / 2;
-      let cx = 0, cz = 0; for (let i = 0; i < n; i++) { cx += pts[2 * i]; cz += pts[2 * i + 1]; } cx /= n; cz /= n;
+    for (const [h, cls, s, pts0] of list) {
+      const n = pts0.length / 2;
+      let cx = 0, cz = 0; for (let i = 0; i < n; i++) { cx += pts0[2 * i]; cz += pts0[2 * i + 1]; } cx /= n; cz /= n;
       if ((excl && excl(cx, cz)) || this.lmRects.some((f) => f(cx, cz))) continue;   // Times Square / tòa nổi tiếng: model riêng
+      let hitLm = false; for (let i = 0; i < n && !hitLm; i++) hitLm = this.lmRects.some((f) => f(pts0[2 * i], pts0[2 * i + 1]));
+      if (hitLm) continue;                                         // góc nhà OSM lấn vào tòa nổi tiếng => bỏ (tường chồng nhau nhấp nháy)
+      // thu mỗi nhà vào 0.1–0.3 m (khác nhau theo nhà): tường chung của 2 nhà sát vách không còn trùng mặt phẳng => hết đè chớp chớp
+      const ins = 0.1 + 0.2 * (((cx * 12.9898 + cz * 78.233) * 0.0137 % 1 + 1) % 1), pts = new Array(n * 2);
+      for (let i = 0; i < n; i++) { const dx = cx - pts0[2 * i], dz = cz - pts0[2 * i + 1], l = Math.hypot(dx, dz) || 1, k = Math.min(ins, l * 0.3) / l; pts[2 * i] = pts0[2 * i] + dx * k; pts[2 * i + 1] = pts0[2 * i + 1] + dz * k; }
       const key = Math.floor(s / 300);
       if (!chunks.has(key)) chunks.set(key, { walls: mats.map(() => mk()), roof: mk(), shop: mk() });
       const C = chunks.get(key), B = C.walls[cls], y0 = hLow(cx, cz) - 0.6, y1 = y0 + 0.6 + h;

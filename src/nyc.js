@@ -9,18 +9,20 @@ import { CITY } from './road.js';
 
 // start: xe vào map ở s = length + start (1 vòng trước còn chỗ cho phía sau xe); 580 = 7th Ave giữa 46 – 45 St, nhìn xuôi Times Square (chú chọn). Hầm sâu `depth`, cầu cạn cao `high` so với mặt phố;
 // trần hầm kín khi mặt đường thấp hơn mặt phố quá `roof` (m). maxGrade: dốc tối đa của các đoạn dốc dẫn.
-export const NYC = { data: DATA, length: DATA.length, start: 580, depth: 7, high: 6, roof: -5.6, maxGrade: 0.06, arc: 16, tangent: 20.4 };
+export const NYC = { data: DATA, length: DATA.length, start: 580, depth: 7, high: 6, roof: -5.6, maxGrade: 0.09, arc: 16, tangent: 20.4 };
 // kích thước phố Manhattan (thay CITY của map Phố khi vào map New York): đại lộ 4 làn 3.6 m + lề đỗ xe (mép 9 m), vỉa hè 5.5 m,
 // phố ngang 9 m + vỉa hè 3 m
 export const NYC_DIM = { hw: 9, walk: 5.5, side: 4.5, sideWalk: 3, lanes: [1.8, 5.4] };
 const sm = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 
 // mốc độ cao [s, h] dọc vòng: xuống hầm từ đầu dốc dẫn thật (way "Park Avenue Tunnel" hở), lên thẳng cầu cạn sau cửa hầm phía bắc
-// (40 St → 42 St), xuống lại mặt phố trong cổng Helmsley Building (trước ngã tư 46 St). Giữa 2 mốc: smoothstep => dốc lớn nhất 1.5·Δh/Δs
+// (40 St → 42 St), xuống lại mặt phố trong cổng Helmsley Building (trước ngã tư 46 St). Giữa 2 mốc: gần tuyến tính, 2 đầu êm (dốc lớn nhất ≈ 1.2·Δh/Δs)
 export function nycElevKeys(D = DATA) {
-  const p0 = D.portals[0].s0, t1 = D.tunnels[0].s1, v1 = (D.passages[0] || D.bridges.at(-1)).s1 - 2;
-  const down = 1.5 * NYC.depth / NYC.maxGrade + 2, up = 1.5 * (NYC.depth + NYC.high) / NYC.maxGrade + 2, off = 1.5 * NYC.high / NYC.maxGrade + 2;
-  return [[p0, 0], [p0 + down, -NYC.depth], [t1 - 40, -NYC.depth], [t1 - 40 + up, NYC.high], [v1 - off, NYC.high], [v1, 0]];
+  // khớp OSM (đo 22/10/2026): nắp hầm đúng đoạn tunnel thật (33 → 40 St: sâu ≥ 6 m ở 2 cửa), ra hầm leo thẳng lên cầu cạn, vượt 42 St
+  // (~ 20 m sau đầu cầu OSM) đã cao ~5.4 m — 42 St chạy dưới gầm như ngoài đời; xuống lại mặt phố ở cuối cổng Helmsley
+  const p0 = D.portals[0].s0, t0 = D.tunnels[0].s0, t1 = D.tunnels[0].s1, b0 = D.bridges[0].s0, v1 = (D.passages[0] || D.bridges.at(-1)).s1 - 2;
+  return [[p0 - 6, 0], [t0 + 4, -6], [t0 + 30, -NYC.depth], [t1 - 30, -NYC.depth], [t1 - 4, -6], [b0 + 22, NYC.high - 0.6], [b0 + 40, NYC.high],
+    [v1 - 150, NYC.high], [v1, 0]];
 }
 export function nycElev(keys) {
   const L = DATA.length;
@@ -29,7 +31,8 @@ export function nycElev(keys) {
     if (s <= keys[0][0] || s >= keys.at(-1)[0]) return 0;
     let i = 0; while (keys[i + 1][0] < s) i++;
     const [a, ha] = keys[i], [b, hb] = keys[i + 1];
-    return ha + (hb - ha) * sm((s - a) / (b - a));
+    const t = (s - a) / (b - a);
+    return ha + (hb - ha) * (t + 0.4 * (sm(t) - t));      // gần tuyến tính, 2 đầu êm: dốc lớn nhất ≈ 1.2 × dốc trung bình
   };
 }
 

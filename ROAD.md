@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -63,6 +63,9 @@
   vừa phải (≤ 8k) và nhắc "write model.js early, then refine"; MiniMax hợp model lớn. Bài: scratchpad `bench3d/`.
   **Việc 3D / hình (chú dặn 22/10/2026)**: đề luôn bắt làm bản cơ bản trước (khối / hình tổng thể đúng tỉ lệ, ghi file, chạy check) rồi mới
   sửa thêm chi tiết — đi từ chi tiết lên tổng thể rất lâu, worker hay hết giờ không ra file. Việc khó: gọi song song DeepSeek + MiniMax + GLM.
+  **Chụp / so sánh / test hình (chú dặn 22/10/2026)**: Claude không tự mở game chụp (tốn token + thời gian) — khoanh vùng từ ảnh / lời chú
+  (đoạn s, giờ: lỗi đèn => đêm, camera, chất lượng) rồi giao worker (GLM / DeepSeek) chạy `scripts/shot-nyc.mjs` (hướng dẫn ở đầu file,
+  cần `npx http-server docs -p 8080 -c-1 -s`), worker tự xem ảnh và báo ngắn; Claude chỉ đọc báo cáo + 1–2 ảnh.
 - **Tiết kiệm quota (chú yêu cầu)**: việc làm theo khuôn (code nháp, sửa hàng loạt, tóm tắt) giao DeepSeek theo thứ tự:
   1) **opencode free** `opencode run --standalone -m opencode/deepseek-v4.1-flash-free` (ưu tiên; `opencode/deepseek-v4.1-flash` trả phí
   và `vibi/…` đã hết tiền); 2) bản free hết giới hạn => **hỏi chú trước** rồi mới dùng credit API riêng của chú: công cụ MCP `deepseek`
@@ -469,3 +472,8 @@
   (textures.js) tính alpha từng điểm ảnh bằng putImageData; avenue.js `glowTex` + `flashTex` dùng chung. Thêm: DOF trọng số Karis 1 / (1 + sáng)
   (hết đốm sáng lấm tấm ở vùng nhoè), phản chiếu mặt đường chặn NaN / quá sáng. Máy ảo (Chrome) không tái hiện được — cần chú xem trên iPhone.
   Gradient canvas còn ở adAtlas / dashscreen / mặt tiền Times Square (không cộng sáng mạnh, chưa đổi).
+- **#9 — Hầm / cầu cạn Park Ave đo lại theo OSM + hết đè chớp chớp nhà (22/10/2026)**: `nycElevKeys` mới: sâu 6 m ngay 2 cửa hầm thật
+  (nắp hầm 2763–3192 ≈ OSM 2766–3189, 33 → 40 St), ra hầm leo thẳng lên cầu cạn, vượt 42 St (s 3336) cao ~5.4 m; dốc gần tuyến tính 2 đầu êm,
+  lớn nhất 8.8 % (`maxGrade` 0.09). Trước đó dốc 6 % => rãnh hở 100 m có phố ngang lơ lửng, 42 St cắt ngang đường ở cao 0.9 m.
+  nycNet `routeMask` cắt phố OSM cả ở dốc hở (không cắt trên nắp hầm / dưới cầu cao ≥ 4.2 m). nycBuildings: nhà OSM thu vào 0.1–0.3 m (tường
+  chung không trùng mặt phẳng => hết nhấp nháy), góc nhà lấn tòa nổi tiếng => bỏ (3 185 → 3 161 nhà). `scripts/shot-nyc.mjs`: script chụp cho worker.

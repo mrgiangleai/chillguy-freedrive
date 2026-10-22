@@ -50,12 +50,14 @@ function disk(b, x, z, r, y, col) {
   for (let i = 0; i < N; i++) b.idx.push(c, ring[(i + 1) % N], ring[i]);
 }
 
-// vùng lòng đường của tuyến (chỉ đoạn ngang mặt phố, không hầm / cầu cạn): hit(x, z, r) = đĩa bán kính r quanh (x, z) chạm lòng đường
+// vùng lòng đường của tuyến ở mặt phố + dốc hở 2 đầu hầm / cầu cạn (không tính đoạn có nắp hầm — phố ngang chạy trên nắp — và đoạn cầu
+// cao ≥ 4.2 m — phố ngang chạy dưới gầm): hit(x, z, r) = đĩa bán kính r quanh (x, z) chạm lòng đường
 // (cách tim tuyến < hw). Dùng để không vẽ phố OSM đè lên làn xe của tuyến (vd. Broadway chạy gần song song 7th Ave ở Times Square).
 export function routeMask(D, elev, hw) {
   const G = 20, cells = new Map(), n = D.x.length;
   for (let i = 0; i + 1 < n; i++) {
-    if (Math.abs(elev(i * D.step)) > 0.3 || Math.abs(elev((i + 1) * D.step)) > 0.3) continue;
+    const e = Math.min(elev(i * D.step), elev((i + 1) * D.step)), eh = Math.max(elev(i * D.step), elev((i + 1) * D.step));
+    if (eh <= NYC.roof || e >= 4.2) continue;
     const k = Math.floor(D.x[i] / G) + '|' + Math.floor(D.z[i] / G);
     if (!cells.has(k)) cells.set(k, []);
     cells.get(k).push(i);
