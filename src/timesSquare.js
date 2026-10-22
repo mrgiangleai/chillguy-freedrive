@@ -125,7 +125,8 @@ export class TimesSquare {
   get visible() { return this.group.visible; }
   get excl() { return this._excl; }
   // lamps 0..1: cửa sổ sáng + biển sáng hơn ban đêm
-  update(dt, lamps, car) {
+  update(dt, lamps, car, carS) {
+    this.carS = carS;
     this.uTime.value += dt;
     if (this.built) this._crowd(dt, car);
     this.uK.value = (0.85 + 0.75 * lamps) * this.signK;
@@ -192,8 +193,25 @@ export class TimesSquare {
     const geo = [[], [], []], ads = [];   // geo[kind] = [[s0, s1, u0, u1, y0, y1]] (toạ độ đường)
     const addBox = (kind, s0, s1, u0, u1, h0, h1) => { (geo[kind] = geo[kind] || []).push([s0, s1, u0, u1, h0, h1]); };
     const obbBox = (s0, s1, u0, u1, h) => { const [x, z] = W((s0 + s1) / 2, (u0 + u1) / 2); this.obb.push(x, z, Math.cos(F.th), Math.sin(F.th), Math.abs(u1 - u0) / 2, Math.abs(s1 - s0) / 2, y0 + h); };   // như obb nhà map Phố (yaw = hướng đường)
+    // Broadway: đường chéo cắt 7th Ave quanh s = 696 — bỏ nhà / biển trong 14 m quanh tim đường (dải đi bộ bên dưới)
+    const BWAY = NYC.data.broadway;
+    const segDist = (x, z, ax, az, bx, bz) => {
+      const dx = bx - ax, dz = bz - az, dd = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / dd));
+      return Math.hypot(x - ax - dx * t, z - az - dz * t);
+    };
+    const onBway = (x, z) => !!BWAY && segDist(x, z, BWAY[0][0], BWAY[0][1], BWAY[1][0], BWAY[1][1]) < 14;
     // tòa nhà nhiều bậc lùi: [s0, s1] dọc đường, u0 → u0 + su·d; trả về chiều cao
     const tall = (s0, s1, u0, su, d, hMax, front, north = false) => {
+      // nằm trong dải Broadway: không dựng nhà (và không có biển của nó)
+      if (BWAY) {
+        const ua = Math.min(u0, u0 + su * d), ub = Math.max(u0, u0 + su * d), [mx, mz] = W((s0 + s1) / 2, (ua + ub) / 2);
+        let hit = onBway(mx, mz);
+        for (let i = 0; !hit && i < 4; i++) {
+          const [x, z] = W(i < 2 ? s0 : s1, i % 2 ? ub : ua);
+          hit = onBway(x, z);
+        }
+        if (hit) return 0;
+      }
       const kind = r() < 0.35 ? 3 : Math.floor(r() * 3);
       let h = 0, a = s0, b = s1, u = u0, dd = d;
       const tiers = 1 + Math.floor(r() * 3);
@@ -224,6 +242,8 @@ export class TimesSquare {
       return h;
     };
     this.zones = [];
+    // người qua đường ở các ngã tư giữa vùng: đứng chờ 2 bên, qua đường theo đèn ngang xanh
+    for (const j of NYC.data.junctions) if (!j.corner && j.s > TS.s0 && j.s < TS.s1) this.zones.push({ kind: 'cross', J: j.s, n: 14 });
     for (const [a, b] of blocks) for (const su of [-1, 1])            // vỉa hè đông người dọc 7th Ave
       this.zones.push({ kind: 'walk', s0: a - 3, s1: b + 3, u0: su > 0 ? CITY.hw + 0.7 : -FRONT + 0.6, u1: su > 0 ? FRONT - 0.6 : -CITY.hw - 0.7, n: Math.round((b - a) / 5), su });
     for (const [a, b, k] of blocks) for (const su of [-1, 1]) {
@@ -295,6 +315,39 @@ export class TimesSquare {
       for (const [kk, s, u, ls, h, lu] of geo.props || []) if (kk === key) box(B, s - ls / 2, s + ls / 2, u - lu / 2, u + lu / 2, 0.2, 0.2 + h, false);
       mesh(B, mat);
     }
+    // ---- Broadway: dải đi bộ chéo cắt 7th Ave (lát gạch ngoài lòng đường, vạch kẻ trắng qua đường) ----
+    if (BWAY) {
+      const [ax, az] = BWAY[0], [bx, bz] = BWAY[1];
+      const dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz), ux = dx / len, uz = dz / len, px = -uz, pz = ux;
+      const P6 = road.at(base + 696, {}), r6x = Math.cos(P6.th), r6z = -Math.sin(P6.th);
+      const uk = P6.x * r6x + P6.z * r6z, half = 12, edge = CITY.hw + 0.3;     // u = r6·(p − P6)
+      const U = (x, z) => x * r6x + z * r6z - uk;
+      const PB = mk();
+      for (let t = 0; t + 2 <= len + 1e-6; t += 2) {                            // từng mảnh 2 m: sàn 24 m ngang dải, cắt đúng mép đường
+        const uc = U(ax + ux * (t + 1), az + uz * (t + 1));
+        if (Math.abs(uc) <= edge) continue;
+        const sgn = uc > 0 ? 1 : -1, a0 = t, a1 = t + 2;
+        const V = [
+          [ax + ux * a0 + px * half, y0 + 0.21, az + uz * a0 + pz * half],
+          [ax + ux * a0 - px * half, y0 + 0.21, az + uz * a0 - pz * half],
+          [ax + ux * a1 - px * half, y0 + 0.21, az + uz * a1 - pz * half],
+          [ax + ux * a1 + px * half, y0 + 0.21, az + uz * a1 + pz * half]];
+        polyUp(PB, clipPlane(V, sgn * r6x, sgn * r6z, edge + sgn * uk), [0, 1, 0], true);
+      }
+      mesh(PB, this.city.walkMat, false);
+      // vạch kẻ ngang dải (0,5 m mỗi 1,1 m) trên lòng đường; 2 đầu dải nằm dưới vỉa hè nên bị che
+      const SB = mk(), stripeMat = new THREE.MeshStandardMaterial({ color: 0xe8e8e2, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -4 });
+      for (let t = 0.55; t < len; t += 1.1) {
+        if (Math.abs(U(ax + ux * t, az + uz * t)) > CITY.hw) continue;
+        const a0 = t - 0.25, a1 = t + 0.25;
+        polyUp(SB, [
+          [ax + ux * a0 + px * half, y0 + 0.06, az + uz * a0 + pz * half],
+          [ax + ux * a0 - px * half, y0 + 0.06, az + uz * a0 - pz * half],
+          [ax + ux * a1 - px * half, y0 + 0.06, az + uz * a1 - pz * half],
+          [ax + ux * a1 + px * half, y0 + 0.06, az + uz * a1 + pz * half]], [0, 1, 0], false);
+      }
+      mesh(SB, stripeMat, false);
+    }
     // biển LED: InstancedMesh mặt phẳng, xoay theo hướng mặt (dir u: ±1 nhìn về ±u; dir s: 1 nhìn về −s)
     const pg = new THREE.PlaneGeometry(1, 1);
     const im = new THREE.InstancedMesh(pg, this.adMat, ads.length), aAd = new Float32Array(ads.length * 3);
@@ -310,6 +363,39 @@ export class TimesSquare {
     });
     pg.setAttribute('aAd', new THREE.InstancedBufferAttribute(aAd, 3));
     im.frustumCulled = false; this.group.add(im);
+    // biển cong bọc góc nhà ở 2 đầu mỗi khối (1/4 trụ R = 5, mặt đường + mặt phố ngang)
+    {
+      const boards = [];
+      for (const [a, b, k] of blocks) for (const su of [-1, 1]) {
+        if (plaza(k, su) || tower(k, su)) continue;
+        boards.push([a, su, -1], [b, su, 1]);
+      }
+      const R = 5, cn = boards.length;
+      if (cn) {
+        const cg = new THREE.CylinderGeometry(R + 0.3, R + 0.3, 1, 12, 1, true, 0, Math.PI / 2);
+        const cim = new THREE.InstancedMesh(cg, this.adMat, cn), cAd = new Float32Array(cn * 3);
+        const Y = new THREE.Vector3(0, 1, 0), X = new THREE.Vector3(), Z = new THREE.Vector3(), M = new THREE.Matrix4();
+        boards.forEach(([end, su, ds], i) => {
+          const [wx, wz] = W(end, su * FRONT);
+          const d1x = -su * F.rx, d1z = -su * F.rz, d2x = F.fx * ds, d2z = F.fz * ds;   // D1 về phía đường, D2 về phía phố ngang
+          // cross(D2, up) = (−d2z, 0, d2x) bằng D1 => (X = D2, Y = up, Z = D1) là hệ phải
+          const right = -d2z * d1x + d2x * d1z > 0.5;
+          X.set(right ? d2x : d1x, 0, right ? d2z : d1z);
+          Z.set(right ? d1x : d2x, 0, right ? d1z : d2z);
+          const cx = wx - (d1x + d2x) * R, cz = wz - (d1z + d2z) * R;                    // C = góc − D1·R − D2·R
+          M.makeBasis(X, Y, Z); M.setPosition(cx, y0 + 13, cz); M.scale(new THREE.Vector3(1, 14, 1));
+          cim.setMatrixAt(i, M);
+          const cell0 = Math.floor(r() * 16), phase = r() * 7, rate = 5 + r() * 6;
+          cAd.set([cell0, phase, rate], i * 3);
+          if (this.adInfo) {
+            const sx = d1x + d2x, sz = d1z + d2z, sl = Math.hypot(sx, sz) || 1;
+            this.adInfo.push({ x: cx + sx * R * 0.7, y: y0 + 13, z: cz + sz * R * 0.7, nx: sx / sl, nz: sz / sl, w: 12, h: 14, base: cell0, phase, rate });
+          }
+        });
+        cg.setAttribute('aAd', new THREE.InstancedBufferAttribute(cAd, 3));
+        cim.frustumCulled = false; this.group.add(cim);
+      }
+    }
     // vệt sáng trên mặt đất trước mỗi biển thấp (đáy dưới 25 m so với mặt phố)
     this.spill = this.adInfo.filter((a) => a.y - y0 - a.h / 2 < 25);
     const sg = new THREE.PlaneGeometry(1, 1); sg.rotateX(-Math.PI / 2);
@@ -335,6 +421,13 @@ TimesSquare.prototype._spawnCrowd = function () {
   const r = Math.random;
   this.crowd = [];
   for (const z of this.zones) for (let i = 0; i < Math.round(z.n * this.density); i++) {
+    if (z.kind === 'cross') {                                        // đứng chờ ở 2 mép vỉa hè của vạch qua đường
+      const side = i % 2 ? 1 : -1;
+      this.crowd.push({ zn: z, s: z.J - 8.4 + (r() - 0.5) * 3.2, u: side * (CITY.hw + 0.8 + r() * 1.8), ts: 0, tu: 0, speed: 1.3 + r() * 0.4, wait: 0, ph: r() * 6.28,
+        moving: 0, acc: r() < 0.2 ? 2 : r() < 0.35 ? 1 : 0, color: SHIRTS[Math.floor(r() * SHIRTS.length)], ds: 0, du: -side, x: 0, y: 0, z: 0, fx: 0, fz: 1,
+        side, delay: r() * 1.5, state: 'wait' });
+      continue;
+    }
     const p = { zn: z, s: z.s0 + r() * (z.s1 - z.s0), u: z.u0 + r() * (z.u1 - z.u0), ts: 0, tu: 0, speed: 0.9 + r() * 0.6, wait: r() * 6, ph: r() * 6.28,
       moving: 0, acc: r() < 0.2 ? 2 : r() < 0.35 ? 1 : 0, color: SHIRTS[Math.floor(r() * SHIRTS.length)], ds: 1, du: 0, x: 0, y: 0, z: 0, fx: 0, fz: 1 };
     this._target(p);
@@ -352,6 +445,24 @@ TimesSquare.prototype._crowd = function (dt, car) {
   for (const p of this.crowd) {
     const z = p.zn;
     if (z.kind === 'steps') { p.moving = 0; p.ds = 1; p.du = 0; }
+    else if (z.kind === 'cross') {                                    // chờ đèn rồi qua 7th Ave theo từng đợt
+      if (!p.moving) {
+        p.ds = 0; p.du = -p.side;                                     // quay mặt về phía đường
+        const ph = this.carS === undefined ? null : this.city._phase(this.road.junctionIndex(Math.floor(this.carS / NYC.length) * NYC.length + z.J));
+        if (ph && ph.cross === 0 && ph.crossEnd - ph.t > 6) {
+          p.delay -= dt;
+          if (p.delay <= 0) { p.tu = -p.side * (CITY.hw + 0.8 + Math.random() * 1.8); p.moving = 1; p.state = 'walk'; }
+        } else p.delay = Math.random() * 1.5;                         // đèn đỏ: chờ, đợt xanh sau trễ lại ngẫu nhiên
+      } else {
+        const dir = p.tu > p.u ? 1 : -1;
+        p.u += dir * p.speed * dt; p.ph += p.speed * dt * 5.2;
+        p.ds = 0; p.du = dir;
+        if ((dir > 0 && p.u >= p.tu) || (dir < 0 && p.u <= p.tu)) {    // tới mép bên kia: đổi bên, chờ đèn xanh kế
+          p.u = p.tu; p.moving = 0; p.state = 'wait'; p.side = -p.side;
+          p.du = -p.side; p.ds = 0; p.delay = Math.random() * 1.5;
+        }
+      }
+    }
     else if (p.wait > 0) {                                            // đứng: ngắm biển (nhìn ra đường / lên cao), có người giơ điện thoại
       p.wait -= dt; p.moving = 0;
       if (p.wait <= 0) this._target(p);
@@ -364,6 +475,7 @@ TimesSquare.prototype._crowd = function (dt, car) {
     if (car && Math.abs(x - car.x) + Math.abs(zz - car.z) > 230) continue;     // chỉ vẽ người quanh xe
     let y = this.y0 + 0.2;
     if (z.kind === 'steps') y += (Math.floor((z.s1 + 0.3 - p.s) / 0.95) + 1) * 0.42;
+    else if (z.kind === 'cross' && Math.abs(p.u) <= CITY.hw) y = this.y0 + 0.05;      // đang ở trên lòng đường
     const l = Math.hypot(p.ds, p.du) || 1;
     p.x = x; p.y = y; p.z = zz; p.fx = (F.fx * p.ds + F.rx * p.du) / l; p.fz = (F.fz * p.ds + F.rz * p.du) / l;
     near.push(p);
@@ -376,4 +488,24 @@ function quad(B, V, N, uvs) {
   for (let i = 0; i < 4; i++) { B.pos.push(...V[i]); B.nor.push(...N); B.uv.push(...(uvs ? uvs[i] : [0, 0])); }
   const ax = V[1][0] - V[0][0], ay = V[1][1] - V[0][1], az = V[1][2] - V[0][2], bx = V[2][0] - V[0][0], by = V[2][1] - V[0][1], bz = V[2][2] - V[0][2];
   if ((ay * bz - az * by) * N[0] + (az * bx - ax * bz) * N[1] + (ax * by - ay * bx) * N[2] >= 0) B.idx.push(b, b + 1, b + 2, b, b + 2, b + 3); else B.idx.push(b, b + 2, b + 1, b, b + 3, b + 2);
+}
+// đa giác lồi phẳng (giữ nguyên y): tam giác quạt, pháp tuyến N; uv = world x/2, z/2 nếu cần
+function polyUp(B, V, N, uv) {
+  if (V.length < 3) return;
+  const b = B.pos.length / 3;
+  for (const P of V) { B.pos.push(P[0], P[1], P[2]); B.nor.push(...N); B.uv.push(...(uv ? [P[0] / 2, P[2] / 2] : [0, 0])); }
+  for (let i = 1; i + 1 < V.length; i++) {
+    const A = V[0], C = V[i], D = V[i + 1], cy = (C[2] - A[2]) * (D[0] - A[0]) - (C[0] - A[0]) * (D[2] - A[2]);   // thành phần y của (C−A)×(D−A)
+    if (cy >= 0) B.idx.push(b, b + i, b + i + 1); else B.idx.push(b, b + i + 1, b + i);
+  }
+}
+// cắt đa giác lồi nằm ngang bằng nửa mặt phẳng nx·x + nz·z ≥ d
+function clipPlane(V, nx, nz, d) {
+  const out = [];
+  for (let i = 0; i < V.length; i++) {
+    const A = V[i], Bp = V[(i + 1) % V.length], da = nx * A[0] + nz * A[2] - d, db = nx * Bp[0] + nz * Bp[2] - d;
+    if (da >= 0) out.push(A);
+    if ((da >= 0) !== (db >= 0)) { const t = da / (da - db); out.push([A[0] + (Bp[0] - A[0]) * t, A[1] + (Bp[1] - A[1]) * t, A[2] + (Bp[2] - A[2]) * t]); }
+  }
+  return out;
 }

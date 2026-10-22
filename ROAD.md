@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -244,6 +244,9 @@
   **Đám đông** (`_crowd`): ~400 người (Low × 0.6) tản bộ trong vùng (quảng trường / vỉa hè 7th Ave / bậc TKTS), đứng 3–17 s ngắm biển,
   ~20 % giơ điện thoại; chỉ vẽ người trong ~230 m quanh xe, vẽ chung InstancedMesh của cityPeople (`extra`, thêm `CROWD` 520 chỗ).
   Xe NYC: taxi vàng ~40 %, buýt MTA xanh / trắng, không xe kei / xe máy (`MODES.nyc.mix / colors`).
+  **Times Square lượt 3** (DeepSeek viết theo đề, Claude soát): Broadway chéo (`nyc-data.json` `broadway` = đường thẳng khớp OSM, cắt 7th Ave
+  ở s 696): dải lát gạch 24 m + vạch trắng qua lòng đường, nhà / biển trong 14 m bị bỏ; biển cong ¼ trụ R 5 m ở 2 góc mỗi khối (`aAd` riêng);
+  người qua đường thành đợt (zone 'cross' 14 người / ngã tư, chờ `_phase(n).cross` xanh, trễ 0–1.5 s; n theo vòng của xe: `update(…, carS)`).
   **Biển phát sáng màu** (22/10/2026, DeepSeek viết theo đề, Claude soát): `adColors` (màu trung bình 16 ô atlas, chuẩn hoá sáng), vệt sáng cộng màu
   dưới mỗi biển thấp (`spillMesh`, màu theo hình đang chiếu), 2 PointLight màu cho 2 biển lớn gần xe (4 đèn => máy ảo > 30 s / khung). Bảng 💡:
   "biển hiệu" => `timesSq.signK`, "cửa sổ" => cửa sổ Times Square + nhà OSM (`winK`).
@@ -406,3 +409,4 @@
 - **#1 — 5 tòa nổi tiếng mới trên tuyến (22/10/2026)**: 10 model tổng, 0 điểm làn xe chạm.
 - **#2 — Biển quảng cáo phát sáng màu + bảng Lighting có tác dụng ở New York (22/10/2026)**: chụp Low ban đêm OK, không lỗi trang.
 - **#3 — Xuất 10 model tòa nổi tiếng ra GLB (22/10/2026)**: `node scripts/export-nyc-landmarks.mjs` => `docs/assets/models/nyc/*.glb` (màu đỉnh, ~8 MB, glTF-Validator: không lỗi). Game vẫn dựng bằng code, chưa dùng file GLB.
+- **#4 — Times Square: Broadway chéo, biển cong góc nhà, người qua đường thành đợt (22/10/2026)**: chụp Low không lỗi trang.

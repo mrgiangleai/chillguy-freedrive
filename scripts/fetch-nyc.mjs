@@ -337,6 +337,23 @@ if (fs.existsSync(BF)) {
     const [E, N] = ll({ lat, lon }), [j] = nearest(E, N, R1);
     lm[name] = [+(E + off[j][0]).toFixed(1), +(-(N + off[j][1])).toFixed(1)];
   }
+  // Broadway đoạn Times Square (42 → 48 St, phần lớn là quảng trường đi bộ): tim đường theo toạ độ game, dời như nhà => nyc-data.json `broadway`
+  const bw = [];
+  for (const w of ways) if (w.tags.name === 'Broadway') for (const g of w.geometry) if (g.lat > 40.755 && g.lat < 40.7606) bw.push(g);
+  bw.sort((p, q) => p.lat - q.lat);
+  const broadway = [];
+  for (const g of bw) {
+    const [E, N] = ll(g), [j] = nearest(E, N, R1), x = +(E + off[j][0]).toFixed(1), z = +(-(N + off[j][1])).toFixed(1), l = broadway.at(-1);
+    if (!l || Math.hypot(l[0] - x, l[1] - z) > 4) broadway.push([x, z]);
+  }
+  // OSM vẽ 2 nhánh tách => điểm zig-zag: thay bằng đường thẳng khớp nhất (trục chính), giữ 2 đầu mút
+  { const n = broadway.length, mx = broadway.reduce((a, p) => a + p[0], 0) / n, mz = broadway.reduce((a, p) => a + p[1], 0) / n;
+    let sxx = 0, sxz = 0, szz = 0; for (const [x, z] of broadway) { sxx += (x - mx) ** 2; sxz += (x - mx) * (z - mz); szz += (z - mz) ** 2; }
+    const ang = 0.5 * Math.atan2(2 * sxz, sxx - szz), dx = Math.cos(ang), dz = Math.sin(ang);
+    let t0 = Infinity, t1 = -Infinity; for (const [x, z] of broadway) { const t = (x - mx) * dx + (z - mz) * dz; t0 = Math.min(t0, t); t1 = Math.max(t1, t); }
+    broadway.length = 0; broadway.push([+(mx + dx * t0).toFixed(1), +(mz + dz * t0).toFixed(1)], [+(mx + dx * t1).toFixed(1), +(mz + dz * t1).toFixed(1)]); }
+  const DD = JSON.parse(fs.readFileSync(OUT, 'utf8')); DD.broadway = broadway; fs.writeFileSync(OUT, JSON.stringify(DD));
+  console.log(`Broadway (Times Square): ${broadway.length} điểm`);
   const BO = 'docs/assets/nyc-buildings.json';
   fs.writeFileSync(BO, JSON.stringify({ source: 'OpenStreetMap contributors (ODbL)', lm, b: out }));
   console.log(`=> ${BO}: ${(fs.statSync(BO).size / 1024).toFixed(0)} KB, ${out.length} nhà (lùi ${moved}, bỏ ${drop} + ${drop2} khi kiểm cuối, không có chiều cao ${noH})`);

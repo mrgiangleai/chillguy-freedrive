@@ -1889,7 +1889,7 @@ function frame(now) {
   avenue.update(drive.s, 1, dt); avenue.setLamps(st.lamps);
   hlgEnv.update(drive.s, st.lamps);
   if (nycBld.visible) nycBld.setLamps(st.lamps);
-  if (timesSq.visible) { timesSq.update(dt, st.lamps, drive.pos); timesSq.capture(renderer, scene, dt, st.lamps); }
+  if (timesSq.visible) { timesSq.update(dt, st.lamps, drive.pos, drive.s); timesSq.capture(renderer, scene, dt, st.lamps); }
   if (nycWorks.visible) { nycWorks.setLamps(st.lamps); nycWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
   minimap.update(dt);
   updateBlinker(dt);
