@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -276,7 +276,7 @@
   DeepSeek viết): vỉa hè + mặt nhựa + vạch (2 chiều: vàng đôi; 1 chiều: trắng đứt), chia ô 300 m. Nhà OSM nới tới 420 m (3 282 nhà, 420 KB).
   Vào map ở s = 580 (đầu Times Square, chú chọn — `NYC.start`).
   **Biển phát sáng màu** (22/10/2026, DeepSeek viết theo đề, Claude soát): `adColors` (màu trung bình 16 ô atlas, chuẩn hoá sáng), vệt sáng cộng màu
-  dưới mỗi biển thấp (`spillMesh`, màu theo hình đang chiếu), 2 PointLight màu cho 2 biển lớn gần xe (4 đèn => máy ảo > 30 s / khung). Bảng 💡:
+  2 PointLight màu (như đèn hiệu xe cảnh sát; đã bỏ vệt dán `spillMesh`) cho 2 biển lớn gần xe (4 đèn => máy ảo > 30 s / khung). Bảng 💡:
   "biển hiệu" => `timesSq.signK`, "cửa sổ" => cửa sổ Times Square + nhà OSM (`winK`).
   **Kính gương** (~35 % tòa, kiểu mặt tiền 3): envMap = `CubeCamera` 256 px đặt giữa Times Square cao 22 m (`capture`: lần đầu, đèn đổi > 0.12,
   mỗi 15 s; tắt envMap của chính nó lúc chụp) => phản chiếu nhà + biển LED. Bật / tắt ở bảng 🚦 mục "New York" (`chilldrive.nyc.mirror`, mặc định bật).
@@ -455,3 +455,6 @@
   Hạ xuống 0.03 m (polygonOffset đã chống nhấp nháy), độ sáng 0.35 → 0.22. Đo bằng tia chiếu dọc 7th Ave s 300–1300: không còn mặt nào
   trên lòng đường ngoài xe. Lưu ý: phần cửa tàu điện ngầm của phiên New York (`nycStreet.js` gọi `./subwayEntrance.js` chưa có) đang dở
   trong máy, chưa commit — build lỗi tới khi phiên đó thêm file.
+- **#5 — Times Square: ánh sáng biển quảng cáo kiểu đèn xe cảnh sát (22/10/2026)**: chú thấy vệt dán cộng màu (`spillMesh`, kể cả sau #4) lốm đốm,
+  xấu trên điện thoại => bỏ hẳn (cùng `glowTex`); chỉ còn 2 PointLight (khoảng 55 m, decay 1.3, cường độ 70 × (0.15 + 0.85 đèn đêm)) đặt
+  cao ≤ 9 m, ra trước biển 7 m, màu theo hình đang chiếu, chuyển mượt. Chụp Low đêm mưa: quầng màu mịn trên đường + vỉa hè, không lốm đốm.
