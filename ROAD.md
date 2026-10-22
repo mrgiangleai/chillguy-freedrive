@@ -66,6 +66,7 @@
   **Chụp / so sánh / test hình (chú dặn 22/10/2026)**: Claude không tự mở game chụp (tốn token + thời gian) — khoanh vùng từ ảnh / lời chú
   (đoạn s, giờ: lỗi đèn => đêm, camera, chất lượng) rồi giao worker (GLM / DeepSeek) chạy `scripts/shot-nyc.mjs` (hướng dẫn ở đầu file,
   cần `npx http-server docs -p 8080 -c-1 -s`), worker tự xem ảnh và báo ngắn; Claude chỉ đọc báo cáo + 1–2 ảnh.
+  Script vào thẳng New York bằng `?map=nyc`; ẩn theo nhóm cho nhanh: `HIDE=buildings,people,traffic,…` (sửa đường thì ẩn nhà), `NEAR=150` (sửa nhà: chỉ giữ nhà gần).
 - **Tiết kiệm quota (chú yêu cầu)**: việc làm theo khuôn (code nháp, sửa hàng loạt, tóm tắt) giao DeepSeek theo thứ tự:
   1) **opencode free** `opencode run --standalone -m opencode/deepseek-v4.1-flash-free` (ưu tiên; `opencode/deepseek-v4.1-flash` trả phí
   và `vibi/…` đã hết tiền); 2) bản free hết giới hạn => **hỏi chú trước** rồi mới dùng credit API riêng của chú: công cụ MCP `deepseek`

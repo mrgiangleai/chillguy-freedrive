@@ -3,6 +3,9 @@
 //   OUT=shots/ TIME=22 WX=clear Q=low node scripts/shot-nyc.mjs '[["ten-anh", s, d, cam, chờ_ms], …]'
 //   s: vị trí dọc vòng (0..5543, xem nyc-data.json: góc, hầm 2766–3189, cầu cạn 3319–3719, Times Square 470–960); d: làn (5.25 phải, 1.8 trái);
 //   cam: 0 sau xe, 1 sát đường, 2 bên hông, 3 trong xe, 4 quay quanh, 5 từ trên cao; TIME giờ 0–24; WX clear/rain/fog; Q low/good/ultra.
+//   Ẩn bớt cho nhanh / dễ nhìn lỗi (sửa đường thì ẩn nhà, sửa nhà thì chỉ giữ nhà gần): HIDE=nhóm,nhóm…  nhóm: buildings (nhà OSM + tòa nổi tiếng),
+//   ts (Times Square), people, traffic, props (biển, trụ cứu hoả, cửa tàu), net (phố OSM quanh tuyến), works (hầm / cầu cạn), city (đèn, vạch ngã tư).
+//   NEAR=mét: chỉ giữ các cụm nhà OSM có tâm trong bán kính đó quanh xe (cụm ~300 m tuyến).
 //   Mỗi ảnh in 1 dòng 'shot …' (số nhà, người, xe…) + cuối cùng số lỗi console. Máy chậm: ~3–6 phút / ảnh.
 import { chromium } from '/Users/keinle/.npm/_npx/e41f203b7505f1fb/node_modules/playwright/index.mjs';
 const OUT = process.env.OUT || 'shots/';   // thư mục ảnh (tạo trước)
@@ -14,7 +17,7 @@ const p = await b.newPage({ viewport: DRIVE ? { width: 320, height: 180 } : { wi
 const errs = [];
 p.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errs.push(m.type() + ': ' + m.text().slice(0, 300)); });
 p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
-await p.goto('http://localhost:' + (process.env.PORT || 8080) + '/', { waitUntil: 'domcontentloaded', timeout: 120000 });
+await p.goto('http://localhost:' + (process.env.PORT || 8080) + '/?map=nyc', { waitUntil: 'domcontentloaded', timeout: 120000 });
 await p.evaluate((M) => { localStorage.clear(); localStorage.setItem('chilldrive.quality', process.env.Q || 'low'); localStorage.setItem('chilldrive.nyc.mirror', M); }, process.env.MIRROR || '1');
 await p.reload({ waitUntil: 'domcontentloaded', timeout: 120000 });
 await p.waitForTimeout(15000);
@@ -39,6 +42,12 @@ for (const [name, s, d, cam, wait] of shots) {
   await p.waitForTimeout(3000);
   await p.evaluate(([cam, T]) => { const A = window.__app; A.state.time = 0; A.env.setTime(T); if (cam !== null) { A.state.cam = cam; A.rig.setMode(cam); } }, [cam, +(process.env.TIME || 13)]);
   await p.waitForTimeout(4000);
+  await p.evaluate(([hide, near]) => {
+    const A = window.__app, G = { buildings: A.nycBld, ts: A.timesSq, people: A.cityPeople, traffic: A.cityTraffic, props: A.nycProps, net: A.nycNet, works: A.nycWorks, city: A.city };
+    for (const k of hide) if (G[k]?.group) G[k].group.visible = false;
+    if (near > 0) { const c = A.drive.pos, v = new A.__V3(); for (const m of A.nycBld.group.children) { if (!m.geometry?.boundingSphere) continue; v.copy(m.geometry.boundingSphere.center).applyMatrix4(m.matrixWorld); m.visible = v.distanceTo(c) < near + m.geometry.boundingSphere.radius; } }
+  }, [(process.env.HIDE || '').split(',').filter(Boolean), +(process.env.NEAR || 0)]);
+  await p.waitForTimeout(1500);
   await p.screenshot({ path: OUT + name + '.png', timeout: 150000 }); if (name === 'c-tunnel') { await p.evaluate(() => window.__app.minimap.open()); await p.waitForTimeout(3000); await p.screenshot({ path: OUT + 'c-minimap.png', timeout: 150000 }); await p.evaluate(() => window.__app.minimap.close()); }
   console.log('shot', name, await p.evaluate(() => { const A = window.__app; return JSON.stringify({ props: A.nycProps.count, bld: A.nycBld.count, crowd: A.timesSq.near.length, nan: A.timesSq.crowd.filter((p) => !Number.isFinite(p.s)).length, s: A.drive.s.toFixed(0), y: A.drive.pos.y.toFixed(2), cars: A.cityTraffic.cars.length, peds: A.cityPeople.peds.length, blocks: A.city.blocks.size }); }));
 }

@@ -2064,6 +2064,8 @@ async function init() {
     state.mode = mode;
     // trả lại cảnh như trước màn hình chờ, rồi vào map của chế độ (Drive: Phố với bộ cài đặt riêng của phố)
     state.map = mode === 'drive' ? CITY_MAP : snap.map; curMapId = null;
+    const urlMap = MAPS.findIndex((m) => m.id === new URLSearchParams(location.search).get('map'));   // ?map=nyc: vào thẳng map Drive đó (script chụp kiểm)
+    if (mode === 'drive' && urlMap >= 0 && isDriveMap(urlMap)) state.map = urlMap;
     scopes.world = { weather: snap.weather, time: snap.time, cam: snap.cam };
     restoreScope(snap);
     if (WEATHERS[state.weather].id !== 'auto') env.snapWeather(WEATHERS[state.weather].id);   // bỏ mưa / mây của màn hình chờ ngay
@@ -2115,4 +2117,4 @@ init();
 preload.registerSW();                                            // lưu tài nguyên trên thiết bị (docs/sw.js)
 
 // hook phục vụ debug / kiểm thử
-window.__app = { __Raycaster: THREE.Raycaster, __V3: THREE.Vector3, nycBld, nycProps, timesSq, get crashFx() { return crashFx; }, get blinker() { return blinker; }, get violations() { return violations; }, minimap, avenue, hlgEnv, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { __Raycaster: THREE.Raycaster, __V3: THREE.Vector3, nycBld, nycProps, timesSq, nycNet, nycWorks, get crashFx() { return crashFx; }, get blinker() { return blinker; }, get violations() { return violations; }, minimap, avenue, hlgEnv, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
