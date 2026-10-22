@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -118,9 +118,9 @@
   ghế/khung). Hạt mưa ngoài trời bị loại trong thể tích xe; âm thanh ngoài −60% + mưa lộp độp trên kính.
 - **Thời tiết / giờ**: "Trời trong" (đổi tên từ "Trời nắng"); đã bỏ mốc "Giờ vàng".
   "Ban ngày" bớt ám xanh (chú yêu cầu 22/10/2026): `shared/sky.js` mốc 22° / 50° — chân trời `#cbd6e0` / dải `#e3e8eb` (trước `#b4d4f2` / `#d2e5f3`, làm sương + ánh sáng nền xanh), đỉnh trời dịu hơn.
-- **Kính ướt khi mưa** (`src/wetGlass.js`, dùng chung mọi map — gắn như `withMist`: `withWetGlass(mat, { grid })`; `WET.uGlassWet` = `st.wet`, main cập nhật):
-  chèn shader MeshStandard (không thêm lượt vẽ): kính tối ×0.78, nhám ×0.55, vệt nước mảnh chảy dọc mặt đứng (cột 0.22 m, 40 % có vệt, mờ dần 15–70 m)
-  bẻ nhẹ pháp tuyến => méo ánh phản chiếu. `grid`: chỉ ô kính của `facadeTex`. Đang gắn: mặt tiền kính kiểu 0 / 2 / 3 (Times Square + nhà OSM New York), kính quầy TKTS.
+- **Kính ướt khi mưa** (`src/wetGlass.js`, dùng chung mọi map — gắn như `withMist`: `withWetGlass(mat, { grid })`; `WET.uGlassWet` = `st.wet`):
+  kính tối ×0.78 + nhám ×0.55 theo độ ướt, chỉ vài phép nhân trong shader (không thêm lượt vẽ). Đã bỏ vệt nước chảy: xe không tới sát tòa nên
+  không thấy (chú dặn: nặng thì bỏ, nhẹ thì giữ). `grid`: chỉ ô kính của `facadeTex`. Gắn: mặt tiền kính kiểu 0 / 2 / 3 (New York), kính quầy TKTS.
 - **Ánh sáng**: nắng gắt cân bằng kiểu máy ảnh: nắng ×2.3, ánh trời ×0.5, phơi sáng ×0.7. Đêm có trăng (đổ bóng).
 - **Mặc định = cài đặt của chú** (`src/default-settings.json` = `DEF`, xuất từ localStorage Safari của chú 21/10/2026: `tuning`
   (chill / drive / traffic / mist), `scopes` city / avenue / hlg, `quality`): chưa có bản lưu => nạp `DEF.tuning`; nhóm thiếu => lấy
@@ -446,7 +446,6 @@
   - **Nhánh worker CHƯA gộp**: `worker/debug-20261022-190719` — bậc lùi (`src/bld/tiers.js`), gờ mái (`cornice.js`), bồn nước + máy + ăng-ten (`roof.js`)
     trong `nycBuildings._build`. Codex đo: dựng 73 → 1 581 ms, tam giác 141k → 428k, 16 → 44 MB => QUÁ NẶNG. Định sửa: gờ mái + đồ trên mái chỉ cho
     nhà gần tuyến (< ~80 m), cache tiers. Chú CHƯA chốt giữ bồn nước — hỏi lại. Nhánh này tách trước bản tòa nổi tiếng => gộp cẩn thận `nycBuildings.js`.
-  - Kính ướt khi mưa: chưa xem hình (chú dặn hạn chế máy ảo) — chú xem trên máy thật ở Times Square khi mưa; quá đậm / nhạt thì chỉnh hệ số trong `wetGlass.js`.
   - opencode DeepSeek free hết lượt 23/10/2026 sáng (thử lại sau ~7 giờ); khi hết thì Claude tự làm việc đã rõ, hỏi chú trước khi dùng credit API.
   - **Đã gộp + push**: nắp hầm dày 1.5 m + tường đầu 2 cửa hầm (GLM), bóng nắng xa (DeepSeek; nay là ÁNH SÁNG DÙNG CHUNG mọi map, nút "Bóng nắng xa"
     ở bảng Lighting mục "Nắng", `chilldrive.farShadow`, mặc định tắt; Codex review → sửa nhớ / trả cỡ bóng theo chất lượng). Chú tự thử.
@@ -489,3 +488,4 @@
   Chụp Low: 0 lỗi; trước Landmark, trong hầm, cầu Sài Gòn hiện đúng. Thứ tự dự phòng DeepSeek mới (mục 2). Chi tiết mục 1 + `SGN_PLAN.md`.
 - **#3 — Kính ướt khi mưa (23/10/2026)**: `src/wetGlass.js` (xem mục 3), gắn mặt tiền kính New York / Times Square. `shot-nyc.mjs` đặt lại thời tiết trước mỗi ảnh
   (New York có thời tiết Tự động). Build + check-nyc / buildings / landmark-roads PASS; chưa xem hình.
+- **#4 — Kính ướt bản nhẹ (23/10/2026)**: bỏ vệt nước chảy (không tới sát tòa nên không thấy), giữ kính tối + bóng khi mưa. One Times Square bị biển che kín — không cần kính.
