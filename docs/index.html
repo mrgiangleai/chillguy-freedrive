@@ -12,8 +12,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Chill Drive</title>
-  <link rel="stylesheet" href="style.css?v=44671dc3">
-  <link rel="modulepreload" href="app.js?v=f777eeb6">
+  <link rel="stylesheet" href="style.css?v=0ac9271f">
+  <link rel="modulepreload" href="app.js?v=68aacd6b">
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -29,7 +29,7 @@
     <div id="loadbar" hidden><div class="lb-track"><div class="lb-fill"></div></div><div class="lb-text">Đang tải dữ liệu…</div></div>
   </div>
 
-  <div id="stats"><div class="spd"><span id="limit" hidden>120</span><span id="speed">0</span><small>km/h</small></div><div id="clock">--:--</div><div id="scoremini" hidden></div><div id="blink"><b class="l">◀</b><b class="r">▶</b></div></div>
+  <div id="stats"><div class="spd"><span id="limit" hidden>120</span><span id="speed">0</span><small>km/h</small></div><div id="clock">--:--</div><div id="place" hidden><b></b><span></span></div><div id="scoremini" hidden></div><div id="blink"><b class="l">◀</b><b class="r">▶</b></div></div>
   <div id="hud">
     <nav id="quick" aria-label="Lối tắt">
       <div class="qrow"><button class="qbox" id="q-speed">Speed</button><kbd>F</kbd></div>
@@ -130,6 +130,7 @@
   </div></div>
   <div id="fade"></div>
   <div id="modename"></div>
-  <script type="module" src="app.js?v=f777eeb6"></script>
+  <div id="placename"><b></b><span></span></div>
+  <script type="module" src="app.js?v=68aacd6b"></script>
 </body>
 </html>

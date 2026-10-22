@@ -273,13 +273,51 @@ for (let i = 0; i < wpath.length; i++) {
 }
 for (let i = streets.length - 1; i > 0; i--) if (streets[i].name === streets[i - 1].name) streets.splice(i, 1);
 
+// ---------- khu vực (tên hiện dưới tốc độ / giữa màn hình / trên bản đồ tròn): toạ độ thật => toạ độ game (dời theo độ lệch đường đã làm mượt
+// tại điểm tuyến gần nhất, như nhà NYC). r: bán kính khu (m); xe trong nhiều khu => khu gần tâm nhất (theo d / r)
+const AREAS = [
+  ['Landmark 81 · Vinhomes Central Park', 10.7949, 106.7219, 700],
+  ['Bình Thạnh · Thị Nghè', 10.7905, 106.7125, 450],
+  ['Ba Son', 10.7838, 106.7072, 380],
+  ['Quận 1 · Bến Bạch Đằng', 10.7742, 106.7055, 520],
+  ['Sông Sài Gòn', 10.7695, 106.7085, 330],
+  ['Thủ Thiêm', 10.7765, 106.7240, 900],
+  ['An Khánh', 10.7860, 106.7430, 600],
+  ['An Phú', 10.8000, 106.7510, 650],
+  ['Thảo Điền', 10.8035, 106.7350, 650],
+  ['Chân cầu Sài Gòn', 10.7985, 106.7215, 300],
+];
+const off = R1.map((p, j) => [Q[j][0] - p[0], Q[j][1] - p[1]]);
+const toGame = (lat, lon) => {
+  const E = (lon - lon0) * KE, N = (lat - lat0) * KN;
+  let bj = 0, bd = Infinity; for (let j = 0; j < R1.length; j += 2) { const d = (R1[j][0] - E) ** 2 + (R1[j][1] - N) ** 2; if (d < bd) { bd = d; bj = j; } }
+  return [+(E + off[bj][0]).toFixed(1), +(-(N + off[bj][1])).toFixed(1)];
+};
+const areas = AREAS.map(([name, la, lo, r]) => { const [x, z] = toGame(la, lo); return { name, x, z, r }; });
+// khu theo đoạn dọc tuyến (cố định, không nhấp nháy ở mép): mẫu mỗi 25 m lấy khu có d / r nhỏ nhất (< 1), gộp liền nhau,
+// đoạn ngắn hơn 150 m nhập vào đoạn trước. zones: [{ s0, name }] (name '' = không thuộc khu nào)
+const zones = [];
+for (let s = 0; s < L; s += 25) {
+  const i = Math.round(s / step), x0 = x[i], z0 = z[i];
+  let name = '', bk = 1; for (const A of areas) { const k = Math.hypot(A.x - x0, A.z - z0) / A.r; if (k < bk) { bk = k; name = A.name; } }
+  if (zones.at(-1)?.name !== name) zones.push({ s0: s, name });
+}
+for (let k = zones.length - 1; k > 0; k--) {
+  const len = (zones[k + 1]?.s0 ?? L) - zones[k].s0;
+  if (len < 150) zones.splice(k, 1);
+}
+for (let k = zones.length - 1; k > 0; k--) if (zones[k].name === zones[k - 1].name) zones.splice(k, 1);
+// Landmark 81 (toà tháp): vị trí thật cho bản đồ tròn + bước dựng nhà sau
+const landmark81 = toGame(10.79496, 106.72183);
+
 const data = {
   source: 'OpenStreetMap contributors (ODbL)', bbox: BB, origin: [lat0, lon0], step: +step.toFixed(4), length: +L.toFixed(1), turn: +TURN.toFixed(5),
-  corners, streets, tunnels, bridges, junctions, lanes, elev, x, z, heading,
+  corners, streets, tunnels, bridges, junctions, lanes, areas, zones, landmark81, elev, x, z, heading,
 };
 fs.writeFileSync(OUT, JSON.stringify(data));
 console.log(`=> ${OUT}: ${(fs.statSync(OUT).size / 1024).toFixed(0)} KB, ${junctions.length} ngã tư (${junctions.filter((j) => j.signal).length} có đèn), ${corners.length} khúc rẽ lớn`);
 console.log('  hầm', tunnels.map((t) => `${t.name} ${t.s0}–${t.s1}`).join('; '));
 console.log('  cầu', bridges.map((t) => `${t.name} ${t.s0}–${t.s1}`).join('; '));
 console.log('  đường', streets.map((t) => `${t.s0} ${t.name}`).join(' | '));
+console.log('  khu', zones.map((t) => `${t.s0} ${t.name || '–'}`).join(' | '));
 console.log('  rẽ', corners.map((c) => `${c.s} ${c.dir}`).join(', '));

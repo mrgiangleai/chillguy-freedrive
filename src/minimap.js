@@ -5,9 +5,9 @@ import { ROAD, CITY, IC, tollS, tollIndex, camS, camIndex } from './road.js';
 // (hướng đi luôn lên trên), vẽ ~8 lần/giây. Bấm vào: phóng to giữa màn hình, hướng Bắc lên trên, kéo để di chuyển (pan), lăn chuột /
 // chụm 2 ngón để zoom, nút ◎ về lại xe, nút × (hoặc Esc / bấm ra ngoài) để thu nhỏ.
 const BG = {
-  nyc: '#e3e0d8', reed: '#cdbb84', forest: '#7fa05a', mountain: '#8fae6a', meadow: '#8db86a', sea: '#7fb6d6', city: '#e8e5df', avenue: '#9cc27a',
+  nyc: '#e3e0d8', sgn: '#e6e2d6', reed: '#cdbb84', forest: '#7fa05a', mountain: '#8fae6a', meadow: '#8db86a', sea: '#7fb6d6', city: '#e8e5df', avenue: '#9cc27a',
 };
-const ROADC = { city: '#ffffff', avenue: '#f6cf6a', nyc: '#fbe3a0' };
+const ROADC = { city: '#ffffff', avenue: '#f6cf6a', nyc: '#fbe3a0', sgn: '#fbe3a0' };
 
 export class Minimap {
   // src: { road, mapId(), player() => {x, z, th}, cars() => [[x, z]], city, avenue }
@@ -76,7 +76,7 @@ export class Minimap {
   }
 
   _draw() {
-    const g = this.g, W = this.W, R = W / 2, S = this.src, N = S.nyc?.(), id = N ? 'nyc' : S.mapId(), road = S.road, P = S.player();
+    const g = this.g, W = this.W, R = W / 2, S = this.src, N = S.nyc?.(), D = S.sgn?.(), id = N ? 'nyc' : D ? 'sgn' : S.mapId(), road = S.road, P = S.player();
     const big = this.big, z = big ? this.bigZoom : this.zoom;
     const cx = big && this.center ? this.center.x : P.x, cz = big && this.center ? this.center.z : P.z;
     const rot = big ? 0 : P.th;                                // thu nhỏ: hướng xe lên trên
@@ -153,6 +153,28 @@ export class Minimap {
         }
       }
     }
+    // ---- map Landmark: cả vòng tuyến (thấy toàn tuyến khi thu nhỏ bản đồ lớn) ----
+    const labels = [];                                         // [x, z, chữ, kiểu, hướng (rad, theo thế giới) | null]
+    if (D) {
+      const st = Math.max(1, Math.round(2 / z / D.step)), loop = [];
+      for (let i = 0; i < D.x.length; i += st) loop.push([D.x[i], D.z[i]]);
+      loop.push([D.x[0], D.z[0]]);
+      line(loop, hw * 2 + 1.5, 'rgba(60,60,60,0.35)', 3);
+      line(loop, hw * 2, ROADC.sgn, 2.2);
+      const at = (s) => { const i = Math.round((((s % D.length) + D.length) % D.length) / D.step); return [D.x[i], D.z[i], D.x[Math.min(D.x.length - 1, i + 2)] - D.x[Math.max(0, i - 2)], D.z[Math.min(D.x.length - 1, i + 2)] - D.z[Math.max(0, i - 2)]]; };
+      // tên đường dọc tuyến: giữa mỗi đoạn tên; đoạn dài > 1.2 km lặp lại mỗi ~1 km
+      D.streets.forEach((t, k) => {
+        const s1 = D.streets[k + 1]?.s0 ?? D.length + D.streets[0].s0, len = s1 - t.s0, n = Math.max(1, Math.round(len / 1000));
+        for (let j = 0; j < n; j++) { const [x, zz, dx, dz] = at(t.s0 + len * (j + 0.5) / n); labels.push([x, zz, t.name, 'street', Math.atan2(dz, dx)]); }
+      });
+      if (big && z > 0.25) for (const j of D.junctions) { const [x, zz, dx, dz] = at(j.s); labels.push([x, zz, j.names[0], 'cross', Math.atan2(dz, dx) + Math.PI / 2]); }
+      for (const A of D.areas) labels.push([A.x, A.z, A.name, 'area', null]);
+      // Landmark 81: ô vuông đậm
+      const [lx, lz] = D.landmark81, q = Math.max(9, 7 / z);
+      g.fillStyle = '#3b4a5a'; g.strokeStyle = '#fff'; g.lineWidth = Math.max(1.5, 1.5 / z);
+      g.fillRect(lx - q / 2, lz - q / 2, q, q); g.strokeRect(lx - q / 2, lz - q / 2, q, q);
+      labels.push([lx, lz, 'Landmark 81', 'lm', null]);
+    }
     // viền + mặt đường chính
     line(main, hw * 2 + 1.5, 'rgba(60,60,60,0.35)', 3);
     line(main, hw * 2, ROADC[id] || '#f3f1ea', 2.2);
@@ -179,6 +201,36 @@ export class Minimap {
     g.fillStyle = '#1a73e8'; g.strokeStyle = '#fff'; g.lineWidth = 2.2; g.fill(); g.stroke();
     g.restore();
     g.restore();
+    // ---- chữ trên bản đồ (map Landmark): vẽ theo toạ độ màn hình để cỡ chữ không đổi khi zoom, luôn đứng thẳng ----
+    if (labels.length) {
+      g.save();
+      g.beginPath(); g.arc(R, R, R - 1, 0, Math.PI * 2); g.clip();
+      const cs = Math.cos(rot), sn = Math.sin(rot), F = big ? 1 : 0.85;
+      const STY = { street: [600, 11, '#3a3424', 'rgba(255,250,235,0.9)'], cross: [400, 10, '#6b6658', 'rgba(255,250,235,0.85)'],
+        area: [700, 12, '#8a4b2a', 'rgba(255,250,235,0.9)'], lm: [700, 11, '#1d2a38', 'rgba(255,255,255,0.95)'] };
+      const placed = [], PRI = { lm: 0, area: 1, street: 2, cross: 3 };
+      labels.sort((p, q) => PRI[p[3]] - PRI[q[3]]);                 // chữ quan trọng đặt trước, chữ sau chồng lên thì bỏ
+      for (const [x, zz, text, kind, ang] of labels) {
+        if (!big && kind === 'cross') continue;
+        const dx = (x - cx) * z, dz = (zz - cz) * z, X = R + dx * cs - dz * sn, Y = R + dx * sn + dz * cs;
+        if (Math.hypot(X - R, Y - R) > R - 8) continue;
+        const [wt, px, fill, halo] = STY[kind], size = Math.round(px * F);
+        g.font = `${kind === 'area' ? 'italic ' : ''}${wt} ${size}px system-ui, sans-serif`;
+        const w = g.measureText(text).width;
+        if (Math.hypot(X - R, Y - R) + w / 2 + 4 > R) continue;     // nhãn dài sát mép: bỏ (không để vòng tròn cắt mất chữ)
+        // tránh chồng chữ (hộp bao gần đúng)
+        const box = [X - w / 2 - 2, Y - size, X + w / 2 + 2, Y + size];
+        if (placed.some((b) => b[0] < box[2] && box[0] < b[2] && b[1] < box[3] && box[1] < b[3])) continue;
+        placed.push(box);
+        g.save(); g.translate(X, Y + (kind === 'lm' ? -Math.max(9, 7) - 4 : 0));
+        if (ang !== null) { let a = ang + rot; while (a > Math.PI / 2) a -= Math.PI; while (a < -Math.PI / 2) a += Math.PI; g.rotate(a); }
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.lineWidth = 3; g.strokeStyle = halo; g.strokeText(text, 0, 0);
+        g.fillStyle = fill; g.fillText(text, 0, 0);
+        g.restore();
+      }
+      g.restore();
+    }
     // vòng viền + chữ N theo hướng Bắc
     g.strokeStyle = 'rgba(255,255,255,0.75)'; g.lineWidth = 2; g.beginPath(); g.arc(R, R, R - 1.5, 0, Math.PI * 2); g.stroke();
     const n = this.el.querySelector('.mm-n'), a = rot;            // Bắc (−z) sau khi quay

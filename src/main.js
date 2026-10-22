@@ -3,7 +3,7 @@ import { ROAD, ROAD_HW, CITY, AVENUE, IC, icS, icIndex, rampU, avHump, TOLL, tol
 import { HLG, hlgLayout, hlgDem } from './hlg.js';
 import { HlgEnv } from './hlgEnv.js';
 import { NYC, NYC_DIM, nycLoop, nycStreet, NycWorks } from './nyc.js';
-import { SGN, sgnLoop, sgnStreet } from './sgn.js';
+import { SGN, sgnLoop, sgnStreet, sgnZone } from './sgn.js';
 import { TimesSquare } from './timesSquare.js';
 import { NycBuildings } from './nycBuildings.js';
 import { NycStreetProps } from './nycStreet.js';
@@ -171,6 +171,7 @@ const _mmP = {}, _mmX = {};
 const minimap = new Minimap({
   road, city, avenue,
   nyc: () => (state.map >= 0 && MAPS[state.map].id === 'nyc' ? { streets: nycNet.streets, bld: nycBld.foot } : null),
+  sgn: () => (onSgn() ? SGN.data : null),                     // map Landmark: cả vòng + tên đường / khu / Landmark 81
   visible: () => state.started && isDriveMap(state.map),      // chỉ chế độ Drive (Phố, Đại lộ)
   mapId: () => mapKind(MAPS[state.map].id),
   s: () => drive.s,
@@ -780,12 +781,20 @@ function sgnNoHouse(x, z) {
   }
   return false;
 }
-// Landmark: báo tên đường mới khi qua chỗ đổi tên (cầu / hầm / đường)
-let sgnName = null;
+// Landmark: dưới tốc độ luôn hiện đường + khu đang ở; đổi đường / khu => chữ lớn giữa màn hình (khu mới: tên khu, dòng dưới tên đường)
+let sgnName = null, sgnArea = null, placeT = 0;
 function sgnAuto() {
-  if (!onSgn() || !state.started) { sgnName = null; return; }
-  const n = sgnStreet(drive.s);
-  if (n !== sgnName) { if (sgnName !== null) say(n); sgnName = n; }
+  const on = onSgn() && state.started;
+  $('place').hidden = !on;
+  if (!on) { if (sgnName !== null) { clearTimeout(placeT); $('placename').classList.remove('show'); } sgnName = sgnArea = null; return; }
+  const n = sgnStreet(drive.s), a = sgnZone(drive.s);
+  if (n === sgnName && a === sgnArea) return;
+  const newArea = a !== sgnArea && a;                      // vừa vào map: hiện tên khu (Landmark 81) + tên đường
+  sgnName = n; sgnArea = a;
+  const P = $('place'); P.firstChild.textContent = n; P.lastChild.textContent = a;
+  const C = $('placename');
+  C.firstChild.textContent = newArea ? a : n; C.lastChild.textContent = newArea ? n : '';
+  C.classList.add('show'); clearTimeout(placeT); placeT = setTimeout(() => C.classList.remove('show'), 2600);
 }
 function nycAuto() {
   if (!onNyc() || !state.started || stop.active || incident.active) { nycTurn = null; return; }

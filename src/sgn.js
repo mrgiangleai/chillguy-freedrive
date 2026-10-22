@@ -34,6 +34,13 @@ export function sgnLoop() {
     elev: sgnElev(), keys: elevKeys(), roof: SGN.roof, junctions: DATA.junctions, corners: DATA.corners, streets: DATA.streets };
   return LOOP;
 }
+// khu vực tại s (đoạn cố định dọc tuyến, '' = ngoài các khu có tên)
+export function sgnZone(s) {
+  const L = DATA.length, r = ((s % L) + L) % L, Z = DATA.zones;
+  let name = Z.at(-1).name;
+  for (const t of Z) if (r >= t.s0) name = t.name;
+  return name;
+}
 // tên đường đang chạy tại s
 export function sgnStreet(s) {
   const L = DATA.length, r = ((s % L) + L) % L, S = DATA.streets;
