@@ -295,7 +295,7 @@ export class TimesSquare {
       for (const [kk, s, u, ls, h, lu] of geo.props || []) if (kk === key) box(B, s - ls / 2, s + ls / 2, u - lu / 2, u + lu / 2, 0.2, 0.2 + h, false);
       mesh(B, mat);
     }
-    // ---- Broadway: dải đi bộ chéo cắt 7th Ave (lát gạch ngoài lòng đường, vạch kẻ trắng qua đường) ----
+    // ---- Broadway: dải đi bộ chéo cắt 7th Ave (lát gạch ngoài lòng đường) ----
     if (BWAY) {
       const [ax, az] = BWAY[0], [bx, bz] = BWAY[1];
       const dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz), ux = dx / len, uz = dz / len, px = -uz, pz = ux;
@@ -315,22 +315,7 @@ export class TimesSquare {
         polyUp(PB, clipPlane(V, sgn * r6x, sgn * r6z, edge + sgn * uk), [0, 1, 0], true);
       }
       mesh(PB, this.city.walkMat, false);
-      // vạch kẻ ngang dải (0,5 m mỗi 1,1 m) trên lòng đường; 2 đầu dải nằm dưới vỉa hè nên bị che
-      const SB = mk(), stripeMat = new THREE.MeshStandardMaterial({ color: 0xe8e8e2, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -4 });
-      const f6x = -Math.sin(P6.th), f6z = -Math.cos(P6.th), fk = P6.x * f6x + P6.z * f6z, xw = CITY.side + CITY.sideWalk + 4;
-      const nearJ = NYC.data.junctions.filter((j) => !j.corner && Math.abs(j.s - 696) < 80).map((j) => j.s - 696);
-      for (let t = 0.55; t < len; t += 1.1) {
-        if (Math.abs(U(ax + ux * t, az + uz * t)) > CITY.hw) continue;
-        const sa = (ax + ux * t) * f6x + (az + uz * t) * f6z - fk;               // vị trí dọc tuyến so với s 696
-        if (nearJ.some((d) => Math.abs(sa - d) < xw)) continue;          // không chồng lên vạch qua đường của ngã tư (45 St)
-        const a0 = t - 0.25, a1 = t + 0.25;
-        polyUp(SB, [
-          [ax + ux * a0 + px * half, y0 + 0.06, az + uz * a0 + pz * half],
-          [ax + ux * a0 - px * half, y0 + 0.06, az + uz * a0 - pz * half],
-          [ax + ux * a1 - px * half, y0 + 0.06, az + uz * a1 - pz * half],
-          [ax + ux * a1 + px * half, y0 + 0.06, az + uz * a1 + pz * half]], [0, 1, 0], false);
-      }
-      mesh(SB, stripeMat, false);
+      // (đã bỏ dải vạch sọc chéo qua lòng đường: ngoài đời không có — người đi bộ qua 7th Ave ở vạch ngã tư 45 St)
     }
     // biển LED: InstancedMesh mặt phẳng, xoay theo hướng mặt (dir u: ±1 nhìn về ±u; dir s: 1 nhìn về −s)
     const pg = new THREE.PlaneGeometry(1, 1);

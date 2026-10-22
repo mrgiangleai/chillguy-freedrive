@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -270,7 +270,7 @@
   ~20 % giơ điện thoại; chỉ vẽ người trong ~230 m quanh xe, vẽ chung InstancedMesh của cityPeople (`extra`, thêm `CROWD` 520 chỗ).
   Xe NYC: taxi vàng ~40 %, buýt MTA xanh / trắng, không xe kei / xe máy (`MODES.nyc.mix / colors`).
   **Times Square lượt 3** (DeepSeek viết theo đề, Claude soát): Broadway chéo (`nyc-data.json` `broadway` = đường thẳng khớp OSM, cắt 7th Ave
-  ở s 696): dải lát gạch 24 m + vạch trắng qua lòng đường, nhà / biển trong 14 m bị bỏ; biển cong ¼ trụ R 5 m ở 2 góc mỗi khối (`aAd` riêng);
+  ở s 696): dải lát gạch 24 m (ngoài lòng đường; dải sọc chéo qua lòng đường đã bỏ — ngoài đời không có), nhà / biển trong 14 m bị bỏ; biển cong ¼ trụ R 5 m ở 2 góc mỗi khối (`aAd` riêng);
   người qua đường thành đợt (zone 'cross' 14 người / ngã tư, chờ `_phase(n).cross` xanh, trễ 0–1.5 s; n theo vòng của xe: `update(…, carS)`).
   **Mạng đường thật** (`nycNet.js` ← `docs/assets/nyc-streets.json` 85 KB, 786 đoạn ≤ 450 m quanh tuyến, trừ tuyến / hầm / cầu / đường đôi sát tuyến;
   DeepSeek viết): vỉa hè + mặt nhựa + vạch (2 chiều: vàng đôi; 1 chiều: trắng đứt), chia ô 300 m. Nhà OSM nới tới 420 m (3 282 nhà, 420 KB).
@@ -463,3 +463,4 @@
   Model `src/subwayEntrance.js` (DeepSeek thắng GLM; lòng cầu thang giả bằng dải tối, lan can sắt xanh, 2 cầu đèn xanh, biển). `nycStreet.js`:
   giữa vỉa hè bên đó, dời khỏi miệng ngã tư, bỏ quanh hầm / cầu cạn => 20 cửa; cầu đèn tự sáng theo đèn đường (`nycProps.setLamps`).
   Bỏ ý bề rộng đường theo đoạn: `CITY.hw` dùng ~100 chỗ / 9 file, rủi ro cao. Script chụp: sau khi vào Drive phải chờ map ổn định (preload có thể đặt lại map).
+- **#7 — Bỏ dải vạch sọc chéo Broadway qua 7th Ave (22/10/2026)**: chú gửi ảnh (sọc trắng ~55 m trên lòng đường); ngoài đời người đi bộ qua ở vạch ngã tư 45 St.
