@@ -1,6 +1,8 @@
 // Kiểm tra map Cao tốc HLG: dữ liệu OSM liên tục, đường dựng lại khớp toạ độ thật, công trình không chồng nhau, đảo chiều đúng.
 import { Road, setLayout, icS, icIndex, tollDist, avLimit, avHump, deckHump, laneCount, IC } from '../src/road.js';
 import { HLG, hlgLayout } from '../src/hlg.js';
+import { hLow } from '../src/terrain-noise.js';
+import { creekLen } from '../src/avenue.js';
 
 let fail = 0;
 const ok = (c, msg) => { console.log((c ? 'PASS ' : 'FAIL ') + msg); if (!c) fail++; };
@@ -63,6 +65,32 @@ for (const rev of [false, true]) {
     `${tag}: số làn ${LN.map((l) => `${(l.s0 / 1000).toFixed(1)}:${l.n}`).join(' ')} (phủ kín, nút giao có làn thứ 3)`);
   let sum = 0; for (const D of lay.decks) sum += 2 * D.half;
   console.log(`     cầu cạn / cầu nhỏ: tổng ${(sum / 1000).toFixed(2)} km; deckHump(km 7) = ${deckHump(rev ? L - 7000 : 7000).toFixed(1)} m`);
+}
+// ---- góc cắt của sông / lạch + chiều sâu nước so với lòng đã đào ----
+{
+  const lay = hlgLayout(false), road = new Road();
+  setLayout(lay); road.setShape('hlg', lay.real);
+  const angOk = (a) => Number.isFinite(a) && Math.abs(a) <= 1.0 + 1e-9;
+  ok(D.rivers.every((r) => angOk(r.ang)), `sông: ${D.rivers.length} góc hợp lệ (|ang| ≤ 1 rad)`);
+  console.log('     góc sông:', D.rivers.map((r) => `${r.name || r.kind + ' ' + (r.s / 1000).toFixed(1) + 'km'} ${(r.ang * 180 / Math.PI).toFixed(1)}°`).join('; '));
+  ok(lay.rivers.every((r) => angOk(r.ang)) && lay.decks.every((d) => d.creeks.every((c) => angOk(c.ang))),
+    `bố trí: ${lay.rivers.length} sông lớn + ${lay.decks.reduce((n, d) => n + d.creeks.length, 0)} lạch đều có góc kẹp ≤ 1 rad`);
+  console.log('     đường cắt ngang:', D.ics.map((c) => `${c.name} → ${c.cross || '—'}`).join('; '));
+  ok(D.ics.filter((c) => c.cross).length >= 7, `${D.ics.filter((c) => c.cross).length}/${D.ics.length} nút giao có tên đường cắt ngang`);
+  // 5 điểm dọc tim mỗi dải lạch: mặt nước phải cao hơn đáy đã đào 0.3–3 m
+  const bad = [];
+  for (const Dk of lay.decks) for (const C of Dk.creeks) {
+    const q = road.at(Dk.s + C.t, {}), ca = Math.cos(C.ang), sa = Math.sin(C.ang);
+    const rx0 = Math.cos(q.th), rz0 = -Math.sin(q.th), fx0 = -Math.sin(q.th), fz0 = -Math.cos(q.th);
+    const rx = rx0 * ca + fx0 * sa, rz = rz0 * ca + fz0 * sa;
+    const g = hLow(q.x, q.z), level = g - 1.2, bed = g - 3.0, len = creekLen({ x: q.x, z: q.z, th: q.th }, C.ang, C.hw);
+    for (let k = -2; k <= 2; k++) {
+      const u = k * len / 2, x = q.x + rx * u, z = q.z + rz * u;
+      const dug = Math.min(hLow(x, z), bed), d = level - dug;      // carve chỉ đào xuống (Math.min)
+      if (!(d >= 0.3 && d <= 3)) bad.push(`${C.name || 'lạch'}@${(Dk.s + C.t) / 1000}km+${u}m ${d.toFixed(2)}m`);
+    }
+  }
+  ok(!bad.length, `mặt nước trên đáy lạch 0.3–3 m (5 điểm/dải): ${bad.slice(0, 4).join('; ') || 'ok'}`);
 }
 setLayout(null);
 // Đại lộ không đổi: chỉ số / vị trí theo chu kỳ cũ

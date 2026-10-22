@@ -226,6 +226,7 @@ export class CityTraffic {
   constructor(scene, road, city) {
     this.road = road;
     this.city = city;
+    city.traffic = this;               // người đi bộ (cityPeople) hỏi xe gần khi lách đèn đỏ
     this.group = new THREE.Group();
     this.group.visible = false;
     scene.add(this.group);
@@ -329,6 +330,67 @@ export class CityTraffic {
     return null;
   }
 
+  // ---- nhường người đi bộ ----
+  // Gom người theo ô 20 m dọc đường (1 lần / khung hình) => mỗi xe chỉ duyệt vài ô quanh nó.
+  // Người map Phố (cityPeople) + đám đông Times Square đang băng qua 7th Ave.
+  _pedBins() {
+    // mỗi người: s, u, hướng đi ngang (+1/−1 khi đang qua đường, 0 khi đứng / đi dọc)
+    const bins = new Map(), add = (s, u, du = 0) => {
+      if (!Number.isFinite(s) || !Number.isFinite(u)) return;
+      const k = Math.floor(s / 20);
+      let a = bins.get(k); if (!a) bins.set(k, a = []);
+      a.push(s, u, du);
+    };
+    const ppl = this.city.people;
+    if (ppl && ppl.group.visible) for (const p of ppl.peds) {
+      if (p.mode === 'fallen') continue;
+      add(p.s, p.u, p.crossing && p.mode === 'cross' ? -p.side : 0);
+    }
+    const ts = this.city.timesSq;
+    if (ts && ts.group.visible) {
+      const L = this.road.loop ? this.road.loop.length : 0;        // toạ độ s của đám đông là trong 1 vòng
+      for (const p of ts.crowd || []) {
+        if (p.zn?.kind !== 'cross' || Math.abs(p.u) > CITY.hw + 1.2) continue;   // chỉ người đang ở lòng đường
+        add(L ? p.s + Math.round((this._s - p.s) / L) * L : p.s, p.u, p.moving ? (p.tu > p.u ? 1 : -1) : 0);
+      }
+    }
+    return bins;
+  }
+  // khoảng cách từ đầu xe tới người gần nhất phía trước trong dải làn (m); −1 = không có.
+  // Người đang qua đường mà đường đi của họ sẽ cắt qua làn này cũng được tính (tránh họ bước ngang vào hông xe).
+  _pedGap(c, bins) {
+    const dir = c.dir, range = 8 + c.v * c.v / 8, hw = c.wid / 2 + 1.2;
+    const front = c.s + dir * c.len / 2, end = front + dir * range;
+    const lo = Math.min(front, end), hi = Math.max(front, end);
+    let best = Infinity;
+    for (let k = Math.floor(lo / 20); k <= Math.floor(hi / 20); k++) {
+      const a = bins.get(k); if (!a) continue;
+      for (let i = 0; i < a.length; i += 3) {
+        const u = a[i + 1], du = a[i + 2], lat = u - c.d;
+        const willCross = du !== 0 && lat * du < 0 && Math.abs(u) <= CITY.hw + 1.2;   // làn này nằm trên đường đi của người
+        if (Math.abs(lat) >= hw && !willCross) continue;
+        const gap = (a[i] - c.s) * dir - c.len / 2;
+        if (gap >= -0.2 && gap <= range && gap < best) best = gap;
+      }
+    }
+    return best === Infinity ? -1 : best;
+  }
+  // như _pedGap nhưng cho xe đường ngang: xe chạy dọc trục u, dải làn theo s = tâm ngã tư + a
+  _pedGapCross(c, bins) {
+    const X = c.cross, ca = this.road.junction(X.n) + X.a, hw = c.wid / 2 + 1.2;
+    const range = 8 + c.v * c.v / 8;
+    let best = Infinity;
+    for (let k = Math.floor((ca - hw) / 20); k <= Math.floor((ca + hw) / 20); k++) {
+      const a = bins.get(k); if (!a) continue;
+      for (let i = 0; i < a.length; i += 3) {
+        if (Math.abs(a[i] - ca) >= hw) continue;
+        const gap = (a[i + 1] - X.u) * X.du - c.len / 2;
+        if (gap >= -0.2 && gap <= range && gap < best) best = gap;
+      }
+    }
+    return best === Infinity ? -1 : best;
+  }
+
   _pick() {
     let k = Math.random(), t = 'sedan';
     for (const [n, w] of this.cfg.mix) { if ((k -= w) < 0) { t = n; break; } }
@@ -357,7 +419,7 @@ export class CityTraffic {
   // dt; s, d, v: xe mình; lamps 0..1
   update(dt, s, d, v, lamps, playerLen = 4.6) {
     if (!this.group.visible) return;
-    this.uLamp.value = lamps; this.uTime.value += dt; this._dt = dt;
+    this.uLamp.value = lamps; this.uTime.value += dt; this._dt = dt; this._s = s;
     // xe model của chú: thả lại xe không còn chạy trong phố
     if (this.pool) {
       const used = new Set(this.cars.filter((c) => c.model).map((c) => c.model));
@@ -436,6 +498,7 @@ export class CityTraffic {
     if (this.crossTimers.size > 120) for (const key of this.crossTimers.keys()) if (typeof key === 'string') this.crossTimers.delete(key);   // dọn hẹn giờ cũ
 
     // ---- chuyển động ----
+    const bins = this._pedBins();      // gom người 1 lần / khung hình
     const player = { s, d, v, len: playerLen, wid: 1.9, dir: 1, player: true };
     const main = this.cars.filter((c) => !c.cross && !c.xr);
     const ahead = (A, lane) => {              // xe gần nhất phía trước A trong làn lane (đường chính)
@@ -522,7 +585,12 @@ export class CityTraffic {
       }
       const st = this.city.stopAhead(c.s + c.dir * c.len / 2, c.dir, c.v);
       if (st < Infinity) want = Math.min(want, Math.sqrt(2 * 3 * Math.max(0, st - 1.2)));
-      c.v += Math.max(-7 * dt, Math.min(2.2 * dt, want - c.v));
+      // người trong làn phía trước: phanh êm (a ~4 m/s²) để dừng cách 2,5 m; quá gần thì phanh gấp ≤ 8
+      const pg = this._pedGap(c, bins);
+      c.pedGap = pg;
+      if (pg >= 0) want = Math.min(want, Math.sqrt(8 * Math.max(0, pg - 2.5)));
+      const dec = pg >= 0 ? (pg - 2.5 < c.v * c.v / 10 ? 8 : 5) : 7;
+      c.v += Math.max(-dec * dt, Math.min(2.2 * dt, want - c.v));
       c.v = Math.max(0, c.v);
       c.s += c.dir * c.v * dt;
       if (c.ramp != null) {                                  // trên nhánh: vị trí ngang theo rampU
@@ -553,7 +621,12 @@ export class CityTraffic {
         const ph = this.city._phase(X.n).cross;
         if (ph === 2 || (ph === 1 && dist > c.v * c.v / 6)) want = Math.min(want, Math.sqrt(2 * 3 * Math.max(0, dist - 0.5)));
       }
-      c.v += Math.max(-7 * dt, Math.min(2.2 * dt, want - c.v));
+      // người đang ở trong dải làn của xe đường ngang (toạ độ u)
+      const pg = this._pedGapCross(c, bins);
+      c.pedGap = pg;
+      if (pg >= 0) want = Math.min(want, Math.sqrt(8 * Math.max(0, pg - 2.5)));
+      const dec = pg >= 0 ? (pg - 2.5 < c.v * c.v / 10 ? 8 : 5) : 7;
+      c.v += Math.max(-dec * dt, Math.min(2.2 * dt, want - c.v));
       c.v = Math.max(0, c.v);
       X.u += X.du * c.v * dt;
     }

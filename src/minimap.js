@@ -135,7 +135,8 @@ export class Minimap {
       }
       for (const D of (S.avenue.decks || new Map()).values()) for (const C of D.creeks || []) {   // suối / kênh dưới cầu cạn (HLG)
         if (!C.Pc || Math.abs(C.Pc.x - cx) > span + 500 || Math.abs(C.Pc.z - cz) > span + 500) continue;
-        line([[C.Pc.x - C.rx * 400, C.Pc.z - C.rz * 400], [C.Pc.x + C.rx * 400, C.Pc.z + C.rz * 400]], C.hw * 2, '#6fa8d6', 2);
+        const L = C.len ?? 400;
+        line([[C.Pc.x - C.rx * L, C.Pc.z - C.rz * L], [C.Pc.x + C.rx * L, C.Pc.z + C.rz * L]], C.hw * 2, '#6fa8d6', 2);
       }
       for (const F of (S.avenue.flys || new Map()).values()) {       // quốc lộ 4 làn dưới cầu cao
         if (Math.abs(F.P.x - cx) > span + 700 || Math.abs(F.P.z - cz) > span + 700) continue;

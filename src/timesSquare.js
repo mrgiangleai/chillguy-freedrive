@@ -51,8 +51,9 @@ function adColors(tex) {
 export class TimesSquare {
   constructor(scene, road, city) {
     this.road = road; this.city = city;
+    city.timesSq = this;                     // xe NPC nhường đám đông đang băng qua 7th Ave
     this.group = new THREE.Group(); this.group.visible = false; scene.add(this.group);
-    this.built = false; this.obb = [];
+    this.built = false; this.obb = []; this.signObb = [];   // signObb: khối bao biển LED cho camera (8 số: x, z, cos, sin, nửa rộng, nửa sâu, đỉnh, đáy)
     this.crowd = []; this.near = []; this.density = 1;     // đám đông: density theo chất lượng (Low 0.6)
     this.uTime = { value: 0 }; this.uK = { value: 1 };
     this.signK = 1; this.winK = 1;                       // bảng 💡 Lighting: độ sáng biển LED / cửa sổ nhà (main applyLightTune)
@@ -113,7 +114,7 @@ export class TimesSquare {
     this.cube.update(renderer, scene);
     this.mats[3].envMap = this.cubeRT.texture;
   }
-  set visible(v) { this.group.visible = v; if (v && !this.built) this._build(); this.city.exclude = v ? this._excl : null; this.city.extraObb = v ? this.obb : null; }
+  set visible(v) { this.group.visible = v; if (v && !this.built) this._build(); this.city.exclude = v ? this._excl : null; this.city.extraObb = v ? this.obb : null; this.city.signObb = v ? this.signObb : null; }
   get visible() { return this.group.visible; }
   get excl() { return this._excl; }
   // lamps 0..1: cửa sổ sáng + biển sáng hơn ban đêm
@@ -331,6 +332,9 @@ export class TimesSquare {
       const cell0 = Math.floor(r() * 16), phase = r() * 7, rate = 5 + r() * 6;
       aAd.set([cell0, phase, rate], i * 3);
       this.adInfo.push({ x, y: y0 + y, z, nx, nz, w, h, base: cell0, phase, rate });
+      // khối bao mỏng cho camera: bề rộng theo trục mặt biển (du: dọc phố, ds: ngang phố), dày 0.4 m
+      const uHalf = du ? 0.2 : w / 2, sHalf = du ? w / 2 : 0.2;
+      this.signObb.push(x, z, Math.cos(F.th), Math.sin(F.th), uHalf, sHalf, y0 + y + h / 2, y0 + y - h / 2);
     });
     pg.setAttribute('aAd', new THREE.InstancedBufferAttribute(aAd, 3));
     im.frustumCulled = false; this.group.add(im);
@@ -356,6 +360,9 @@ export class TimesSquare {
           const cx = wx - (d1x + d2x) * R, cz = wz - (d1z + d2z) * R;                    // C = góc − D1·R − D2·R
           M.makeBasis(X, Y, Z); M.setPosition(cx, y0 + 13, cz); M.scale(new THREE.Vector3(1, 14, 1));
           cim.setMatrixAt(i, M);
+          // khối bao cả 1/4 trụ: hình chữ nhật từ tâm C tới góc nhà, cao 6…20 m
+          const bh = R / 2 + 0.15;
+          this.signObb.push((wx + cx) / 2, (wz + cz) / 2, Math.cos(F.th), Math.sin(F.th), bh, bh, y0 + 20, y0 + 6);
           const cell0 = Math.floor(r() * 16), phase = r() * 7, rate = 5 + r() * 6;
           cAd.set([cell0, phase, rate], i * 3);
           if (this.adInfo) {
@@ -397,6 +404,22 @@ TimesSquare.prototype._target = function (p) {
   if (z.kind === 'walk') { p.ts = Math.min(z.s1, Math.max(z.s0, p.s + (r() < 0.5 ? -1 : 1) * (20 + r() * 60))); p.tu = z.u0 + r() * (z.u1 - z.u0); }
   else { p.ts = z.s0 + r() * (z.s1 - z.s0); p.tu = z.u0 + r() * (z.u1 - z.u0); }
 };
+// người đám đông lách qua khi đèn đỏ: làn sát vỉa phía họ trống 25 m và mỗi ngã tư tối đa 2 người
+TimesSquare.prototype._jayClear = function (p) {
+  const T = this.city.traffic;
+  if (!T) return true;
+  const L = this.road.loop ? this.road.loop.length : 0;
+  const ps = L && Number.isFinite(this.carS) ? p.s + Math.round((this.carS - p.s) / L) * L : p.s;
+  const lanes = T.lanes || [1.75, 5.25];
+  const lane = (Math.sign(p.side) || 1) * lanes[lanes.length - 1];
+  for (const c of T.cars) {
+    if (c.cross || c.xr || c.crashed) continue;
+    if (Math.abs(c.s - ps) < 25 && Math.abs(c.d - lane) < 2.2) return false;
+  }
+  let n = 0;
+  for (const q of this.crowd) if (q !== p && q.zn === p.zn && q.jaywalk) n++;
+  return n < 2;
+};
 TimesSquare.prototype._crowd = function (dt, car) {
   const W = this.W, F = this.F, near = this.near;
   near.length = 0;
@@ -409,15 +432,23 @@ TimesSquare.prototype._crowd = function (dt, car) {
         const ph = this.carS === undefined ? null : this.city._phase(this.road.junctionIndex(Math.floor(this.carS / NYC.length) * NYC.length + z.J));
         if (ph && ph.cross === 0 && ph.crossEnd - ph.t > 6) {
           p.delay -= dt;
-          if (p.delay <= 0) { p.tu = -p.side * (CITY.hw + 0.8 + Math.random() * 1.8); p.moving = 1; p.state = 'walk'; }
-        } else p.delay = Math.random() * 1.5;                         // đèn đỏ: chờ, đợt xanh sau trễ lại ngẫu nhiên
+          if (p.delay <= 0) { p.tu = -p.side * (CITY.hw + 0.8 + Math.random() * 1.8); p.moving = 1; p.state = 'walk'; p.jaywalk = false; p.jay = undefined; }
+        } else {
+          // đèn đỏ: chờ; ~10 % lách qua nếu làn sát vỉa trống (đi nhanh hơn chút)
+          if (ph && p.jay === undefined) p.jay = Math.random() < 0.1;
+          if (ph && p.jay && this._jayClear(p)) {
+            p.delay -= dt;
+            if (p.delay <= 0) { p.tu = -p.side * (CITY.hw + 0.8 + Math.random() * 1.8); p.moving = 1; p.state = 'walk'; p.jaywalk = true; }
+          } else p.delay = Math.random() * 1.5;
+        }
       } else {
-        const dir = p.tu > p.u ? 1 : -1;
-        p.u += dir * p.speed * dt; p.ph += p.speed * dt * 5.2;
+        const dir = p.tu > p.u ? 1 : -1, sp = p.speed * (p.jaywalk ? 1.35 : 1);
+        p.u += dir * sp * dt; p.ph += sp * dt * 5.2;
         p.ds = 0; p.du = dir;
         if ((dir > 0 && p.u >= p.tu) || (dir < 0 && p.u <= p.tu)) {    // tới mép bên kia: đổi bên, chờ đèn xanh kế
           p.u = p.tu; p.moving = 0; p.state = 'wait'; p.side = -p.side;
           p.du = -p.side; p.ds = 0; p.delay = Math.random() * 1.5;
+          p.jaywalk = false; p.jay = undefined;
         }
       }
     }

@@ -516,6 +516,10 @@ export class City {
     }
     const X = this.extraObb;                                       // nhà ngoài khối phố (Times Square)
     if (X) for (let i = 0; i < X.length; i += 7) if (Math.abs(X[i] - ax) < R + 30 && Math.abs(X[i + 1] - az) < R + 30) near.push(i, X);
+    // biển LED Times Square: khối 8 số (… đỉnh, đáy) — bỏ biển nằm cao hơn camera + 2 m để không giật khi đi dưới biển
+    const signs = this._nearS || (this._nearS = []), S = this.signObb, camTop = cam.y + 2;
+    signs.length = 0;
+    if (S) for (let i = 0; i < S.length; i += 8) if (S[i + 7] <= camTop && Math.abs(S[i] - ax) < R + 30 && Math.abs(S[i + 1] - az) < R + 30) signs.push(i);
     let f = 1;
     const M = 0.6;
     for (let t = 0.8; t <= L + M && f === 1; t += 0.35) {
@@ -526,6 +530,13 @@ export class City {
         const ex = x - o[i], ez = z - o[i + 1];
         const lx = ex * o[i + 2] - ez * o[i + 3], lz = ex * o[i + 3] + ez * o[i + 2];
         if (Math.abs(lx) < o[i + 4] + M && Math.abs(lz) < o[i + 5] + M) { f = Math.max(0.05, (t - M) / L); break; }
+      }
+      for (let k = 0; k < signs.length && f === 1; k++) {
+        const i = signs[k];
+        if (y > S[i + 6] + M || y < S[i + 7] - M) continue;
+        const ex = x - S[i], ez = z - S[i + 1];
+        const lx = ex * S[i + 2] - ez * S[i + 3], lz = ex * S[i + 3] + ez * S[i + 2];
+        if (Math.abs(lx) < S[i + 4] + M && Math.abs(lz) < S[i + 5] + M) { f = Math.max(0.05, (t - M) / L); break; }
       }
     }
     this.camF = f < this.camF ? f : this.camF + (f - this.camF) * (1 - Math.exp(-dt * 2.5));

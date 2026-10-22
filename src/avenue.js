@@ -8,6 +8,22 @@ import { broadleafGeometry } from './scenery.js';
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const RAMP_STEP = 6, RAMP_HW = 2.5;
 export const meander = (u, a = 40) => a * Math.sin(u / 300);   // sông uốn nhẹ, biên độ a (cùng công thức trong shader nước)
+// nửa chiều dài dải nước lạch: giữ mặt nước phẳng ở level = g−1.2 cao hơn đáy đã đào 0.3–3 m dọc tim dải
+// (địa hình xuống thấp thì thu ngắn dải để nước không "treo" quá sâu; dùng chung với check-hlg)
+export function creekLen(q, ang, hw) {
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const rx = Math.cos(q.th) * ca - Math.sin(q.th) * sa, rz = -Math.sin(q.th) * ca - Math.cos(q.th) * sa;
+  const g = hLow(q.x, q.z), level = g - 1.2, bed = g - 3.0;
+  for (let len = 400; len >= Math.max(60, hw * 4); len -= 20) {
+    let ok = true;
+    for (let k = -2; k <= 2 && ok; k++) {
+      const u = k * len / 2, d = level - Math.min(hLow(q.x + rx * u, q.z + rz * u), bed);
+      if (!(d >= 0.3 && d <= 3)) ok = false;
+    }
+    if (ok) return len;
+  }
+  return Math.max(60, hw * 4);
+}
 const DECK_HW = 14.8;                                        // nửa bề rộng bản mặt cầu cạn (chứa cả cột đèn)
 const hashR = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 const FONT = 'Arial, "Helvetica Neue", sans-serif';
@@ -135,13 +151,23 @@ function icSignTexture(k, real = null) {
 // biển chỉ đường thật của nút giao k (map Cao tốc HLG): lối ra = tên nút giao + đường cắt ngang; đi thẳng = điểm đến theo chiều
 // (ô 0 cho chiều xe mình +s, ô 1 cho chiều ngược). Đường tới sân bay Long Thành: biểu tượng máy bay trước nút giao Long Thành.
 const HLG_ROUTE = { 'Quốc lộ 51': 'QL.51', 'Vành đai 2': 'VĐ.2', 'Long Thành': 'QL.51', 'Nhơn Trạch': 'ĐT.25B', 'Cẩm Mỹ': 'ĐT.765', 'Đỗ Xuân Hợp': 'TP.HCM', 'Long Trường': 'TP.HCM' };
+// mã đường của lối ra: ưu tiên ref thật của nhánh / đường cắt ngang, không có thì suy từ tên `cross`
+const routeOf = (I) => {
+  const c = I.cross || '';
+  if (I.crossRef) return I.crossRef;
+  const ql = /quốc lộ (\w+)/i.exec(c), dt = /^ĐT\.?\s*(\w+)/i.exec(c), vd = /vành đai (\d+)/i.exec(c);
+  if (ql) return 'QL.' + ql[1];
+  if (dt) return 'ĐT.' + dt[1];
+  if (vd) return 'VĐ.' + vd[1];
+  return /cao tốc/i.test(c) ? 'CT' : '';
+};
 function hlgSign(k) {
   const L = layout(), I = L?.ics?.[k];
   if (!I) return null;
   const up = (t) => t.toUpperCase(), fwd = !L.rev;
   const toEnd = fwd ? ['DẦU GIÂY', 'PHAN THIẾT'] : ['TP. HỒ CHÍ MINH', 'THỦ ĐỨC'], toStart = fwd ? ['TP. HỒ CHÍ MINH', 'THỦ ĐỨC'] : ['DẦU GIÂY', 'PHAN THIẾT'];
   const airport = I.name !== 'Long Thành' && I.name !== 'Cẩm Mỹ' && fwd ? I.s < (L.ics.find((c) => c.name === 'Long Thành')?.s ?? 0) : false;
-  return { exitA: up(I.name || 'LỐI RA'), exitB: up(I.cross || (fwd ? 'Long Thành' : 'Nhơn Trạch')), route: HLG_ROUTE[I.name] || 'ĐT', aheadP: toEnd[0],
+  return { exitA: up(I.name || 'LỐI RA'), exitB: up(I.cross || (fwd ? 'Long Thành' : 'Nhơn Trạch')), route: routeOf(I) || HLG_ROUTE[I.name] || 'ĐT', aheadP: toEnd[0],
     aheadM: toStart[0], ct: 'CT.01', plane: airport };
 }
 const icUV = (i, x0 = 0, x1 = 1) => { const u = (i % 2) / 2, v = 1 - Math.floor(i / 2) / 3; return [u + x0 / 2, v - 1 / 3, u + x1 / 2, v]; };
@@ -352,18 +378,23 @@ export class Avenue {
     return F;
   }
   // sông lớn k: dải nước rộng 2·hw chạy theo r (uốn nhẹ), mặt nước thấp hơn nền RIVER.drop m
+  // ang: góc lệch của đường nước so với pháp tuyến tuyến (0 = vuông góc) => xoay cả khung r/f
   river(k) {
     this.rivers ||= new Map();
     let R = this.rivers.get(k);
     if (R) return R;
     const road = this.road, s0 = riverS(k), p = road.at(s0, {}), yb = road.baseY(s0), Q = riverP(k);
-    R = { kind: 'river', key: 'r' + k, k, s: s0, th: p.th, rx: Math.cos(p.th), rz: -Math.sin(p.th), fx: -Math.sin(p.th), fz: -Math.cos(p.th),
+    const ang = Math.max(-1, Math.min(1, Q.ang || 0)), ca = Math.cos(ang), sa = Math.sin(ang);
+    const rx0 = Math.cos(p.th), rz0 = -Math.sin(p.th), fx0 = -Math.sin(p.th), fz0 = -Math.cos(p.th);
+    R = { kind: 'river', key: 'r' + k, k, s: s0, th: p.th, ang,
+      rx: rx0 * ca + fx0 * sa, rz: rz0 * ca + fz0 * sa,         // dọc đường nước
+      fx: fx0 * ca - rx0 * sa, fz: fz0 * ca - rz0 * sa,         // ngang đường nước
       P: { x: p.x, y: yb, z: p.z }, level: yb - Q.drop, hw: Q.hw, viaduct: Q.viaduct, depth: Q.depth, mA: Q.meander, towers: Q.towers ?? true, name: Q.name || '' };
     this.rivers.set(k, R);
     return R;
   }
   // cầu cạn / cầu nhỏ k (HLG): đoạn mặt cầu |t| < viaduct trên trụ, không có đường dưới gầm; creeks = suối / kênh dưới cầu
-  // (dải nước theo r tại tâm Pc, mặt nước level, đáy lạch bed)
+  // (dải nước theo r tại tâm Pc, mặt nước level, đáy lạch bed; r/f xoay theo ang của đường nước)
   deck(k) {
     this.decks ||= new Map();
     let O = this.decks.get(k);
@@ -371,14 +402,19 @@ export class Avenue {
     const road = this.road, D = deckP(k), s0 = deckS(k), p = road.at(s0, {});
     const fr = (q) => ({ th: q.th, rx: Math.cos(q.th), rz: -Math.sin(q.th), fx: -Math.sin(q.th), fz: -Math.cos(q.th) });
     O = { kind: 'deck', key: 'd' + k, k, s: s0, ...fr(p), P: { x: p.x, y: road.baseY(s0), z: p.z }, viaduct: D.half, name: D.name,
-      creeks: D.creeks.map((c) => { const q = road.at(s0 + c.t, {}), g = hLow(q.x, q.z); return { ...c, ...fr(q), Pc: { x: q.x, z: q.z }, level: g - 1.2, bed: g - 3.0 }; }) };
+      creeks: D.creeks.map((c) => {
+        const q = road.at(s0 + c.t, {}), g = hLow(q.x, q.z), w = fr(q);
+        const ang = Math.max(-1, Math.min(1, c.ang || 0)), ca = Math.cos(ang), sa = Math.sin(ang);
+        return { ...c, th: q.th, ang, rx: w.rx * ca + w.fx * sa, rz: w.rz * ca + w.fz * sa, fx: w.fx * ca - w.rx * sa, fz: w.fz * ca - w.rz * sa,
+          Pc: { x: q.x, z: q.z }, level: g - 1.2, bed: g - 3.0, len: creekLen({ x: q.x, z: q.z, th: q.th }, ang, c.hw) };
+      }) };
     this.decks.set(k, O);
     return O;
   }
-  // (x, z) thuộc lạch C? trả khoảng cách ngang tới tim lạch (theo f), ngoài vùng ±420 m dọc lạch thì Infinity
+  // (x, z) thuộc lạch C? trả khoảng cách ngang tới tim lạch (theo f), ngoài vùng dọc lạch thì Infinity
   creekA(C, x, z) {
     const dx = x - C.Pc.x, dz = z - C.Pc.z;
-    return Math.abs(dx * C.rx + dz * C.rz) < 420 ? Math.abs(dx * C.fx + dz * C.fz) : Infinity;
+    return Math.abs(dx * C.rx + dz * C.rz) < (C.len ?? 420) + 5 ? Math.abs(dx * C.fx + dz * C.fz) : Infinity;
   }
   // khoảng cách có dấu tới tim sông (theo f) tại (x, z), đã trừ độ uốn
   riverA(R, x, z) { const dx = x - R.P.x, dz = z - R.P.z, u = dx * R.rx + dz * R.rz; return dx * R.fx + dz * R.fz - meander(u, R.mA); }
@@ -546,7 +582,7 @@ export class Avenue {
     if (Math.abs(deckS(dk) - s) < 800) {                           // cầu cạn / cầu nhỏ (HLG): bỏ cỏ dọc cầu + dải lạch, vẫn xét nút giao bên dưới
       const D = this.deck(dk);
       viaductExcl(D.s, D.viaduct);
-      for (const C of D.creeks) if (E.length < 32) E.push([C.Pc.x - C.rx * 400, C.Pc.z - C.rz * 400, C.Pc.x + C.rx * 400, C.Pc.z + C.rz * 400, C.hw + 3]);
+      for (const C of D.creeks) if (E.length < 32) { const L = C.len ?? 400; E.push([C.Pc.x - C.rx * L, C.Pc.z - C.rz * L, C.Pc.x + C.rx * L, C.Pc.z + C.rz * L, C.hw + 3]); }
     }
     const fk = flyIndex(s), rk = riverIndex(s);
     if (Math.abs(flyS(fk) - s) < 800) {
@@ -897,9 +933,9 @@ export class Avenue {
     const pts = (arr, mat) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3)); const p = new THREE.Points(g, mat); p.frustumCulled = false; p.renderOrder = 4; group.add(p); };
     const rl = [];
     for (let t = -V + 6; t <= V - 6; t += 12) { if (icGap(t)) continue; const q = Q(t); for (const e of [-1, 1]) rl.push(...P3(q, e * (DECK_HW - 0.2), q.y + 1.15)); }
-    if (deck) for (const Cr of O.creeks) {                           // mặt nước suối / kênh: dải phẳng ±400 m theo r, rộng 2·hw
-      const W = { pos: [], nor: [], idx: [] }, X = (u, a) => [Cr.Pc.x + Cr.rx * u + Cr.fx * a, Cr.level, Cr.Pc.z + Cr.rz * u + Cr.fz * a];
-      for (let u = -400; u < 400; u += 40) push(W, [X(u, -Cr.hw), X(u + 40, -Cr.hw), X(u + 40, Cr.hw), X(u, Cr.hw)], UP);
+    if (deck) for (const Cr of O.creeks) {                           // mặt nước suối / kênh: dải phẳng ±len theo r, rộng 2·hw
+      const W = { pos: [], nor: [], idx: [] }, L = Cr.len ?? 400, X = (u, a) => [Cr.Pc.x + Cr.rx * u + Cr.fx * a, Cr.level, Cr.Pc.z + Cr.rz * u + Cr.fz * a];
+      for (let u = -L; u < L; u += 40) push(W, [X(u, -Cr.hw), X(Math.min(L, u + 40), -Cr.hw), X(Math.min(L, u + 40), Cr.hw), X(u, Cr.hw)], UP);
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(W.pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(W.nor, 3)); g.setIndex(W.idx);
       const m = new THREE.Mesh(g, this.creekMat); m.receiveShadow = true; group.add(m);

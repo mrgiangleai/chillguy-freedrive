@@ -131,8 +131,8 @@ for (let i = 0; i + 1 < R5.length; i++) {
   const x0 = Math.min(R5[i][0], R5[i + 1][0]), x1 = Math.max(R5[i][0], R5[i + 1][0]), y0 = Math.min(R5[i][1], R5[i + 1][1]), y1 = Math.max(R5[i][1], R5[i + 1][1]);
   for (let cx = Math.floor(x0 / CELL); cx <= Math.floor(x1 / CELL); cx++) for (let cy = Math.floor(y0 / CELL); cy <= Math.floor(y1 / CELL); cy++) { const k = cx + ',' + cy; (grid.get(k) || grid.set(k, []).get(k)).push(i); }
 }
-// giao cắt đường polyline (lat/lon) với đường gốc → danh sách s_raw
-function crossings(geom) {
+// giao cắt đường polyline (lat/lon) với đường gốc → [[s_raw, chỉ số đoạn của geom], ...]
+function crossSegs(geom) {
   const out = [];
   for (let j = 0; j + 1 < geom.length; j++) {
     const a = prj(geom[j].lat, geom[j].lon), b = prj(geom[j + 1].lat, geom[j + 1].lon);
@@ -142,10 +142,21 @@ function crossings(geom) {
       const p = R5[i], q = R5[i + 1], r = [q[0] - p[0], q[1] - p[1]], s = [b[0] - a[0], b[1] - a[1]], den = r[0] * s[1] - r[1] * s[0];
       if (Math.abs(den) < 1e-9) continue;
       const t = ((a[0] - p[0]) * s[1] - (a[1] - p[1]) * s[0]) / den, u = ((a[0] - p[0]) * r[1] - (a[1] - p[1]) * r[0]) / den;
-      if (t >= 0 && t < 1 && u >= 0 && u <= 1) out.push((i + t) * H);
+      if (t >= 0 && t < 1 && u >= 0 && u <= 1) out.push([(i + t) * H, j]);
     }
   }
   return out;
+}
+const crossings = (geom) => crossSegs(geom).map((x) => x[0]);
+// góc có dấu giữa hướng chảy của đường nước và pháp tuyến của tuyến (0 = vuông góc, kẹp |ang| ≤ 1 rad).
+// Quy ước: hướng nước w = r·cos(ang) + f·sin(ang), r = ngang phải, f = tới trước (cùng quy ước với avenue.js).
+const wrapPi = (a) => { while (a > Math.PI / 2) a -= Math.PI; while (a <= -Math.PI / 2) a += Math.PI; return a; };
+function waterAngle(geom, j, s) {
+  const a = prj(geom[j].lat, geom[j].lon), b = prj(geom[j + 1].lat, geom[j + 1].lon);
+  const wE = b[0] - a[0], wN = b[1] - a[1], l = Math.hypot(wE, wN) || 1, th = smAt(s);
+  const cr = (wE * Math.cos(th) + wN * Math.sin(th)) / l;      // thành phần ngang tuyến
+  const cf = (-wE * Math.sin(th) + wN * Math.cos(th)) / l;     // thành phần dọc tuyến
+  return Math.max(-1, Math.min(1, wrapPi(Math.atan2(cf, cr))));
 }
 // đoạn theo cạnh: gom các cạnh liên tiếp có cùng giá trị
 function runs(fn) {
@@ -192,15 +203,15 @@ const waterSpan = (s) => { // khoảng [c_k, c_{k+1}] chứa s với k chẵn (v
 // sông / kênh / suối cắt đường
 const kindW = { river: 'river', canal: 'canal', stream: 'stream' }, defW = { river: 120, canal: 25, stream: 10 };
 let rv = [];
-for (const w of wat) for (const s of crossings(w.geometry)) {
+for (const w of wat) for (const [s, j] of crossSegs(w.geometry)) {
   const k = kindW[w.tags.waterway]; let width = parseFloat(w.tags.width) || 0;
   const span = waterSpan(s);
   if (!width) width = span > 30 ? span : defW[k];
-  rv.push({ r: s, name: w.tags.name || '', kind: k, width: rnd(width), span });
+  rv.push({ r: s, name: w.tags.name || '', kind: k, width: rnd(width), span, ang: waterAngle(w.geometry, j, s) });
 }
 rv.sort((a, b) => a.r - b.r);
 { const m = []; for (const x of rv) { const l = m.at(-1); if (l && x.r - l.r < 40) { if ((x.name && !l.name) || x.width > l.width) m[m.length - 1] = { ...x, name: x.name || l.name }; } else m.push(x); } rv = m; }
-const rivers = rv.map((x) => ({ s: toInt(x.r), name: x.name, kind: x.kind, width: x.width }));
+const rivers = rv.map((x) => ({ s: toInt(x.r), name: x.name, kind: x.kind, width: x.width, ang: +x.ang.toFixed(4) }));
 // trạm thu phí trong 60 m
 const tolls = [];
 for (const n of jn.filter((n) => n.tags.barrier === 'toll_booth' || n.tags.highway === 'toll_gantry')) {
@@ -213,9 +224,9 @@ const tollsOut = tolls.map((t) => ({ s: toInt(t.r), name: t.name }));
 // nút giao: cụm diverge / merge / nút motorway_junction trong 2 km
 const ev = [];
 for (const w of hw.filter((w) => w.tags.highway === 'motorway_link')) {
-  const a = w.nodes[0], b = w.nodes.at(-1);
-  if (nodeS.has(a)) ev.push({ t: 'x', s: nodeSInt.get(a), name: w.tags.name || w.tags.destination || '' });
-  if (nodeS.has(b)) ev.push({ t: 'e', s: nodeSInt.get(b), name: w.tags.name || w.tags.destination || '' });
+  const a = w.nodes[0], b = w.nodes.at(-1), dst = w.tags.destination || '', dref = w.tags['destination:ref'] || '';
+  if (nodeS.has(a)) ev.push({ t: 'x', s: nodeSInt.get(a), name: w.tags.name || dst || '', dst, dref });
+  if (nodeS.has(b)) ev.push({ t: 'e', s: nodeSInt.get(b), name: w.tags.name || dst || '', dst, dref });
 }
 for (const n of jn.filter((n) => n.tags.highway === 'motorway_junction')) {
   const [E, N] = prj(n.lat, n.lon), p = projRaw(E, N); if (p.d > 150) continue;
@@ -232,6 +243,35 @@ for (const e of ev) {
 }
 const clsRank = { trunk: 0, primary: 1, secondary: 2, tertiary: 3 };
 const cr = roads.map((r) => ({ r, xs: crossings(r.geometry) })).filter((x) => x.xs.length);
+// link ra / vào gần nút giao (kể cả đầu nhánh nối đường ngang, không chạm tuyến chính) => ref / destination của nút giao
+const links = hw.filter((w) => w.tags.highway === 'motorway_link' && w.geometry?.length);
+function nearLinks(mid) {
+  const out = [];
+  for (const w of links) {
+    const g = w.geometry;
+    let bd = Infinity;
+    for (const k of [0, (g.length - 1) >> 1, g.length - 1]) {
+      const [E, N] = prj(g[k].lat, g[k].lon), p = projRaw(E, N);
+      if (p.d < 1200) bd = Math.min(bd, Math.abs(p.s - mid));
+    }
+    if (bd < 900) out.push({ w, d: bd });
+  }
+  return out.sort((a, b) => a.d - b.d);
+}
+// ref (QL.51, ĐT.771…) => nhãn đường chuẩn: QL → Quốc lộ N, ĐT → ĐT.N, CT → tên cao tốc phổ biến nhất
+const refMap = new Map(), refCnt = new Map();
+for (const w of hw.filter((w) => w.tags.highway === 'motorway')) for (const q of (w.tags.ref || '').split(';')) {
+  const t = q.trim(), nm = w.tags.name; if (!t || !nm || /^Đường dẫn|^Cầu /.test(nm)) continue;
+  const key = t + '|' + nm; refCnt.set(key, (refCnt.get(key) || 0) + 1);
+}
+for (const [k, n] of refCnt) { const [r, nm] = k.split('|'); if (!refMap.has(r) || n > refCnt.get(r + '|' + refMap.get(r))) refMap.set(r, nm); }
+const refLabel = (r) => {
+  const q = r.trim(), m1 = /^QL\.?\s*(\d+)/i.exec(q), m2 = /^(?:ĐT|DT)\.?\s*(\d+[A-Za-z]?)/i.exec(q);
+  if (m1) return 'Quốc lộ ' + m1[1];
+  if (m2) return 'ĐT.' + m2[1].toUpperCase();
+  return refMap.get(q) || q;
+};
+const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9]/g, '');
 const ics = [];
 for (const c of clusters) {
   if (c.labels.has('SA') && c.labels.size === 1) continue;     // bỏ trạm dừng nghỉ
@@ -243,13 +283,42 @@ for (const c of clusters) {
     const [mE, mN] = rawAt(Math.min(rawLen, Math.max(0, mid)));
     for (const r of roads) { let bd = 1e9, bs = 0; for (const g of r.geometry) { const [E, N] = prj(g.lat, g.lon); if (Math.abs(E - mE) > 1200 || Math.abs(N - mN) > 1200) continue; const p = projRaw(E, N); if (p.d < bd) { bd = p.d; bs = p.s; } } if (bd < 120) cand.push({ r, s: toInt(bs) }); }
   }
-  const score = (x) => (x.r.tags.name ? 0 : 1000) + clsRank[x.r.tags.highway] * 300 + Math.abs(x.s - mid);
-  cand.sort((a, b) => score(a) - score(b));
-  const best = cand[0];
+  const score = (x) => ((x.r.tags.name || x.r.tags.ref) ? 0 : 1000) + clsRank[x.r.tags.highway] * 300 + Math.abs(x.s - mid);
+  // trong ±1000 m quanh nút giao ưu tiên đường có tên / ref; không có thì mới xét đường không tên
+  const near = cand.filter((x) => Math.abs(x.s - mid) <= 1000);
+  const pool = (near.length ? near : cand).slice().sort((a, b) => score(a) - score(b));
+  const named = pool.filter((x) => x.r.tags.name || x.r.tags.ref);
+  // ref / destination của các nhánh ra / vào quanh nút giao (bỏ CT.29 của chính tuyến)
+  const linkRefs = [], linkDst = [], refDst = new Map();
+  for (const { w } of nearLinks(mid)) {
+    const ds = (w.tags.destination || '').split(';').map((s) => s.trim()).filter(Boolean);
+    for (const r of [w.tags['destination:ref'], w.tags.ref]) for (const q of (r || '').split(';')) {
+      const t = q.trim(); if (!t) continue;
+      if (!/^CT\.?29$/i.test(t) && !linkRefs.includes(t)) linkRefs.push(t);
+      const a = refDst.get(t) || []; for (const d of ds) if (!a.includes(d)) a.push(d); refDst.set(t, a);
+    }
+    for (const d of ds) if (!linkDst.includes(d)) linkDst.push(d);
+  }
+  // nhãn của ref: cao tốc thì lấy tên đường (hoặc destination dạng "Cao tốc …" của nhánh), QL/ĐT thì tên chuẩn
+  const refCross = (r) => {
+    const ds = refDst.get(r) || [], road = ds.find((d) => /^(cao tốc|đường|quốc lộ|tỉnh lộ)/i.test(d));
+    return road ? road.replace(/^Cao Tốc/i, 'Cao tốc') : refLabel(r);
+  };
   const labels = [...new Set(js.map((j) => j.label).filter(Boolean))];
   const lk = ex.concat(en).map((l) => l.name.replace(/^Đi /, '')).filter(Boolean);
+  // ứng viên khớp nhãn nút giao / ref của nhánh (QL.51 ↔ Quốc lộ 51) thì dùng; không có thì lấy ref nhánh
+  const lb = norm(labels[0] || lk[0] || '');
+  const match = lb && pool.find((x) => (x.r.tags.ref && linkRefs.some((r) => norm(r) === norm(x.r.tags.ref))) || (x.r.tags.name && norm(x.r.tags.name).includes(lb)));
+  const best = match || named[0] || pool[0];
   const name = labels[0] || lk[0] || best?.r.tags.name || best?.r.tags.ref || 'Nút giao';
-  ics.push({ s: best ? best.s : rnd(mid), name, ref: best?.r.tags.ref || '', exit: ex.length ? ex[0].s : null, entry: en.length ? en.at(-1).s : null, cross: best ? (best.r.tags.name || best.r.tags.ref || null) : null, _n: c.e.length });
+  const namedNear = named.find((x) => Math.abs(x.s - mid) <= 400);
+  const cross = (match?.r.tags.name || match?.r.tags.ref) || (namedNear?.r.tags.name || namedNear?.r.tags.ref)
+    || (linkRefs.length ? refCross(linkRefs[0]) : null) || (best?.r.tags.name || best?.r.tags.ref) || linkDst[0] || null;
+  if (process.env.HLG_DEBUG) {
+    for (const x of pool.slice(0, 6)) console.log('  CAND', km(x.s), x.r.tags.highway, x.r.tags.ref || '', x.r.tags.name || '(không tên)');
+    console.log('    LINKS ref:', linkRefs.join(', ') || '—', '| dst:', linkDst.join(', ') || '—', '=> cross:', cross);
+  }
+  ics.push({ s: best ? best.s : rnd(mid), name, ref: best?.r.tags.ref || '', crossRef: linkRefs[0] || '', exit: ex.length ? ex[0].s : null, entry: en.length ? en.at(-1).s : null, cross, _n: c.e.length });
 }
 // điểm kiểm tra: đường gốc mỗi ~500 m (x,z,s trên đường đã tích phân)
 const check = [];
