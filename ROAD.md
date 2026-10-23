@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -34,6 +34,11 @@
   chờ: `queue` ngầm COMMON + map đầu Chill + Phố; bấm Chill / Drive: `ensure` có thanh `#loadbar` theo byte thật (đã lưu thì vào ngay);
   4 s sau khi vào game `queue` các map còn lại theo thứ tự MAPS. Mazda / Chisa (~42 MB) chỉ tải khi chọn. Thử Playwright: SW giữ bản cũ
   => xoá `caches` + unregister trước khi thử.
+- **Chế độ Stop / camera admin** (`src/adminCam.js`, nút Setting 🛠️ `#b-admin`, phím **`**; không lưu): `frame()` dùng `dt = 0` + `simNow`
+  đứng yên (shader nước / cỏ / sương / hậu kỳ) => mọi thứ đứng hình; đặt Trời trong + Ban ngày (trả lại khi tắt, `saveScope` bỏ qua); tắt xoá phông.
+  Camera admin ghi đè sau `rig.update` (rig giữ trạng thái): phím 1 Top (40 m) / 2 Front / 3 Side (12 m; lăn = khoảng cách 2–400 m, kéo = xoay quanh xe)
+  / 4 Free (WASD, E/Space lên, Q/C xuống, Shift ×4, lăn = tốc độ, kéo = nhìn). Bảng `#admin` (không ẩn theo idle) hiện góc + toạ độ camera + `drive.s`.
+  Trong Stop chỉ còn phím admin + O (chụp) + H (ẩn HUD). Hook: `__app.setAdmin(true)`, `__app.admin`.
 - **Bố cục điện thoại**: 3 nút ◀ Space ▶ cao hơn hàng nút góc (`--ctl-up` 58 / điện thoại 46 px); bản đồ tròn ở góc phải dưới (trên hàng
   nút góc, trong viền cine); menu trái lên cao (top = viền + 58 / 40 px, điện thoại hộp cao 32 px). Giao diện chỉ hiện khi CHẠM (nhấc tay
   < 450 ms, không kéo > 10 px) hoặc rê chuột không bấm — kéo xoay camera không hiện; đang giữ nút (◀ ▶ Space) không tự ẩn (`uiHeld`).
@@ -542,3 +547,4 @@
 - **#3 — Landmark: đêm + quảng trường (23/10/2026)**: 3 kiểu mặt tiền, LED Landmark 81, quảng trường đá lát + đài phun + cọ; ghi ảnh tham khảo chú gửi vào SGN_PLAN.
 - **#4 — Landmark: đường đôi + cầu Sài Gòn + cầu xoắn + tượng (23/10/2026)**: chia 3 việc cho model free (DeepSeek ×2, GLM), Claude soát + gộp + đặt; check PASS.
 - **#5 — Người đi bộ 3D (23/10/2026)**: nút 🚶 Setting (mặc định tắt), 13 model GLB nén, hạ tay chữ T, chân tay đung đưa; DeepSeek (API, opencode free hết lượt) chỉnh dáng từng model. Chưa xem trên máy thật — chú tự test.
+- **#6 — Chế độ Stop + camera admin (23/10/2026)**: DeepSeek (API) làm, Claude soát (dt = 0 an toàn: mọi phép chia dt đã chặn). Chưa xem trên máy thật — chú tự test.
