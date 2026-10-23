@@ -178,7 +178,20 @@ export class SgnEnv {
         for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) { const sx = x + i * 2, sz = z + j * 2; if (this.roadGap(sx + 1, sz + 1) > this.walk - 1) cell(sx, sz, 2); }
       }
     }
-    for (const [k, pts] of D.g) { if (k === 0 && inPlaza(pts[0], pts[1])) continue; flatPoly(grounds[k], pts, 0.22); }   // bãi cỏ OSM trong quảng trường: thay bằng đá lát   // cao hơn mặt đất 22 cm: lưới địa hình thô không trồi lên che
+    // bãi cỏ / sân OSM: dựng theo ô 3 m (tâm ô trong đa giác) chừa lòng đường + vỉa hè tuyến như nền — đa giác OSM lệch vài m so với đường
+    // đã làm mượt, nếu dựng nguyên đa giác sẽ trùm lên làn xe. Bãi cỏ trong quảng trường: thay bằng đá lát (nền)
+    for (const [k, pts] of D.g) {
+      if (k === 0 && inPlaza(pts[0], pts[1])) continue;
+      let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+      for (let i = 0; i < pts.length; i += 2) { x0 = Math.min(x0, pts[i]); x1 = Math.max(x1, pts[i]); z0 = Math.min(z0, pts[i + 1]); z1 = Math.max(z1, pts[i + 1]); }
+      const B = grounds[k], c = 3;
+      for (let x = x0; x < x1; x += c) for (let z = z0; z < z1; z += c) {
+        if (!inPoly(x + c / 2, z + c / 2, pts) || (this.roadGap && this.roadGap(x + c / 2, z + c / 2) < this.walk + 1.5)) continue;
+        const y = Math.max(G(x, z), G(x + c, z), G(x, z + c), G(x + c, z + c)) + 0.22, b0 = B.pos.length / 3;
+        B.pos.push(x, y, z, x + c, y, z, x + c, y, z + c, x, y, z + c); B.nor.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0); B.uv.push(0, 0, 0, 0, 0, 0, 0, 0);
+        B.idx.push(b0, b0 + 2, b0 + 1, b0, b0 + 3, b0 + 2);
+      }
+    }   // cao hơn mặt đất 22 cm: lưới địa hình thô không trồi lên che
     const jets = [];
     for (const [k, pts] of D.w) {
       flatPoly(waters[k], pts, k === 0 ? 0.3 : 0.28);
