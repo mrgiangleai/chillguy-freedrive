@@ -9,8 +9,30 @@ const BG = {
 };
 const ROADC = { city: '#ffffff', avenue: '#f6cf6a', nyc: '#fbe3a0', sgn: '#fbe3a0' };
 
+// px (màn hình, CSS px) -> toạ độ thế giới khi bản đồ đã phóng to:
+// translate(R,R) · rotate(rot) · scale(z) · translate(-cx,-cz) => đảo ngược lại
+export function mapWorld(cx, cz, rot, z, R, px, py) {
+  const X = (px - R) / z, Y = (py - R) / z, cs = Math.cos(rot), sn = Math.sin(rot);
+  return { x: cx + X * cs + Y * sn, z: cz - X * sn + Y * cs };
+}
+// điểm trên đường chính gần (x, z) nhất, trong bán kính maxD; vòng kín: giữ số vòng hiện tại của sNow
+export function nearestRoadS(road, x, z, maxD = 60, sNow = 0) {
+  const pts = road?.pts;
+  if (!pts || pts.length < 2) return null;
+  const step = ROAD.step, L = road.loop?.length || 0;
+  const n = L ? Math.min(pts.length, Math.ceil(L / step) + 1) : pts.length;
+  let best = maxD * maxD, bi = -1;
+  for (let i = 0; i < n; i++) {
+    const p = pts[i], dx = p.x - x, dz = p.z - z, d = dx * dx + dz * dz;
+    if (d < best) { best = d; bi = i; }
+  }
+  if (bi < 0) return null;
+  const r = bi * step;
+  return L ? Math.floor(sNow / L) * L + (r % L) : r;
+}
+
 export class Minimap {
-  // src: { road, mapId(), player() => {x, z, th}, cars() => [[x, z]], city, avenue }
+  // src: { road, mapId(), player() => {x, z, th}, cars() => [[x, z]], city, avenue, onPick(x, z, small) }
   constructor(src) {
     this.src = src;
     const el = this.el = document.createElement('div');
@@ -25,17 +47,34 @@ export class Minimap {
     this.center = null;          // tâm khi đã kéo (null = bám xe)
     this.t = 0;
     this.ptrs = new Map();
-    el.addEventListener('click', (e) => { if (!this.big && !e.target.closest('button')) this.open(); });
+    this._moved = false;         // vừa kéo / chụm => bỏ qua cú bấm
+    this._down = null;           // điểm bấm đầu tiên (px) để phân biệt bấm / kéo
+    // bấm (không kéo): phóng to bản đồ hoặc dời xe / camera admin tới điểm bấm
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      if (!this.big) {
+        const p = this._worldAt(e.clientX, e.clientY);
+        this.open();
+        if (p) this.src.onPick?.(p.x, p.z, true);
+        return;
+      }
+      if (this._moved) { this._moved = false; return; }
+      const p = this._worldAt(e.clientX, e.clientY);
+      if (p && this.src.onPick?.(p.x, p.z) === 'close') this.close();
+    });
     el.querySelector('.mm-close').onclick = (e) => { e.stopPropagation(); this.close(); };
-    el.querySelector('.mm-center').onclick = (e) => { e.stopPropagation(); this.center = null; this._draw(); };
+    el.querySelector('.mm-center').onclick = (e) => { e.stopPropagation(); this.center = null; this.src.onCenter?.(); this._draw(); };
     el.addEventListener('pointerdown', (e) => {
       if (!this.big || e.target.closest('button')) return;
       e.preventDefault(); el.setPointerCapture(e.pointerId);
       this.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.ptrs.size === 1) { this._moved = false; this._down = { x: e.clientX, y: e.clientY }; }
+      else this._moved = true;
     });
     el.addEventListener('pointermove', (e) => {
       if (!this.big || !this.ptrs.has(e.pointerId)) return;
       const prev = this.ptrs.get(e.pointerId), cur = { x: e.clientX, y: e.clientY };
+      if (this.ptrs.size === 1 && this._down && Math.hypot(cur.x - this._down.x, cur.y - this._down.y) > 6) this._moved = true;
       if (this.ptrs.size === 1) {                               // kéo: dời tâm bản đồ
         const P = this.src.player();
         this.center ||= { x: P.x, z: P.z };
@@ -58,9 +97,20 @@ export class Minimap {
     this._size();
   }
 
-  open() { this.big = true; this.center = null; this.el.classList.add('big'); document.body.classList.add('mapopen'); this._size(); this._draw(); }
-  close() { this.big = false; this.center = null; this.ptrs.clear(); this.el.classList.remove('big'); document.body.classList.remove('mapopen'); this._size(); this._draw(); }
+  open() { this.big = true; this.center = null; this._moved = false; this.el.classList.add('big'); document.body.classList.add('mapopen'); this._size(); this._draw(); }
+  close() { this.big = false; this.center = null; this.ptrs.clear(); this._moved = false; this._down = null; this.el.classList.remove('big'); document.body.classList.remove('mapopen'); this._size(); this._draw(); }
   _zoomBy(f) { this.bigZoom = Math.min(4, Math.max(0.02, this.bigZoom * f)); }
+  // điểm bấm (clientX, clientY) -> toạ độ thế giới; ngoài vòng tròn bản đồ => null
+  _worldAt(clientX, clientY) {
+    const r = this.el.getBoundingClientRect(), W = r.width || this.W, R = W / 2;
+    const px = clientX - r.left, py = clientY - r.top;
+    if (Math.hypot(px - R, py - R) > R - 1) return null;
+    const P = this.src.player(), z = this.big ? this.bigZoom : this.zoom;
+    const cx = this.big && this.center ? this.center.x : P.x, cz = this.big && this.center ? this.center.z : P.z;
+    return mapWorld(cx, cz, this.big ? 0 : P.th, z, R, px, py);
+  }
+  // s gần nhất trên đường chính (dùng cho chế độ thường)
+  nearestS(x, z, maxD = 60) { return nearestRoadS(this.src.road, x, z, maxD, this.src.s()); }
   _size() {
     const r = this.el.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
     this.W = r.width || 160; this.cv.width = Math.round(this.W * dpr); this.cv.height = Math.round(this.W * dpr); this.dpr = dpr;
@@ -208,6 +258,17 @@ export class Minimap {
     g.beginPath(); g.moveTo(0, -11); g.lineTo(7.5, 8); g.lineTo(0, 4); g.lineTo(-7.5, 8); g.closePath();
     g.fillStyle = '#1a73e8'; g.strokeStyle = '#fff'; g.lineWidth = 2.2; g.fill(); g.stroke();
     g.restore();
+    // ---- Stop: camera admin (chấm xanh + hướng nhìn) ----
+    const A = S.adminMark?.();
+    if (A) {
+      g.save(); g.translate(A.x, A.z); g.rotate(-A.th); g.scale(1 / z, 1 / z);
+      g.beginPath(); g.moveTo(0, -4); g.lineTo(0, -13);
+      g.strokeStyle = '#fff'; g.lineWidth = 4; g.stroke();
+      g.strokeStyle = '#18a558'; g.lineWidth = 2.2; g.stroke();
+      g.beginPath(); g.arc(0, 0, 4.5, 0, Math.PI * 2);
+      g.fillStyle = '#18a558'; g.strokeStyle = '#fff'; g.lineWidth = 2; g.fill(); g.stroke();
+      g.restore();
+    }
     g.restore();
     // ---- chữ trên bản đồ (map Landmark): vẽ theo toạ độ màn hình để cỡ chữ không đổi khi zoom, luôn đứng thẳng ----
     if (labels.length) {

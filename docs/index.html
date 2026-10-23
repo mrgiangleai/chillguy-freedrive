@@ -12,8 +12,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Chill Drive</title>
-  <link rel="stylesheet" href="style.css?v=0ac9271f">
-  <link rel="modulepreload" href="app.js?v=29d3bb23">
+  <link rel="stylesheet" href="style.css?v=55c32119">
+  <link rel="modulepreload" href="app.js?v=a1c7beba">
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -68,6 +68,7 @@
       <button id="b-animals" title="Đom đóm, bò: vị trí, số lượng"><b>🐾</b><span>Animal</span></button>
       <button id="b-nature" title="Cỏ: khoảng cách hiển thị, độ dày, độ cao, độ trong suốt"><b>🌿</b><span>Nature</span></button>
       <button id="b-people" title="Người đi bộ: model 3D chi tiết (nặng hơn) / người nhẹ"><b>🚶</b><span>Người 3D: Tắt</span></button>
+      <button id="b-admin" title="Stop / Admin — đóng băng mô phỏng, camera quan sát (phím `)"><b>🛠️</b><span>Stop / Admin</span></button>
       <button id="b-score" hidden title="Bảng điểm buổi lái (J)"><b>📋</b><span>Bảng điểm</span></button>
       <button id="b-traffic" hidden title="Cài đặt giao thông (map Phố)"><b>🚦</b><span>Giao thông</span></button>
       <button id="b-full"><b>⛶</b><span></span></button>
@@ -80,6 +81,19 @@
       <button id="b-map"><b></b><span></span></button>
     </div>
     <button id="b-info" aria-label="Credits">ⓘ</button>
+  </div>
+
+  <!-- chế độ Stop / Admin: nằm ngoài #hud để không bị ẩn theo class idle / hidehud -->
+  <div id="admin" hidden>
+    <div class="a-row a-head"><b id="admin-name">Top</b><span id="admin-pos">0.0, 0.0, 0.0</span><span id="admin-info">40 m</span></div>
+    <div class="a-row a-cams">
+      <button type="button" data-cam="top">1 · Top</button>
+      <button type="button" data-cam="front">2 · Front</button>
+      <button type="button" data-cam="side">3 · Side</button>
+      <button type="button" data-cam="free">4 · Free</button>
+      <button type="button" id="admin-exit">Thoát Stop</button>
+    </div>
+    <div class="a-row a-info"><span id="admin-s">s = 0.0 m</span><span>WASD/E/Q · Shift ×4 · lăn chuột</span></div>
   </div>
 
   <div id="mistpanel" hidden>
@@ -133,6 +147,6 @@
   <div id="fade"></div>
   <div id="modename"></div>
   <div id="placename"><b></b><span></span></div>
-  <script type="module" src="app.js?v=29d3bb23"></script>
+  <script type="module" src="app.js?v=a1c7beba"></script>
 </body>
 </html>

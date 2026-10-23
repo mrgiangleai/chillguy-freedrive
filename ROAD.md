@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -34,6 +34,16 @@
   chờ: `queue` ngầm COMMON + map đầu Chill + Phố; bấm Chill / Drive: `ensure` có thanh `#loadbar` theo byte thật (đã lưu thì vào ngay);
   4 s sau khi vào game `queue` các map còn lại theo thứ tự MAPS. Mazda / Chisa (~42 MB) chỉ tải khi chọn. Thử Playwright: SW giữ bản cũ
   => xoá `caches` + unregister trước khi thử.
+- **Chế độ Stop / camera admin** (`src/adminCam.js`, nút Setting 🛠️ `#b-admin`, phím **`**; không lưu): `frame()` dùng `dt = 0` + `simNow`
+  đứng yên (shader nước / cỏ / sương / hậu kỳ) => mọi thứ đứng hình; đặt Trời trong + Ban ngày (trả lại khi tắt, `saveScope` bỏ qua); tắt xoá phông.
+  Camera admin ghi đè sau `rig.update` (rig giữ trạng thái): phím 1 Top (40 m) / 2 Front / 3 Side (12 m; lăn = khoảng cách 2–800 m, kéo = xoay quanh xe)
+  / 4 Free (30 m/s; WASD, E/Space lên, Q/C xuống, Shift ×8, lăn = tốc độ, kéo = nhìn). Bảng `#admin` (không ẩn theo idle) hiện góc + toạ độ camera + `drive.s`.
+  Trong Stop chỉ còn phím admin + O (chụp) + H (ẩn HUD) + R / T (đổi thời tiết / giờ thủ công). Hook: `__app.setAdmin(true)`, `__app.admin`.
+- **Bản đồ — bấm để dời tới** (`minimap.onPick` / `nearestS`, `jumpTo(s)` trong main.js): bản đồ phóng to, bấm (không kéo) điểm cách đường ≤ 60 m
+  => xe tới đó ngay (giữ làn + tốc độ, prime đường / địa hình / phố, bỏ NPC / người chồng chỗ, camera đặt ngay). Stop: bản đồ hiện mọi map, bấm bất kỳ
+  => `admin.moveTo(x, z)` (Free: dời camera; Top / Front / Side: tâm quay `admin.focus`, giữ độ cao; ◎ / phím 0 về xe), chấm xanh = camera admin.
+  `scripts/check-minimap-jump.mjs` PASS.
+- **Phanh bấm đúp** (Space / B / nút Space): `drive.halt` => giảm tốc tới dừng hẳn, đứng yên; ↑ / W / F hoặc bấm đúp lần nữa để chạy tiếp.
 - **Bố cục điện thoại**: 3 nút ◀ Space ▶ cao hơn hàng nút góc (`--ctl-up` 58 / điện thoại 46 px); bản đồ tròn ở góc phải dưới (trên hàng
   nút góc, trong viền cine); menu trái lên cao (top = viền + 58 / 40 px, điện thoại hộp cao 32 px). Giao diện chỉ hiện khi CHẠM (nhấc tay
   < 450 ms, không kéo > 10 px) hoặc rê chuột không bấm — kéo xoay camera không hiện; đang giữ nút (◀ ▶ Space) không tự ẩn (`uiHeld`).
@@ -543,18 +553,10 @@
 - `QUICK_OPENING = true` (TẠM, đầu game 0.5 s) — bật lại khi chú bảo. Kiểm thử Playwright: vào game bằng `#m-chill` / `#m-drive`.
 
 ## 6. Nhật ký cập nhật
-- Đã tóm tắt tới commit "Gộp 4 việc: xe nhường người, đồ phố New York, camera bên hông tránh biển LED, HLG tên đường + góc sông" + "Landmark: khu
-  Vinhomes theo OSM" (23/10/2026): New York — tòa nổi tiếng không đè phố, kính ướt khi mưa (bản nhẹ), xoá `src/bld`, xe nhường người đi bộ,
-  hơi cống / xe đồ ăn / Koreatown, camera tránh biển LED; HLG tên đường cắt ngang + góc sông (xem mục 1 / 3 / 5). Map Landmark 81 – TP.HCM: B1 →
-  tuyến qua khu Vinhomes, tên đường / khu trên HUD + bản đồ, tháp Landmark 81 GLB, khu Vinhomes OSM (xem mục 1 "Map Landmark", mục 5, SGN_PLAN.md).
-- **#1 — Khu Vinhomes: đường nội khu đúng bề rộng + nền cỏ (23/10/2026)**: Vạn Hoa 4 / 3 hẹp 2 làn (Codex, chặn chỉ map Landmark), thảm cỏ cả khu;
-  check sgn-width / sgn / nyc / traffic / policy / hlg / ped-yield PASS; chụp Low 0 lỗi.
-- **#2 — Khu Vinhomes: Landmark 1–6 + mặt tiền theo ảnh thật (23/10/2026)**: 20 tháp (thêm 6 từ footprint Microsoft), mặt tiền trắng sọc xám, đế cửa hàng;
-  chụp flycam 2 góc giống ảnh drone chú gửi. check-sgn / width / nyc PASS.
-- **#3 — Landmark: đêm + quảng trường (23/10/2026)**: 3 kiểu mặt tiền, LED Landmark 81, quảng trường đá lát + đài phun + cọ; ghi ảnh tham khảo chú gửi vào SGN_PLAN.
-- **#4 — Landmark: đường đôi + cầu Sài Gòn + cầu xoắn + tượng (23/10/2026)**: chia 3 việc cho model free (DeepSeek ×2, GLM), Claude soát + gộp + đặt; check PASS.
+- Đã tóm tắt tới commit "Landmark: người dạo công viên + ROAD.md" (23/10/2026): map Landmark — đường nội khu đúng bề rộng, Landmark 1–6, đêm +
+  quảng trường, đường đôi / cầu Sài Gòn / cầu xoắn / tượng, cây model chú tải (cả dải phân cách), mật độ cây / cột điện, người dạo công viên
+  (xem mục 1 "Map Landmark 81", SGN_PLAN.md). Bài học gộp: xung đột `docs/index.html` phải so bản nhánh chính, không `checkout --ours` cả file.
+  Các mục của phiên khác chưa gộp vào trạng thái (giữ nguyên bên dưới):
 - **#5 — Người đi bộ 3D (23/10/2026)**: nút 🚶 Setting (mặc định tắt), 13 model GLB nén, hạ tay chữ T, chân tay đung đưa; DeepSeek (API, opencode free hết lượt) chỉnh dáng từng model. Chưa xem trên máy thật — chú tự test.
-- **#6 — Landmark: cây model chú tải (23/10/2026)**: mỗi phố 1 loại cây, công viên trộn, GLB chỉ trong 100 m, 2 nút thử đồ hoạ; free hết lượt => API DeepSeek; Claude sửa lỗi cây bẹp (meshopt).
-- **#7 — Cây dải phân cách dùng model chi tiết + sửa lỗi gộp (23/10/2026)**: lúc gộp nhánh chính lấy nhầm `docs/index.html` bản cũ => mất nút 🚶
-  (`b-people`), trang không chạy; đã thêm lại. **Bài học**: gộp xung đột `docs/index.html` phải so với bản nhánh chính, đừng `checkout --ours` cả file.
-- **#8 — Landmark: thưa cây ngoài khu, cột điện từng đoạn, công viên sát đường nhiều cây + người dạo (23/10/2026)**: free hết lượt => API DeepSeek; check PASS.
+- **#8 — Chế độ Stop + camera admin (23/10/2026)**: DeepSeek (API) làm, Claude soát (dt = 0 an toàn: mọi phép chia dt đã chặn). Chưa xem trên máy thật — chú tự test.
+- **#9 — Stop: bay nhanh ×2 / Shift ×8, zoom 800 m, R / T trong Stop; phanh bấm đúp; bấm bản đồ để dời tới (23/10/2026)**: bản đồ do DeepSeek (API) làm, Claude soát. Chưa xem trên máy thật.
