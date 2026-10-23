@@ -24,6 +24,8 @@ export class AdminCam {
     this.el = EL_TOP;                               // cao độ camera (rad)
     this.free = { pos: new THREE.Vector3(), yaw: 0, pitch: 0, speed: 30 };
     this.s = 0;                                     // drive.s để hiện trong bảng
+    this.focus = null;                              // bản đồ Stop: tâm quay thay cho xe ({x, z, y})
+    this._carY = 0;                                 // cao độ xe lúc cập nhật (giữ độ cao camera khi dời)
     this.held = new Set();
     this.pointers = new Map();
     this.pinch = 0;
@@ -53,6 +55,7 @@ export class AdminCam {
         if (n === 'Digit2') return this.setMode('front');
         if (n === 'Digit3') return this.setMode('side');
         if (n === 'Digit4') return this.setMode('free');
+        if (n === 'Digit0') return this.clearFocus();       // về xe: bỏ tâm quay do bản đồ đặt
         if (FREE_KEYS.includes(e.code)) {
           this.held.add(e.code);
           if (e.code === 'Space') e.preventDefault();
@@ -117,6 +120,17 @@ export class AdminCam {
     this.dist[this.mode] = clamp(this.dist[this.mode] * f, 2, 800);
   }
 
+  // bản đồ Stop: dời camera tới (x, z), giữ nguyên độ cao camera hiện tại; xe không dời.
+  // Free: đổi free.pos; Top / Front / Side: đặt tâm quay thay cho xe (admin.focus).
+  moveTo(x, z) {
+    if (!this.active) return;
+    if (this.mode === 'free') { this.free.pos.x = x; this.free.pos.z = z; this.camera.position.x = x; this.camera.position.z = z; }
+    else this.focus = { x, z, y: this._carY };            // tâm quay thay cho xe, giữ nguyên độ cao camera
+    this.syncInfo(true);
+  }
+  // về xe: bỏ tâm quay do bản đồ đặt (nút ◎ / phím 0)
+  clearFocus() { this.focus = null; this.syncInfo(true); }
+
   // lấy vị trí / hướng camera đang có làm điểm bắt đầu cho góc Free
   captureFree() {
     const e = this._e.setFromQuaternion(this.camera.quaternion, 'YXZ');
@@ -139,6 +153,7 @@ export class AdminCam {
     this.active = true;
     this.held.clear();
     this.pointers.clear();
+    this.focus = null;
     this.dist = { top: 40, front: 12, side: 12 };
     this.free.speed = 30;
     this.captureFree();
@@ -154,6 +169,7 @@ export class AdminCam {
     this.active = false;
     this.held.clear();
     this.pointers.clear();
+    this.focus = null;
     this.camera.up.set(0, 1, 0);                    // trả "up" mặc định cho camera game
     if (this.dom.panel) this.dom.panel.hidden = true;
   }
@@ -192,6 +208,7 @@ export class AdminCam {
     if (!this.active) return;
     const cam = this.camera;
     this.s = car.s ?? this.s;
+    this._carY = car.pos.y;
     if (this.mode === 'free') {
       this.moveFree(dt);
       cam.position.copy(this.free.pos);
@@ -199,19 +216,20 @@ export class AdminCam {
       cam.rotation.order = 'YXZ';
       cam.rotation.set(this.free.pitch, this.free.yaw, 0);
     } else {
+      const C = this.focus || car.pos;                 // tâm quay: điểm bấm trên bản đồ hoặc xe
       const d = this.dist[this.mode];
       const fwdX = -Math.sin(car.yaw), fwdZ = -Math.cos(car.yaw);
       const rgtX = Math.cos(car.yaw), rgtZ = -Math.sin(car.yaw);
       const ce = Math.cos(this.el) * d, se = Math.sin(this.el) * d;
       const ca = Math.cos(this.az), sa = Math.sin(this.az);
       cam.position.set(
-        car.pos.x + (fwdX * ca + rgtX * sa) * ce,
-        car.pos.y + se,
-        car.pos.z + (fwdZ * ca + rgtZ * sa) * ce,
+        C.x + (fwdX * ca + rgtX * sa) * ce,
+        C.y + se,
+        C.z + (fwdZ * ca + rgtZ * sa) * ce,
       );
       // nhìn gần thẳng đứng: lấy hướng đầu xe làm "lên" để khung hình không bị xoay lộn xộn
       if (this.el > 1.45) cam.up.set(fwdX, 0, fwdZ); else cam.up.set(0, 1, 0);
-      cam.lookAt(car.pos.x, car.pos.y + 0.7, car.pos.z);
+      cam.lookAt(C.x, C.y + 0.7, C.z);
     }
     if (Math.abs(cam.fov - 55) > 0.01 || Math.abs(cam.near - 0.3) > 0.001) {
       cam.fov = 55; cam.near = 0.3; cam.updateProjectionMatrix();

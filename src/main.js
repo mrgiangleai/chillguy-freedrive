@@ -210,10 +210,27 @@ const minimap = new Minimap({
   nyc: () => (state.map >= 0 && MAPS[state.map].id === 'nyc' ? { streets: nycNet.streets, bld: nycBld.foot } : null),
   sgn: () => (onSgn() ? SGN.data : null),
   sgnBld: () => (onSgn() ? sgnEnv.foot : null),                // map Landmark: nhà khu Vinhomes
-  visible: () => state.started && isDriveMap(state.map),      // chỉ chế độ Drive (Phố, Đại lộ)
+  visible: () => state.started && (isDriveMap(state.map) || admin.active),   // Stop: hiện ở mọi map để bấm
   mapId: () => mapKind(MAPS[state.map].id),
   s: () => drive.s,
   player: () => ({ x: drive.pos.x, z: drive.pos.z, th: drive.yaw }),
+  onCenter: () => admin.clearFocus(),                         // nút ◎: admin quay về xe
+  // dấu camera admin (Stop): chấm xanh + hướng nhìn
+  adminMark: () => {
+    if (!admin.active) return null;
+    const p = camera.position, t = admin.mode === 'free' ? null : (admin.focus || drive.pos);
+    const th = t ? Math.atan2(-(t.x - p.x), -(t.z - p.z)) : admin.free.yaw;
+    return { x: p.x, z: p.z, th };
+  },
+  // bấm bản đồ phóng to: tìm điểm trên đường chính gần chỗ bấm (≤ 60 m) rồi dời xe tới đó
+  onPick: (x, z, small) => {
+    if (admin.active) { admin.moveTo(x, z); return; }         // Stop: dời camera admin, xe đứng yên
+    if (small) return;                                        // thu nhỏ: bấm chỉ để phóng to
+    const s = minimap.nearestS(x, z, 60);
+    if (s == null) return;
+    jumpTo(s);
+    return 'close';
+  },
   cars: () => {
     const out = [];
     if (cityTraffic.visible) {
@@ -226,6 +243,31 @@ const minimap = new Minimap({
     return out;
   },
 });
+
+// Bản đồ: dời xe tới độ dài cung s — giữ làn + tốc độ, dựng lại đường / địa hình / phố,
+// dọn xe & người đang chồng chỗ mới, đặt camera ngay (không lướt từ xa tới).
+function jumpTo(s) {
+  const off = camera.position.clone().sub(drive.pos);
+  const L = road.loop?.length || 0;
+  const rel = (a, b) => {                                    // khoảng cách dọc đường, vòng kín: ngắn nhất
+    if (!L) return a - b;
+    let d = ((a - b) % L + L) % L;
+    return d > L / 2 ? d - L : d;
+  };
+  const P = road.at(s, {});
+  drive.s = s; drive.ramp = null; drive.latVel = 0;          // giữ drive.d, drive.v / target
+  drive.pos.set(P.x + Math.cos(P.th) * drive.d, P.y, P.z - Math.sin(P.th) * drive.d);
+  drive.yaw = P.th;
+  terrain.setCar(s); city.prime(s); avenue.prime(s);
+  terrain.prime(drive.pos);
+  // xe NPC / người đi bộ đang chồng lên xe mình: bỏ đi (như lúc bắt đầu lại sau tai nạn)
+  cityTraffic.cars = cityTraffic.cars.filter((c) => c.cross || c.xr || c.script || Math.abs(c.d - drive.d) > 2.6 || rel(c.s, s) < -14 || rel(c.s, s) > 22);
+  for (const p of cityPeople.peds.slice()) if (Math.abs(p.u - drive.d) < 2.5 && Math.abs(rel(p.s, s)) < 6) cityPeople.remove(p);
+  // camera: giữ nguyên góc nhìn tương đối nhưng đặt ngay tại vị trí mới
+  camera.position.copy(drive.pos).add(off);
+  rig.relP.copy(off);
+  toast(`Tới s = ${Math.round(s)} m`, false, 1800);
+}
 cityTraffic.setup(scene, cars.softTex, camera);
 const crashFx = new CrashFx(scene, cars.softTex);   // va chạm: rung mạnh + khói đầu xe
 const _hood = new THREE.Vector3();
