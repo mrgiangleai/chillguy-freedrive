@@ -363,7 +363,7 @@ resize();
 
 // ---------- trạng thái lái xe ----------
 const drive = {
-  home: LANE_D, goal: 0, manual: false,
+  home: LANE_D, goal: 0, manual: false, halt: false,   // halt: bấm đúp phanh => dừng hẳn
   s: 150,          // độ dài cung trên đường
   d: LANE_D,       // lệch ngang so với tim đường (m, + = bên phải)
   v: CHILL_DEFAULT,        // bắt đầu 25 km/h; khung hình đầu chuyển ngay lên 180 km/h
@@ -1050,10 +1050,17 @@ let shotPending = false;
 let brakeHeld = false, cityFront = null, violations = 0, toastTimer = 0, yieldWarned = null, stillT = 0, honkT = 0, honkWarned = false;
 {
   const b = $('brake');
-  const on = (e) => { brakeHeld = true; b.classList.add('on'); e.preventDefault(); };
+  const on = (e) => { brakeHeld = true; b.classList.add('on'); e.preventDefault(); brakeTap(); };
   const off = () => { brakeHeld = false; b.classList.remove('on'); };
   b.addEventListener('pointerdown', on);
   for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, off);
+}
+// bấm đúp phanh (Space / B / nút Space) => dừng hẳn và đứng yên; ↑ / W / F hoặc bấm đúp lần nữa để chạy tiếp
+let brakeTapT = -1;
+function brakeTap() {
+  const t = performance.now();
+  if (t - brakeTapT < 350) { drive.halt = !drive.halt; brakeTapT = -1; say(drive.halt ? 'Dừng hẳn — ↑ / W để chạy tiếp' : 'Chạy tiếp'); }
+  else brakeTapT = t;
 }
 // xi nhan xe mình: phím , (trái) / . (phải) bật / tắt; điện thoại: giữ nút lái tự bật. Đèn vàng 4 góc xe + mũi tên dưới đồng hồ
 // + tiếng tách tách. Đổi làn / vào nhánh ra ở map Drive mà không bật đúng bên => lỗi. Đổi làn xong tự tắt (quên: tự tắt sau 15 s).
@@ -1595,6 +1602,8 @@ window.addEventListener('keydown', (e) => {
     if (e.repeat) return;
     if (e.code === 'KeyO') shotPending = true;
     else if (e.code === 'KeyH') document.body.classList.toggle('hidehud');
+    else if (e.code === 'KeyR') nextWeather();                // Stop vẫn đổi thời tiết / giờ thủ công để kiểm tra
+    else if (e.code === 'KeyT') nextTime();
     else if (e.code === 'Backquote') setAdmin(false);
     else if (e.code === 'Space') e.preventDefault();
     return;
@@ -1602,6 +1611,8 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Backquote') { if (!e.repeat) setAdmin(true); return; }   // ` bật / tắt Stop
   if (e.repeat) { keys.add(e.code); return; }
   keys.add(e.code);
+  if (e.code === 'Space' || e.code === 'KeyB') brakeTap();
+  else if (drive.halt && (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'KeyF')) { drive.halt = false; say('Chạy tiếp'); }
   switch (e.code) {
     case 'KeyC': nextCar(); break;               // lối tắt: Car (C), Camera (Q), Driver (X), Map (M), Weather (R), Time (T), Setting (K)
     case 'KeyV': nextCar(); break;
@@ -1896,7 +1907,7 @@ function frame(now) {
   else if (opening) drive.v = FAST_SPEED;
   else if (stop.active) drive.v = stop.speed(drive.v, dt);    // cảnh dừng xe: giảm tốc đều tới khi dừng hẳn
   else if (incident.active) drive.v = Math.max(0, drive.v - 25 * dt);          // vừa va chạm: dừng khựng
-  else if (keys.has('Space') || keys.has('KeyB') || brakeHeld) drive.v = Math.max(0, drive.v - 7.5 * dt);   // phanh tay (giữ)
+  else if (keys.has('Space') || keys.has('KeyB') || brakeHeld || drive.halt) drive.v = Math.max(0, drive.v - 7.5 * dt);   // phanh tay (giữ) / dừng hẳn (bấm đúp)
   else drive.v += clamp(goal - drive.v, -8 * dt, 6 * dt);
   if (openingCameraPending && drive.v <= CHILL_DEFAULT + 0.01) {
     openingCameraPending = false;
