@@ -148,6 +148,7 @@ const cityTraffic = new CityTraffic(scene, road, city);      // map Phố: xe d�
 const cityPeople = new CityPeople(scene, road, city);        // map Phố: người đi bộ
 const _yp = {};
 cityPeople.yAt = (s, u, y) => avLowY(s, u) ?? ((onNyc() || onSgn()) && Math.abs(u) > CITY.hw ? road.street.at(s, _yp).y : y);   // đại lộ: nhánh rẽ / đường ngang ở cao độ nền; New York: vỉa hè ở mặt phố
+cityPeople.groundAt = (x, z) => terrain.heightAt(x, z);      // người dạo công viên (Landmark) đứng trên địa hình thật
 const CITY_DIM = { hw: CITY.hw, walk: CITY.walk, side: CITY.side, sideWalk: CITY.sideWalk, lanes: CITY.lanes };   // kích thước map Phố (gốc)
 const nycWorks = new NycWorks(scene, road, scenery.roadMat);   // map New York: tường + trần hầm Park Ave, cầu cạn quanh Grand Central
 const sgnWorks = new NycWorks(scene, road, scenery.roadMat, sgnLoop);
@@ -586,6 +587,7 @@ function applyQuality(save = true) {
   env.setShadowSize(q.shadow);
   refl.enabled = q.refl;
   nature.setRadius(q.trees);
+  if (onSgn()) cityPeople.parkCount = q.id === 'low' ? 35 : 70;   // Low: nửa số người dạo công viên
   if (save) try { localStorage.setItem('chilldrive.quality', q.id); } catch { /* bỏ qua */ }
 }
 const nextQuality = () => { state.quality = (state.quality + 1) % QUALITY.length; applyQuality(); refreshUI(); say('Chất lượng · ' + QUALITY[state.quality].name); };
@@ -734,6 +736,9 @@ const applyMap = () => {
   if (isTraffic) cityTraffic.setMode(isNyc ? 'nyc' : id);
   cityTraffic.visible = isTraffic;
   cityPeople.visible = isTraffic; cityPeople.ambient = isCity;   // đại lộ: chỉ người của cảnh tai nạn
+  // Landmark: thêm người dạo trong công viên hai bên đường (Low: giảm nửa)
+  cityPeople.parkAt = isSgn ? (x, z) => sgnEnv.inPark(x, z) : null;
+  cityPeople.parkCount = isSgn ? (state.quality === QUALITY.findIndex((q) => q.id === 'low') ? 35 : 70) : 0;
   if (isTraffic) { traffic.clearAll(); trafficLevel = TRAFFIC_START; trafficStartT = 5; }   // vào phố / đại lộ: giao thông thấp 5 s đầu
   $('brake').hidden = !isTraffic;
   $('b-traffic').hidden = false;                // bảng 🚦: mọi map (map ngắm cảnh chỉ có tốc độ xe khác km/h)
