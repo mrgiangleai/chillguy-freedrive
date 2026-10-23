@@ -170,7 +170,8 @@ export class AdminCam {
     this.dist = { top: 40, front: 12, side: 12 };
     this.free.speed = 30;
     this.captureFree();
-    this.start = { pos: this.free.pos.clone(), yaw: this.free.yaw, pitch: this.free.pitch };   // vị trí ban đầu cho phím 0
+    this.start = { pos: this.free.pos.clone(), yaw: this.free.yaw, pitch: this.free.pitch };
+    this.fov = this.camera.fov; this.near = this.camera.near;   // vị trí ban đầu cho phím 0
     this.mode = 'free';                             // vào Stop: bay tự do từ đúng vị trí + góc nhìn camera đang có
     this.az = 0;
     this.el = EL_TOP;
@@ -247,8 +248,9 @@ export class AdminCam {
       if (this.el > 1.45) cam.up.set(fwdX, 0, fwdZ); else cam.up.set(0, 1, 0);
       cam.lookAt(C.x, C.y + 0.7, C.z);
     }
-    if (Math.abs(cam.fov - 55) > 0.01 || Math.abs(cam.near - 0.3) > 0.001) {
-      cam.fov = 55; cam.near = 0.3; cam.updateProjectionMatrix();
+    const fov = this.fov ?? 55, near = this.near ?? 0.3;   // giữ ống kính lúc bật Stop (khung hình không nhảy, tắt Stop không lệch)
+    if (Math.abs(cam.fov - fov) > 0.01 || Math.abs(cam.near - near) > 0.001) {
+      cam.fov = fov; cam.near = near; cam.updateProjectionMatrix();
     }
     this.infoT -= dt;
     if (this.infoT <= 0) { this.syncInfo(); this.infoT = 0.12; }
