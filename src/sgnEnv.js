@@ -5,6 +5,7 @@
 // Thêm: cây rải trong công viên / bãi cỏ (tránh nhà, nước, lòng đường) + hàng cây hai bên đường nội khu. Bố cục đối chiếu bản vẽ quy hoạch chú gửi.
 import * as THREE from 'three';
 import { withMist } from './mist.js';
+import { SgnTrees } from './sgnTrees.js';
 
 // mặt tiền chung cư Vinhomes (theo ảnh chú gửi): tường trắng xám nhạt, cửa kính tối có lan can ban công trắng, 2 sọc dọc xám đậm (lõi thang / cột)
 // mỗi ô texture; emissive = cửa sổ sáng ban đêm (ngẫu nhiên). 1 ô = 6 khoang × 18 m ngang, 8 tầng × 26.4 m cao
@@ -72,11 +73,13 @@ export class SgnEnv {
     this.water = [flat(0x2f5568, 0.12, { metalness: 0.2 }), flat(0x3b6b78, 0.1, { metalness: 0.2 }), flat(0x4fb3c8, 0.08), flat(0x7cc4d4, 0.1)];
     this.trunk = withMist(new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 0.9 }));
     this.leaf = withMist(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }));
+    this.treeDetail = true; this.treesVisible = true;               // main đặt lại theo localStorage khi vào map
   }
   set visible(v) { this.group.visible = v; if (v && this.state === 'idle') this._load(); }
   get visible() { return this.group.visible; }
   // tia nước đài phun: nhấp nhô theo thời gian, ban đêm sáng màu (xanh ngọc / hồng / trắng như ảnh đêm chú gửi)
-  update(dt) {
+  update(dt, cam) {
+    if (this.treeSet) this.treeSet.update(dt, cam);                // cây: chia model chi tiết / low-poly theo camera
     if (!this.jets || !this.group.visible) return;
     this.t += dt;
     const J = this.jets, m4 = this._m4 || (this._m4 = new THREE.Matrix4());
@@ -89,6 +92,8 @@ export class SgnEnv {
   }
   setLamps(k) {
     this.lampK = k; for (const m of this.walls) m.emissiveIntensity = 1.3 * k * this.winK; this.podium.emissiveIntensity = (0.1 + 1.2 * k) * this.winK; }
+  setTreeDetail(v) { this.treeDetail = !!v; if (this.treeSet) this.treeSet.setDetail(v); }
+  setTreesVisible(v) { this.treesVisible = !!v; if (this.treeSet) this.treeSet.setVisible(v); }
 
   async _load() {
     this.state = 'loading';
@@ -238,7 +243,7 @@ export class SgnEnv {
       const a = r() * 6.283, d = PL.r * Math.sqrt(r()), x = PL.x + Math.cos(a) * d, z = PL.z + Math.sin(a) * d;
       if (!blocked(x, z) && !(this.avoid && this.avoid(x, z)) && (x - PL.x) ** 2 + (z - PL.z) ** 2 > 60 * 60) trees.push([x, z, 1]);
     }
-    this._trees(trees, r);
+    this._trees(trees);
     this.count = { buildings: D.b.length, tris, trees: trees.length };
   }
 
@@ -250,35 +255,11 @@ export class SgnEnv {
     im.instanceColor.needsUpdate = true; im.frustumCulled = false; im.renderOrder = 2;
     this.group.add(im); this.jets = { mesh: im, list };
   }
-  // cây low-poly instanced: 70 % cây tán tròn (thân + khối 20 mặt, xanh đậm nhạt khác nhau), 30 % cọ (thân cao + 7 lá xòe)
-  _trees(list, r) {
-    const G = this.groundAt, round = [], palm = [];
-    for (const p of list) (p[2] === 1 || r() < 0.3 ? palm : round).push(p);
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
-    const place = (geo, mat, pts, size, color) => {
-      const im = new THREE.InstancedMesh(geo, mat, pts.length);
-      pts.forEach(([x, z], i) => {
-        const k = size[0] + (size[1] - size[0]) * hash(x, z);
-        q.setFromAxisAngle(up, hash(z, x) * 6.283); m4.compose(v.set(x, G(x, z) - 0.1, z), q, sc.set(k, k, k)); im.setMatrixAt(i, m4);
-        if (color) im.setColorAt(i, col.setHSL(color[0] + 0.05 * hash(x + 1, z), color[1], color[2] + 0.1 * hash(x, z + 1)));
-      });
-      if (color) im.instanceColor.needsUpdate = true;
-      im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; this.group.add(im);
-    };
-    const trunk = new THREE.CylinderGeometry(0.16, 0.24, 3, 6).translate(0, 1.5, 0);
-    const crown = new THREE.IcosahedronGeometry(2.3, 0).scale(1, 0.85, 1).translate(0, 4.4, 0);
-    place(trunk, this.trunk, round, [0.8, 1.3]);
-    place(crown, this.leaf, round, [0.8, 1.3], [0.27, 0.45, 0.24]);
-    const ptrunk = new THREE.CylinderGeometry(0.14, 0.22, 7, 6).translate(0, 3.5, 0);
-    const fronds = new THREE.BufferGeometry(), P = [];
-    for (let k = 0; k < 7; k++) {                     // lá cọ: tam giác dài xòe xuống
-      const a = k / 7 * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
-      P.push(0, 7, 0, ca * 3.2 - sa * 0.5, 6.2, sa * 3.2 + ca * 0.5, ca * 3.2 + sa * 0.5, 6.2, sa * 3.2 - ca * 0.5);
-    }
-    fronds.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); fronds.computeVertexNormals();
-    const fm = this.leaf.clone(); fm.side = THREE.DoubleSide;
-    place(ptrunk, this.trunk, palm, [0.85, 1.25]);
-    place(fronds, fm, palm, [0.85, 1.25], [0.25, 0.5, 0.28]);
+  // cây: SgnTrees quản lý cả bản GLB chi tiết (gần 100 m) lẫn low-poly instanced (xa / khi chưa tải xong)
+  _trees(list) {
+    this.treeSet = new SgnTrees(this.group, this.groundAt, list, {
+      trunk: this.trunk, leaf: this.leaf, detail: this.treeDetail, visible: this.treesVisible,
+    });
   }
 }
 

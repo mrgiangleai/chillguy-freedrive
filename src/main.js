@@ -171,11 +171,13 @@ sgnEnv.avoid = (x, z) => sgnNear(x, z, 13);                  // cây không mọ
 sgnEnv.base = SGN.data.vinhomes; sgnEnv.walk = CITY.walk;
 sgnEnv.plaza = { x: SGN.data.landmark81[0], z: SGN.data.landmark81[1], r: 170 };   // khu đi bộ quanh chân Landmark 81 (đá lát, đài phun, cọ)                              // nền thảm cỏ cả khu Vinhomes
 sgnEnv.roadGap = (x, z) => { const [d, s] = sgnNearest(x, z); return d - road.hwAt(SGN.length + s); };   // nền cỏ: khoảng cách tới mép nhựa thật
+try { sgnEnv.treeDetail = localStorage.getItem('chilldrive.sgn.trees') !== '0'; } catch { /* chế độ riêng tư */ }
+try { sgnEnv.treesVisible = localStorage.getItem('chilldrive.sgn.treesVisible') !== '0'; } catch { /* chế độ riêng tư */ }
 // hàng cây hai bên đường từ Nguyễn Hữu Cảnh qua Vạn Hoa 4 / 3, Trần Trọng Kim (s 0–1500), mỗi 11 m, trên vỉa hè sát lề (tính khi dựng)
 sgnEnv.street = {
   * [Symbol.iterator]() {
     const L = SGN.data.length, P = {}, hwAt = (s) => (road.hwAt ? road.hwAt(L + s) : CITY.hw);
-    for (let s = 20; s < 1500; s += 11) { road.at(L + s, P); for (const su of [-1, 1]) { const u = su * (hwAt(s) + CITY.walk * 0.55); yield [P.x + Math.cos(P.th) * u, P.z - Math.sin(P.th) * u]; } }
+    for (let s = 20; s < 1500; s += 11) { road.at(L + s, P); for (const su of [-1, 1]) { const u = su * (hwAt(s) + CITY.walk * 0.55); yield [P.x + Math.cos(P.th) * u, P.z - Math.sin(P.th) * u, 2, s]; } }
   },
 };
 const timesSq = new TimesSquare(scene, road, city);
@@ -1320,6 +1322,15 @@ renderTune = () => {
         timesSq.setMirror(v); try { localStorage.setItem('chilldrive.nyc.mirror', v ? '1' : '0'); } catch { /* chế độ riêng tư */ }
         toast(v ? 'Đã bật phản chiếu kính' : 'Đã tắt phản chiếu kính'); } });
     }
+    if (onSgn()) {                                                   // Landmark: thử đồ hoạ cây / tắt hẳn cây
+      addHeading('Landmark');
+      addToggle({ label: 'Cây model chi tiết (gần 100 m)', get: () => sgnEnv.treeDetail, set: (v) => {
+        sgnEnv.setTreeDetail(v); try { localStorage.setItem('chilldrive.sgn.trees', v ? '1' : '0'); } catch { /* chế độ riêng tư */ }
+        toast(v ? 'Đã bật cây model chi tiết' : 'Đã tắt cây model chi tiết — chỉ còn cây low-poly'); } });
+      addToggle({ label: 'Hiện cây (thử đồ hoạ)', get: () => sgnEnv.treesVisible, set: (v) => {
+        sgnEnv.setTreesVisible(v); try { localStorage.setItem('chilldrive.sgn.treesVisible', v ? '1' : '0'); } catch { /* chế độ riêng tư */ }
+        toast(v ? 'Đã hiện cây' : 'Đã ẩn toàn bộ cây'); } });
+    }
     addHeading('Xe của chú');
     addToggle({ label: 'Tự giữ khoảng cách (tránh đâm xe trước)', get: () => trafficTune.avoid, set: (v) => { trafficTune.avoid = v; toast(v ? 'Đã bật tự giữ khoảng cách' : 'Đã tắt tự giữ khoảng cách — chú tự phanh, đâm là có cảnh sát tới', !v); } });
     addToggle({ label: 'Cảnh tai nạn (đâm xe / người: dừng xe, cảnh sát + cấp cứu tới)', get: () => trafficTune.incident, set: (v) => { trafficTune.incident = v;
@@ -2042,7 +2053,7 @@ function frame(now) {
   if (nycBld.visible) { nycBld.setLamps(st.lamps); nycProps.setLamps(st.lamps); }
   if (timesSq.visible) { timesSq.update(dt, st.lamps, drive.pos, drive.s); timesSq.capture(renderer, scene, dt, st.lamps); }
   if (nycWorks.visible) { nycWorks.setLamps(st.lamps); nycWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
-  if (sgnEnv.visible) { sgnEnv.winK = lightTune.windows; sgnEnv.setLamps(st.lamps); sgnEnv.update(dt); }
+  if (sgnEnv.visible) { sgnEnv.winK = lightTune.windows; sgnEnv.setLamps(st.lamps); sgnEnv.update(dt, camera.position); }
   if (sgnScene.visible) sgnScene.setLamps(st.lamps * lightTune.signs);   // LED dọc Landmark 81 theo đèn đêm × "biển hiệu" bảng Lighting
   if (sgnWorks.visible) { sgnWorks.setLamps(st.lamps); sgnWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
   minimap.update(dt);
