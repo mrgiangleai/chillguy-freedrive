@@ -55,7 +55,7 @@ export class AdminCam {
         if (n === 'Digit2') return this.setMode('front');
         if (n === 'Digit3') return this.setMode('side');
         if (n === 'Digit4') return this.setMode('free');
-        if (n === 'Digit0') return this.clearFocus();       // về xe: bỏ tâm quay do bản đồ đặt
+        if (n === 'Digit0') return this.reset();            // về vị trí ban đầu (lúc bật Stop / mặc định của góc)
         if (FREE_KEYS.includes(e.code)) {
           this.held.add(e.code);
           if (e.code === 'Space') e.preventDefault();
@@ -128,8 +128,21 @@ export class AdminCam {
     else this.focus = { x, z, y: this._carY };            // tâm quay thay cho xe, giữ nguyên độ cao camera
     this.syncInfo(true);
   }
-  // về xe: bỏ tâm quay do bản đồ đặt (nút ◎ / phím 0)
+  // về xe: bỏ tâm quay do bản đồ đặt (nút ◎)
   clearFocus() { this.focus = null; this.syncInfo(true); }
+  // phím 0: về vị trí ban đầu — Free: chỗ camera lúc bật Stop; Top / Front / Side: quanh xe, góc + khoảng cách mặc định
+  reset() {
+    this.focus = null;
+    this.dist = { top: 40, front: 12, side: 12 };
+    this.free.speed = 30;
+    const st = this.start;
+    if (st) { this.free.pos.copy(st.pos); this.free.yaw = st.yaw; this.free.pitch = st.pitch; }
+    this.az = this.mode === 'side' ? Math.PI / 2 : 0;
+    this.el = this.mode === 'top' ? EL_TOP : EL_SIDE;
+    this.syncInfo(true);
+  }
+  // không cho camera chui xuống đất / nước (groundAt: hàm độ cao mặt đất của game, main.js gán = rig.groundAt)
+  _floor(x, z) { const g = this.groundAt?.(x, z); return Number.isFinite(g) ? g + 0.5 : -Infinity; }
 
   // lấy vị trí / hướng camera đang có làm điểm bắt đầu cho góc Free
   captureFree() {
@@ -157,6 +170,7 @@ export class AdminCam {
     this.dist = { top: 40, front: 12, side: 12 };
     this.free.speed = 30;
     this.captureFree();
+    this.start = { pos: this.free.pos.clone(), yaw: this.free.yaw, pitch: this.free.pitch };   // vị trí ban đầu cho phím 0
     this.mode = 'top';
     this.az = 0;
     this.el = EL_TOP;
@@ -211,6 +225,7 @@ export class AdminCam {
     this._carY = car.pos.y;
     if (this.mode === 'free') {
       this.moveFree(dt);
+      this.free.pos.y = Math.max(this.free.pos.y, this._floor(this.free.pos.x, this.free.pos.z));
       cam.position.copy(this.free.pos);
       cam.up.set(0, 1, 0);
       cam.rotation.order = 'YXZ';
@@ -227,6 +242,7 @@ export class AdminCam {
         C.y + se,
         C.z + (fwdZ * ca + rgtZ * sa) * ce,
       );
+      cam.position.y = Math.max(cam.position.y, this._floor(cam.position.x, cam.position.z));
       // nhìn gần thẳng đứng: lấy hướng đầu xe làm "lên" để khung hình không bị xoay lộn xộn
       if (this.el > 1.45) cam.up.set(fwdX, 0, fwdZ); else cam.up.set(0, 1, 0);
       cam.lookAt(C.x, C.y + 0.7, C.z);

@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -38,10 +38,12 @@
   đứng yên (shader nước / cỏ / sương / hậu kỳ) => mọi thứ đứng hình; đặt Trời trong + Ban ngày (trả lại khi tắt, `saveScope` bỏ qua); tắt xoá phông.
   Camera admin ghi đè sau `rig.update` (rig giữ trạng thái): phím 1 Top (40 m) / 2 Front / 3 Side (12 m; lăn = khoảng cách 2–800 m, kéo = xoay quanh xe)
   / 4 Free (30 m/s; WASD, E/Space lên, Q/C xuống, Shift ×8, lăn = tốc độ, kéo = nhìn). Bảng `#admin` (không ẩn theo idle) hiện góc + toạ độ camera + `drive.s`.
+  Camera admin không xuống dưới đất / nước (`admin.groundAt` = `rig.groundAt`, cách mặt 0.5 m); phím 0 = về vị trí ban đầu (Free: chỗ lúc bật Stop;
+  góc khác: quanh xe, mặc định), nút ◎ trên bản đồ = về xe.
   Trong Stop chỉ còn phím admin + O (chụp) + H (ẩn HUD) + R / T (đổi thời tiết / giờ thủ công). Hook: `__app.setAdmin(true)`, `__app.admin`.
 - **Bản đồ — bấm để dời tới** (`minimap.onPick` / `nearestS`, `jumpTo(s)` trong main.js): bản đồ phóng to, bấm (không kéo) điểm cách đường ≤ 60 m
   => xe tới đó ngay (giữ làn + tốc độ, prime đường / địa hình / phố, bỏ NPC / người chồng chỗ, camera đặt ngay). Stop: bản đồ hiện mọi map, bấm bất kỳ
-  => `admin.moveTo(x, z)` (Free: dời camera; Top / Front / Side: tâm quay `admin.focus`, giữ độ cao; ◎ / phím 0 về xe), chấm xanh = camera admin.
+  => `admin.moveTo(x, z)` (Free: dời camera; Top / Front / Side: tâm quay `admin.focus`, giữ độ cao; ◎ về xe), chấm xanh = camera admin.
   `scripts/check-minimap-jump.mjs` PASS.
 - **Phanh bấm đúp** (Space / B / nút Space): `drive.halt` => giảm tốc tới dừng hẳn, đứng yên; ↑ / W / F hoặc bấm đúp lần nữa để chạy tiếp.
 - **Bố cục điện thoại**: 3 nút ◀ Space ▶ cao hơn hàng nút góc (`--ctl-up` 58 / điện thoại 46 px); bản đồ tròn ở góc phải dưới (trên hàng
@@ -558,3 +560,4 @@
   (xem mục 1 "Map Landmark 81", SGN_PLAN.md). Bài học gộp: xung đột `docs/index.html` phải so bản nhánh chính, không `checkout --ours` cả file.
   Phiên người 3D / Stop (đã gộp vào mục 1 / 3): người đi bộ 3D (Setting 🚶), chế độ Stop + camera admin (phím `), phanh bấm đúp,
   bấm bản đồ để dời tới; chú báo pan Stop ngược => đã đảo cho cùng chiều camera thường. Tất cả chưa xem trên máy thật — chú tự test.
+- **#2 — Camera admin không xuyên đất, phím 0 về vị trí ban đầu (23/10/2026)**.

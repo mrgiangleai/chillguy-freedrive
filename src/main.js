@@ -97,6 +97,7 @@ const cars = new Cars(scene);
 const rig = new CameraRig(camera);
 const admin = new AdminCam(camera);   // camera quan sát cho chế độ Stop (src/adminCam.js)
 rig.groundAt = (x, z) => (nycCovered() ? drive.pos.y : Math.max(terrain.heightAt(x, z), ocean.group.visible ? ocean.level + 1.2 : -Infinity));   // không chui xuống đất / xuống nước; trong hầm: mặt đường
+admin.groundAt = (x, z) => rig.groundAt(x, z);   // camera admin cũng không chui xuống đất / nước
 // New York: xe đang trong / sát đoạn hầm có trần => camera ở dưới trần (mặt dưới trần thấp hơn mặt phố 0.6 m)
 const nycCovered = () => (onNyc() || onSgn()) && road.elevAt(drive.s) < road.loop.roof + 1.2;   // vòng có hầm kín: New York, Landmark (hầm Thủ Thiêm)
 rig.ceilAt = () => (nycCovered() ? road.street.at(drive.s, {}).y - 1.9 : Infinity);
