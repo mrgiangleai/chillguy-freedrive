@@ -147,28 +147,41 @@ export class Road {
     if (city === this.city && avenue === this.avenue && real === this.real && loop === this.loop) return;
     this.city = city; this.avenue = avenue; this.real = real; this.loop = loop;
     this.widths = kind === 'sgn' && loop?.widths?.length ? loop.widths.slice().sort((a, b) => a.s0 - b.s0) : null;
+    this.maxLanes = this.widths ? Math.max(CITY.lanes.length, ...this.widths.map((w) => w.lanes.length)) : CITY.lanes.length;
     this.pts = [loop ? this._loopPt(0) : { x: 0, z: 0, y: 0 }];
   }
-  // Nửa rộng và tâm làn theo s. Landmark thu / nở trong 25 m; map khác giữ nguyên hằng số cũ.
-  _widthValue(s, key, base) {
+  // Nửa rộng / tâm làn / dải phân cách theo s. Landmark (chia đôi có dải phân cách) thu / nở trong 25 m; map khác giữ hằng số cũ.
+  _widthValue(s, key, base, k = 0) {
     if (!this.widths) return base;
     const L = this.loop.length, r = ((s % L) + L) % L, T = 25;
     for (const w of this.widths) if (r >= w.s0 && r <= w.s1) {
       const a = sst(w.s0, w.s0 + T, r), b = 1 - sst(w.s1 - T, w.s1, r);
-      return base + (w[key] - base) * Math.min(a, b);
+      const v = key === 'hw' ? w.hw : key === 'median' ? w.median.w : w.lanes[Math.min(k, w.lanes.length - 1)];
+      return base + (v - base) * Math.min(a, b);
     }
     return base;
   }
   hwAt(s) { return this._widthValue(s, 'hw', ROAD.halfWidth); }
-  laneAt(s, k = 1) {
-    const base = CITY.lanes[Math.min(k, CITY.lanes.length - 1)];
-    return this._widthValue(s, 'lane', base);
-  }
+  // tâm làn thứ k của MỖI chiều (0 = trong cùng, tính theo |u|)
+  laneAt(s, k = 1) { return this._widthValue(s, 'lane', CITY.lanes[Math.min(k, CITY.lanes.length - 1)], k); }
   laneCountAt(s) {
     if (!this.widths) return CITY.lanes.length;
     const L = this.loop.length, r = ((s % L) + L) % L;
-    for (const w of this.widths) if (r >= w.s0 && r <= w.s1) return 1;
+    for (const w of this.widths) if (r >= w.s0 && r <= w.s1) return w.lanes.length;
     return CITY.lanes.length;
+  }
+  // dải phân cách tim đường tại s: { w (thu dần về 0 ngoài đoạn), kind ('plant' | 'jersey' | null) }
+  medianAt(s, out = { w: 0, kind: null }) {
+    out.w = 0; out.kind = null;
+    if (!this.widths) return out;
+    const L = this.loop.length, r = ((s % L) + L) % L, T = 25;
+    for (const w of this.widths) if (r >= w.s0 && r <= w.s1) {
+      const a = sst(w.s0, w.s0 + T, r), b = 1 - sst(w.s1 - T, w.s1, r), t = Math.min(a, b);
+      out.w = w.median.w * t;
+      if (t > 1e-3) out.kind = w.median.kind;
+      return out;
+    }
+    return out;
   }
   // ---- vòng khép kín (map New York): s bất kỳ ≥ 0, quấn theo chiều dài vòng ----
   _lf(s) { const L = this.loop, r = ((s % L.length) + L.length) % L.length, f = r / L.step, i = Math.min(L.x.length - 2, Math.floor(f)); return [i, f - i, Math.floor(s / L.length)]; }

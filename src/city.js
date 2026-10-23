@@ -325,6 +325,11 @@ export class City {
     };
     this.unitBox = new THREE.BoxGeometry(1, 1, 1);
     this.treeGeo = broadleafGeometry();
+    // dải phân cách giữa (map Landmark): bê tông / đất cỏ trên dải / cột đèn xanh giữa cầu
+    this.medianMat = new THREE.MeshStandardMaterial({ color: 0xc9c9c4, roughness: 0.9 });
+    this.medianGrassMat = new THREE.MeshStandardMaterial({ color: 0x4f7a38, roughness: 1 });
+    this.jerseyPoleMat = new THREE.MeshStandardMaterial({ color: 0x2a5db0, roughness: 0.45, metalness: 0.35 });
+    this.jerseyHeadMat = new THREE.MeshStandardMaterial({ color: 0xdfe2e4, emissive: 0xfff0c8, emissiveIntensity: 0.35, roughness: 0.4 });
     this.markMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
     this.poleMat = new THREE.MeshStandardMaterial({ color: 0x8e8d87, roughness: 0.85 });
     this.wireMat = new THREE.LineBasicMaterial({ color: 0x1b1b1d });
@@ -343,7 +348,7 @@ export class City {
     const vend = vendingTexture();
     this.vendBody = new THREE.MeshStandardMaterial({ color: 0xe9e9e6, roughness: 0.45, metalness: 0.15 });
     this.vendFront = new THREE.MeshStandardMaterial({ map: vend, emissiveMap: vend, emissive: 0xffffff, emissiveIntensity: 0.3, roughness: 0.25 });
-    for (const m of [this.facade, this.lotMat, this.lawnMat, ...Object.values(this.propMats), this.walkMat, this.markMat, this.poleMat, this.wireMat, this.signMat, this.vendBody, this.vendFront]) withMist(m);
+    for (const m of [this.facade, this.lotMat, this.lawnMat, this.medianMat, this.medianGrassMat, this.jerseyPoleMat, this.jerseyHeadMat, ...Object.values(this.propMats), this.walkMat, this.markMat, this.poleMat, this.wireMat, this.signMat, this.vendBody, this.vendFront]) withMist(m);
     this.boxGeo = boxGeometry();
     this.houseGeo = houseGeometry();
     this.poleGeo = poleGeometry();
@@ -660,6 +665,8 @@ export class City {
     const fitU = (s, u) => this.street && Math.abs(u) > 3.8 ? u + Math.sign(u) * (this.road.hwAt(s) - HW) : u;
     const at = (s, u, y) => { const p = road.at(s, this._p), v = fitU(s, u); return [p.x + Math.cos(p.th) * v, p.y + y, p.z - Math.sin(p.th) * v]; };
     const atR = (s, u, y) => { const p = this.road.at(s, this._p), v = fitU(s, u); return [p.x + Math.cos(p.th) * v, p.y + y, p.z - Math.sin(p.th) * v]; };
+    // như atR nhưng giữ đúng toạ độ ngang (Landmark: vạch làn / dải phân cách theo bề rộng thật từng đoạn)
+    const atA = (s, u, y) => { const p = this.road.at(s, this._p); return [p.x + Math.cos(p.th) * u, p.y + y, p.z - Math.sin(p.th) * u]; };
     // dải dọc đường chính từ sA tới sB, ngang u0..u1 (lấy mẫu mỗi 2 m theo đường cong)
     const strip = (B, sA, sB, u0, u1, y, col, uvFn) => {
       if (sB <= sA) return;
@@ -743,7 +750,7 @@ export class City {
       for (const lu of [-3.5, 0, 3.5]) for (let k = Math.ceil(zA / 12); k * 12 + 3 < zB; k++) stripR(k * 12, k * 12 + 3, lu - 0.07, lu + 0.07, WHITE);
       if (cK) stripR(sK - CORNER.stop - 0.45, sK - CORNER.stop, -HW + 0.3, HW - 0.3, WHITE);   // vạch dừng trước góc rẽ
     }
-    if (!this.nyc) for (const su of [-1, 1]) {
+    if (!this.nyc && !this.road.widths) for (const su of [-1, 1]) {
       stripR(zA, zB, su * 0.1, su * 0.25, YEL);                  // vạch theo mặt đường thật (Landmark: hầm / cầu)
       stripR(sJ + 6, sK - 6, su * (HW - 0.4), su * (HW - 0.25), WHITE);
       const lA = sJ + 12, lB = sK - 12;
@@ -751,10 +758,29 @@ export class City {
       stripR(Math.max(lA, lB - 30), lB, su * 3.42, su * 3.58, WHITE);
       for (let k = Math.ceil((lA + 30) / 10); k * 10 + 5 < lB - 30; k++) stripR(k * 10, k * 10 + 5, su * 3.42, su * 3.58, WHITE);
     }
-    if (!this.nyc) for (const lu of CITY.lanes) {
+    if (!this.nyc && !this.road.widths) for (const lu of CITY.lanes) {
       const sa = sK - 11.9 - 8;
       stripR(sa - 3.2, sa, lu - 0.08, lu + 0.08, WHITE);
       for (let k = 0; k < 4; k++) { const w = 0.45 - k * 0.11; stripR(sa + k * 0.25, sa + (k + 1) * 0.25, lu - w, lu + w, WHITE); }
+    }
+    // Landmark: vạch kẻ theo bề rộng / số làn từng đoạn. Đoạn có dải phân cách không còn vàng đôi tim đường;
+    // chia làn = trắng đứt giữa 2 làn CÙNG chiều, mép nhựa = trắng liền.
+    if (!this.nyc && this.road.widths) {
+      const line = (a, b, ua, ub, w, col) => quad(mark, [atA(a, ua - w, MARK_Y), atA(b, ub - w, MARK_Y), atA(b, ub + w, MARK_Y), atA(a, ua + w, MARK_Y)], UP, col);
+      const N = Math.max(1, Math.ceil((zB - zA) / 2)), md = { w: 0, kind: null };
+      for (let i = 0; i < N; i++) {
+        const a = zA + (zB - zA) * i / N, b = zA + (zB - zA) * (i + 1) / N, sm = (a + b) / 2;
+        const hw = this.road.hwAt(sm), lc = this.road.laneCountAt(sm), dash = ((sm % 10) + 10) % 10 < 5;
+        this.road.medianAt(sm, md);
+        for (const su of [-1, 1]) {
+          line(a, b, su * (hw - 0.4), su * (hw - 0.4), 0.075, WHITE);
+          if (dash) for (let k = 0; k + 1 < lc; k++) {
+            const u = su * (this.road.laneAt(sm, k) + this.road.laneAt(sm, k + 1)) / 2;
+            line(a, b, u, u, 0.07, WHITE);
+          }
+          if (md.w < 0.05) line(a, b, su * 0.175, su * 0.175, 0.07, YEL);      // ngoài đoạn: vàng đôi tim đường
+        }
+      }
     }
 
     // ---- vỉa hè đường chính ----
@@ -978,6 +1004,74 @@ export class City {
       list.forEach(([x, y, z, yw, a, b, d], i) => { q.setFromAxisAngle(this._up, yw); m.compose(v.set(x, y, z), q, sc.set(a, b, d)); im.setMatrixAt(i, m); });
       im.castShadow = true; im.receiveShadow = k !== 'tree'; im.frustumCulled = false;
       group.add(im);
+    }
+    // ---- dải phân cách giữa (chỉ map Landmark có `widths`): vỉa trồng cây, hoặc lan can bê tông + cột đèn xanh trên cầu ----
+    if (this.road.widths) {
+      const solid = { pos: [], nor: [], idx: [] }, soil = { pos: [], nor: [], idx: [] };
+      const shrubs = [], mTrees = [], poles = [], arms = [], heads = [];
+      const ex = this._ex || (this._ex = { w: 0, kind: null }), mr = rng(n * 977 + 13);
+      // mặt cắt tại s (thu dần về 0 ở 2 đầu đoạn): nửa rộng, cao vỉa
+      const prof = (s) => {
+        const md = this.road.medianAt(s, ex), w = md.w;
+        if (w < 0.02) return null;
+        const plant = md.kind !== 'jersey';
+        return { w, h: plant ? 0.25 * Math.min(1, w / 0.6) : 0.85 * Math.min(1, w / 0.5), plant };
+      };
+      const N = Math.ceil((zB - zA) / 2);
+      for (let i = 0; i < N; i++) {
+        const a = zA + (zB - zA) * i / N, b = zA + (zB - zA) * (i + 1) / N, pa = prof(a), pb = prof(b);
+        if (!pa || !pb) continue;
+        const p = this.road.at((a + b) / 2, this._p), nx = Math.cos(p.th), nz = -Math.sin(p.th);
+        if (pa.plant) {
+          // vỉa bê tông cao 0,25 m (2 má) + mặt trên: viền xám, giữa là đất / cỏ
+          quad(solid, [atA(a, -pa.w / 2, 0.02), atA(b, -pb.w / 2, 0.02), atA(b, -pb.w / 2, pb.h), atA(a, -pa.w / 2, pa.h)], [-nx, 0, -nz]);
+          quad(solid, [atA(a, pa.w / 2, 0.02), atA(b, pb.w / 2, 0.02), atA(b, pb.w / 2, pb.h), atA(a, pa.w / 2, pa.h)], [nx, 0, nz]);
+          const ia = Math.min(0.16, pa.w * 0.3), ib = Math.min(0.16, pb.w * 0.3);
+          quad(solid, [atA(a, -pa.w / 2, pa.h), atA(b, -pb.w / 2, pb.h), atA(b, -pb.w / 2 + ib, pb.h), atA(a, -pa.w / 2 + ia, pa.h)], UP);
+          quad(solid, [atA(a, pa.w / 2, pa.h), atA(b, pb.w / 2, pb.h), atA(b, pb.w / 2 - ib, pb.h), atA(a, pa.w / 2 - ia, pa.h)], UP);
+          quad(soil, [atA(a, -pa.w / 2 + ia, pa.h + 0.01), atA(b, -pb.w / 2 + ib, pb.h + 0.01), atA(b, pb.w / 2 - ib, pb.h + 0.01), atA(a, pa.w / 2 - ia, pa.h + 0.01)], UP);
+        } else {
+          // lan can bê tông kiểu jersey: mặt cắt hình thang, má nghiêng, đỉnh phẳng
+          const ta = pa.w * 0.31, tb = pb.w * 0.31;
+          quad(solid, [atA(a, -pa.w / 2, 0.02), atA(b, -pb.w / 2, 0.02), atA(b, -tb, pb.h), atA(a, -ta, pa.h)], [-nx, 0, -nz]);
+          quad(solid, [atA(a, pa.w / 2, 0.02), atA(b, pb.w / 2, 0.02), atA(b, tb, pb.h), atA(a, ta, pa.h)], [nx, 0, nz]);
+          quad(solid, [atA(a, -ta, pa.h), atA(b, -tb, pb.h), atA(b, tb, pb.h), atA(a, ta, pa.h)], UP);
+        }
+      }
+      mkMesh(solid, this.medianMat, false, false);
+      mkMesh(soil, this.medianGrassMat, false, false);
+      // bụi cây thấp mỗi ~1,5 m + cây nhỏ mỗi ~12 m (dải trồng cây)
+      for (let s = Math.ceil(zA / 1.5) * 1.5; s < zB; s += 1.5) {
+        const pf = prof(s);
+        if (!pf?.plant || pf.w < 0.7) continue;
+        const p = this.road.at(s, this._p), u = (mr() - 0.5) * (pf.w - 0.7), k = 0.45 + mr() * 0.3;
+        shrubs.push([p.x + Math.cos(p.th) * u, p.y + pf.h + k * 0.35, p.z - Math.sin(p.th) * u, mr() * 6.28, k, k * 0.8, k]);
+      }
+      for (let s = Math.ceil(zA / 12) * 12; s < zB; s += 12) {
+        const pf = prof(s);
+        if (!pf?.plant || pf.w < 1) continue;
+        const p = this.road.at(s, this._p), u = (mr() - 0.5) * 0.4, k = 0.7 + mr() * 0.25;
+        mTrees.push([p.x + Math.cos(p.th) * u, p.y + pf.h, p.z - Math.sin(p.th) * u, mr() * 6.28, k, k, k]);
+      }
+      // lan can jersey (cầu): cột đèn xanh mỗi 40 m, 2 tay đòn 2 m hướng về 2 chiều xe + đầu đèn
+      for (let s = Math.ceil(zA / 40) * 40; s < zB; s += 40) {
+        const pf = prof(s);
+        if (!pf || pf.plant || pf.w < 0.6) continue;
+        const p = this.road.at(s, this._p), c = Math.cos(p.th), sn = -Math.sin(p.th), y = p.y + pf.h;
+        poles.push([p.x, y + 6, p.z, p.th, 0.14, 12, 0.14]);
+        for (const su of [-1, 1]) {
+          arms.push([p.x + c * su, y + 11.5, p.z + sn * su, p.th, 2, 0.1, 0.1]);
+          heads.push([p.x + c * su * 1.9, y + 11.4, p.z + sn * su * 1.9, p.th, 0.5, 0.16, 0.3]);
+        }
+      }
+      for (const [list, geo, mat] of [[shrubs, this.unitBox, this.propMats.hedge], [mTrees, this.treeGeo, this.propMats.tree],
+        [poles, this.unitBox, this.jerseyPoleMat], [arms, this.unitBox, this.jerseyPoleMat], [heads, this.unitBox, this.jerseyHeadMat]]) {
+        if (!list.length) continue;
+        const im = new THREE.InstancedMesh(geo, mat, list.length);
+        list.forEach(([x, y, z, yw, a, b, d], i) => { q.setFromAxisAngle(this._up, yw); m.compose(v.set(x, y, z), q, sc.set(a, b, d)); im.setMatrixAt(i, m); });
+        im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false;
+        group.add(im);
+      }
     }
     for (const house of [false, true]) {
       const list = B.filter((b) => b[11] === house);

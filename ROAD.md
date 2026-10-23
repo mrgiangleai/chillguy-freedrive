@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -350,6 +350,11 @@
   vật liệu GLB: sọc mỗi 4.5 m, vàng dưới → trắng trên, tím 300–380 m, nhìn xa về độ phủ 12 %; × đèn đêm × "biển hiệu"); quảng trường đi bộ bán kính
   170 m quanh chân tháp (`sgnEnv.plaza`: đá lát bàn cờ thay cỏ, cọ ~1 / 260 m²), tia nước đài phun theo đa giác fountain OSM (InstancedMesh cộng
   sáng, nhấp nhô, xanh ngọc / hồng / trắng, sáng hơn ban đêm). Ảnh tham khảo + việc tiếp theo: SGN_PLAN.md mục "Ảnh tham khảo".
+  **Mặt cắt đường theo ảnh (23/10, DeepSeek free)**: `widths` mới { hw, lanes[], median { w, kind } }: nội khu Vinhomes (s 494–1503) đường đôi 2+2 làn
+  (tâm ±2.95 / ±6.45), dải phân cách bồn cây 2.4 m (vỉa + cỏ + bụi + cây); cầu Sài Gòn 2 + dốc (s 2687–4148) 3+3 làn, jersey 0.8 m + cột đèn xanh
+  12 m mỗi 40 m (bỏ đèn hai bên). `road.medianAt(s)`, `laneCountAt` 2 / 3. **Cầu đi bộ xoắn đỏ vàng** (`landmarks/helixBridge.js`, DeepSeek free,
+  14k tam giác) bắc ngang Trần Trọng Kim chỗ gần tháp nhất (s 1104); **tượng xanh + hồ lan can kính** (`landmarks/plazaSculpture.js`, GLM free)
+  cách chân tháp 55 m về phía các tháp (`sgnScene.place`). Bãi cỏ / sân OSM dựng theo ô 3 m chừa đường (đa giác OSM từng trùm lên làn xe).
   **Nền cỏ cả khu**: lưới ô 6 m trong đa giác `vinhomes`, sát đường ô 2 m luồn dưới vỉa hè (`roadGap` = khoảng tới mép nhựa thật, `sgnNearest`).
   Vào map ở s = L + 60, luôn Hoàng hôn + Nhiều mây (chú dặn, để chụp lại), camera giữ lần trước.
   Trọng tâm (chú dặn): làm đẹp khu quanh Landmark 81; đoạn khác chỉ cần đúng.
@@ -535,4 +540,5 @@
 - **#2 — Khu Vinhomes: Landmark 1–6 + mặt tiền theo ảnh thật (23/10/2026)**: 20 tháp (thêm 6 từ footprint Microsoft), mặt tiền trắng sọc xám, đế cửa hàng;
   chụp flycam 2 góc giống ảnh drone chú gửi. check-sgn / width / nyc PASS.
 - **#3 — Landmark: đêm + quảng trường (23/10/2026)**: 3 kiểu mặt tiền, LED Landmark 81, quảng trường đá lát + đài phun + cọ; ghi ảnh tham khảo chú gửi vào SGN_PLAN.
-- **#4 — Người đi bộ 3D (23/10/2026)**: nút 🚶 Setting (mặc định tắt), 13 model GLB nén, hạ tay chữ T, chân tay đung đưa; DeepSeek (API, opencode free hết lượt) chỉnh dáng từng model. Chưa xem trên máy thật — chú tự test.
+- **#4 — Landmark: đường đôi + cầu Sài Gòn + cầu xoắn + tượng (23/10/2026)**: chia 3 việc cho model free (DeepSeek ×2, GLM), Claude soát + gộp + đặt; check PASS.
+- **#5 — Người đi bộ 3D (23/10/2026)**: nút 🚶 Setting (mặc định tắt), 13 model GLB nén, hạ tay chữ T, chân tay đung đưa; DeepSeek (API, opencode free hết lượt) chỉnh dáng từng model. Chưa xem trên máy thật — chú tự test.

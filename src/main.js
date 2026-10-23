@@ -152,6 +152,19 @@ const CITY_DIM = { hw: CITY.hw, walk: CITY.walk, side: CITY.side, sideWalk: CITY
 const nycWorks = new NycWorks(scene, road, scenery.roadMat);   // map New York: tường + trần hầm Park Ave, cầu cạn quanh Grand Central
 const sgnWorks = new NycWorks(scene, road, scenery.roadMat, sgnLoop);
 const sgnScene = new SgnScene(scene, (x, z) => terrain.heightAt(x, z));   // map Landmark: tháp Landmark 81 (toạ độ thật)
+// vị trí công trình nhỏ quanh Landmark 81: cầu xoắn bắc ngang Trần Trọng Kim chỗ gần tháp nhất (trục X của model = ngang đường);
+// tượng + hồ: tâm đài phun OSM gần chân tháp nhất (đọc sgn-env.json lúc dựng => dùng điểm cố định đo từ dữ liệu)
+sgnScene.place = () => {
+  const L = SGN.length, [lx, lz] = SGN.data.landmark81, P = {};
+  let bs = 0, bd = Infinity;
+  for (let s = 0; s < 2000; s += 2) { if (sgnStreet(s) !== 'Trần Trọng Kim') continue; road.at(L + s, P); const d = Math.hypot(P.x - lx, P.z - lz); if (d < bd) { bd = d; bs = s; } }
+  road.at(L + bs, P);
+  const out = [{ name: 'helixBridge', x: P.x, z: P.z, y: road.street.at(L + bs, {}).y, rot: P.th }];
+  // tượng: lệch 55 m từ chân tháp về phía các tháp chung cư (hướng ngược tuyến Trần Trọng Kim), trục dài song song đường
+  const dx = lx - P.x, dz = lz - P.z, l = Math.hypot(dx, dz) || 1;
+  out.push({ name: 'plazaSculpture', x: lx + dx / l * 55, z: lz + dz / l * 55, rot: P.th + Math.PI / 2 });
+  return out;
+};
 const sgnEnv = new SgnEnv(scene, (x, z) => terrain.heightAt(x, z));       // map Landmark: khu Vinhomes (tháp chung cư, biệt thự, công viên, hồ, sông, cây — OSM)
 sgnEnv.onReady = () => { if (sgnEnv.visible) city.extraObb = sgnEnv.obb; };
 sgnEnv.avoid = (x, z) => sgnNear(x, z, 13);                  // cây không mọc trên lòng đường / vỉa hè tuyến
@@ -1845,6 +1858,10 @@ function frame(now) {
   drive.d += drive.latVel * dt;
   const lim = road.hwAt(drive.s) - 0.9;
   if (Math.abs(drive.d) > lim && drive.ramp == null) { drive.d = Math.sign(drive.d) * lim; drive.latVel = 0; }
+  if (onSgn()) {                                             // Landmark: có dải phân cách giữa => không lái xuyên qua
+    const md = road.medianAt(drive.s);
+    if (md.w > 0.2) { const mn = md.w / 2 + 1; if (Math.abs(drive.d) < mn) { drive.d = Math.sign(drive.d || 1) * mn; drive.latVel = 0; } }
+  }
   if (onAvenue() && drive.d < AVENUE.median + 1.25) { drive.d = AVENUE.median + 1.25; drive.latVel = Math.max(0, drive.latVel); }   // đại lộ: không qua dải phân cách
   // đại lộ: lái sang phải quá vạch mép ngoài ở đoạn làn giảm tốc trước nút giao => vào nhánh ra, đi xuống đường ngang dưới cầu,
   // qua đường ngang rồi theo nhánh vào leo lại nhập làn ngoài sau cầu (vị trí ngang theo rampU, cao độ nền)

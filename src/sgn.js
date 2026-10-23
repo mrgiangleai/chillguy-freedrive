@@ -5,6 +5,8 @@
 import * as THREE from 'three';
 import DATA from './sgn-data.json' with { type: 'json' };
 import * as landmark81 from './landmarks/landmark81.js';
+import * as helixBridge from './landmarks/helixBridge.js';
+import * as plazaSculpture from './landmarks/plazaSculpture.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
@@ -70,6 +72,15 @@ export class SgnScene {
   get visible() { return this.group.visible; }
   _build() {
     this.built = true;
+    // công trình nhỏ quanh chân tháp (model dựng code, vertex color): cầu đi bộ xoắn đỏ vàng qua Trần Trọng Kim, tượng xanh + hồ nước quảng trường.
+    // this.place() (main) trả [{ name, x, z, rot }] theo tuyến đường thật
+    const mods = { helixBridge, plazaSculpture }, vmat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.2 });
+    for (const P of this.place ? this.place() : []) {
+      const m = new THREE.Mesh(mods[P.name].build(THREE).geometry, vmat);
+      m.position.set(P.x, P.y ?? this.groundAt(P.x, P.z), P.z); m.rotation.y = P.rot;
+      m.castShadow = true; m.receiveShadow = true;
+      this.group.add(m);
+    }
     const [x, z] = DATA.landmark81, y = this.groundAt(x, z);
     this.ledY.value = y;
     const { geometry } = landmark81.build(THREE);
