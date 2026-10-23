@@ -15,7 +15,7 @@ import { StreetModels, PEOPLE_MODELS } from './streetModels.js';
 //   điện thoại quay (gather); xong thì đi tiếp (disperse).
 const AHEAD = 260, BEHIND = 90;
 const WALKERS = 38;
-const MAX = 96;
+const MAX = 176;               // đủ cho người vỉa hè + người dạo công viên (Landmark) mà không bớt người vỉa hè
 const CROWD = 520;             // thêm cho đám đông ngoài (Times Square, `extra`), vẽ chung 1 InstancedMesh
 const SHIRTS = ['#e9e6df', '#2b2d33', '#6d7d8f', '#8c2f2f', '#c9a96e', '#3d5f4b', '#d7c6b0', '#5a4a6e', '#b8c4d6', '#1f3552'];
 const KIND_COL = { officer: '#1d2a48', medic: '#e9eef2', driver: '#121214' };
@@ -110,6 +110,18 @@ export class CityPeople {
     this._v = new THREE.Vector3(); this._one = new THREE.Vector3(1, 1, 1); this._c = new THREE.Color();
     this.filled = false;
     this.walkers = WALKERS;    // số người đi vỉa hè (bảng 🚦)
+    this.parkAt = null;        // (x, z) => có phải bãi cỏ công viên? (main đặt cho map Landmark)
+    this._parkN = 0;           // số người dạo công viên
+    this.groundAt = null;      // (x, z) => cao độ mặt đất (người dạo công viên)
+  }
+  get parkCount() { return this._parkN; }
+  set parkCount(n) {
+    n = Math.max(0, Math.round(n) || 0);
+    if (n === this._parkN) return;
+    this._parkN = n;
+    let drop = 0;
+    for (const p of this.peds) if (p.mode === 'park') drop++;
+    if ((drop -= n) > 0) this.peds = this.peds.filter((p) => p.mode !== 'park' || drop-- <= 0);
   }
 
   set visible(v) { this.group.visible = v; if (!v) { this.peds.length = 0; this.filled = false; this.timers.clear(); } }
@@ -131,6 +143,46 @@ export class CityPeople {
     const off = 1.0 + Math.random() * 2.6, r = Math.random();
     return { s, u: side * (this._hw(s) + off), walkOff: off, vs: 0, vu: 0, dir, speed: 1.1 + Math.random() * 0.5, mode: 'walk',
       ph: Math.random() * 6.28, color: SHIRTS[Math.floor(Math.random() * SHIRTS.length)], acc: r < 0.16 ? 2 : r < 0.3 ? 1 : 0, cool: 5 * Math.random() };
+  }
+  // ---- người dạo công viên (map Landmark): đi chậm trên bãi cỏ hai bên đường ----
+  // (s, u) có nằm trong công viên không? amp > 0: chừa biên cho meander ngang ±amp
+  _parkOk(s, u, amp) {
+    if (!this.parkAt) return false;
+    const P = (this._pp ||= {});
+    this.road.at(s, P);
+    const rx = Math.cos(P.th), rz = -Math.sin(P.th);
+    return (!amp || this.parkAt(P.x + rx * (u - amp), P.z + rz * (u - amp)))
+      && this.parkAt(P.x + rx * u, P.z + rz * u)
+      && (!amp || this.parkAt(P.x + rx * (u + amp), P.z + rz * (u + amp)));
+  }
+  // bước đi (s, u) có còn trong công viên không?
+  _parkAt(s, u) {
+    if (!this.parkAt) return false;
+    const P = (this._pp ||= {});
+    this.road.at(s, P);
+    return this.parkAt(P.x + Math.cos(P.th) * u, P.z - Math.sin(P.th) * u);
+  }
+  _parkPed(s, u, amp) {
+    const r = Math.random();
+    return { s, u, baseU: u, amp, vs: 0, vu: 0, dir: Math.random() < 0.5 ? -1 : 1, speed: 0.6 + Math.random() * 0.5, mode: 'park',
+      ph: Math.random() * 6.28, color: SHIRTS[Math.floor(Math.random() * SHIRTS.length)], acc: r < 0.16 ? 2 : r < 0.3 ? 1 : 0,
+      mph: Math.random() * 6.28, mdir: Math.random() < 0.5 ? -1 : 1, mrate: 0.08 + Math.random() * 0.09, pauseT: 0, pauseCool: 3 + Math.random() * 12 };
+  }
+  // thử sinh 1–2 người dạo trong cửa sổ AHEAD/BEHIND tại s; không có chỗ thì bỏ qua im lặng (trả 0)
+  _spawnPark(s, max = 1) {
+    const hw = this._hw(s), lo = hw + CITY.walk + 3, hi = hw + CITY.walk + 45;
+    for (let k = 0; k < 12; k++) {
+      const side = Math.random() < 0.5 ? -1 : 1, amp = 2 + Math.random() * 3;
+      const u = side * (lo + amp + Math.random() * Math.max(0.1, hi - lo - amp * 2));
+      if (!this._parkOk(s, u, amp)) continue;
+      this.peds.push(this._parkPed(s, u, amp));
+      if (max > 1 && Math.random() < 0.35) {                        // đôi khi đi theo cặp, cách nhau 0,8 m
+        const du = u + side * 0.8;
+        if (this._parkOk(s, du, amp)) { this.peds.push(this._parkPed(s, du, amp)); return 2; }
+      }
+      return 1;
+    }
+    return 0;
   }
   // người kịch bản tại (s, u), loại officer | medic | driver
   spawn(kind, s, u) {
@@ -178,7 +230,7 @@ export class CityPeople {
   }
   // người trong hình chữ nhật [s ± len/2] × [d ± wid/2]
   hitTest(s, d, len, wid) {
-    for (const p of this.peds) if (p.mode !== 'fallen' && p.mode !== 'script' && Math.abs(p.s - s) < len / 2 + 0.25 && Math.abs(p.u - d) < wid / 2 + 0.25) return p;
+    for (const p of this.peds) if (p.mode !== 'fallen' && p.mode !== 'script' && p.mode !== 'park' && Math.abs(p.s - s) < len / 2 + 0.25 && Math.abs(p.u - d) < wid / 2 + 0.25) return p;
     return null;
   }
   // có người đang băng qua vạch đường chính ở ngã tư gần s (trong dải |u − d| < 3.5)?
@@ -206,11 +258,26 @@ export class CityPeople {
     if (amb && !this.filled) {
       this.filled = true;
       for (let i = 0; i < this.walkers; i++) this.peds.push(this._walker(s - BEHIND + Math.random() * (AHEAD + BEHIND), Math.random() < 0.5 ? -1 : 1, Math.random() < 0.5 ? -1 : 1));
+      for (let left = this._parkN; left > 0;) {                      // người dạo công viên (chỉ map có parkAt)
+        const n = this._spawnPark(s - BEHIND + Math.random() * (AHEAD + BEHIND), Math.min(2, left));
+        if (!n) break;
+        left -= n;
+      }
     }
-    const walkers = this.peds.filter((p) => p.mode === 'walk' || p.mode === 'wait').length;
+    let walkers = 0, parkers = 0;
+    for (const p of this.peds) { if (p.mode === 'walk' || p.mode === 'wait') walkers++; else if (p.mode === 'park') parkers++; }
     if (amb && walkers < this.walkers && Math.random() < dt * 2) {
       const dir = Math.random() < 0.5 ? -1 : 1, at = dir > 0 ? s - BEHIND + 5 : s + AHEAD - 5;
       this.peds.push(this._walker(at + (Math.random() - 0.5) * 20, Math.random() < 0.5 ? -1 : 1, dir));
+    }
+    // bù người dạo công viên (kể cả khi sgn-env vừa tải xong): mỗi 0,35 s thử thêm tối đa 3 người
+    if (amb && this.parkAt && parkers < this._parkN && (this._parkT = (this._parkT ?? 0) - dt) <= 0) {
+      this._parkT = 0.35;
+      for (let left = this._parkN - parkers, i = 0; i < 3 && left > 0; i++) {
+        const n = this._spawnPark(s - BEHIND + Math.random() * (AHEAD + BEHIND), Math.min(2, left));
+        if (!n) break;
+        left -= n;
+      }
     }
     // người chờ qua đường chính ở các góc ngã tư gần
     const n0 = amb ? road.junctionIndex(s - 40) : 0, n1 = amb ? road.junctionIndex(s + 220) : 0;
@@ -243,6 +310,17 @@ export class CityPeople {
           const ds = p.target[0] - p.s, du = p.target[1] - p.u, L = Math.hypot(ds, du);
           if (L < 0.15) p.target = null; else { vs = ds / L * p.speed; vu = du / L * p.speed; }
         } else p.face = Math.atan2(p.look[1] - p.u, p.look[0] - p.s);
+      } else if (p.mode === 'park') {                                   // dạo công viên: chậm, meander ngang, thỉnh thoảng đứng nhìn
+        if (p.pauseT > 0) p.pauseT -= dt;
+        else {
+          p.mph += p.mdir * p.mrate * dt;
+          const nu = p.baseU + p.amp * Math.sin(p.mph);
+          if (this._parkAt(p.s, nu)) { if (dt > 0) vu = (nu - p.u) / dt; } else p.mdir = -p.mdir;
+          if (this._parkAt(p.s + p.dir * p.speed * dt, p.u)) vs = p.dir * p.speed;
+          else p.dir = -p.dir;                                          // bước tiếp ra khỏi công viên => quay đầu
+          if (p.pauseCool > 0) p.pauseCool -= dt;
+          else if (Math.random() < dt * 0.05) { p.pauseT = 3 + Math.random() * 5; p.pauseCool = 10 + Math.random() * 20; }
+        }
       } else if (p.chatT > 0) {                                        // đứng nói chuyện, quay mặt vào nhau
         p.chatT -= dt; p.mode = 'wait';
         if (p.mate) p.face = Math.atan2(p.mate.u - p.u, p.mate.s - p.s);
@@ -307,7 +385,8 @@ export class CityPeople {
         }
       }
     }
-    this.peds = this.peds.filter((p) => p.mode === 'script' || p.mode === 'fallen' || (p.s > s - BEHIND - 10 && p.s < s + AHEAD + 10 && (!p.crossing || (p.n >= n0 - 1))));
+    this.peds = this.peds.filter((p) => (p.mode !== 'park' || (this.parkAt && this._parkN > 0))
+      && (p.mode === 'script' || p.mode === 'fallen' || (p.s > s - BEHIND - 10 && p.s < s + AHEAD + 10 && (!p.crossing || (p.n >= n0 - 1)))));
 
     // vẽ
     const m = this._m, q = this._q, v = this._v, P = this._p, det = this._det, MD = this.models, NM = PEOPLE_MODELS.length;
@@ -317,13 +396,16 @@ export class CityPeople {
       if (k++ >= MAX) break;
       road.at(p.s, P);
       const onWalk = amb && Math.abs(p.u) > this._hw(p.s) && road.nearJunction(p.s) !== null && Math.abs(p.s - road.nearJunction(p.s)) > CITY.side;
-      const y = (this.yAt ? this.yAt(p.s, p.u, P.y) : P.y) + (onWalk ? 0.2 : 0.05);   // Đại lộ: nhánh rẽ ở cao độ nền; New York: vỉa hè ở mặt phố
       const rx = Math.cos(P.th), rz = -Math.sin(P.th), fx = -Math.sin(P.th), fz = -Math.cos(P.th);
+      const wx = P.x + rx * p.u, wz = P.z + rz * p.u;
+      // người dạo công viên đứng trên địa hình thật; còn lại: Đại lộ nhánh rẽ ở nền, New York vỉa hè ở mặt phố
+      const y = p.mode === 'park' && this.groundAt ? this.groundAt(wx, wz) + 0.25
+        : (this.yAt ? this.yAt(p.s, p.u, P.y) : P.y) + (onWalk ? 0.2 : 0.05);
       const h = p.head ?? (p.mode === 'wait' && p.crossing ? (p.side > 0 ? -Math.PI / 2 : Math.PI / 2) : 0);
       const dx = fx * Math.cos(h) + rx * Math.sin(h), dz = fz * Math.cos(h) + rz * Math.sin(h);   // hướng nhìn trong thế giới
       const yaw = Math.atan2(-dx, -dz);
-      if (p.mode === 'fallen') { q.setFromEuler(this._e.set(-Math.PI / 2, yaw, 0)); v.set(P.x + rx * p.u, y + 0.12, P.z + rz * p.u); }
-      else { q.setFromEuler(this._e.set(0, yaw, 0)); v.set(P.x + rx * p.u, y, P.z + rz * p.u); }
+      if (p.mode === 'fallen') { q.setFromEuler(this._e.set(-Math.PI / 2, yaw, 0)); v.set(wx, y + 0.12, wz); }
+      else { q.setFromEuler(this._e.set(0, yaw, 0)); v.set(wx, y, wz); }
       m.compose(v, q, this._one);
       p.wx = v.x; p.wz = v.z;
       if (det && !p.kind) { MD.add(p.mdl ??= Math.floor(Math.random() * NM), m, p.ph, p.moving); continue; }

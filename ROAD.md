@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 10/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -372,6 +372,11 @@
   meshopt có thuộc tính số nguyên rút gọn => đổi sang Float32 trước khi applyMatrix4 (không thì cây bẹp). Bảng 🚦 mục "Landmark": nút "Cây model
   chi tiết" (`chilldrive.sgn.trees`) + "Hiện cây (thử đồ hoạ)" (`chilldrive.sgn.treesVisible`). `scripts/check-sgn-trees.mjs`. Cây giữa dải phân
   cách bồn cây cũng vào sgnTrees (mỗi 12 m, cùng loại với phố; `city.medianTreesOff` tắt cây low-poly của city.js).
+  **Mật độ (23/10, chú dặn)**: hàng cây vỉa hè ngoài khu Vinhomes (Nguyễn Hữu Cảnh s < 494) mỗi 22 m (trong khu 11 m); cột / dây điện chỉ ~1/3
+  số đoạn 300 m (băm cố định, `city.noPoles`), khu Vinhomes không có; cây công viên dày hơn ở dải 50 m sát đường (1 / 80 m², sâu trong thưa
+  hơn, trần 4 200 cây). **Người dạo công viên** (API DeepSeek): `cityPeople.parkAt` = `sgnEnv.inPark` (lưới ô 4 m bãi cỏ OSM), `parkCount` 70
+  (Low 35), mode 'park': đi chậm uốn lượn, dừng ngắm, đôi khi đi cặp, ra mép công viên thì quay lại, đứng trên cỏ (+0.25 m); `check-sgn-park.mjs`.
+  Sửa: bỏ đèn hai bên trên cầu dùng `road.widths` (trước kiểm `map === 'sgn'` không bao giờ đúng vì scenery nhận 'city').
   **Nền cỏ cả khu**: lưới ô 6 m trong đa giác `vinhomes`, sát đường ô 2 m luồn dưới vỉa hè (`roadGap` = khoảng tới mép nhựa thật, `sgnNearest`).
   Vào map ở s = L + 60, luôn Hoàng hôn + Nhiều mây (chú dặn, để chụp lại), camera giữ lần trước.
   Trọng tâm (chú dặn): làm đẹp khu quanh Landmark 81; đoạn khác chỉ cần đúng.
@@ -548,20 +553,8 @@
 - `QUICK_OPENING = true` (TẠM, đầu game 0.5 s) — bật lại khi chú bảo. Kiểm thử Playwright: vào game bằng `#m-chill` / `#m-drive`.
 
 ## 6. Nhật ký cập nhật
-- Đã tóm tắt tới commit "Gộp 4 việc: xe nhường người, đồ phố New York, camera bên hông tránh biển LED, HLG tên đường + góc sông" + "Landmark: khu
-  Vinhomes theo OSM" (23/10/2026): New York — tòa nổi tiếng không đè phố, kính ướt khi mưa (bản nhẹ), xoá `src/bld`, xe nhường người đi bộ,
-  hơi cống / xe đồ ăn / Koreatown, camera tránh biển LED; HLG tên đường cắt ngang + góc sông (xem mục 1 / 3 / 5). Map Landmark 81 – TP.HCM: B1 →
-  tuyến qua khu Vinhomes, tên đường / khu trên HUD + bản đồ, tháp Landmark 81 GLB, khu Vinhomes OSM (xem mục 1 "Map Landmark", mục 5, SGN_PLAN.md).
-- **#1 — Khu Vinhomes: đường nội khu đúng bề rộng + nền cỏ (23/10/2026)**: Vạn Hoa 4 / 3 hẹp 2 làn (Codex, chặn chỉ map Landmark), thảm cỏ cả khu;
-  check sgn-width / sgn / nyc / traffic / policy / hlg / ped-yield PASS; chụp Low 0 lỗi.
-- **#2 — Khu Vinhomes: Landmark 1–6 + mặt tiền theo ảnh thật (23/10/2026)**: 20 tháp (thêm 6 từ footprint Microsoft), mặt tiền trắng sọc xám, đế cửa hàng;
-  chụp flycam 2 góc giống ảnh drone chú gửi. check-sgn / width / nyc PASS.
-- **#3 — Landmark: đêm + quảng trường (23/10/2026)**: 3 kiểu mặt tiền, LED Landmark 81, quảng trường đá lát + đài phun + cọ; ghi ảnh tham khảo chú gửi vào SGN_PLAN.
-- **#4 — Landmark: đường đôi + cầu Sài Gòn + cầu xoắn + tượng (23/10/2026)**: chia 3 việc cho model free (DeepSeek ×2, GLM), Claude soát + gộp + đặt; check PASS.
-- **#5 — Người đi bộ 3D (23/10/2026)**: nút 🚶 Setting (mặc định tắt), 13 model GLB nén, hạ tay chữ T, chân tay đung đưa; DeepSeek (API, opencode free hết lượt) chỉnh dáng từng model. Chưa xem trên máy thật — chú tự test.
-- **#6 — Landmark: cây model chú tải (23/10/2026)**: mỗi phố 1 loại cây, công viên trộn, GLB chỉ trong 100 m, 2 nút thử đồ hoạ; free hết lượt => API DeepSeek; Claude sửa lỗi cây bẹp (meshopt).
-- **#7 — Cây dải phân cách dùng model chi tiết + sửa lỗi gộp (23/10/2026)**: lúc gộp nhánh chính lấy nhầm `docs/index.html` bản cũ => mất nút 🚶
-  (`b-people`), trang không chạy; đã thêm lại. **Bài học**: gộp xung đột `docs/index.html` phải so với bản nhánh chính, đừng `checkout --ours` cả file.
-- **#8 — Chế độ Stop + camera admin (23/10/2026)**: DeepSeek (API) làm, Claude soát (dt = 0 an toàn: mọi phép chia dt đã chặn). Chưa xem trên máy thật — chú tự test.
-- **#9 — Stop: bay nhanh ×2 / Shift ×8, zoom 800 m, R / T trong Stop; phanh bấm đúp; bấm bản đồ để dời tới (23/10/2026)**: bản đồ do DeepSeek (API) làm, Claude soát. Chưa xem trên máy thật.
-- **#10 — Stop: kéo xoay camera đúng chiều (23/10/2026)**: chú báo pan ngược; đảo chiều kéo ngang (4 góc) + dọc (bay tự do) cho giống camera thường (`rig.lookBy`).
+- Đã tóm tắt tới commit "Landmark: người dạo công viên + ROAD.md" (23/10/2026): map Landmark — đường nội khu đúng bề rộng, Landmark 1–6, đêm +
+  quảng trường, đường đôi / cầu Sài Gòn / cầu xoắn / tượng, cây model chú tải (cả dải phân cách), mật độ cây / cột điện, người dạo công viên
+  (xem mục 1 "Map Landmark 81", SGN_PLAN.md). Bài học gộp: xung đột `docs/index.html` phải so bản nhánh chính, không `checkout --ours` cả file.
+  Phiên người 3D / Stop (đã gộp vào mục 1 / 3): người đi bộ 3D (Setting 🚶), chế độ Stop + camera admin (phím `), phanh bấm đúp,
+  bấm bản đồ để dời tới; chú báo pan Stop ngược => đã đảo cho cùng chiều camera thường. Tất cả chưa xem trên máy thật — chú tự test.

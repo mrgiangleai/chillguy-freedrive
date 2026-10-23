@@ -150,6 +150,7 @@ const cityTraffic = new CityTraffic(scene, road, city);      // map Phố: xe d�
 const cityPeople = new CityPeople(scene, road, city);        // map Phố: người đi bộ
 const _yp = {};
 cityPeople.yAt = (s, u, y) => avLowY(s, u) ?? ((onNyc() || onSgn()) && Math.abs(u) > CITY.hw ? road.street.at(s, _yp).y : y);   // đại lộ: nhánh rẽ / đường ngang ở cao độ nền; New York: vỉa hè ở mặt phố
+cityPeople.groundAt = (x, z) => terrain.heightAt(x, z);      // người dạo công viên (Landmark) đứng trên địa hình thật
 const CITY_DIM = { hw: CITY.hw, walk: CITY.walk, side: CITY.side, sideWalk: CITY.sideWalk, lanes: CITY.lanes };   // kích thước map Phố (gốc)
 const nycWorks = new NycWorks(scene, road, scenery.roadMat);   // map New York: tường + trần hầm Park Ave, cầu cạn quanh Grand Central
 const sgnWorks = new NycWorks(scene, road, scenery.roadMat, sgnLoop);
@@ -179,7 +180,8 @@ try { sgnEnv.treesVisible = localStorage.getItem('chilldrive.sgn.treesVisible') 
 sgnEnv.street = {
   * [Symbol.iterator]() {
     const L = SGN.data.length, P = {}, hwAt = (s) => (road.hwAt ? road.hwAt(L + s) : CITY.hw);
-    for (let s = 20; s < 1500; s += 11) { road.at(L + s, P); for (const su of [-1, 1]) { const u = su * (hwAt(s) + CITY.walk * 0.55); yield [P.x + Math.cos(P.th) * u, P.z - Math.sin(P.th) * u, 2, s]; } }
+    // ngoài khu Vinhomes (s < 494: Nguyễn Hữu Cảnh) cây thưa gấp đôi (22 m), trong khu 11 m
+    for (let s = 20; s < 1500; s += s < 494 ? 22 : 11) { road.at(L + s, P); for (const su of [-1, 1]) { const u = su * (hwAt(s) + CITY.walk * 0.55); yield [P.x + Math.cos(P.th) * u, P.z - Math.sin(P.th) * u, 2, s]; } }
     // cây giữa dải phân cách bồn cây (mỗi 12 m, cùng loại cây với phố đó); city.js không dựng cây low-poly ở dải nữa (`medianTreesOff`)
     const md = { w: 0, kind: null };
     for (let s = 6; s < L; s += 12) { road.medianAt(L + s, md); if (md.kind !== 'plant' || md.w < 1) continue; road.at(L + s, P); yield [P.x, P.z, 2, s]; }
@@ -629,6 +631,7 @@ function applyQuality(save = true) {
   env.setShadowSize(q.shadow);
   refl.enabled = q.refl;
   nature.setRadius(q.trees);
+  if (onSgn()) cityPeople.parkCount = q.id === 'low' ? 35 : 70;   // Low: nửa số người dạo công viên
   if (save) try { localStorage.setItem('chilldrive.quality', q.id); } catch { /* bỏ qua */ }
 }
 const nextQuality = () => { state.quality = (state.quality + 1) % QUALITY.length; applyQuality(); refreshUI(); say('Chất lượng · ' + QUALITY[state.quality].name); };
@@ -753,7 +756,8 @@ const applyMap = () => {
   city.nyc = isNyc;
   city.street = isSgn;
   city.medianTreesOff = isSgn;
-  city.noPoles = isSgn ? (s) => { const r = ((s % SGN.length) + SGN.length) % SGN.length; return r > 380 && r < 1560; } : null;   // Landmark: Vinhomes đi cáp ngầm
+  // Landmark: cột / dây điện chỉ có ở một số đoạn (~1/3 số đoạn 300 m, chọn theo băm cố định); khu Vinhomes đi cáp ngầm
+  city.noPoles = isSgn ? (s) => { const r = ((s % SGN.length) + SGN.length) % SGN.length; if (r > 380 && r < 1560) return true; const k = Math.floor(r / 300), h = Math.sin(k * 91.7 + 3.1) * 43758.5; return h - Math.floor(h) > 0.33; } : null;
   timesSq.density = state.quality === QUALITY.findIndex((q) => q.id === 'low') ? 0.6 : 1;   // đám đông Times Square: Low ít người hơn
   timesSq.visible = isNyc;      // trước khi dựng khối phố: vùng loại nhà map Phố
   nycBld.visible = isNyc;
@@ -776,6 +780,9 @@ const applyMap = () => {
   if (isTraffic) cityTraffic.setMode(isNyc ? 'nyc' : id);
   cityTraffic.visible = isTraffic;
   cityPeople.visible = isTraffic; cityPeople.ambient = isCity;   // đại lộ: chỉ người của cảnh tai nạn
+  // Landmark: thêm người dạo trong công viên hai bên đường (Low: giảm nửa)
+  cityPeople.parkAt = isSgn ? (x, z) => sgnEnv.inPark(x, z) : null;
+  cityPeople.parkCount = isSgn ? (state.quality === QUALITY.findIndex((q) => q.id === 'low') ? 35 : 70) : 0;
   if (isTraffic) { traffic.clearAll(); trafficLevel = TRAFFIC_START; trafficStartT = 5; }   // vào phố / đại lộ: giao thông thấp 5 s đầu
   $('brake').hidden = !isTraffic;
   $('b-traffic').hidden = false;                // bảng 🚦: mọi map (map ngắm cảnh chỉ có tốc độ xe khác km/h)
