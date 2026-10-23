@@ -14,15 +14,15 @@ const DIR = 'assets/models/people/';
 // Tuỳ chọn (model không xương): armY0 / armY1 = dải y của tay (×h); armMax = |x| tối đa (×h); armSwing / legSwing = biên độ;
 //   legY = ngưỡng chân (×h); hip / sh = khớp háng / vai (×h); arms: false = không đung đưa tay;
 //   smooth = số vòng làm mượt trọng số theo lưới (tránh rách / cắt ngang tiết diện tay); armSkip = tên vật liệu không gắn tay;
-//   armDrop = góc hạ tay A-pose xuống sát thân (rad); armPitch = góc đưa tay về sau (rad)
+//   armDrop = góc hạ tay A-pose xuống sát thân (rad); armPitch = góc đưa tay về sau (rad); armSoft = độ rộng mép chuyển thân → tay (×h)
 export const PEOPLE_MODELS = [
   { id: 'mixamo-man', h: 1.78, tpose: true },
   { id: 'discord-guy', h: 1.76, tpose: true },
   { id: 'ps1-man', h: 1.75 },
-  { id: 'stan', h: 1.72, armX: 0.15 },
-  { id: 'racer', h: 1.76, armX: 0.14 },
-  { id: 'ff-jota', h: 1.78, tpose: true },
-  { id: 'ff-skyler', h: 1.77, armX: 0.15 },
+  { id: 'stan', h: 1.72, armX: 0.15, armSoft: 0.08, armDrop: 0.45 },
+  { id: 'racer', h: 1.76, armX: 0.14, armSoft: 0.06, armDrop: 0.25 },
+  { id: 'ff-jota', h: 1.78, tpose: true, armDrop: 0.12 },
+  { id: 'ff-skyler', h: 1.77, armX: 0.13, armSoft: 0.1, armDrop: 0.45 },
   { id: 'ff-purple', h: 1.66, armX: 0.13, smooth: 3, armDrop: 0.35 },
   { id: 'ff-safari', h: 1.65, armX: 0.14, smooth: 3, armDrop: 0.35 },
   { id: 'ff-green', h: 1.67, armX: 0.15, armMax: 0.15, armSwing: 0.7, legs: false, smooth: 7 },
@@ -168,7 +168,7 @@ async function buildModel(loader, def) {
           .some((m) => def.armSkip.includes(m?.name));
         const inArm = !skip && def.arms !== false && y > (def.armY0 ?? 0.36) * h && y < (def.armY1 ?? SH + 0.05) * h;
         if (inArm) arm = (def.armSwing ?? 1) * sx
-          * THREE.MathUtils.clamp((Math.abs(x) - ax) / (0.025 * h), 0, 1)
+          * THREE.MathUtils.clamp((Math.abs(x) - ax) / ((def.armSoft ?? 0.025) * h), 0, 1)
           * THREE.MathUtils.clamp(((def.armMax ?? Infinity) * h - Math.abs(x)) / (0.02 * h), 0, 1);   // armMax: chặn mềm phần vạt áo phía ngoài
         if (def.legs !== false && arm === 0) leg = (def.legSwing ?? 1) * sx * THREE.MathUtils.clamp(((def.legY ?? 0.47) * h - y) / (0.06 * h), 0, 1);
         if (arm && (def.armDrop || def.armPitch)) {                     // hạ tay A-pose sát thân / đưa tay về sau (xoay quanh vai, theo trọng số tay)
