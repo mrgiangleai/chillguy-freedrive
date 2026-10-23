@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -342,6 +342,10 @@
   **Bề rộng đường theo đoạn** (Codex viết, Claude soát): `road.hwAt(s)` / `laneAt(s, k)` / `laneCountAt(s)` (road.js; chỉ map có `widths`, map khác
   = hằng số cũ), `widths` trong sgn-data: Vạn Hoa 4 / 3 (s 494–930) mép 4 m, 1 làn mỗi chiều tâm ±1.9, nối dần 25 m; nhựa (scenery), vỉa hè / vạch / nhà
   / cột (city.js `fitU`), xe mình + NPC (một làn, không vượt), người đi bộ (`cityPeople._hw`), xẻ đất (terrain) theo đó. `scripts/check-sgn-width.mjs`.
+  **Landmark 1–6** (OSM thiếu): footprint Microsoft Global ML Building Footprints (ODbL, ô quadkey 132230111, bộ đệm `<tmpdir>/chilldrive-osm/ms`),
+  đối chiếu bản vẽ quy hoạch: 4 khối (L1·L2, L3, L4, L5·L6) => khối đế 12 m + tháp chữ nhật trục PCA (2 tháp tách khe 8 m); cao L1–3 140 m,
+  L4–6 165 m (ước); OSM "Landmark Plus" = vị trí Central 4 trên bản vẽ. Mặt tiền tháp theo ảnh chú gửi (23/10): tường trắng xám, kính tối + lan can
+  ban công trắng, sọc dọc xám đậm (lõi), đế 9.5 m xám đậm cửa hàng sáng ấm (`podiumTex`); biệt thự trắng, mái tháp sáng.
   **Nền cỏ cả khu**: lưới ô 6 m trong đa giác `vinhomes`, sát đường ô 2 m luồn dưới vỉa hè (`roadGap` = khoảng tới mép nhựa thật, `sgnNearest`).
   Vào map ở s = L + 60, luôn Hoàng hôn + Nhiều mây (chú dặn, để chụp lại), camera giữ lần trước.
   Trọng tâm (chú dặn): làm đẹp khu quanh Landmark 81; đoạn khác chỉ cần đúng.
@@ -518,3 +522,5 @@
   tuyến qua khu Vinhomes, tên đường / khu trên HUD + bản đồ, tháp Landmark 81 GLB, khu Vinhomes OSM (xem mục 1 "Map Landmark", mục 5, SGN_PLAN.md).
 - **#1 — Khu Vinhomes: đường nội khu đúng bề rộng + nền cỏ (23/10/2026)**: Vạn Hoa 4 / 3 hẹp 2 làn (Codex, chặn chỉ map Landmark), thảm cỏ cả khu;
   check sgn-width / sgn / nyc / traffic / policy / hlg / ped-yield PASS; chụp Low 0 lỗi.
+- **#2 — Khu Vinhomes: Landmark 1–6 + mặt tiền theo ảnh thật (23/10/2026)**: 20 tháp (thêm 6 từ footprint Microsoft), mặt tiền trắng sọc xám, đế cửa hàng;
+  chụp flycam 2 góc giống ảnh drone chú gửi. check-sgn / width / nyc PASS.

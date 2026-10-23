@@ -393,6 +393,33 @@ console.log('  rẽ', corners.map((c) => `${c.s} ${c.dir}`).join(', '));
     const cls = villa ? 2 : h >= 60 ? 0 : 1;
     B.push([r1(h), cls, t.name || '', pts]);
   }
+  // Landmark 1–6: OSM thiếu => footprint Microsoft Global ML Building Footprints (ODbL, ô quadkey 132230111), đối chiếu bản vẽ quy hoạch chú gửi:
+  // 2 dãy tây bắc Landmark 81 — dãy ngoài: Landmark 1–2 (1 khối dài, tách 2 tháp) + Landmark 3; dãy trong: Landmark 4 + Landmark 5–6 (tách 2).
+  // Mỗi khối: khối đế 12 m theo footprint + tháp hình chữ nhật (trục chính theo PCA, thu 2 m mỗi bên, khe 8 m giữa 2 tháp). Cao: L1–3 ~40 tầng
+  // (140 m), L4–6 ~48 tầng (165 m) — ước theo số tầng công bố. "Landmark Plus" OSM = vị trí "The Central 4" trên bản vẽ (giữ 150 m).
+  const MS_LM = [
+    { names: ['Landmark 1', 'Landmark 2'], h: 140, ll: [[10.793422, 106.721494], [10.793546, 106.721701], [10.793993, 106.721423], [10.793968, 106.721382], [10.794303, 106.721173], [10.794271, 106.72112], [10.794503, 106.720976], [10.794494, 106.72096], [10.794803, 106.720768], [10.794683, 106.720569], [10.794434, 106.720724], [10.794454, 106.720756], [10.794059, 106.721002], [10.79415, 106.721153], [10.794132, 106.721164], [10.794064, 106.721051], [10.793794, 106.721219], [10.793813, 106.72125]] },
+    { names: ['Landmark 3'], h: 140, ll: [[10.794824, 106.720721], [10.795049, 106.7206], [10.795024, 106.720552], [10.795579, 106.720254], [10.795501, 106.720103], [10.795282, 106.72022], [10.795261, 106.72018], [10.795187, 106.72022], [10.795199, 106.720243], [10.794712, 106.720504]] },
+    { names: ['Landmark 4'], h: 165, ll: [[10.795736, 106.720433], [10.795431, 106.720569], [10.795338, 106.720656], [10.795208, 106.720793], [10.795127, 106.720815], [10.795042, 106.72087], [10.795014, 106.720896], [10.795049, 106.720977], [10.795119, 106.721056], [10.795134, 106.721091], [10.795372, 106.72088], [10.795574, 106.72079], [10.795642, 106.720727], [10.795841, 106.720638], [10.795866, 106.720615], [10.795799, 106.720521], [10.795785, 106.720489]] },
+    { names: ['Landmark 5', 'Landmark 6'], h: 165, ll: [[10.795426, 106.721457], [10.796146, 106.720996], [10.796008, 106.720772], [10.795562, 106.721057], [10.795585, 106.721096], [10.795502, 106.721149], [10.795493, 106.721135], [10.795303, 106.721257]] },
+  ];
+  for (const M of MS_LM) {
+    const P = M.ll.map(([la, lo]) => toGame(la, lo));
+    B.push([12, 1, M.names.join(' · ') + ' (khối đế)', P.flat().map(r1)]);
+    // trục chính PCA
+    const mx = P.reduce((a, p) => a + p[0], 0) / P.length, mz = P.reduce((a, p) => a + p[1], 0) / P.length;
+    let sxx = 0, sxz = 0, szz = 0; for (const [x, z] of P) { sxx += (x - mx) ** 2; sxz += (x - mx) * (z - mz); szz += (z - mz) ** 2; }
+    const ang = 0.5 * Math.atan2(2 * sxz, sxx - szz), ux = Math.cos(ang), uz = Math.sin(ang), vx = -uz, vz = ux;
+    let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+    for (const [x, z] of P) { const a = (x - mx) * ux + (z - mz) * uz, b = (x - mx) * vx + (z - mz) * vz; a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, b); b1 = Math.max(b1, b); }
+    b0 += 2; b1 -= 2; a0 += 2; a1 -= 2;
+    const n = M.names.length, GAP = 8, len = (a1 - a0 - GAP * (n - 1)) / n;
+    M.names.forEach((name, k) => {
+      const s0 = a0 + k * (len + GAP), s1 = s0 + len;
+      const pts = [[s0, b0], [s1, b0], [s1, b1], [s0, b1]].flatMap(([a, b]) => [r1(mx + ux * a + vx * b), r1(mz + uz * a + vz * b)]);
+      B.push([M.h, 0, name, pts]);
+    });
+  }
   // mặt đất: công viên / vườn / cỏ (0), sân thể thao (1), sân chơi / quảng trường (2)
   const G = [];
   for (const e of env) {

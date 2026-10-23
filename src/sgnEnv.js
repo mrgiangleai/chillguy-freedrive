@@ -6,24 +6,45 @@
 import * as THREE from 'three';
 import { withMist } from './mist.js';
 
-// mặt tiền chung cư Vinhomes: tường kem, dải kính xanh xám theo tầng (3.3 m), ban công trắng; emissive = cửa sổ sáng ban đêm (ngẫu nhiên)
+// mặt tiền chung cư Vinhomes (theo ảnh chú gửi): tường trắng xám nhạt, cửa kính tối có lan can ban công trắng, 2 sọc dọc xám đậm (lõi thang / cột)
+// mỗi ô texture; emissive = cửa sổ sáng ban đêm (ngẫu nhiên). 1 ô = 6 khoang × 18 m ngang, 8 tầng × 26.4 m cao
 function vhFacade() {
   const W = 256, H = 256, c = document.createElement('canvas'), e = document.createElement('canvas');
   c.width = e.width = W; c.height = e.height = H;
   const g = c.getContext('2d'), ge = e.getContext('2d');
   let seed = 7; const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  g.fillStyle = '#d9d2c3'; g.fillRect(0, 0, W, H); ge.fillStyle = '#000'; ge.fillRect(0, 0, W, H);
-  const fh = H / 8, cw = W / 6;                                     // 8 tầng × 6 khoang mỗi ô texture
+  g.fillStyle = '#e4e4e0'; g.fillRect(0, 0, W, H); ge.fillStyle = '#000'; ge.fillRect(0, 0, W, H);
+  const fh = H / 8, cw = W / 6;
   for (let fy = 0; fy < 8; fy++) for (let fx = 0; fx < 6; fx++) {
-    const x = fx * cw + 4, y = fy * fh + 6, w = cw - 8, h = fh - 11;
-    g.fillStyle = r() < 0.5 ? '#5d7387' : '#4c6274'; g.fillRect(x, y, w, h);
-    g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(x, y, w, 3);
-    g.fillStyle = '#f2efe8'; g.fillRect(x - 3, y + h + 1, w + 6, 3);          // gờ ban công
-    if (r() < 0.32) { ge.fillStyle = r() < 0.7 ? '#ffd9a0' : '#fff2d8'; ge.fillRect(x + 1, y + 1, w - 2, h - 2); }
+    if (fx === 2) continue;                                          // khoang lõi thang (sọc xám đậm vẽ sau)
+    const x = fx * cw + 5, y = fy * fh + 5, w = cw - 10, h = fh - 10;
+    g.fillStyle = r() < 0.5 ? '#3c444c' : '#4a535c'; g.fillRect(x, y, w, h);          // kính tối
+    g.fillStyle = 'rgba(190,205,215,0.35)'; g.fillRect(x, y, w * 0.45, h);             // phản chiếu trời
+    g.fillStyle = '#f7f7f4'; g.fillRect(x - 3, y + h - 6, w + 6, 2); g.fillRect(x - 3, y + h, w + 6, 4);   // lan can + sàn ban công
+    if (r() < 0.32) { ge.fillStyle = r() < 0.7 ? '#ffd9a0' : '#fff2d8'; ge.fillRect(x + 1, y + 1, w - 2, h - 8); }
   }
-  for (let fx = 0; fx <= 6; fx++) { g.fillStyle = '#c9c1b0'; g.fillRect(fx * cw - 1, 0, 3, H); }
+  g.fillStyle = '#5f6266'; g.fillRect(2 * cw + 6, 0, cw - 12, H);                     // sọc dọc xám đậm (lõi)
+  g.fillStyle = '#6c6f73'; g.fillRect(5 * cw + cw - 6, 0, 6, H);                       // cột góc
   const t = new THREE.CanvasTexture(c), te = new THREE.CanvasTexture(e);
   for (const x of [t, te]) { x.wrapS = x.wrapT = THREE.RepeatWrapping; x.anisotropy = 4; }
+  t.colorSpace = THREE.SRGBColorSpace; te.colorSpace = THREE.SRGBColorSpace;
+  return [t, te];
+}
+// đế tháp (2–3 tầng, cao 9 m): xám đậm, kính cửa hàng sáng ấm; emissive = đèn cửa hàng
+function podiumTex() {
+  const W = 256, H = 64, c = document.createElement('canvas'), e = document.createElement('canvas');
+  c.width = e.width = W; c.height = e.height = H;
+  const g = c.getContext('2d'), ge = e.getContext('2d');
+  g.fillStyle = '#55595e'; g.fillRect(0, 0, W, H); ge.fillStyle = '#000'; ge.fillRect(0, 0, W, H);
+  for (let k = 0; k < 4; k++) {
+    const x = k * 64 + 6;
+    g.fillStyle = '#2c3238'; g.fillRect(x, 26, 52, 36); g.fillStyle = 'rgba(255,220,170,0.35)'; g.fillRect(x, 26, 52, 36);
+    g.fillStyle = ['#2f5b3a', '#e9e3d4', '#7a2a24', '#1f3a5c'][k]; g.fillRect(x, 16, 52, 8);     // bảng hiệu
+    ge.fillStyle = '#ffcf90'; ge.fillRect(x, 26, 52, 36);
+    g.fillStyle = '#3e4246'; g.fillRect(x + 4, 4, 44, 8);                                        // dải kính tầng 2
+  }
+  const t = new THREE.CanvasTexture(c), te = new THREE.CanvasTexture(e);
+  for (const x of [t, te]) { x.wrapS = x.wrapT = THREE.RepeatWrapping; }
   t.colorSpace = THREE.SRGBColorSpace; te.colorSpace = THREE.SRGBColorSpace;
   return [t, te];
 }
@@ -35,9 +56,11 @@ export class SgnEnv {
     this.state = 'idle'; this.obb = []; this.foot = null; this.winK = 1; this.walk = 4;   // walk: bề rộng vỉa hè tuyến (main đặt)
     const [map, em] = vhFacade();
     this.wall = withMist(new THREE.MeshStandardMaterial({ map, emissiveMap: em, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.55, metalness: 0.05 }));
+    const [pm, pe] = podiumTex();
+    this.podium = withMist(new THREE.MeshStandardMaterial({ map: pm, emissiveMap: pe, emissive: 0xffffff, emissiveIntensity: 0.1, roughness: 0.5 }));
     this.mid = withMist(new THREE.MeshStandardMaterial({ color: 0xe6e0d4, roughness: 0.8 }));
-    this.villa = withMist(new THREE.MeshStandardMaterial({ color: 0xefe8da, roughness: 0.85 }));
-    this.roof = withMist(new THREE.MeshStandardMaterial({ color: 0x8d8f8c, roughness: 0.9 }));
+    this.villa = withMist(new THREE.MeshStandardMaterial({ color: 0xf1f1ed, roughness: 0.85 }));
+    this.roof = withMist(new THREE.MeshStandardMaterial({ color: 0xcfd0cc, roughness: 0.9 }));
     this.tile = withMist(new THREE.MeshStandardMaterial({ color: 0x4a4f57, roughness: 0.7 }));        // mái dốc biệt thự (ngói xám)
     const flat = (color, rough = 1, extra = {}) => withMist(new THREE.MeshStandardMaterial({ color, roughness: rough, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, ...extra }));
     this.ground = [flat(0x5f8a3e), flat(0x3f7a4a), flat(0xc8b38a)];                                // cỏ, sân thể thao, sân chơi
@@ -48,7 +71,7 @@ export class SgnEnv {
   }
   set visible(v) { this.group.visible = v; if (v && this.state === 'idle') this._load(); }
   get visible() { return this.group.visible; }
-  setLamps(k) { this.wall.emissiveIntensity = 1.1 * k * this.winK; }
+  setLamps(k) { this.wall.emissiveIntensity = 1.1 * k * this.winK; this.podium.emissiveIntensity = (0.1 + 1.2 * k) * this.winK; }
 
   async _load() {
     this.state = 'loading';
@@ -64,7 +87,7 @@ export class SgnEnv {
   // street: [{ x, z, nx, nz }] điểm đặt hàng cây hai bên đường nội khu (main truyền vào, theo tuyến + bề rộng đường)
   _build(D) {
     const G = this.groundAt;
-    const walls = [mk(), mk(), mk()], roofs = mk(), tiles = mk(), grounds = [mk(), mk(), mk()], waters = [mk(), mk(), mk(), mk()];
+    const walls = [mk(), mk(), mk()], pods = mk(), roofs = mk(), tiles = mk(), grounds = [mk(), mk(), mk()], waters = [mk(), mk(), mk(), mk()];
     const blockers = [];                                      // [minx, minz, maxx, maxz, pts] nhà + nước: không trồng cây vào
     // ---- nhà ----
     for (const [h, cls, , pts] of D.b) {
@@ -80,8 +103,10 @@ export class SgnEnv {
         const j = (i + 1) % n, ax = pts[2 * i], az = pts[2 * i + 1], bx = pts[2 * j], bz = pts[2 * j + 1], L = Math.hypot(bx - ax, bz - az);
         if (L < 0.05) continue;
         const nx = sg * (bz - az) / L, nz = -sg * (bx - ax) / L;
-        // uv: 1 ô texture = 6 khoang × 18 m ngang, 8 tầng × 26.4 m cao
-        quad(B, [[ax, y0, az], [bx, y0, bz], [bx, y1, bz], [ax, y1, az]], [nx, 0, nz], [[per / 18, 0], [(per + L) / 18, 0], [(per + L) / 18, (y1 - y0) / 26.4], [per / 18, (y1 - y0) / 26.4]]);
+        // tháp: đế 9 m xám đậm (cửa hàng), phía trên mặt tiền căn hộ; uv: 1 ô texture = 6 khoang × 18 m ngang, 8 tầng × 26.4 m cao
+        const yp = cls === 0 ? y0 + 9.5 : y0;
+        if (yp > y0) quad(pods, [[ax, y0, az], [bx, y0, bz], [bx, yp, bz], [ax, yp, az]], [nx, 0, nz], [[per / 32, 0], [(per + L) / 32, 0], [(per + L) / 32, 1], [per / 32, 1]]);
+        quad(B, [[ax, yp, az], [bx, yp, bz], [bx, y1, bz], [ax, y1, az]], [nx, 0, nz], [[per / 18, (yp - y0) / 26.4], [(per + L) / 18, (yp - y0) / 26.4], [(per + L) / 18, (y1 - y0) / 26.4], [per / 18, (y1 - y0) / 26.4]]);
         per += L;
       }
       const shape = []; for (let i = 0; i < n; i++) shape.push(new THREE.Vector2(pts[2 * i], pts[2 * i + 1]));
@@ -143,6 +168,7 @@ export class SgnEnv {
     }
     let tris = 0;
     walls.forEach((B, k) => { tris += mesh(this.group, B, [this.wall, this.mid, this.villa][k]); });
+    tris += mesh(this.group, pods, this.podium);
     tris += mesh(this.group, roofs, this.roof); tris += mesh(this.group, tiles, this.tile);
     tris += mesh(this.group, lawn, this.lawn, false);
     grounds.forEach((B, k) => { tris += mesh(this.group, B, this.ground[k], false); });
