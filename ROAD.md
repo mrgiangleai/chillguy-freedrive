@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 10/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -564,3 +564,4 @@
   (`b-people`), trang không chạy; đã thêm lại. **Bài học**: gộp xung đột `docs/index.html` phải so với bản nhánh chính, đừng `checkout --ours` cả file.
 - **#8 — Chế độ Stop + camera admin (23/10/2026)**: DeepSeek (API) làm, Claude soát (dt = 0 an toàn: mọi phép chia dt đã chặn). Chưa xem trên máy thật — chú tự test.
 - **#9 — Stop: bay nhanh ×2 / Shift ×8, zoom 800 m, R / T trong Stop; phanh bấm đúp; bấm bản đồ để dời tới (23/10/2026)**: bản đồ do DeepSeek (API) làm, Claude soát. Chưa xem trên máy thật.
+- **#10 — Stop: kéo xoay camera đúng chiều (23/10/2026)**: chú báo pan ngược; đảo chiều kéo ngang (4 góc) + dọc (bay tự do) cho giống camera thường (`rig.lookBy`).

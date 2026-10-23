@@ -84,10 +84,10 @@ export class AdminCam {
         return;
       }
       if (this.mode === 'free') {
-        this.free.yaw -= dx * 0.004;
-        this.free.pitch = clamp(this.free.pitch - dy * 0.004, -1.5, 1.5);
+        this.free.yaw += dx * 0.004;                   // cùng chiều kéo với camera thường của game (rig.lookBy)
+        this.free.pitch = clamp(this.free.pitch + dy * 0.004, -1.5, 1.5);
       } else {                                        // kéo chuột: xoay quanh xe
-        this.az -= dx * 0.006;
+        this.az += dx * 0.006;                        // cùng chiều với xoay quanh xe của game
         this.el = clamp(this.el + dy * 0.005, -0.25, EL_TOP);
       }
     };
