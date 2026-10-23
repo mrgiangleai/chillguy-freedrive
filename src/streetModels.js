@@ -11,6 +11,10 @@ import { withMist } from './mist.js';
 // - Mỗi model × mỗi vật liệu = 1 InstancedMesh (cùng dùng 1 instanceMatrix / aWalk của model đó).
 const DIR = 'assets/models/people/';
 // h: chiều cao (m); tpose: hạ tay; legs: false = váy dài (không tách chân); armX: tay ở ngoài |x| > armX·H (model không xương)
+// Tuỳ chọn (model không xương): armY0 / armY1 = dải y của tay (×h); armMax = |x| tối đa (×h); armSwing / legSwing = biên độ;
+//   legY = ngưỡng chân (×h); hip / sh = khớp háng / vai (×h); arms: false = không đung đưa tay;
+//   smooth = số vòng làm mượt trọng số theo lưới (tránh rách / cắt ngang tiết diện tay); armSkip = tên vật liệu không gắn tay;
+//   armDrop = góc hạ tay A-pose xuống sát thân (rad); armPitch = góc đưa tay về sau (rad)
 export const PEOPLE_MODELS = [
   { id: 'mixamo-man', h: 1.78, tpose: true },
   { id: 'discord-guy', h: 1.76, tpose: true },
@@ -19,12 +23,12 @@ export const PEOPLE_MODELS = [
   { id: 'racer', h: 1.76, armX: 0.14 },
   { id: 'ff-jota', h: 1.78, tpose: true },
   { id: 'ff-skyler', h: 1.77, armX: 0.15 },
-  { id: 'ff-purple', h: 1.66, armX: 0.13 },
-  { id: 'ff-safari', h: 1.65, armX: 0.14 },
-  { id: 'ff-green', h: 1.67, armX: 0.15, legs: false },
-  { id: 'ff-black', h: 1.64, armX: 0.13 },
-  { id: 'ff-mask', h: 1.66, armX: 0.13 },
-  { id: 'hijab', h: 1.63, armX: 0.15, legs: false },
+  { id: 'ff-purple', h: 1.66, armX: 0.13, smooth: 3, armDrop: 0.35 },
+  { id: 'ff-safari', h: 1.65, armX: 0.14, smooth: 3, armDrop: 0.35 },
+  { id: 'ff-green', h: 1.67, armX: 0.15, armMax: 0.15, armSwing: 0.7, legs: false, smooth: 7 },
+  { id: 'ff-black', h: 1.64, armX: 0.13, smooth: 2, armDrop: 0.25 },
+  { id: 'ff-mask', h: 1.66, armX: 0.1, smooth: 6, armDrop: 0.2 },
+  { id: 'hijab', h: 1.63, armX: 0.15, legs: false, smooth: 3, armDrop: 0.45, armPitch: 0.4 },
 ];
 const HIP = 0.52, SH = 0.815;              // khớp háng / vai theo tỉ lệ chiều cao
 
@@ -90,6 +94,47 @@ function bakeMesh(mesh) {
   return { P, N, K };
 }
 
+// làm mượt trọng số chân / tay trên lưới (model không xương): ngưỡng |x| đang cắt ngang tiết diện tay => tay bị kéo dẹt / rách
+function smoothWeights(geo, LG, AM, iters) {
+  const pos = geo.attributes.position, n = pos.count, idx = geo.index?.array;
+  if (!idx) return;
+  const ids = new Map(), grp = new Int32Array(n);
+  let ng = 0;
+  for (let i = 0; i < n; i++) {
+    const key = Math.round(pos.getX(i) * 1000) + ',' + Math.round(pos.getY(i) * 1000) + ',' + Math.round(pos.getZ(i) * 1000);
+    let g = ids.get(key);
+    if (g === undefined) { g = ng++; ids.set(key, g); }
+    grp[i] = g;
+  }
+  const adj = Array.from({ length: ng }, () => []), seen = new Set();
+  for (let t = 0; t < idx.length; t += 3) {
+    const a = grp[idx[t]], b = grp[idx[t + 1]], c = grp[idx[t + 2]];
+    for (const [u, v] of [[a, b], [b, c], [c, a]]) {
+      if (u === v) continue;
+      const key = u < v ? u * ng + v : v * ng + u;
+      if (seen.has(key)) continue;
+      seen.add(key); adj[u].push(v); adj[v].push(u);
+    }
+  }
+  const gl = new Float32Array(ng), ga = new Float32Array(ng), gn = new Int32Array(ng);
+  for (let i = 0; i < n; i++) { const g = grp[i]; gl[g] += LG[i]; ga[g] += AM[i]; gn[g]++; }
+  for (let g = 0; g < ng; g++) { gl[g] /= gn[g]; ga[g] /= gn[g]; }
+  const tl = new Float32Array(ng), ta = new Float32Array(ng);
+  for (let it = 0; it < iters; it++) {
+    for (let g = 0; g < ng; g++) {
+      const nb = adj[g];
+      if (!nb.length) { tl[g] = gl[g]; ta[g] = ga[g]; continue; }
+      let sl = 0, sa = 0;
+      for (const q of nb) { sl += gl[q]; sa += ga[q]; }
+      tl[g] = gl[g] * 0.5 + (sl / nb.length) * 0.5;
+      ta[g] = ga[g] * 0.5 + (sa / nb.length) * 0.5;
+    }
+    gl.set(tl); ga.set(ta);
+  }
+  for (let i = 0; i < n; i++) { const g = grp[i]; LG[i] = gl[g]; AM[i] = ga[g]; }
+}
+function smoothInto(L, LG, AM) { for (let i = 0; i < LG.length; i++) { L[i * 4] = LG[i]; L[i * 4 + 1] = AM[i]; } }
+
 async function buildModel(loader, def) {
   const gltf = await loader.loadAsync(DIR + def.id + '.glb');
   const root = gltf.scene;
@@ -104,6 +149,7 @@ async function buildModel(loader, def) {
   const out = [];
   for (const p of parts) {
     const { P, N, K, mesh } = p, n = P.length / 3, L = new Float32Array(n * 4);
+    const LG = new Float32Array(n), AM = new Float32Array(n);
     for (let i = 0; i < n; i++) {
       let x = -(P[i * 3] - cx) * k, y = (P[i * 3 + 1] - box.min.y) * k, z = -(P[i * 3 + 2] - cz) * k;
       let nx = -N[i * 3], ny = N[i * 3 + 1], nz = -N[i * 3 + 2];
@@ -118,12 +164,32 @@ async function buildModel(loader, def) {
           [nx, ny] = [nx * c - ny * s, nx * s + ny * c];
         }
         const ax = (def.armX ?? 0.12) * h;
-        if (y > 0.36 * h && y < SH * h + 0.05) arm = sx * THREE.MathUtils.clamp((Math.abs(x) - ax) / (0.025 * h), 0, 1);
-        if (def.legs !== false && arm === 0) leg = sx * THREE.MathUtils.clamp((0.47 * h - y) / (0.06 * h), 0, 1);
+        const skip = def.armSkip && (Array.isArray(mesh.material) ? mesh.material : [mesh.material])
+          .some((m) => def.armSkip.includes(m?.name));
+        const inArm = !skip && def.arms !== false && y > (def.armY0 ?? 0.36) * h && y < (def.armY1 ?? SH + 0.05) * h;
+        if (inArm) arm = (def.armSwing ?? 1) * sx
+          * THREE.MathUtils.clamp((Math.abs(x) - ax) / (0.025 * h), 0, 1)
+          * THREE.MathUtils.clamp(((def.armMax ?? Infinity) * h - Math.abs(x)) / (0.02 * h), 0, 1);   // armMax: chặn mềm phần vạt áo phía ngoài
+        if (def.legs !== false && arm === 0) leg = (def.legSwing ?? 1) * sx * THREE.MathUtils.clamp(((def.legY ?? 0.47) * h - y) / (0.06 * h), 0, 1);
+        if (arm && (def.armDrop || def.armPitch)) {                     // hạ tay A-pose sát thân / đưa tay về sau (xoay quanh vai, theo trọng số tay)
+          const w = Math.min(1, Math.abs(arm)), py = (def.sh ?? SH) * h, px = sx * 0.11 * h;
+          if (def.armDrop) {
+            const a = -sx * def.armDrop * w, c = Math.cos(a), s = Math.sin(a), dx = x - px, dy = y - py;
+            x = px + dx * c - dy * s; y = py + dx * s + dy * c;
+            [nx, ny] = [nx * c - ny * s, nx * s + ny * c];
+          }
+          if (def.armPitch) {
+            const a = -def.armPitch * w, c = Math.cos(a), s = Math.sin(a), dy = y - py;
+            y = py + dy * c - z * s; z = dy * s + z * c;
+            [ny, nz] = [ny * c - nz * s, ny * s + nz * c];
+          }
+        }
       }
+      LG[i] = leg; AM[i] = arm;
       P[i * 3] = x; P[i * 3 + 1] = y; P[i * 3 + 2] = z; N[i * 3] = nx; N[i * 3 + 1] = ny; N[i * 3 + 2] = nz;
-      L[i * 4] = leg; L[i * 4 + 1] = arm; L[i * 4 + 2] = HIP * def.h; L[i * 4 + 3] = SH * def.h;
+      L[i * 4] = leg; L[i * 4 + 1] = arm; L[i * 4 + 2] = (def.hip ?? HIP) * def.h; L[i * 4 + 3] = (def.sh ?? SH) * def.h;
     }
+    if (!K && def.smooth) smoothWeights(mesh.geometry, LG, AM, def.smooth), smoothInto(L, LG, AM);
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(P, 3));
     g.setAttribute('normal', new THREE.BufferAttribute(N, 3));
