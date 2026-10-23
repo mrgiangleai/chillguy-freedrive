@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -449,6 +449,12 @@
   Đã thử Low (tăng tốc thời gian): trọn cảnh trên nhánh ra (t = −300) và trên cầu cạn cao (s = 640).
   Camera cảnh dừng xe ở phố cũng `city.collide` (không xuyên nhà). Người đi bộ trong 45 m (tối đa 9) đi tới đứng quanh hiện
   trường trên vỉa hè phía mình, nhìn về chỗ tai nạn, ~30% giơ điện thoại (`cityPeople.gather/disperse`).
+  **Người 3D** (Setting 🚶 `#b-people`, mặc định TẮT, lưu `chilldrive.people3d`, có ở mọi map): `src/streetModels.js` thay người hộp bằng
+  13 model GLB (gốc ở `models/street-human/`, không đưa lên web; bản nén simplify ~5k tam giác + webp 512 + meshopt ở `docs/assets/models/people/`,
+  tổng ~1.7 MB, chỉ tải khi bật). Dựng khi tải: chuẩn hoá cao `h` / mặt −z, model chữ T hạ tay (có xương: xoay xương cánh tay; không: xoay khối
+  quanh vai), trọng số chân / tay mỗi đỉnh (`aLimb`) => shader đung đưa theo pha bước, hạ người khi xoạc chân. Tham số từng model ở `PEOPLE_MODELS`.
+  Mỗi model × vật liệu = 1 InstancedMesh (~70 lượt vẽ). Người kịch bản (cảnh sát / cấp cứu / người lái) vẫn dùng người hộp (đồng phục).
+  Fixture: `node scripts/shot-people.mjs [id,…]`; `shot-nyc.mjs` nhận `PEOPLE3D=1`. Không có điện thoại / tai nghe trên model 3D.
   **Người đi bộ thêm**: ~16% bấm điện thoại (tay phải đưa ra trước 0.75 rad trong shader, điện thoại nằm dưới bàn tay; thỉnh
   thoảng đứng lại 3–9 s), ~14% đeo tai nghe trắng (đỉnh `aAcc` ẩn khi không dùng; `aWalk.z` = đồ dùng). Hai người ngược chiều
   gặp nhau cùng vỉa hè (≤ 1.6 m) => 35% dừng nói chuyện 6–16 s, quay mặt vào nhau (hồi 25 s). Tiếng nói không chữ:
@@ -542,4 +548,5 @@
   chụp flycam 2 góc giống ảnh drone chú gửi. check-sgn / width / nyc PASS.
 - **#3 — Landmark: đêm + quảng trường (23/10/2026)**: 3 kiểu mặt tiền, LED Landmark 81, quảng trường đá lát + đài phun + cọ; ghi ảnh tham khảo chú gửi vào SGN_PLAN.
 - **#4 — Landmark: đường đôi + cầu Sài Gòn + cầu xoắn + tượng (23/10/2026)**: chia 3 việc cho model free (DeepSeek ×2, GLM), Claude soát + gộp + đặt; check PASS.
-- **#5 — Landmark: cây model chú tải (23/10/2026)**: mỗi phố 1 loại cây, công viên trộn, GLB chỉ trong 100 m, 2 nút thử đồ hoạ; free hết lượt => API DeepSeek; Claude sửa lỗi cây bẹp (meshopt).
+- **#5 — Người đi bộ 3D (23/10/2026)**: nút 🚶 Setting (mặc định tắt), 13 model GLB nén, hạ tay chữ T, chân tay đung đưa; DeepSeek (API, opencode free hết lượt) chỉnh dáng từng model. Chưa xem trên máy thật — chú tự test.
+- **#6 — Landmark: cây model chú tải (23/10/2026)**: mỗi phố 1 loại cây, công viên trộn, GLB chỉ trong 100 m, 2 nút thử đồ hoạ; free hết lượt => API DeepSeek; Claude sửa lỗi cây bẹp (meshopt).

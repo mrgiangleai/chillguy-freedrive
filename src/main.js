@@ -545,6 +545,8 @@ function refreshUI() {
   $('b-animals').classList.toggle('on', tuneKind === 'animals');
   $('b-nature').classList.toggle('on', tuneKind === 'nature');
   $('b-park').classList.toggle('on', tuneKind === 'park');
+  setBtn($('b-people'), '🚶', 'Người 3D: ' + (cityPeople.detailed ? 'Bật' : 'Tắt'));
+  $('b-people').classList.toggle('on', cityPeople.detailed);
   $('b-mode').querySelector('span').textContent = state.mode === 'drive' ? 'Drive' : 'Chill';
   $('b-mode').title = state.mode === 'drive' ? 'Đang ở chế độ Drive — bấm để đổi sang Chill' : 'Đang ở chế độ Chill — bấm để đổi sang Drive';
   el.full.hidden = !(CAN_FS && IS_PHONE);          // nút toàn màn hình chỉ có trên điện thoại (máy tính: phím U)
@@ -1523,6 +1525,14 @@ $('b-nature').onclick = () => (tuneKind === 'nature' ? closeTune() : openTune('n
 $('b-mode').onclick = () => { if (state.started) setGameMode(state.mode === 'drive' ? 'chill' : 'drive'); };
 $('b-park').onclick = () => (tuneKind === 'park' ? closeTune() : openTune('park'));
 el.music.onclick = nextMusic;
+// người đi bộ dùng model 3D (mọi map có người; mặc định tắt, lưu trên máy)
+try { cityPeople.detailed = localStorage.getItem('chilldrive.people3d') === '1'; } catch { /* không có localStorage */ }
+$('b-people').onclick = () => {
+  cityPeople.detailed = !cityPeople.detailed;
+  try { localStorage.setItem('chilldrive.people3d', cityPeople.detailed ? '1' : '0'); } catch { /* bỏ qua */ }
+  say('Người đi bộ · ' + (cityPeople.detailed ? 'model 3D' : 'người nhẹ'));
+  refreshUI();
+};
 // mở cột Setting (góc phải): bản đồ tròn trượt sang trái cạnh cột (điện thoại: ẩn đi) để không che nút
 const toggleSettings = () => {
   const bar = $('bar'); bar.hidden = !bar.hidden;
