@@ -19,10 +19,10 @@ export class AdminCam {
     this.camera = camera;
     this.active = false;
     this.mode = 'top';
-    this.dist = { top: 40, front: 12, side: 12 };   // khoảng cách từng góc (m), lăn chuột chỉnh trong 2–400
+    this.dist = { top: 40, front: 12, side: 12 };   // khoảng cách từng góc (m), lăn chuột chỉnh trong 2–800
     this.az = 0;                                    // góc quanh xe so với đầu xe (rad)
     this.el = EL_TOP;                               // cao độ camera (rad)
-    this.free = { pos: new THREE.Vector3(), yaw: 0, pitch: 0, speed: 15 };
+    this.free = { pos: new THREE.Vector3(), yaw: 0, pitch: 0, speed: 30 };
     this.s = 0;                                     // drive.s để hiện trong bảng
     this.held = new Set();
     this.pointers = new Map();
@@ -100,7 +100,7 @@ export class AdminCam {
       if (!this.active) return;
       e.preventDefault();
       const dy = e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1);
-      if (this.mode === 'free') this.free.speed = clamp(this.free.speed * Math.exp(-clamp(dy, -200, 200) * 0.0012), 1, 120);
+      if (this.mode === 'free') this.free.speed = clamp(this.free.speed * Math.exp(-clamp(dy, -200, 200) * 0.0012), 1, 240);
       else this.zoomBy(Math.exp(clamp(dy, -200, 200) * 0.0012));
     };
     canvas.addEventListener('wheel', this.onWheel, { passive: false });
@@ -114,7 +114,7 @@ export class AdminCam {
   // f < 1: lại gần, f > 1: ra xa
   zoomBy(f) {
     if (this.mode === 'free') return;
-    this.dist[this.mode] = clamp(this.dist[this.mode] * f, 2, 400);
+    this.dist[this.mode] = clamp(this.dist[this.mode] * f, 2, 800);
   }
 
   // lấy vị trí / hướng camera đang có làm điểm bắt đầu cho góc Free
@@ -140,7 +140,7 @@ export class AdminCam {
     this.held.clear();
     this.pointers.clear();
     this.dist = { top: 40, front: 12, side: 12 };
-    this.free.speed = 15;
+    this.free.speed = 30;
     this.captureFree();
     this.mode = 'top';
     this.az = 0;
@@ -181,7 +181,7 @@ export class AdminCam {
     if (h.has('KeyE') || h.has('Space')) v.y += 1;
     if (h.has('KeyQ') || h.has('KeyC')) v.y -= 1;
     if (v.lengthSq() > 0) {
-      const sp4 = h.has('ShiftLeft') || h.has('ShiftRight') ? 4 : 1;
+      const sp4 = h.has('ShiftLeft') || h.has('ShiftRight') ? 8 : 1;
       v.normalize().multiplyScalar(f.speed * sp4 * dt);
       f.pos.add(v);
     }

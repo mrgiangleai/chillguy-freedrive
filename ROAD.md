@@ -36,8 +36,8 @@
   => xoá `caches` + unregister trước khi thử.
 - **Chế độ Stop / camera admin** (`src/adminCam.js`, nút Setting 🛠️ `#b-admin`, phím **`**; không lưu): `frame()` dùng `dt = 0` + `simNow`
   đứng yên (shader nước / cỏ / sương / hậu kỳ) => mọi thứ đứng hình; đặt Trời trong + Ban ngày (trả lại khi tắt, `saveScope` bỏ qua); tắt xoá phông.
-  Camera admin ghi đè sau `rig.update` (rig giữ trạng thái): phím 1 Top (40 m) / 2 Front / 3 Side (12 m; lăn = khoảng cách 2–400 m, kéo = xoay quanh xe)
-  / 4 Free (WASD, E/Space lên, Q/C xuống, Shift ×4, lăn = tốc độ, kéo = nhìn). Bảng `#admin` (không ẩn theo idle) hiện góc + toạ độ camera + `drive.s`.
+  Camera admin ghi đè sau `rig.update` (rig giữ trạng thái): phím 1 Top (40 m) / 2 Front / 3 Side (12 m; lăn = khoảng cách 2–800 m, kéo = xoay quanh xe)
+  / 4 Free (30 m/s; WASD, E/Space lên, Q/C xuống, Shift ×8, lăn = tốc độ, kéo = nhìn). Bảng `#admin` (không ẩn theo idle) hiện góc + toạ độ camera + `drive.s`.
   Trong Stop chỉ còn phím admin + O (chụp) + H (ẩn HUD). Hook: `__app.setAdmin(true)`, `__app.admin`.
 - **Bố cục điện thoại**: 3 nút ◀ Space ▶ cao hơn hàng nút góc (`--ctl-up` 58 / điện thoại 46 px); bản đồ tròn ở góc phải dưới (trên hàng
   nút góc, trong viền cine); menu trái lên cao (top = viền + 58 / 40 px, điện thoại hộp cao 32 px). Giao diện chỉ hiện khi CHẠM (nhấc tay
