@@ -161,12 +161,11 @@ function patch(src) {
         objectNormal = vec3(objectNormal.x, objectNormal.y * lc - objectNormal.z * ls, objectNormal.y * ls + objectNormal.z * lc);
         objectNormal = vec3(objectNormal.x, objectNormal.y * ac - objectNormal.z * as_, objectNormal.y * as_ + objectNormal.z * ac);`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
-        transformed.y += abs(sin(aWalk.x)) * 0.03 * aWalk.y;                  // nhún theo bước
         transformed.y -= aLimb.z;
         transformed = vec3(transformed.x, transformed.y * lc - transformed.z * ls, transformed.y * ls + transformed.z * lc);
         transformed.y += aLimb.z - aLimb.w;
         transformed = vec3(transformed.x, transformed.y * ac - transformed.z * as_, transformed.y * as_ + transformed.z * ac);
-        transformed.y += aLimb.w;`);
+        transformed.y += aLimb.w - aLimb.z * (1.0 - cos(sw * 0.5));          // chân xoạc => hạ người cho bàn chân chạm đất`);
   };
   mat.customProgramCacheKey = () => 'street-model' + (mat.map ? 'm' : '');
   return withMist(mat);
