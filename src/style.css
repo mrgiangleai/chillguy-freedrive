@@ -338,3 +338,25 @@ body.cine #brake, body.cine .steer { bottom: calc(max(14px, calc(var(--bar) / 2 
   #quick { top: calc(max(env(safe-area-inset-top), var(--bar)) + 40px); }
   .qbox { height: 32px; }                 /* 8 hộp vừa màn ngang thấp kể cả có viền cine */
 }
+
+/* ---- chế độ Stop / Admin: hộp nhỏ góc trên giữa (luôn hiện khi Stop, không theo class idle của body) ---- */
+#admin { position: fixed; z-index: 7; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 5px; padding: 6px 9px; border-radius: 10px; color: #fff;
+  background: rgba(8, 11, 20, .62); border: 1px solid rgba(255, 255, 255, .16);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); font-size: 12px; letter-spacing: .02em;
+  max-width: calc(100vw - 16px); }
+#admin[hidden] { display: none; }
+#admin .a-row { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+#admin .a-head b { font-size: 13px; letter-spacing: .08em; }
+#admin #admin-pos, #admin #admin-info { opacity: .72; font-variant-numeric: tabular-nums; }
+#admin .a-cams button { padding: 6px 9px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .2);
+  background: rgba(255, 255, 255, .07); color: #fff; font: inherit; cursor: pointer; white-space: nowrap; }
+#admin .a-cams button:hover, #admin .a-cams button:focus-visible { background: rgba(255, 255, 255, .18); outline: none; }
+#admin .a-cams button.on { background: rgba(255, 196, 70, .34); border-color: rgba(255, 210, 110, .6); }
+#admin #admin-exit { border-color: rgba(255, 140, 120, .55); background: rgba(255, 90, 70, .18); }
+#admin .a-info { opacity: .6; font-size: 11px; }
+@media (max-width: 640px) {
+  #admin { font-size: 11px; gap: 4px; padding: 5px 6px; }
+  #admin .a-cams button { padding: 7px 7px; }
+  #admin .a-info { display: none; }
+}

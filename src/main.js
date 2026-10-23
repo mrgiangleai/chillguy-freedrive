@@ -27,6 +27,7 @@ import { setTerrainMap, TP } from './terrain-noise.js';
 import { Environment } from './world.js';
 import { Cars } from './cars.js';
 import { CameraRig, FOCAL_MIN, FOCAL_MAX } from './camera.js';
+import { AdminCam } from './adminCam.js';
 import { ChillAudio } from './audio.js';
 import { ReedField } from './reeds.js';
 import { Post } from './post.js';
@@ -94,6 +95,7 @@ const grass = new ReedField(scene, renderer, 'grass');   // búi cỏ cho map đ
 const meadow = new ReedField(scene, renderer, 'meadow'); // cỏ cao cho map đồi cỏ
 const cars = new Cars(scene);
 const rig = new CameraRig(camera);
+const admin = new AdminCam(camera);   // camera quan sát cho chế độ Stop (src/adminCam.js)
 rig.groundAt = (x, z) => (nycCovered() ? drive.pos.y : Math.max(terrain.heightAt(x, z), ocean.group.visible ? ocean.level + 1.2 : -Infinity));   // không chui xuống đất / xuống nước; trong hầm: mặt đường
 // New York: xe đang trong / sát đoạn hầm có trần => camera ở dưới trần (mặt dưới trần thấp hơn mặt phố 0.6 m)
 const nycCovered = () => (onNyc() || onSgn()) && road.elevAt(drive.s) < road.loop.roof + 1.2;   // vòng có hầm kín: New York, Landmark (hầm Thủ Thiêm)
@@ -928,7 +930,7 @@ const scopes = { world: null, city: null, avenue: null, hlg: null, nyc: null, sg
 for (const [k, key] of Object.entries(SCOPED)) try { scopes[k] = JSON.parse(localStorage.getItem(key)); } catch { /* bỏ qua */ }
 const cityDefaults = () => ({ weather: WEATHERS.findIndex((w) => w.id === 'auto'), time: TIMES.findIndex((t) => t.id === 'auto'), cam: CAMERAS.findIndex((c) => c.id === 'chase') });
 function saveScope(name) {
-  if (!state.started) return;                    // màn hình chờ tự đổi cảnh: không ghi đè cài đặt của chú
+  if (!state.started || admin.active) return;    // màn hình chờ / Stop: không ghi đè cài đặt của chú
   scopes[name] = { weather: state.weather, time: state.time, cam: state.cam };
   if (SCOPED[name]) try { localStorage.setItem(SCOPED[name], JSON.stringify(scopes[name])); } catch { /* chế độ riêng tư */ }
 }
@@ -951,6 +953,40 @@ function autoWeather(dt) {
   if (id === env.weather) id = id === 'clear' ? 'cloudy' : 'clear';
   env.setWeather(id);
 }
+
+// ---------- chế độ Stop + camera admin ----------
+// Bật: đóng băng mô phỏng (frame dùng dt = 0, simNow đứng yên), đưa về Trời trong + Ban ngày,
+// giao camera cho adminCam.js. Tắt: trả camera / thời tiết / giờ như cũ. Không lưu vào localStorage.
+let adminSaved = null;
+function setAdmin(on) {
+  if (on === admin.active || !state.started) return;
+  if (on) {
+    adminSaved = { weather: state.weather, time: state.time, hour: env.hour, weatherId: env.weather, autoT: autoWeatherT };
+    admin.enter();
+    setWeatherIdx(WEATHERS.findIndex((w) => w.id === 'clear'));
+    env.snapWeather('clear');
+    state.time = TIMES.findIndex((t) => t.id === 'noon');
+    env.setTime(TIMES[state.time].hour); env.hour = TIMES[state.time].hour; env.tween = null;
+    keys.clear();
+    $('b-admin').classList.add('on');
+    say('Stop / Admin — phím ` để thoát');
+  } else {
+    admin.exit();
+    const s = adminSaved; adminSaved = null;
+    if (s) {
+      state.weather = s.weather; env.snapWeather(s.weatherId); autoWeatherT = s.autoT;
+      state.time = s.time;
+      const h = TIMES[s.time]?.hour;
+      env.setTime(h == null ? null : s.hour);       // giờ Tự động: trả lại chế độ tự chạy như cũ
+      if (h != null) { env.hour = s.hour; env.tween = null; }
+    }
+    keys.clear();
+    $('b-admin').classList.remove('on');
+    say('Chạy tiếp');
+  }
+  refreshUI();
+}
+admin.onExit = () => setAdmin(false);
 const nextWeather = () => { setWeatherIdx((state.weather + 1) % WEATHERS.length, true); refreshUI(); if (tuneKind === 'weather') renderTune(); say('Thời tiết · ' + WEATHERS[state.weather].name); };
 const nextTime = () => {
   state.time = (state.time + 1) % TIMES.length;
@@ -1534,9 +1570,21 @@ for (const [id, fn] of [['q-speed', () => toggleFast()], ['q-pause', () => toggl
   $(id).onclick = (e) => { fn(); e.currentTarget.blur(); };
 }
 $('b-info').onclick = () => { const c = $('credits'); c.hidden = !c.hidden; };
+// nút Setting: bật / tắt chế độ Stop + camera admin (phím `)
+$('b-admin').onclick = () => setAdmin(!admin.active);
 
 // ---------- input ----------
 window.addEventListener('keydown', (e) => {
+  // chế độ Stop / Admin: chỉ phím admin (adminCam.js tự nghe 1–4, WASD, E/Q/C…), giữ O chụp ảnh, H ẩn HUD, ` thoát
+  if (admin.active) {
+    if (e.repeat) return;
+    if (e.code === 'KeyO') shotPending = true;
+    else if (e.code === 'KeyH') document.body.classList.toggle('hidehud');
+    else if (e.code === 'Backquote') setAdmin(false);
+    else if (e.code === 'Space') e.preventDefault();
+    return;
+  }
+  if (e.code === 'Backquote') { if (!e.repeat) setAdmin(true); return; }   // ` bật / tắt Stop
   if (e.repeat) { keys.add(e.code); return; }
   keys.add(e.code);
   switch (e.code) {
@@ -1576,6 +1624,7 @@ function zoomBy(f) { if (!(stop.active && stop.zoomBy(f))) rig.zoomBy(f); }
 let pinchDist = 0;
 const spread = () => { const [a, b] = [...touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
 canvas.addEventListener('pointerdown', (e) => {
+  if (admin.active) return;                        // Stop: chuột / chạm do camera admin xử lý
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   clickStart.set(e.pointerId, { x: e.clientX, y: e.clientY, moved: false });
   canvas.setPointerCapture(e.pointerId);
@@ -1588,6 +1637,7 @@ canvas.addEventListener('pointerdown', (e) => {
   }
 });
 canvas.addEventListener('pointermove', (e) => {
+  if (admin.active) return;
   const t = touches.get(e.pointerId);
   if (!t) return;
   t.x = e.clientX; t.y = e.clientY;
@@ -1604,6 +1654,7 @@ canvas.addEventListener('pointermove', (e) => {
   }
 });
 const endPointer = (e) => {
+  if (admin.active) return;
   const start = clickStart.get(e.pointerId);
   if (start && !start.moved && e.type === 'pointerup') {
     cars.root.updateWorldMatrix(true, true);
@@ -1626,6 +1677,7 @@ canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
+  if (admin.active) return;                        // Stop: con lăn do camera admin xử lý
   const dy = e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1);
   zoomBy(Math.exp(clamp(dy, -200, 200) * 0.0012));
 }, { passive: false });
@@ -1667,6 +1719,7 @@ document.body.classList.add('idle');
 // ---------- vòng lặp ----------
 const _right = new THREE.Vector3();
 let last = performance.now();
+let simNow = last;                 // thời gian shader / hiệu ứng; đứng yên khi Stop
 let uiTimer = 0;
 let cineAmt = 0;
 const roadPt = {};
@@ -1695,7 +1748,7 @@ function dofParams(dt) {
     dof.range = Math.abs((-s * dx - c * dz) / h) * cars.dim.length * 0.5 + Math.abs((c * dx - s * dz) / h) * cars.dim.width * 0.5 + 0.3;
   }
   dof.near = camera.near; dof.far = camera.far;
-  dof.amt = cineAmt;
+  dof.amt = admin.active ? 0 : cineAmt;             // Stop: không xoá phông để quan sát / chụp ảnh rõ
   dof.samples = QUALITY[state.quality].dof;
   return dof;
 }
@@ -1796,8 +1849,11 @@ function rayParams() {
 }
 
 function frame(now) {
-  const dt = clamp((now - last) / 1000, 0, 0.05);
+  const rawDt = clamp((now - last) / 1000, 0, 0.05);   // thời gian thật (camera admin dùng)
   last = now;
+  const dt = admin.active ? 0 : rawDt;                 // Stop: mọi mô phỏng đứng yên
+  if (!admin.active) simNow += rawDt * 1000;           // đồng hồ shader / nước / cỏ / đom đóm (đứng yên khi Stop)
+  if (admin.active) { steerHeld = 0; brakeHeld = false; }   // bỏ nút lái / phanh đang giữ trên điện thoại
 
   if (openingElapsed !== null) {
     openingElapsed += dt;
@@ -1930,6 +1986,8 @@ function frame(now) {
     rig.cockpitPitch = cockpitPitch();
     rig.update(dt, { pos: drive.pos, yaw: drive.yaw, pitch: drive.pitch, speed: drive.v, dim: cars.dim, fx: drive.fx, side: drive.d >= 0 ? -1 : 1 });
   }
+  // Stop: camera admin ghi đè sau rig.update (rig giữ nguyên trạng thái để tắt Stop là về camera cũ)
+  if (admin.active) admin.update(rawDt, { pos: drive.pos, yaw: drive.yaw, s: drive.s });
 
   // môi trường
   env.precip.setCar(cars.tilt, cars.dim);
@@ -1943,13 +2001,13 @@ function frame(now) {
     const R = avenue.river(riverIndex(drive.s));
     ocean.setRiver(Math.abs(R.s - drive.s) < 3500, R.level, R.P, { x: R.fx, z: R.fz }, R.hw, R.mA ?? 40);
   }
-  ocean.update(now / 1000, camera.position, road, drive.s);
-  waterfalls.update(now / 1000, drive.s, st.light, { d: drive.d, v: drive.v, dim: cars.dim, npcs: traffic.active, cam: camera, audio });
-  if (reeds.visible) reeds.update(now / 1000, camera.position, road, drive.s, st);
+  ocean.update(simNow / 1000, camera.position, road, drive.s);
+  waterfalls.update(simNow / 1000, drive.s, st.light, { d: drive.d, v: drive.v, dim: cars.dim, npcs: traffic.active, cam: camera, audio });
+  if (reeds.visible) reeds.update(simNow / 1000, camera.position, road, drive.s, st);
   grass.group.visible = MAPS[state.map].id === 'forest' && st.cover < 0.5;   // tuyết phủ thì ẩn cỏ
-  if (grass.visible) grass.update(now / 1000, camera.position, road, drive.s, st);
+  if (grass.visible) grass.update(simNow / 1000, camera.position, road, drive.s, st);
   meadow.group.visible = (MAPS[state.map].id === 'meadow' || onAvenue()) && st.cover < 0.5;
-  if (meadow.visible) meadow.update(now / 1000, camera.position, road, drive.s, st);
+  if (meadow.visible) meadow.update(simNow / 1000, camera.position, road, drive.s, st);
   cows.update(dt, drive.s, road, terrain);
   terrain.setCar(drive.s);
   terrain.update(camera.position);
@@ -1958,7 +2016,7 @@ function frame(now) {
   // đom đóm: lúc trời tối, không mưa / tuyết / gió mạnh
   const ss = THREE.MathUtils.smoothstep;
   const ffAmt = (MAPS[state.map].id === 'city' ? 0 : 1) * ss(st.night, 0.35, 0.9) * (1 - Math.min(1, st.rain * 2)) * (1 - st.snow) * (1 - st.cover) * (1 - ss(st.wind, 0.6, 0.9));
-  fireflies.update(now / 1000, drive.s, road, terrain, ffAmt, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
+  fireflies.update(simNow / 1000, drive.s, road, terrain, ffAmt, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)), scene.fog.density);
   dash.update(dt, drive.v * 3.6, env.clock);
   smoke.update(dt, stop.smoking, st, post.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
   if (state.started && cars.current) {
@@ -2087,8 +2145,8 @@ function frame(now) {
   const calm = 1 - st.dark;
   cars.calm = st.dark;
   const shake = 0.016 * drive.fx * drive.fx * calm;
-  if (shake > 0) {
-    const t = now / 1000;
+  if (shake > 0 && !admin.active) {
+    const t = simNow / 1000;
     camera.position.x += (Math.sin(t * 11.3) + Math.sin(t * 17.9) * 0.6) * shake;
     camera.position.y += (Math.sin(t * 13.7) + Math.sin(t * 23.1) * 0.5) * shake * 0.7;
   }
@@ -2096,8 +2154,8 @@ function frame(now) {
   crashFx.update(dt, camera);
   // cinematic: camera hơi "thở" và nghiêng nhẹ như quay cầm tay
   const hand = cineAmt * calm;
-  if (hand > 0.01) {
-    const t = now / 1000;
+  if (hand > 0.01 && !admin.active) {
+    const t = simNow / 1000;
     camera.position.x += Math.sin(t * 0.37) * 0.014 * hand;
     camera.position.y += Math.sin(t * 0.53) * 0.012 * hand;
     camera.rotateZ((Math.sin(t * 0.31) * 0.0045 + Math.sin(t * 0.83) * 0.002) * hand);
@@ -2120,7 +2178,7 @@ function frame(now) {
   MIST.uMistH.value = 3 + 70 * Math.pow(mistCover, 1.4);
   MIST.uMistCover.value = mistCover;
   MIST.uMistBase.value = drive.pos.y - 1.5;
-  MIST.uMistT.value = now / 1000;
+  MIST.uMistT.value = simNow / 1000;
   WET.uGlassWet.value = st.wet;                                        // kính ướt khi mưa (wetGlass.js)
   MIST.uMistWind.value.copy(st.windDir).multiplyScalar(0.0012 + 0.006 * st.wind);
   MIST.uMistColor.value.copy(st.mistColor);
@@ -2129,7 +2187,7 @@ function frame(now) {
   // đường ướt: vẽ ảnh phản chiếu cho vũng nước (chỉ khi mưa)
   if (st.wet > 0.001) refl.render(scene, camera, drive.pos.y + 0.05);
   else refl.active = false;
-  scenery.setReflection(refl, now / 1000);
+  scenery.setReflection(refl, simNow / 1000);
 
   // cảnh luôn vẽ vào render target (màu tuyến tính + độ sâu); hậu kỳ tone mapping + xoá phông/bloom/chỉnh màu (Cinematic) + blur tốc độ
   // gương chiếu hậu (chỉ khi ngồi trong xe)
@@ -2144,9 +2202,9 @@ function frame(now) {
   post.begin();
   renderer.render(scene, camera);
   rayParams();
-  wipers.apply(post.final.uniforms, glassAmt > 0.01 ? glassAmt : 0, camera, cars.tilt, cars.shield, now / 1000, cars.rearShield);
+  wipers.apply(post.final.uniforms, glassAmt > 0.01 ? glassAmt : 0, camera, cars.tilt, cars.shield, simNow / 1000, cars.rearShield);
   post.renderGlassMask(camera, cars.tilt, cars.rearShield);
-  post.render(now / 1000, cineAmt, drive.fx, dofParams(dt));
+  post.render(simNow / 1000, cineAmt, drive.fx, dofParams(dt));
   if (shotPending) saveShot();
   requestAnimationFrame(frame);
 }
@@ -2254,4 +2312,4 @@ init();
 preload.registerSW();                                            // lưu tài nguyên trên thiết bị (docs/sw.js)
 
 // hook phục vụ debug / kiểm thử
-window.__app = { __Raycaster: THREE.Raycaster, __V3: THREE.Vector3, sgnWorks, sgnScene, sgnEnv, nycBld, nycProps, timesSq, nycNet, nycWorks, get crashFx() { return crashFx; }, get blinker() { return blinker; }, get violations() { return violations; }, minimap, avenue, hlgEnv, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { __Raycaster: THREE.Raycaster, __V3: THREE.Vector3, sgnWorks, sgnScene, sgnEnv, nycBld, nycProps, timesSq, nycNet, nycWorks, get crashFx() { return crashFx; }, get blinker() { return blinker; }, get violations() { return violations; }, minimap, avenue, hlgEnv, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), admin, setAdmin: (v) => setAdmin(v), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
