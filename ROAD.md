@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -38,9 +38,12 @@
   cảnh 3D riêng dùng chung renderer + `post` (vẽ vào `post.sceneRT` rồi `post.render`, cine 0.35, exposure 0.95). `race.open` dời `cars.root` sang bàn xoay
   (`showroom.spin`), đổi env xe sang env studio (PMREM: 3 dải đèn trần, tấm hắt hông, dải rim); `race.close` trả `cars.root` về cảnh chính + env xe
   `env.carEnvRT`. Sàn bóng: vẽ 2 lượt (lật `showroom.room` qua y = 0 làm ảnh phản chiếu, rồi sàn / mặt bàn xoay trong mờ + phòng thật), không dùng bóng đổ.
-  `frame()` khi `showroom.active` chỉ gọi `showroomFrame` (đường đi đứng yên). Chọn xe (`chooseCar`, thanh `#r-load` theo `cars.onProgress`),
-  người lái (`chooseCharacter`, Chisa chỉ Mustang), "Tự quay" (`chilldrive.raceSpin`, mặc định bật), Đứng cạnh xe / Ngồi trong xe (`raceStand`, không lưu);
-  kéo xoay quanh xe, lăn / chụm zoom; Esc / ‹ Back về màn hình chính; Start / Enter => `begin('drive')` (CHƯA có luật đua).
+  `frame()` khi `showroom.active` chỉ gọi `showroomFrame` (đường đi đứng yên). Phòng có trần (y 5.6) + tường sau (z −8.5, vạch LED dọc); camera không xuyên sàn / trần / tường.
+  2 tab riêng (`showroom.subject`): **Xe** chỉ hiện xe (`chooseCar`, thanh `#r-load` theo `cars.onProgress`); **Người** chỉ hiện nhân vật đứng giữa bàn xoay
+  (`person.root` dời sang `showroom.spin`, `cars.root` ẩn; `chooseCharacter`, Chisa chỉ Mustang); camera xoay / zoom quanh đối tượng của tab.
+  "Tự quay" (`chilldrive.raceSpin`, mặc định bật). **Lớp cài đặt đèn** (nút "Đèn" / phím L, `#r-lights`): + Spot / + Omni (tối đa 8), kéo chấm sáng trong cảnh
+  (mặt phẳng vuông góc hướng nhìn) hoặc thanh X / Cao / Z, Độ sáng, Độ lớn (tầm chiếu `distance`), Độ toả (spot: góc; omni: `decay`), Độ mềm (penumbra), Màu, Xoá;
+  lưu `chilldrive.raceLights`; tắt lớp thì đèn vẫn sáng, chấm sáng ẩn. Esc / ‹ Back về màn hình chính; Start / Enter => `begin('drive')` (CHƯA có luật đua).
 - **Chế độ Stop / camera admin** (`src/adminCam.js`, nút Setting 🛠️ `#b-admin`, phím **`**; không lưu): `frame()` dùng `dt = 0` + `simNow`
   đứng yên (shader nước / cỏ / sương / hậu kỳ) => mọi thứ đứng hình; đặt Trời trong + Ban ngày (trả lại khi tắt, `saveScope` bỏ qua); tắt xoá phông.
   Camera admin ghi đè sau `rig.update` (rig giữ trạng thái), bật Stop là vào Free từ đúng vị trí + góc nhìn hiện tại: phím 1 Top (40 m) / 2 Front / 3 Side (12 m; lăn = khoảng cách 2–800 m, kéo = xoay quanh xe)
@@ -573,3 +576,4 @@
 - **#3 — Bật Stop vào thẳng bay tự do từ camera hiện tại (23/10/2026)**.
 - **#4 — Chế độ Race!: showroom chọn xe + người lái (23/10/2026)**: hộp thứ 3 ở màn hình vào game, showroom tối sang (đèn studio, sàn bóng, bàn xoay
   "Tự quay"), Start vào Drive. Xem mục 1 "Chế độ Race!". Chưa chạy thử — chú tự test.
+- **#5 — Showroom: trần + tường sau, tab Xe / Người riêng, đèn Spot / Omni tự chỉnh (23/10/2026)**: xem mục 1 "Chế độ Race!". Chưa chạy thử — chú tự test.

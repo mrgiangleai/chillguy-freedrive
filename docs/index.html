@@ -12,8 +12,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Chill Drive</title>
-  <link rel="stylesheet" href="style.css?v=a7e5d410">
-  <link rel="modulepreload" href="app.js?v=6f30d228">
+  <link rel="stylesheet" href="style.css?v=6b499017">
+  <link rel="modulepreload" href="app.js?v=0db380dd">
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -35,18 +35,26 @@
     <div class="r-top">
       <button class="qbox" id="r-back" type="button" title="Về màn hình chính (Esc)">‹ Back</button>
       <div class="r-title">Race!<small>Showroom</small></div>
+      <button class="qbox" id="r-lighttog" type="button" title="Hiện / ẩn lớp cài đặt đèn (L)">Đèn</button>
     </div>
     <div class="r-panel">
-      <div class="r-row"><span class="r-lab">Xe</span><div class="r-opts" id="r-cars"></div></div>
-      <div class="r-row"><span class="r-lab">Người lái</span><div class="r-opts" id="r-chars">
+      <div class="r-tabs" role="tablist"><button type="button" role="tab" data-tab="car">Xe</button><button type="button" role="tab" data-tab="person">Người</button></div>
+      <div class="r-row" data-for="car"><span class="r-lab">Xe</span><div class="r-opts" id="r-cars"></div></div>
+      <div class="r-row" data-for="person" hidden><span class="r-lab">Nhân vật</span><div class="r-opts" id="r-chars">
         <button class="qbox" type="button" data-ch="0">Người lái</button><button class="qbox" type="button" data-ch="1">Chisa</button>
       </div></div>
       <div class="r-row"><span class="r-lab">Xem</span><div class="r-opts">
-        <button class="qbox r-check" id="r-spin" type="button" aria-pressed="true" title="Xe quay chậm trên bàn xoay"><i></i>Tự quay</button>
-        <button class="qbox" id="r-pose" type="button" title="Người lái đứng cạnh xe / ngồi trong xe">Đứng cạnh xe</button>
+        <button class="qbox r-check" id="r-spin" type="button" aria-pressed="true" title="Xoay chậm trên bàn xoay"><i></i>Tự quay</button>
       </div></div>
       <div id="r-load" hidden><div class="lb-track"><div class="lb-fill"></div></div><div class="lb-text"></div></div>
     </div>
+    <!-- lớp cài đặt đèn: chú thêm Spot / Omni, kéo chấm sáng trong cảnh để dời, thanh trượt chỉnh; tắt lớp này khi chỉnh xong -->
+    <section id="r-lights" hidden>
+      <header><b>Đèn</b><button type="button" id="r-add-spot">+ Spot</button><button type="button" id="r-add-omni">+ Omni</button><button type="button" id="r-lclose" aria-label="Ẩn lớp cài đặt đèn">×</button></header>
+      <div id="r-llist"></div>
+      <div id="r-lform" hidden></div>
+      <small id="r-lhint">Kéo chấm sáng trong cảnh để dời đèn (xoay camera để đổi chiều sâu).</small>
+    </section>
     <button class="qbox r-go" id="r-start" type="button" title="Vào game (Enter)">Start</button>
   </div>
 
@@ -168,6 +176,6 @@
   <div id="fade"></div>
   <div id="modename"></div>
   <div id="placename"><b></b><span></span></div>
-  <script type="module" src="app.js?v=6f30d228"></script>
+  <script type="module" src="app.js?v=0db380dd"></script>
 </body>
 </html>

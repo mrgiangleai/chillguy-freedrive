@@ -7,6 +7,12 @@ import * as THREE from 'three';
 
 const TURN_R = 3.2;          // bán kính bàn xoay
 const SPIN = 0.22;           // rad/s khi bật "Tự quay"
+const CEIL = 5.6;            // trần
+const WALL_Z = 8.5;          // tường sau ở z = -WALL_Z
+const LIGHTS_KEY = 'chilldrive.raceLights';
+const MAX_LIGHTS = 8;
+// đèn chú tự thêm: pos (m), intensity (cd), size = tầm chiếu (m), spread = góc spot (độ) / độ toả omni (0–100), soft = độ mềm viền spot
+const LIGHT_DEFAULT = { pos: [2.5, 3.4, 2.5], intensity: 80, size: 12, spread: 30, soft: 0.5, color: '#ffffff' };
 
 export class Showroom {
   constructor(renderer, post) {
@@ -18,6 +24,7 @@ export class Showroom {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(32, 1, 0.1, 200);
     this.orbit = { yaw: 0.75, pitch: 0.2, dist: 8.5, tYaw: 0.75, tPitch: 0.2, tDist: 8.5 };
+    this.subject = 'car';                 // 'car' | 'person': camera xoay quanh đối tượng đang xem
     this.target = new THREE.Vector3(0, 0.62, 0);
 
     this.room = new THREE.Group();        // mọi thứ được lật để làm ảnh phản chiếu (trừ sàn)
@@ -32,6 +39,21 @@ export class Showroom {
     this._backdrop();
     this._lights();
     this._stage();
+    this._walls();
+    // đèn chú tự thêm (Spot / Omni) + điểm kéo (gizmo) chỉ hiện khi mở lớp cài đặt đèn
+    this.aim = new THREE.Object3D();      // spot chiếu vào giữa bàn xoay
+    this.aim.position.set(0, 0.6, 0);
+    this.room.add(this.aim);
+    this.gizmos = new THREE.Group();
+    this.gizmos.visible = false;
+    this.scene.add(this.gizmos);
+    this.editing = false;
+    this.userLights = [];
+    this.selected = null;
+    this._dot = new THREE.SphereGeometry(0.11, 16, 10);
+    this._v = new THREE.Vector3(); this._n = new THREE.Vector3();
+    this._ray = new THREE.Raycaster(); this._plane = new THREE.Plane();
+    this._loadLights();
     this._clear = new THREE.Color();
     this._saved = null;
   }
@@ -107,8 +129,8 @@ export class Showroom {
     rim.position.set(4, 4, -7);
     const fill = new THREE.DirectionalLight(0xffffff, 0.6);     // fill thấp phía phải
     fill.position.set(6, 1.5, 3);
-    const top = new THREE.SpotLight(0xffffff, 60, 14, 0.75, 0.6, 1.6);   // đèn chụp từ trần xuống bàn xoay
-    top.position.set(0, 7, 0);
+    const top = new THREE.SpotLight(0xffffff, 45, 14, 0.85, 0.6, 1.6);   // đèn chụp từ trần xuống bàn xoay
+    top.position.set(0, CEIL - 0.1, 0);
     top.target.position.set(0, 0, 0);
     const hemi = new THREE.HemisphereLight(0x9aa4b8, 0x0c0c0e, 0.35);
     this.room.add(key, rim, fill, top, top.target, hemi);
@@ -150,6 +172,129 @@ export class Showroom {
     this.floor.add(glow);
   }
 
+  // trần tối (dải đèn treo bên dưới) + tường sau có các vạch đèn dọc mảnh, hắt sáng chân tường
+  _walls() {
+    const ceil = new THREE.Mesh(new THREE.PlaneGeometry(30, 30).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({
+      color: 0x08090b, roughness: 0.7, metalness: 0.1,
+    }));
+    ceil.position.y = CEIL;
+    this.room.add(ceil);
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(30, CEIL), new THREE.MeshStandardMaterial({
+      color: 0x0e0f12, roughness: 0.5, metalness: 0.15,
+    }));
+    wall.position.set(0, CEIL / 2, -WALL_Z);
+    this.room.add(wall);
+    const led = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffe6c4).multiplyScalar(1.6), fog: false });
+    const bar = new THREE.BoxGeometry(0.035, CEIL - 1.4, 0.02);
+    for (let i = -4; i <= 4; i++) {
+      const m = new THREE.Mesh(bar, led);
+      m.position.set(i * 1.9, CEIL / 2, -WALL_Z + 0.02);
+      this.room.add(m);
+    }
+    const cove = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xdfe8ff).multiplyScalar(2.2), fog: false });
+    for (const y of [0.06, CEIL - 0.06]) {                     // hắt sáng chân tường + mép trần
+      const m = new THREE.Mesh(new THREE.BoxGeometry(30, 0.03, 0.03), cove);
+      m.position.set(0, y, -WALL_Z + 0.05);
+      this.room.add(m);
+    }
+  }
+
+  // ---------- đèn chú tự thêm ----------
+  addLight(type, cfg = {}) {
+    if (this.userLights.length >= MAX_LIGHTS) return null;
+    const c = { ...LIGHT_DEFAULT, ...(type === 'omni' ? { spread: 50 } : {}), ...cfg, type };
+    c.pos = [...c.pos];
+    const light = type === 'spot' ? new THREE.SpotLight() : new THREE.PointLight();
+    if (light.isSpotLight) light.target = this.aim;
+    this.room.add(light);
+    const marker = new THREE.Mesh(this._dot, new THREE.MeshBasicMaterial({ fog: false }));
+    this.gizmos.add(marker);
+    let line = null;
+    if (light.isSpotLight) {                       // vạch chỉ hướng chiếu
+      line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), this.aim.position]),
+        new THREE.LineBasicMaterial({ transparent: true, opacity: 0.45, fog: false }));
+      this.gizmos.add(line);
+    }
+    const item = { cfg: c, light, marker, line };
+    this.userLights.push(item);
+    this.applyLight(item);
+    return item;
+  }
+
+  applyLight(item) {
+    const { cfg: c, light, marker, line } = item;
+    light.color.set(c.color);
+    light.intensity = c.intensity;
+    light.distance = c.size;
+    light.position.fromArray(c.pos);
+    if (light.isSpotLight) {
+      light.angle = THREE.MathUtils.degToRad(c.spread);
+      light.penumbra = c.soft;
+      light.decay = 1.6;
+    } else light.decay = 2 - 1.7 * c.spread / 100;   // toả rộng hơn = tắt dần chậm hơn
+    marker.position.fromArray(c.pos);
+    marker.material.color.set(c.color).multiplyScalar(2.5);
+    marker.scale.setScalar((0.7 + Math.sqrt(c.intensity) / 12) * (item === this.selected ? 1.5 : 1));
+    if (line) {
+      line.geometry.attributes.position.setXYZ(0, ...c.pos);
+      line.geometry.attributes.position.needsUpdate = true;
+      line.material.color.set(c.color);
+    }
+  }
+
+  removeLight(item) {
+    const i = this.userLights.indexOf(item);
+    if (i < 0) return;
+    this.userLights.splice(i, 1);
+    this.room.remove(item.light); item.light.dispose();
+    this.gizmos.remove(item.marker); item.marker.material.dispose();
+    if (item.line) { this.gizmos.remove(item.line); item.line.geometry.dispose(); item.line.material.dispose(); }
+    if (this.selected === item) this.selected = null;
+  }
+
+  select(item) {
+    const prev = this.selected;
+    this.selected = item;
+    if (prev) this.applyLight(prev);
+    if (item) this.applyLight(item);
+  }
+
+  saveLights() {
+    try { localStorage.setItem(LIGHTS_KEY, JSON.stringify(this.userLights.map((l) => l.cfg))); } catch { /* bỏ qua */ }
+  }
+
+  _loadLights() {
+    try {
+      const list = JSON.parse(localStorage.getItem(LIGHTS_KEY) || '[]');
+      for (const c of list) if (c && (c.type === 'spot' || c.type === 'omni')) this.addLight(c.type, c);
+    } catch { /* bỏ qua */ }
+  }
+
+  // điểm kéo gần chỗ chạm nhất (trong 34 px) — dễ bấm trên điện thoại hơn raycast vào quả cầu nhỏ
+  pick(x, y) {
+    if (!this.editing) return null;
+    let best = null, bd = 34;
+    for (const it of this.userLights) {
+      const v = this._v.copy(it.marker.position).project(this.camera);
+      if (v.z > 1) continue;
+      const d = Math.hypot((v.x + 1) / 2 * innerWidth - x, (1 - v.y) / 2 * innerHeight - y);
+      if (d < bd) { bd = d; best = it; }
+    }
+    return best;
+  }
+
+  // kéo đèn trên mặt phẳng vuông góc hướng nhìn (xoay camera để đổi chiều sâu; độ cao chỉnh thêm bằng thanh Y)
+  dragLight(item, x, y) {
+    const cam = this.camera;
+    this._ray.setFromCamera({ x: x / innerWidth * 2 - 1, y: 1 - y / innerHeight * 2 }, cam);
+    cam.getWorldDirection(this._n);
+    this._plane.setFromNormalAndCoplanarPoint(this._n, this._v.fromArray(item.cfg.pos));
+    if (!this._ray.ray.intersectPlane(this._plane, this._v)) return;
+    const p = this._v;
+    item.cfg.pos = [THREE.MathUtils.clamp(p.x, -12, 12), THREE.MathUtils.clamp(p.y, 0.15, CEIL - 0.15), THREE.MathUtils.clamp(p.z, -WALL_Z + 0.2, 12)];
+    this.applyLight(item);
+  }
+
   // ---------- mở / đóng ----------
   // cars: Cars; trả xe về `home` (cảnh chính) khi đóng
   open(cars) {
@@ -188,7 +333,12 @@ export class Showroom {
   }
   zoom(f) {
     const o = this.orbit, len = this.cars?.dim?.length || 4.5;
-    o.tDist = THREE.MathUtils.clamp(o.tDist * f, len * 0.95, len * 2.8);
+    o.tDist = this.subject === 'car' ? THREE.MathUtils.clamp(o.tDist * f, len * 0.95, len * 2.8) : THREE.MathUtils.clamp(o.tDist * f, 1.6, 7);
+  }
+  setSubject(s) {
+    if (s === this.subject) return;
+    this.subject = s;
+    this.orbit.tDist = s === 'car' ? 8.5 : 3.6;
   }
 
   // ---------- mỗi khung hình ----------
@@ -197,15 +347,17 @@ export class Showroom {
     if (this.spinOn) this.spin.rotation.y += SPIN * dt;
     const k = 1 - Math.exp(-dt * 6);
     o.yaw += (o.tYaw - o.yaw) * k; o.pitch += (o.tPitch - o.pitch) * k; o.dist += (o.tDist - o.dist) * k;
-    this.target.y = (this.cars?.dim?.height || 1.3) * 0.45;
+    const car = this.subject === 'car';
+    this.target.y = car ? (this.cars?.dim?.height || 1.3) * 0.45 : 0.92;
     const size = post.size;
     if (size.x && size.y) cam.aspect = size.x / size.y;
     // màn dọc (điện thoại): góc rộng hơn + lùi xa để thấy trọn chiều dài xe
-    const tall = cam.aspect < 1.2, fit = tall ? Math.min(1.8, Math.max(1, 1.2 / cam.aspect)) : 1;
+    const tall = cam.aspect < 1.2, fit = tall && car ? Math.min(1.8, Math.max(1, 1.2 / cam.aspect)) : 1;
     cam.fov = tall ? 50 : 32;
     cam.position.set(Math.sin(o.yaw) * Math.cos(o.pitch), Math.sin(o.pitch), Math.cos(o.yaw) * Math.cos(o.pitch))
       .multiplyScalar(o.dist * fit).add(this.target);
-    cam.position.y = Math.max(cam.position.y, 0.25);
+    cam.position.y = THREE.MathUtils.clamp(cam.position.y, 0.25, CEIL - 0.35);   // không xuyên sàn / trần
+    cam.position.z = Math.max(cam.position.z, -WALL_Z + 0.4);                    // không xuyên tường sau
     cam.lookAt(this.target);
     cam.updateProjectionMatrix();
     this.backdrop.material.uniforms.uYaw.value = o.yaw;
@@ -221,12 +373,14 @@ export class Showroom {
     r.clear(true, true, true);
     // lượt 1: ảnh phản chiếu (lật phòng qua y = 0)
     this.floor.visible = false;
+    this.gizmos.visible = false;
     this.cars.contact.visible = false;
     this.room.scale.y = -1;
     r.render(this.scene, cam);
     // lượt 2: sàn trong mờ + phòng thật
     this.room.scale.y = 1;
     this.floor.visible = true;
+    this.gizmos.visible = this.editing;
     this.cars.contact.visible = true;
     r.clearDepth();
     r.render(this.scene, cam);

@@ -1870,30 +1870,24 @@ function cockpitPitch() {
   return clamp(lo <= hi ? lo : hi, -0.1, 0.6);
 }
 
-// showroom Race!: người lái ngồi trong xe (tay trên vô lăng) hoặc đứng cạnh cửa tài xế
-let raceStand = true;
+// showroom Race!: tab Xe chỉ hiện xe; tab Người chỉ hiện nhân vật đứng giữa bàn xoay (không hiện cùng nhau)
 function showroomFrame(dt) {
   showroom.update(dt);
+  const solo = showroom.subject === 'person';
+  cars.root.visible = !solo;
+  cars.cabinLevel = 0; cars.cabin.intensity = 0;
   if (person.ready) {
-    person.root.visible = true;
-    person.head.scale.setScalar(1);
-    cars.cabinLevel = 0; cars.cabin.intensity = 0;
-    if (raceStand && !characterLoading) {
-      const d = cars.dim;
-      person.root.position.set(-d.width / 2 - 0.62, 0, -d.length * 0.08);
-      person.root.rotation.set(0, -2.15, 0);            // quay ra ngoài, hơi về phía đầu xe
+    person.root.visible = solo;
+    if (solo) {
+      if (person.root.parent !== showroom.spin) showroom.spin.add(person.root);
+      person.head.scale.setScalar(1);
+      person.root.position.set(0, 0, 0);
+      person.root.rotation.set(0, 0.75, 0);            // nhìn về phía camera lúc mở
       person.tilt.rotation.set(0, 0, 0);
       person.recline(0);
       person.footShade.value = 0;
       person.play('Idle_Loop', person.current ? 0.3 : 0);
       person.update(dt);
-    } else {
-      if (person.current !== person.actions.Driving_Loop) stop.sit();
-      person.update(dt);
-      person.footShade.value = 1;
-      showroom.scene.updateMatrixWorld();
-      seatPose(cars.dim.seat);
-      if (cars.current?.steer) gripWheel(cars.current.steer);
     }
   }
   showroom.render(simNow / 1000);
@@ -2318,7 +2312,18 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-// ---------- chế độ Race!: showroom chọn xe + người lái (chưa có luật đua: Start => vào Drive) ----------
+// ---------- chế độ Race!: showroom chọn xe / nhân vật + đèn tự thêm (chưa có luật đua: Start => vào Drive) ----------
+// thanh trượt của đèn đang chọn: get / set trên cfg; only = chỉ cho loại đèn đó
+const LIGHT_FIELDS = [
+  { k: 'x', label: 'X', min: -10, max: 10, step: 0.05, get: (c) => c.pos[0], set: (c, v) => { c.pos[0] = v; }, fmt: (v) => v.toFixed(1) },
+  { k: 'y', label: 'Cao', min: 0.15, max: 5.45, step: 0.05, get: (c) => c.pos[1], set: (c, v) => { c.pos[1] = v; }, fmt: (v) => v.toFixed(1) },
+  { k: 'z', label: 'Z', min: -8.3, max: 10, step: 0.05, get: (c) => c.pos[2], set: (c, v) => { c.pos[2] = v; }, fmt: (v) => v.toFixed(1) },
+  { k: 'intensity', label: 'Độ sáng', min: 0, max: 400, step: 1, fmt: (v) => Math.round(v) },
+  { k: 'size', label: 'Độ lớn', min: 1, max: 30, step: 0.5, fmt: (v) => v.toFixed(1) + ' m' },
+  { k: 'spread', label: 'Độ toả', min: 5, max: 85, step: 1, only: 'spot', fmt: (v) => Math.round(v) + '°' },
+  { k: 'spread', label: 'Độ toả', min: 0, max: 100, step: 1, only: 'omni', fmt: (v) => Math.round(v) + '%' },
+  { k: 'soft', label: 'Độ mềm', min: 0, max: 1, step: 0.01, only: 'spot', fmt: (v) => Math.round(v * 100) + '%' },
+];
 const race = {
   begin: null,                                    // = begin(mode) của màn hình chờ (gán trong init)
   loading: false,
@@ -2337,14 +2342,23 @@ const race = {
       b.onclick = () => this.pickCar(i);
       box.append(b);
     });
-    this.sync();
+    this.tab('car');
+    this.lights();
   },
   close() {
     if (!showroom.active) return;
+    cars.root.visible = true;
+    if (person.ready) { cars.tilt.add(person.root); person.root.visible = true; stop.place(cars.dim); stop.sit(); }
     showroom.close(env.carEnvRT?.texture);
-    if (person.ready) { stop.place(cars.dim); stop.sit(); }
+    this.editLights(false);
     $('race').hidden = true;
     $('start').classList.remove('race');
+  },
+  tab(t) {
+    showroom.setSubject(t);
+    $('race').querySelectorAll('.r-tabs button').forEach((b) => { b.classList.toggle('on', b.dataset.tab === t); b.setAttribute('aria-selected', b.dataset.tab === t); });
+    $('race').querySelectorAll('.r-row[data-for]').forEach((r) => { r.hidden = r.dataset.for !== t; });
+    this.sync();
   },
   async pickCar(i) {
     if (this.loading || i === state.car) return;
@@ -2370,11 +2384,10 @@ const race = {
       const i = +b.dataset.ch;
       b.classList.toggle('on', i === state.character);
       b.disabled = characterLoading || this.loading || (i === 1 && !mustang);
-      b.title = i === 1 && !mustang ? 'Chisa chỉ đi với Mustang' : '';
+      b.title = i === 1 && !mustang ? 'Chisa chỉ đi với Mustang (chọn Mustang ở tab Xe)' : '';
     });
     $('r-spin').classList.toggle('on', showroom.spinOn);
     $('r-spin').setAttribute('aria-pressed', showroom.spinOn);
-    $('r-pose').textContent = raceStand ? 'Đứng cạnh xe' : 'Ngồi trong xe';
     $('r-start').disabled = this.loading || characterLoading;
   },
   start() {
@@ -2382,27 +2395,106 @@ const race = {
     this.close();
     this.begin?.('drive');
   },
+  // ---- lớp cài đặt đèn ----
+  editLights(on) {
+    showroom.editing = on;
+    $('r-lights').hidden = !on;
+    $('r-lighttog').classList.toggle('on', on);
+    if (on) this.lights();
+  },
+  // danh sách đèn + bảng thanh trượt của đèn đang chọn
+  lights() {
+    const list = $('r-llist');
+    list.textContent = '';
+    showroom.userLights.forEach((it, n) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = (it.cfg.type === 'spot' ? 'Spot ' : 'Omni ') + (n + 1);
+      b.classList.toggle('on', it === showroom.selected);
+      b.onclick = () => { showroom.select(it); this.lights(); };
+      list.append(b);
+    });
+    const sel = showroom.selected, form = $('r-lform');
+    $('r-add-spot').disabled = $('r-add-omni').disabled = showroom.userLights.length >= 8;
+    $('r-lhint').textContent = showroom.userLights.length ? 'Kéo chấm sáng trong cảnh để dời đèn (xoay camera để đổi chiều sâu). Tự lưu.' : 'Chưa có đèn — bấm + Spot / + Omni.';
+    form.hidden = !sel;
+    form.textContent = '';
+    if (!sel) return;
+    const c = sel.cfg;
+    for (const f of LIGHT_FIELDS) {
+      if (f.only && f.only !== c.type) continue;
+      const lab = document.createElement('label'), inp = document.createElement('input'), out = document.createElement('output');
+      lab.append(Object.assign(document.createElement('span'), { textContent: f.label }), inp, out);
+      Object.assign(inp, { type: 'range', min: f.min, max: f.max, step: f.step });
+      const get = () => (f.get ? f.get(c) : c[f.k]);
+      inp.value = get(); out.textContent = f.fmt(+inp.value);
+      inp.oninput = () => { const v = +inp.value; f.set ? f.set(c, v) : (c[f.k] = v); out.textContent = f.fmt(v); showroom.applyLight(sel); };
+      inp.onchange = () => showroom.saveLights();
+      inp.dataset.k = f.k;
+      form.append(lab);
+    }
+    const lab = document.createElement('label'), col = document.createElement('input');
+    col.type = 'color'; col.value = c.color;
+    col.oninput = () => { c.color = col.value; showroom.applyLight(sel); };
+    col.onchange = () => showroom.saveLights();
+    lab.append(Object.assign(document.createElement('span'), { textContent: 'Màu' }), col, document.createElement('span'));
+    form.append(lab);
+    const del = document.createElement('button');
+    del.type = 'button'; del.textContent = 'Xoá đèn này';
+    del.onclick = () => { showroom.removeLight(sel); showroom.saveLights(); this.lights(); };
+    form.append(del);
+  },
+  // sau khi kéo chấm sáng: cập nhật thanh X / Cao / Z
+  syncPos() {
+    const sel = showroom.selected;
+    if (!sel) return;
+    $('r-lform').querySelectorAll('input[type=range]').forEach((inp) => {
+      const i = { x: 0, y: 1, z: 2 }[inp.dataset.k];
+      if (i === undefined) return;
+      inp.value = sel.cfg.pos[i];
+      inp.nextElementSibling.textContent = sel.cfg.pos[i].toFixed(1);
+    });
+  },
 };
 $('r-back').onclick = () => race.close();
 $('r-start').onclick = () => race.start();
+$('race').querySelectorAll('.r-tabs button').forEach((b) => { b.onclick = () => race.tab(b.dataset.tab); });
 $('r-chars').querySelectorAll('button').forEach((b) => { b.onclick = () => race.pickCharacter(+b.dataset.ch); });
 $('r-spin').onclick = () => {
   showroom.spinOn = !showroom.spinOn;
   try { localStorage.setItem('chilldrive.raceSpin', showroom.spinOn ? '1' : '0'); } catch { /* bỏ qua */ }
   race.sync();
 };
-$('r-pose').onclick = () => { raceStand = !raceStand; race.sync(); };
-// kéo (chuột / 1 ngón) xoay quanh xe, lăn chuột / chụm 2 ngón để zoom; chỉ trên nền showroom (không phải trên nút)
+$('r-lighttog').onclick = () => race.editLights(!showroom.editing);
+$('r-lclose').onclick = () => race.editLights(false);
+for (const type of ['spot', 'omni']) {
+  $('r-add-' + type).onclick = () => {
+    // đèn mới đặt lệch theo số đèn để không chồng lên nhau, phía camera đang nhìn
+    const n = showroom.userLights.length, a = showroom.orbit.yaw + (n % 2 ? -0.7 : 0.7);
+    const it = showroom.addLight(type, { pos: [Math.sin(a) * 3.2, 3.4, Math.max(-7.5, Math.cos(a) * 3.2)] });
+    if (it) { showroom.select(it); showroom.saveLights(); race.lights(); }
+  };
+}
+// kéo (chuột / 1 ngón) xoay camera quanh xe / nhân vật, lăn chuột / chụm 2 ngón để zoom; chỉ trên nền showroom (không phải trên nút).
+// Lớp đèn đang mở: bấm trúng chấm sáng thì kéo đèn đó
 {
   const el = $('race'), pts = new Map();
-  let pinch = 0;
+  let pinch = 0, dragLight = null;
   el.addEventListener('pointerdown', (e) => {
     if (e.target !== el) return;
+    const hit = showroom.pick(e.clientX, e.clientY);
+    if (hit) {
+      dragLight = { id: e.pointerId, it: hit };
+      showroom.select(hit); race.lights();
+      el.setPointerCapture?.(e.pointerId);
+      return;
+    }
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     el.setPointerCapture?.(e.pointerId);
     pinch = 0;
   });
   el.addEventListener('pointermove', (e) => {
+    if (dragLight?.id === e.pointerId) { showroom.dragLight(dragLight.it, e.clientX, e.clientY); race.syncPos(); return; }
     const p = pts.get(e.pointerId);
     if (!p) return;
     if (pts.size === 1) showroom.drag(e.clientX - p.x, e.clientY - p.y);
@@ -2413,7 +2505,10 @@ $('r-pose').onclick = () => { raceStand = !raceStand; race.sync(); };
       pinch = d;
     }
   });
-  const up = (e) => { pts.delete(e.pointerId); pinch = 0; };
+  const up = (e) => {
+    if (dragLight?.id === e.pointerId) { dragLight = null; showroom.saveLights(); }
+    pts.delete(e.pointerId); pinch = 0;
+  };
   el.addEventListener('pointerup', up);
   el.addEventListener('pointercancel', up);
   el.addEventListener('wheel', (e) => {
@@ -2494,9 +2589,13 @@ async function init() {
     window.removeEventListener('keydown', onKey);
     refreshUI();
   };
-  // phím: Enter / 1 = Chill, 2 = Drive, 3 = Race! (trong showroom: Enter = Start, Esc = quay lại)
+  // phím: Enter / 1 = Chill, 2 = Drive, 3 = Race! (trong showroom: Enter = Start, Esc = quay lại, L = lớp cài đặt đèn)
   const onKey = (e) => {
-    if (showroom.active) { if (e.code === 'Enter') race.start(); else if (e.code === 'Escape') race.close(); return; }
+    if (showroom.active) {
+      if (e.code !== 'Escape' && e.target.closest?.('input, button')) return;   // đang chỉnh thanh trượt / nút đang được chọn (Enter = bấm nút đó)
+      if (e.code === 'Enter') race.start(); else if (e.code === 'Escape') race.close(); else if (e.code === 'KeyL') race.editLights(!showroom.editing);
+      return;
+    }
     if (e.code === 'Enter' || e.code === 'Digit1') begin('chill'); else if (e.code === 'Digit2') begin('drive'); else if (e.code === 'Digit3') race.open();
   };
   // bấm Chill / Drive: tải đủ dữ liệu map đầu của chế độ (thanh tiến độ thật, lưu vào thiết bị — lần sau bỏ qua), rồi vào game và

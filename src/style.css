@@ -44,6 +44,29 @@ html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: non
 #race .r-go { position: absolute; right: max(18px, env(safe-area-inset-right)); bottom: max(18px, env(safe-area-inset-bottom)); width: 130px; height: 58px;
   font-size: 15px; letter-spacing: .34em; text-indent: .34em; border-color: rgba(255, 220, 150, .6); background: rgba(255, 196, 70, .16); }
 #race .r-go:hover:not(:disabled) { background: rgba(255, 196, 70, .32); border-color: rgba(255, 225, 160, .9); }
+#race .r-tabs { display: flex; gap: 0; margin-left: 84px; }
+#race .r-tabs button { min-width: 84px; height: 30px; border: 0; border-bottom: 1px solid rgba(255, 255, 255, .2); background: none; color: #fff; cursor: pointer;
+  font: 200 12px/1 "Helvetica Neue", "Segoe UI Light", "Segoe UI", Roboto, Arial, sans-serif; letter-spacing: .22em; text-indent: .22em; text-transform: uppercase; opacity: .55; }
+#race .r-tabs button.on { opacity: 1; border-bottom: 1px solid #ffd27a; }
+#race .r-row[hidden] { display: none; }
+#r-lights { position: absolute; top: max(16px, env(safe-area-inset-top)); right: max(18px, env(safe-area-inset-right)); width: 250px;
+  max-height: calc(100vh - 110px); overflow-y: auto; padding: 10px 12px; border: 1px solid rgba(255, 255, 255, .18); border-radius: 12px;
+  background: rgba(10, 12, 18, .62); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); display: flex; flex-direction: column; gap: 8px; }
+#r-lights[hidden] { display: none; }
+#r-lights header { display: flex; align-items: center; gap: 6px; }
+#r-lights header b { flex: 1; font-weight: 300; letter-spacing: .2em; text-transform: uppercase; font-size: 11px; }
+#r-lights button { height: 26px; padding: 0 9px; border-radius: 7px; border: 1px solid rgba(255, 255, 255, .25); background: rgba(255, 255, 255, .06); color: #fff; font: 300 11.5px/1 system-ui, sans-serif; cursor: pointer; }
+#r-lights button:hover { background: rgba(255, 255, 255, .18); }
+#r-lights button.on { background: rgba(255, 196, 70, .26); border-color: rgba(255, 210, 110, .65); }
+#r-llist { display: flex; flex-wrap: wrap; gap: 5px; }
+#r-lform { display: flex; flex-direction: column; gap: 5px; }
+#r-lform[hidden] { display: none; }
+#r-lform label { display: grid; grid-template-columns: 62px 1fr 38px; align-items: center; gap: 6px; font-size: 11px; }
+#r-lform label[hidden] { display: none; }
+#r-lform input[type=range] { width: 100%; accent-color: #ffd27a; }
+#r-lform input[type=color] { width: 100%; height: 22px; border: 0; padding: 0; background: none; }
+#r-lform output { text-align: right; opacity: .75; font-variant-numeric: tabular-nums; }
+#r-lights small { opacity: .55; font-size: 10.5px; line-height: 1.35; }
 #r-load { width: min(360px, 60vw); }
 #r-load[hidden] { display: none; }
 #r-load .lb-track { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .18); overflow: hidden; }
@@ -56,10 +79,14 @@ html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: non
   #race .r-opts { gap: 6px; }
   #race .r-opts .qbox { min-width: 62px; height: 32px; padding: 0 10px; }
   #race .r-go { width: 92px; height: 42px; font-size: 12px; }
+  #race .r-tabs { margin-left: 62px; }
+  #race .r-tabs button { min-width: 64px; height: 26px; font-size: 10.5px; }
+  #r-lights { width: 210px; max-height: calc(100vh - 80px); padding: 8px 10px; gap: 6px; }
 }
 @media (max-width: 520px) and (orientation: portrait) {
   #race .r-panel { max-width: none; right: max(14px, env(safe-area-inset-right)); bottom: calc(max(14px, env(safe-area-inset-bottom)) + 54px); }
   #race .r-go { left: max(14px, env(safe-area-inset-left)); right: max(14px, env(safe-area-inset-right)); width: auto; }
+  #r-lights { top: calc(max(16px, env(safe-area-inset-top)) + 52px); left: max(14px, env(safe-area-inset-left)); width: auto; max-height: 42vh; }
 }
 
 #hud { position: fixed; inset: 0; z-index: 5; pointer-events: none; transition: opacity .7s ease; }
