@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -34,6 +34,13 @@
   chờ: `queue` ngầm COMMON + map đầu Chill + Phố; bấm Chill / Drive: `ensure` có thanh `#loadbar` theo byte thật (đã lưu thì vào ngay);
   4 s sau khi vào game `queue` các map còn lại theo thứ tự MAPS. Mazda / Chisa (~42 MB) chỉ tải khi chọn. Thử Playwright: SW giữ bản cũ
   => xoá `caches` + unregister trước khi thử.
+- **Chế độ Race! / showroom** (`src/showroom.js`, hộp `#m-race` ở màn hình vào game, phím 3; UI `#race` trong `docs/index.html`, đối tượng `race` trong main):
+  cảnh 3D riêng dùng chung renderer + `post` (vẽ vào `post.sceneRT` rồi `post.render`, cine 0.35, exposure 0.95). `race.open` dời `cars.root` sang bàn xoay
+  (`showroom.spin`), đổi env xe sang env studio (PMREM: 3 dải đèn trần, tấm hắt hông, dải rim); `race.close` trả `cars.root` về cảnh chính + env xe
+  `env.carEnvRT`. Sàn bóng: vẽ 2 lượt (lật `showroom.room` qua y = 0 làm ảnh phản chiếu, rồi sàn / mặt bàn xoay trong mờ + phòng thật), không dùng bóng đổ.
+  `frame()` khi `showroom.active` chỉ gọi `showroomFrame` (đường đi đứng yên). Chọn xe (`chooseCar`, thanh `#r-load` theo `cars.onProgress`),
+  người lái (`chooseCharacter`, Chisa chỉ Mustang), "Tự quay" (`chilldrive.raceSpin`, mặc định bật), Đứng cạnh xe / Ngồi trong xe (`raceStand`, không lưu);
+  kéo xoay quanh xe, lăn / chụm zoom; Esc / ‹ Back về màn hình chính; Start / Enter => `begin('drive')` (CHƯA có luật đua).
 - **Chế độ Stop / camera admin** (`src/adminCam.js`, nút Setting 🛠️ `#b-admin`, phím **`**; không lưu): `frame()` dùng `dt = 0` + `simNow`
   đứng yên (shader nước / cỏ / sương / hậu kỳ) => mọi thứ đứng hình; đặt Trời trong + Ban ngày (trả lại khi tắt, `saveScope` bỏ qua); tắt xoá phông.
   Camera admin ghi đè sau `rig.update` (rig giữ trạng thái), bật Stop là vào Free từ đúng vị trí + góc nhìn hiện tại: phím 1 Top (40 m) / 2 Front / 3 Side (12 m; lăn = khoảng cách 2–800 m, kéo = xoay quanh xe)
@@ -489,7 +496,7 @@
   cột; màn thấp / hẹp (điện thoại) thì bản đồ mờ ẩn và cột Setting xếp 2 cột (`grid`, cao tối đa 100vh − 150px, cuộn nếu dài). Nút cũ fast/stop/car/character/map còn trong DOM nhưng ẩn (JS cũ vẫn cập nhật).
   **Màn hình vào game**: tiêu đề + 2 hộp chọn chế độ `#m-chill` "Chill" (map ngắm cảnh, `nextMap` bỏ qua Phố; đang ở Phố thì
   về Đồi cỏ; có đoạn mở đầu) / `#m-drive` "Drive" (vào thẳng map Phố, không đoạn 180 km/h, phím M chỉ báo "chỉ có map Phố");
-  phím Enter/1 = Chill, 2 = Drive (`state.mode`). Không còn "chạm bất kỳ để bắt đầu". Nền mờ blur 3.5 px. Màn hình chờ (`PREVIEW` trong main): 1 cảnh cố
+  phím Enter/1 = Chill, 2 = Drive (`state.mode`), 3 = Race! (showroom chọn xe, xem trên). Không còn "chạm bất kỳ để bắt đầu". Nền mờ blur 3.5 px. Màn hình chờ (`PREVIEW` trong main): 1 cảnh cố
   định nhẹ — map Đồi cỏ, ban đêm, nhiều mây (sương theo bộ Chill), camera Quay quanh, xe chạy đều 25 km/h; chất lượng Good, không
   giảm điểm ảnh (`PREVIEW.quality` / `ratio`, 0.5 khi muốn nhẹ); nhạc nền + âm thanh bật ngay, trình duyệt chặn thì mở ở lần chạm /
   bấm đầu (`kickAudio`). (Bản nhiều cảnh ngẫu nhiên + hoà tan + dịch sẵn shader đã bỏ vì nặng — chú sẽ thay bằng video cắt ghép.)
@@ -543,6 +550,8 @@
   Dữ liệu tạo lại: `node scripts/fetch-hlg.mjs` (cache Overpass `HLG_CACHE`, mặc định `<tmp>/chilldrive-osm`) rồi `check-hlg.mjs`;
   `node scripts/fetch-hlg-env.mjs` (`ONLY=dem|env`; SRTM qua OpenTopoData ~4.5 phút, Overpass hay 502/504 ~23 phút — đừng dùng
   `[maxsize:…]`, chia nhỏ bbox).
+- **Race!**: mới có showroom chọn xe / người lái, Start vào Drive như thường. Phần đua (đường đua, xuất phát, đối thủ, tính giờ / vòng) để làm sau —
+  hỏi chú luật chơi trước. Showroom chưa xem trên máy thật (đèn / độ phơi sáng / ảnh phản chiếu sàn có thể cần chỉnh: `Showroom.exposure`, đèn trong `_lights`).
 - **Chờ chú**: map mới từ model `landscape_forest__mountains.glb` — chú dặn để lần sau, **hỏi chú trước khi làm**.
 - Chưa kiểm chứng hiệu năng trên máy thật (gương + tia nắng + mưa kính + thác tốn thêm GPU); chưa thử Good/Ultra trên máy ảo.
 - Cảnh dừng xe: đoạn ▶️ quay lại xe mới thử bằng mô phỏng logic (máy ảo quá chậm để chạy trọn).
@@ -562,3 +571,5 @@
   bấm bản đồ để dời tới; chú báo pan Stop ngược => đã đảo cho cùng chiều camera thường. Tất cả chưa xem trên máy thật — chú tự test.
 - **#2 — Camera admin không xuyên đất, phím 0 về vị trí ban đầu (23/10/2026)**.
 - **#3 — Bật Stop vào thẳng bay tự do từ camera hiện tại (23/10/2026)**.
+- **#4 — Chế độ Race!: showroom chọn xe + người lái (23/10/2026)**: hộp thứ 3 ở màn hình vào game, showroom tối sang (đèn studio, sàn bóng, bàn xoay
+  "Tự quay"), Start vào Drive. Xem mục 1 "Chế độ Race!". Chưa chạy thử — chú tự test.

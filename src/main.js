@@ -40,6 +40,7 @@ import { Nature } from './nature.js';
 import { RearMirror } from './mirror.js';
 import { WingMirrors } from './wingmirrors.js';
 import { Wipers } from './wipers.js';
+import { Showroom } from './showroom.js';
 import { Fireflies, FIREFLY_DEFAULTS } from './fireflies.js';
 import { ValleyTown } from './town.js';
 import { DashScreen } from './dashscreen.js';
@@ -117,6 +118,7 @@ const post = new Post(renderer, QUALITY[QUALITY_DEFAULT].msaa);
 const refl = new WetReflection(renderer);
 const person = new Person();
 const stop = new StopScene(cars, person);
+const showroom = new Showroom(renderer, post);   // chế độ Race!: showroom chọn xe + người lái (src/showroom.js)
 // mặt đất dưới người khi xuống xe: mặt đường (+5 cm), vỉa hè map Phố (+20 cm), còn lại địa hình
 // Đại lộ: ngoài mép cao tốc trong vùng nút giao (nhánh rẽ, đường ngang) mặt đất ở cao độ nền (`road.baseY`), không theo cầu vượt
 const avLowY = (s, u) => (onAvenue() && Math.abs(u) > AVENUE.hw + 0.3 && Math.abs(s - icS(icIndex(s))) < IC.rampLen + 20 ? road.baseY(s) : null);
@@ -1647,6 +1649,7 @@ $('b-admin').onclick = () => setAdmin(!admin.active);
 
 // ---------- input ----------
 window.addEventListener('keydown', (e) => {
+  if (showroom.active) return;                     // showroom Race!: phím do màn hình chờ xử lý (Enter / Esc)
   // chế độ Stop / Admin: chỉ phím admin (adminCam.js tự nghe 1–4, WASD, E/Q/C…), giữ O chụp ảnh, H ẩn HUD, ` thoát
   if (admin.active) {
     if (e.repeat) return;
@@ -1867,6 +1870,35 @@ function cockpitPitch() {
   return clamp(lo <= hi ? lo : hi, -0.1, 0.6);
 }
 
+// showroom Race!: người lái ngồi trong xe (tay trên vô lăng) hoặc đứng cạnh cửa tài xế
+let raceStand = true;
+function showroomFrame(dt) {
+  showroom.update(dt);
+  if (person.ready) {
+    person.root.visible = true;
+    person.head.scale.setScalar(1);
+    cars.cabinLevel = 0; cars.cabin.intensity = 0;
+    if (raceStand && !characterLoading) {
+      const d = cars.dim;
+      person.root.position.set(-d.width / 2 - 0.62, 0, -d.length * 0.08);
+      person.root.rotation.set(0, -2.15, 0);            // quay ra ngoài, hơi về phía đầu xe
+      person.tilt.rotation.set(0, 0, 0);
+      person.recline(0);
+      person.footShade.value = 0;
+      person.play('Idle_Loop', person.current ? 0.3 : 0);
+      person.update(dt);
+    } else {
+      if (person.current !== person.actions.Driving_Loop) stop.sit();
+      person.update(dt);
+      person.footShade.value = 1;
+      showroom.scene.updateMatrixWorld();
+      seatPose(cars.dim.seat);
+      if (cars.current?.steer) gripWheel(cars.current.steer);
+    }
+  }
+  showroom.render(simNow / 1000);
+}
+
 // hai tay đặt lên vành vô lăng (animation lái gốc dùng vô lăng to/thấp hơn => tay lơ lửng ngoài vành)
 const _wc = new THREE.Vector3(), _wn = new THREE.Vector3(), _wr = new THREE.Vector3(), _wu = new THREE.Vector3(), _wt = new THREE.Vector3(), _wp = new THREE.Vector3();
 const GRIP = 0.08;            // góc cầm (rad dưới phương ngang): gần 3 giờ & 9 giờ
@@ -1930,6 +1962,7 @@ function frame(now) {
   const dt = admin.active ? 0 : rawDt;                 // Stop: mọi mô phỏng đứng yên
   if (!admin.active) simNow += rawDt * 1000;           // đồng hồ shader / nước / cỏ / đom đóm (đứng yên khi Stop)
   if (admin.active) { steerHeld = 0; brakeHeld = false; }   // bỏ nút lái / phanh đang giữ trên điện thoại
+  if (showroom.active) { showroomFrame(rawDt); requestAnimationFrame(frame); return; }   // Race!: chỉ vẽ showroom, đường đi đứng yên
 
   if (openingElapsed !== null) {
     openingElapsed += dt;
@@ -2285,6 +2318,111 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+// ---------- chế độ Race!: showroom chọn xe + người lái (chưa có luật đua: Start => vào Drive) ----------
+const race = {
+  begin: null,                                    // = begin(mode) của màn hình chờ (gán trong init)
+  loading: false,
+  open() {
+    if (state.started || showroom.active || stop.active) return;
+    showroom.open(cars);
+    try { showroom.spinOn = localStorage.getItem('chilldrive.raceSpin') !== '0'; } catch { /* bỏ qua */ }
+    $('start').classList.add('race');
+    $('race').hidden = false;
+    // nút chọn xe: theo danh sách xe có file thật
+    const box = $('r-cars');
+    box.textContent = '';
+    cars.list.forEach((c, i) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'qbox'; b.textContent = c.name;
+      b.onclick = () => this.pickCar(i);
+      box.append(b);
+    });
+    this.sync();
+  },
+  close() {
+    if (!showroom.active) return;
+    showroom.close(env.carEnvRT?.texture);
+    if (person.ready) { stop.place(cars.dim); stop.sit(); }
+    $('race').hidden = true;
+    $('start').classList.remove('race');
+  },
+  async pickCar(i) {
+    if (this.loading || i === state.car) return;
+    this.loading = true; this.sync();
+    try { await chooseCar(i); } finally { this.loading = false; this.progress(null); this.sync(); }
+  },
+  async pickCharacter(i) {
+    if (characterLoading || i === state.character) return;
+    const p = chooseCharacter(i); this.sync();
+    await p; this.sync();
+  },
+  // thanh tải xe (Mazda ~20 MB): f = 0..1, null = ẩn
+  progress(f) {
+    if (!showroom.active) return;
+    const bar = $('r-load');
+    bar.hidden = f === null || f >= 1;
+    if (f !== null) { bar.querySelector('.lb-fill').style.width = (f * 100).toFixed(1) + '%'; bar.querySelector('.lb-text').textContent = 'Đang tải xe… ' + Math.round(f * 100) + '%'; }
+  },
+  sync() {
+    const mustang = cars.current?.def?.id === 'mustang';
+    [...$('r-cars').children].forEach((b, i) => { b.classList.toggle('on', i === state.car); b.disabled = this.loading; });
+    $('r-chars').querySelectorAll('button').forEach((b) => {
+      const i = +b.dataset.ch;
+      b.classList.toggle('on', i === state.character);
+      b.disabled = characterLoading || this.loading || (i === 1 && !mustang);
+      b.title = i === 1 && !mustang ? 'Chisa chỉ đi với Mustang' : '';
+    });
+    $('r-spin').classList.toggle('on', showroom.spinOn);
+    $('r-spin').setAttribute('aria-pressed', showroom.spinOn);
+    $('r-pose').textContent = raceStand ? 'Đứng cạnh xe' : 'Ngồi trong xe';
+    $('r-start').disabled = this.loading || characterLoading;
+  },
+  start() {
+    if (this.loading || characterLoading || !showroom.active) return;
+    this.close();
+    this.begin?.('drive');
+  },
+};
+$('r-back').onclick = () => race.close();
+$('r-start').onclick = () => race.start();
+$('r-chars').querySelectorAll('button').forEach((b) => { b.onclick = () => race.pickCharacter(+b.dataset.ch); });
+$('r-spin').onclick = () => {
+  showroom.spinOn = !showroom.spinOn;
+  try { localStorage.setItem('chilldrive.raceSpin', showroom.spinOn ? '1' : '0'); } catch { /* bỏ qua */ }
+  race.sync();
+};
+$('r-pose').onclick = () => { raceStand = !raceStand; race.sync(); };
+// kéo (chuột / 1 ngón) xoay quanh xe, lăn chuột / chụm 2 ngón để zoom; chỉ trên nền showroom (không phải trên nút)
+{
+  const el = $('race'), pts = new Map();
+  let pinch = 0;
+  el.addEventListener('pointerdown', (e) => {
+    if (e.target !== el) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    el.setPointerCapture?.(e.pointerId);
+    pinch = 0;
+  });
+  el.addEventListener('pointermove', (e) => {
+    const p = pts.get(e.pointerId);
+    if (!p) return;
+    if (pts.size === 1) showroom.drag(e.clientX - p.x, e.clientY - p.y);
+    p.x = e.clientX; p.y = e.clientY;
+    if (pts.size === 2) {
+      const [a, b] = [...pts.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinch) showroom.zoom(pinch / d);
+      pinch = d;
+    }
+  });
+  const up = (e) => { pts.delete(e.pointerId); pinch = 0; };
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+  el.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const dy = e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1);
+    showroom.zoom(Math.exp(clamp(dy, -200, 200) * 0.0012));
+  }, { passive: false });
+}
+
 // ---------- khởi động ----------
 async function init() {
   applyQuality();
@@ -2315,7 +2453,7 @@ async function init() {
   const kickAudio = () => { audio.start().catch((e) => console.warn('Audio:', e)); };
   kickAudio();
   for (const ev of ['pointerdown', 'keydown', 'touchstart']) window.addEventListener(ev, kickAudio, { once: true, capture: true });
-  cars.onProgress = (f) => setBtn(el.car, '🚗', 'Đang tải… ' + Math.round(f * 100) + '%');
+  cars.onProgress = (f) => { setBtn(el.car, '🚗', 'Đang tải… ' + Math.round(f * 100) + '%'); race.progress(f); };
   // cây / bụi / đá chi tiết: tải song song; xong thì dựng lại địa hình để cụm đá dùng model đá thật
   nature.load('assets/models/nature.glb').then(() => {
     if (nature.rockGeos.length) terrain.rockGeos = nature.rockGeos;
@@ -2356,8 +2494,11 @@ async function init() {
     window.removeEventListener('keydown', onKey);
     refreshUI();
   };
-  // phím: Enter / 1 = Chill, 2 = Drive
-  const onKey = (e) => { if (e.code === 'Enter' || e.code === 'Digit1') begin('chill'); else if (e.code === 'Digit2') begin('drive'); };
+  // phím: Enter / 1 = Chill, 2 = Drive, 3 = Race! (trong showroom: Enter = Start, Esc = quay lại)
+  const onKey = (e) => {
+    if (showroom.active) { if (e.code === 'Enter') race.start(); else if (e.code === 'Escape') race.close(); return; }
+    if (e.code === 'Enter' || e.code === 'Digit1') begin('chill'); else if (e.code === 'Digit2') begin('drive'); else if (e.code === 'Digit3') race.open();
+  };
   // bấm Chill / Drive: tải đủ dữ liệu map đầu của chế độ (thanh tiến độ thật, lưu vào thiết bị — lần sau bỏ qua), rồi vào game và
   // tải ngầm tiếp các map còn lại theo thứ tự trong danh sách map
   const firstMap = (mode) => MAPS[mode === 'drive' ? CITY_MAP : snap.map].id;
@@ -2380,6 +2521,8 @@ async function init() {
   };
   $('m-chill').onclick = () => begin('chill');
   $('m-drive').onclick = () => begin('drive');
+  $('m-race').onclick = () => race.open();
+  race.begin = begin;
   window.addEventListener('keydown', onKey);
   // màn hình chờ: tải ngầm trước dữ liệu map đầu của Chill rồi của Drive
   preload.queue([...preload.assetsFor(firstMap('chill')), ...preload.assetsFor(firstMap('drive'))]);

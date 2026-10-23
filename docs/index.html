@@ -12,8 +12,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Chill Drive</title>
-  <link rel="stylesheet" href="style.css?v=55c32119">
-  <link rel="modulepreload" href="app.js?v=fa9946de">
+  <link rel="stylesheet" href="style.css?v=a7e5d410">
+  <link rel="modulepreload" href="app.js?v=6f30d228">
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -25,8 +25,29 @@
     <div class="modes" id="modes" hidden>
       <button class="mode" id="m-chill" type="button">Chill<small>Thả trôi ngắm cảnh</small></button>
       <button class="mode" id="m-drive" type="button">Drive<small>Tập lái trong phố</small></button>
+      <button class="mode" id="m-race" type="button">Race!<small>Showroom · chọn xe</small></button>
     </div>
     <div id="loadbar" hidden><div class="lb-track"><div class="lb-fill"></div></div><div class="lb-text">Đang tải dữ liệu…</div></div>
+  </div>
+
+  <!-- chế độ Race!: showroom 3D chọn xe + người lái (src/showroom.js); kéo để xoay quanh xe, lăn / chụm để zoom -->
+  <div id="race" hidden>
+    <div class="r-top">
+      <button class="qbox" id="r-back" type="button" title="Về màn hình chính (Esc)">‹ Back</button>
+      <div class="r-title">Race!<small>Showroom</small></div>
+    </div>
+    <div class="r-panel">
+      <div class="r-row"><span class="r-lab">Xe</span><div class="r-opts" id="r-cars"></div></div>
+      <div class="r-row"><span class="r-lab">Người lái</span><div class="r-opts" id="r-chars">
+        <button class="qbox" type="button" data-ch="0">Người lái</button><button class="qbox" type="button" data-ch="1">Chisa</button>
+      </div></div>
+      <div class="r-row"><span class="r-lab">Xem</span><div class="r-opts">
+        <button class="qbox r-check" id="r-spin" type="button" aria-pressed="true" title="Xe quay chậm trên bàn xoay"><i></i>Tự quay</button>
+        <button class="qbox" id="r-pose" type="button" title="Người lái đứng cạnh xe / ngồi trong xe">Đứng cạnh xe</button>
+      </div></div>
+      <div id="r-load" hidden><div class="lb-track"><div class="lb-fill"></div></div><div class="lb-text"></div></div>
+    </div>
+    <button class="qbox r-go" id="r-start" type="button" title="Vào game (Enter)">Start</button>
   </div>
 
   <div id="stats"><div class="spd"><span id="limit" hidden>120</span><span id="speed">0</span><small>km/h</small></div><div id="clock">--:--</div><div id="place" hidden><b></b><span></span></div><div id="scoremini" hidden></div><div id="blink"><b class="l">◀</b><b class="r">▶</b></div></div>
@@ -147,6 +168,6 @@
   <div id="fade"></div>
   <div id="modename"></div>
   <div id="placename"><b></b><span></span></div>
-  <script type="module" src="app.js?v=fa9946de"></script>
+  <script type="module" src="app.js?v=6f30d228"></script>
 </body>
 </html>
