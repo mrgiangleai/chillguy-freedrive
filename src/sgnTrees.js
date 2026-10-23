@@ -141,6 +141,15 @@ export class SgnTrees {
     root.traverse((o) => {
       if (!o.isMesh || !o.geometry) return;
       const g = o.geometry.clone();
+      // meshopt lưu toạ độ / pháp tuyến / uv dạng số nguyên rút gọn (normalized Int16 / Int8): đổi sang Float32 trước khi applyMatrix4,
+      // nếu không ghi thẳng vào mảng số nguyên => cây bị bẹp thành bụi sát đất
+      for (const name of Object.keys(g.attributes)) {
+        const A = g.attributes[name];
+        if (A.array instanceof Float32Array && !A.isInterleavedBufferAttribute) continue;
+        const n = A.itemSize, f = new Float32Array(A.count * n);
+        for (let i = 0; i < A.count; i++) { f[i * n] = A.getX(i); if (n > 1) f[i * n + 1] = A.getY(i); if (n > 2) f[i * n + 2] = A.getZ(i); if (n > 3) f[i * n + 3] = A.getW(i); }
+        g.setAttribute(name, new THREE.BufferAttribute(f, n));
+      }
       g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(norm, o.matrixWorld));
       const mats = Array.isArray(o.material) ? o.material.map(cutout) : cutout(o.material);
       g.computeBoundingSphere();
