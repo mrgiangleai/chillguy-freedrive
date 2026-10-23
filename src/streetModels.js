@@ -1,0 +1,219 @@
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { withMist } from './mist.js';
+
+// Người đi bộ dùng model 3D (Setting 🚶 "Người 3D", mặc định tắt): CityPeople gọi begin / add / end thay cho hình người hộp.
+// - 13 model gốc ở `models/street-human/` (không đưa lên web); bản nén (simplify ~5k tam giác, webp 512, meshopt) ở
+//   `docs/assets/models/people/`. Không model nào có animation => dựng sẵn khi tải: chuẩn hoá cao / hướng (mặt = −z, chân ở y = 0),
+//   model chữ T hạ tay xuống (có xương: xoay xương cánh tay; không xương: xoay khối tay quanh vai), rồi gắn trọng số chân / tay
+//   cho từng đỉnh (có xương: theo trọng số xương; không xương: theo vị trí) để vertex shader đung đưa theo pha bước như người hộp.
+// - Mỗi model × mỗi vật liệu = 1 InstancedMesh (cùng dùng 1 instanceMatrix / aWalk của model đó).
+const DIR = 'assets/models/people/';
+// h: chiều cao (m); tpose: hạ tay; legs: false = váy dài (không tách chân); armX: tay ở ngoài |x| > armX·H (model không xương)
+export const PEOPLE_MODELS = [
+  { id: 'mixamo-man', h: 1.78, tpose: true },
+  { id: 'discord-guy', h: 1.76, tpose: true },
+  { id: 'ps1-man', h: 1.75 },
+  { id: 'stan', h: 1.72, armX: 0.15 },
+  { id: 'racer', h: 1.76, armX: 0.14 },
+  { id: 'ff-jota', h: 1.78, tpose: true },
+  { id: 'ff-skyler', h: 1.77, armX: 0.15 },
+  { id: 'ff-purple', h: 1.66, armX: 0.13 },
+  { id: 'ff-safari', h: 1.65, armX: 0.14 },
+  { id: 'ff-green', h: 1.67, armX: 0.15, legs: false },
+  { id: 'ff-black', h: 1.64, armX: 0.13 },
+  { id: 'ff-mask', h: 1.66, armX: 0.13 },
+  { id: 'hijab', h: 1.63, armX: 0.15, legs: false },
+];
+const HIP = 0.52, SH = 0.815;              // khớp háng / vai theo tỉ lệ chiều cao
+
+const _v = new THREE.Vector3(), _n = new THREE.Vector3(), _m = new THREE.Matrix4(), _m2 = new THREE.Matrix4(), _q = new THREE.Quaternion();
+
+// xương cánh tay / đùi theo tên (Mixamo: LeftArm / RightUpLeg; kiểu khác: upper_arm_left / thigh_right)
+const boneKind = (name) => /(left|right)arm(_\d+)?$|upper_?arm/i.test(name.replace(/^mixamorig_?/i, '')) ? 'arm'
+  : /(left|right)upleg|thigh/i.test(name) ? 'leg' : null;
+
+// hạ cánh tay chữ T: quay xương cánh tay để hướng vai→khuỷu chúc xuống ~72°
+function lowerArmBones(root) {
+  root.updateMatrixWorld(true);
+  root.traverse((b) => {
+    if (!b.isBone || boneKind(b.name) !== 'arm' || /_\d+_\d+$/.test(b.name)) return;
+    const child = b.children.find((c) => c.isBone);
+    if (!child) return;
+    const p0 = new THREE.Vector3().setFromMatrixPosition(b.matrixWorld), p1 = new THREE.Vector3().setFromMatrixPosition(child.matrixWorld);
+    const d = p1.sub(p0).normalize();
+    if (Math.abs(d.y) > 0.6) return;                                      // đã buông xuống (chữ A)
+    const t = new THREE.Vector3(Math.sign(d.x) * 0.3, -0.95, 0).normalize();
+    const delta = new THREE.Quaternion().setFromUnitVectors(d, t);
+    const wq = b.getWorldQuaternion(new THREE.Quaternion()), pq = b.parent.getWorldQuaternion(new THREE.Quaternion());
+    b.quaternion.copy(pq.invert().multiply(delta.multiply(wq)));
+    b.updateMatrixWorld(true);
+  });
+}
+
+// đỉnh của 1 mesh trong toạ độ thế giới (có xương: tự skinning trên CPU) + trọng số chân / tay theo xương
+function bakeMesh(mesh) {
+  const g = mesh.geometry, pos = g.attributes.position, nor = g.attributes.normal, n = pos.count;
+  const P = new Float32Array(n * 3), N = new Float32Array(n * 3), K = mesh.isSkinnedMesh ? new Float32Array(n * 2) : null;
+  let tags = null, bm = null;
+  if (mesh.isSkinnedMesh) {
+    const sk = mesh.skeleton;
+    sk.update();
+    bm = sk.bones.map((b, i) => new THREE.Matrix4().multiplyMatrices(b.matrixWorld, sk.boneInverses[i]));
+    tags = sk.bones.map((b) => {                                          // 1 = chân, 2 = tay (xương đó hoặc cha của nó); dấu = bên x
+      for (let o = b; o?.isBone; o = o.parent) {
+        const k = boneKind(o.name);
+        if (k) return { k: k === 'leg' ? 0 : 1, side: Math.sign(new THREE.Vector3().setFromMatrixPosition(o.matrixWorld).x) || 1 };
+      }
+      return null;
+    });
+  }
+  const si = g.attributes.skinIndex, sw = g.attributes.skinWeight;
+  for (let i = 0; i < n; i++) {
+    _v.fromBufferAttribute(pos, i); _n.set(0, 1, 0); if (nor) _n.fromBufferAttribute(nor, i);
+    if (mesh.isSkinnedMesh) {
+      _m.makeScale(0, 0, 0);
+      const e = _m.elements;
+      for (let j = 0; j < 4; j++) {
+        const w = sw.getComponent(i, j); if (!w) continue;
+        const bi = si.getComponent(i, j), be = bm[bi].elements;
+        for (let k = 0; k < 16; k++) e[k] += be[k] * w;
+        const t = tags[bi];
+        if (t) K[i * 2 + t.k] += w * t.side;
+      }
+      _m2.multiplyMatrices(_m, mesh.bindMatrix).premultiply(mesh.bindMatrixInverse).premultiply(mesh.matrixWorld);
+    } else _m2.copy(mesh.matrixWorld);
+    _v.applyMatrix4(_m2); _n.transformDirection(_m2);
+    P.set([_v.x, _v.y, _v.z], i * 3); N.set([_n.x, _n.y, _n.z], i * 3);
+  }
+  return { P, N, K };
+}
+
+async function buildModel(loader, def) {
+  const gltf = await loader.loadAsync(DIR + def.id + '.glb');
+  const root = gltf.scene;
+  if (def.tpose) lowerArmBones(root);
+  root.updateMatrixWorld(true);
+  const parts = [];
+  root.traverse((o) => { if (o.isMesh) parts.push({ mesh: o, ...bakeMesh(o) }); });
+  // khung bao => chuẩn hoá: chân ở y = 0, giữa x / z = 0, cao def.h, quay 180° (model nhìn +z, game nhìn −z)
+  const box = new THREE.Box3();
+  for (const p of parts) for (let i = 0; i < p.P.length; i += 3) box.expandByPoint(_v.fromArray(p.P, i));
+  const H = box.max.y - box.min.y, k = def.h / H, cx = (box.min.x + box.max.x) / 2, cz = (box.min.z + box.max.z) / 2;
+  const out = [];
+  for (const p of parts) {
+    const { P, N, K, mesh } = p, n = P.length / 3, L = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) {
+      let x = -(P[i * 3] - cx) * k, y = (P[i * 3 + 1] - box.min.y) * k, z = -(P[i * 3 + 2] - cz) * k;
+      let nx = -N[i * 3], ny = N[i * 3 + 1], nz = -N[i * 3 + 2];
+      const h = def.h, sx = Math.sign(x) || 1;
+      let leg = 0, arm = 0;
+      if (K) { leg = -K[i * 2]; arm = -K[i * 2 + 1]; }                  // đã lật x khi quay 180°
+      else {
+        if (def.tpose && y > 0.7 * h && Math.abs(x) > 0.12 * h) {       // hạ tay chữ T (không xương): xoay quanh vai
+          const a = -sx * 1.22, c = Math.cos(a), s = Math.sin(a), px = sx * 0.11 * h, py = SH * h;
+          const dx = x - px, dy = y - py;
+          x = px + dx * c - dy * s; y = py + dx * s + dy * c;
+          [nx, ny] = [nx * c - ny * s, nx * s + ny * c];
+        }
+        const ax = (def.armX ?? 0.12) * h;
+        if (y > 0.36 * h && y < SH * h + 0.05) arm = sx * THREE.MathUtils.clamp((Math.abs(x) - ax) / (0.025 * h), 0, 1);
+        if (def.legs !== false && arm === 0) leg = sx * THREE.MathUtils.clamp((0.47 * h - y) / (0.06 * h), 0, 1);
+      }
+      P[i * 3] = x; P[i * 3 + 1] = y; P[i * 3 + 2] = z; N[i * 3] = nx; N[i * 3 + 1] = ny; N[i * 3 + 2] = nz;
+      L[i * 4] = leg; L[i * 4 + 1] = arm; L[i * 4 + 2] = HIP * def.h; L[i * 4 + 3] = SH * def.h;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(P, 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(N, 3));
+    for (const a of ['uv', 'color']) if (mesh.geometry.attributes[a]) g.setAttribute(a, mesh.geometry.attributes[a]);
+    g.setAttribute('aLimb', new THREE.BufferAttribute(L, 4));
+    if (mesh.geometry.index) g.setIndex(mesh.geometry.index);
+    // lật x đảo chiều tam giác => mặt trước thành mặt sau; trả lại thứ tự đỉnh
+    const idx = g.index ? g.index.array : null;
+    if (idx) for (let t = 0; t < idx.length; t += 3) [idx[t + 1], idx[t + 2]] = [idx[t + 2], idx[t + 1]];
+    else flipNonIndexed(g);
+    g.computeBoundingSphere();
+    out.push({ geo: g, mat: mesh.material });
+  }
+  return out;
+}
+function flipNonIndexed(g) {
+  for (const a of Object.values(g.attributes)) {
+    const s = a.itemSize, arr = a.array;
+    for (let t = 0; t < a.count; t += 3) for (let c = 0; c < s; c++) [arr[(t + 1) * s + c], arr[(t + 2) * s + c]] = [arr[(t + 2) * s + c], arr[(t + 1) * s + c]];
+  }
+}
+
+function patch(src) {
+  const mat = new THREE.MeshStandardMaterial({
+    map: src.map ?? null, color: src.color ?? 0xffffff, normalMap: null, roughness: Math.max(0.6, src.roughness ?? 0.8), metalness: 0,
+    transparent: false, alphaTest: src.transparent || src.alphaTest ? 0.5 : 0, side: src.side ?? THREE.FrontSide, vertexColors: !!src.vertexColors,
+  });
+  mat.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec4 aLimb;\nattribute vec3 aWalk;')
+      .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
+        float sw = sin(aWalk.x) * aWalk.y;
+        float la = sw * 0.5 * aLimb.x, aa = -sw * 0.5 * aLimb.y;           // chân / tay ngược pha, bên trái / phải ngược nhau
+        float lc = cos(la), ls = sin(la), ac = cos(aa), as_ = sin(aa);
+        objectNormal = vec3(objectNormal.x, objectNormal.y * lc - objectNormal.z * ls, objectNormal.y * ls + objectNormal.z * lc);
+        objectNormal = vec3(objectNormal.x, objectNormal.y * ac - objectNormal.z * as_, objectNormal.y * as_ + objectNormal.z * ac);`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        transformed.y += abs(sin(aWalk.x)) * 0.03 * aWalk.y;                  // nhún theo bước
+        transformed.y -= aLimb.z;
+        transformed = vec3(transformed.x, transformed.y * lc - transformed.z * ls, transformed.y * ls + transformed.z * lc);
+        transformed.y += aLimb.z - aLimb.w;
+        transformed = vec3(transformed.x, transformed.y * ac - transformed.z * as_, transformed.y * as_ + transformed.z * ac);
+        transformed.y += aLimb.w;`);
+  };
+  mat.customProgramCacheKey = () => 'street-model' + (mat.map ? 'm' : '');
+  return withMist(mat);
+}
+
+export class StreetModels {
+  constructor(parent, capacity) {
+    this.group = new THREE.Group();
+    parent.add(this.group);
+    this.cap = capacity;
+    this.models = [];             // [{ meshes, matrix, walk, n }]
+    this.ready = false;
+    this._loading = null;
+  }
+  load() {
+    if (this._loading) return this._loading;
+    const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
+    this._loading = Promise.all(PEOPLE_MODELS.map(async (def) => {
+      const parts = await buildModel(loader, def);
+      const matrix = new THREE.InstancedBufferAttribute(new Float32Array(this.cap * 16), 16).setUsage(THREE.DynamicDrawUsage);
+      const walk = new THREE.InstancedBufferAttribute(new Float32Array(this.cap * 3), 3).setUsage(THREE.DynamicDrawUsage);
+      const meshes = parts.map(({ geo, mat }) => {
+        geo.setAttribute('aWalk', walk);
+        const m = new THREE.InstancedMesh(geo, patch(mat), this.cap);
+        m.instanceMatrix = matrix; m.count = 0; m.castShadow = true; m.frustumCulled = false;
+        this.group.add(m);
+        return m;
+      });
+      return { def, meshes, matrix, walk, n: 0 };
+    })).then((list) => { this.models = list; this.ready = true; return this; });
+    return this._loading;
+  }
+  get count() { return this.models.length || PEOPLE_MODELS.length; }
+  begin() { for (const M of this.models) M.n = 0; }
+  // k: chỉ số model, m: ma trận đặt người (Matrix4), ph / moving: pha bước + đang đi
+  add(k, m, ph, moving) {
+    const M = this.models[k % this.models.length];
+    if (!M || M.n >= this.cap) return;
+    m.toArray(M.matrix.array, M.n * 16);
+    M.walk.setXYZ(M.n, ph, moving, 0);
+    M.n++;
+  }
+  end() {
+    for (const M of this.models) {
+      for (const m of M.meshes) m.count = M.n;
+      if (M.n) { M.matrix.needsUpdate = true; M.walk.needsUpdate = true; }
+    }
+  }
+  set visible(v) { this.group.visible = v; }
+}

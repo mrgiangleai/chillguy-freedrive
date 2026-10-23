@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CITY } from './road.js';
 import { withMist } from './mist.js';
+import { StreetModels, PEOPLE_MODELS } from './streetModels.js';
 
 // Người đi bộ map Phố (dựng bằng code, 1 InstancedMesh, chân tay đung đưa trong vertex shader theo pha bước chân).
 // Mọi người dùng toạ độ đường chính: s (dọc đường), u (ngang, + = bên phải); vận tốc (vs, vu).
@@ -101,6 +102,8 @@ export class CityPeople {
     this.mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array((MAX + CROWD) * 3), 3);
     this.mesh.count = 0; this.mesh.castShadow = true; this.mesh.frustumCulled = false;
     this.group.add(this.mesh);
+    this.models = new StreetModels(this.group, MAX + CROWD);   // Setting 🚶 "Người 3D": thay người hộp bằng model GLB
+    this._det = false;
     this.peds = [];          // { s, u, vs, vu, speed, mode: walk|wait|cross|fallen|script, ph, color, n?, side? }
     this.timers = new Map();
     this._p = {}; this._m = new THREE.Matrix4(); this._q = new THREE.Quaternion(); this._e = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -114,6 +117,13 @@ export class CityPeople {
   set ambient(v) { if (v !== this._amb) { this.peds.length = 0; this.filled = false; this.timers.clear(); } this._amb = v; }
   get ambient() { return this._amb ?? true; }
   get visible() { return this.group.visible; }
+  // bật: tải model (lần đầu) rồi mới đổi; người kịch bản (cảnh sát / cấp cứu / người lái) vẫn dùng người hộp (đồng phục)
+  set detailed(v) {
+    this._want = v;
+    if (!v) { this._det = false; return; }
+    this.models.load().then(() => { this._det = !!this._want; }).catch((e) => console.warn('Không tải được người 3D', e));
+  }
+  get detailed() { return !!this._want; }
   // mép đường tại s: map Landmark co / nở theo đoạn (road.widths); map khác giữ CITY.hw như cũ (kể cả Đại lộ)
   _hw(s) { return this.road.widths ? this.road.hwAt(s) : CITY.hw; }
 
@@ -300,10 +310,11 @@ export class CityPeople {
     this.peds = this.peds.filter((p) => p.mode === 'script' || p.mode === 'fallen' || (p.s > s - BEHIND - 10 && p.s < s + AHEAD + 10 && (!p.crossing || (p.n >= n0 - 1))));
 
     // vẽ
-    const m = this._m, q = this._q, v = this._v, P = this._p;
-    let i = 0;
+    const m = this._m, q = this._q, v = this._v, P = this._p, det = this._det, MD = this.models, NM = PEOPLE_MODELS.length;
+    if (det) MD.begin();
+    let i = 0, k = 0;
     for (const p of this.peds) {
-      if (i >= MAX) break;
+      if (k++ >= MAX) break;
       road.at(p.s, P);
       const onWalk = amb && Math.abs(p.u) > this._hw(p.s) && road.nearJunction(p.s) !== null && Math.abs(p.s - road.nearJunction(p.s)) > CITY.side;
       const y = (this.yAt ? this.yAt(p.s, p.u, P.y) : P.y) + (onWalk ? 0.2 : 0.05);   // Đại lộ: nhánh rẽ ở cao độ nền; New York: vỉa hè ở mặt phố
@@ -314,21 +325,25 @@ export class CityPeople {
       if (p.mode === 'fallen') { q.setFromEuler(this._e.set(-Math.PI / 2, yaw, 0)); v.set(P.x + rx * p.u, y + 0.12, P.z + rz * p.u); }
       else { q.setFromEuler(this._e.set(0, yaw, 0)); v.set(P.x + rx * p.u, y, P.z + rz * p.u); }
       m.compose(v, q, this._one);
+      p.wx = v.x; p.wz = v.z;
+      if (det && !p.kind) { MD.add(p.mdl ??= Math.floor(Math.random() * NM), m, p.ph, p.moving); continue; }
       this.mesh.setMatrixAt(i, m);
       this.mesh.setColorAt(i, this._c.set(p.color));
       this.phase.setXYZ(i, p.ph, p.moving, p.acc || 0);
-      p.wx = v.x; p.wz = v.z;
       i++;
     }
     // đám đông ngoài (Times Square): [{ x, y, z, fx, fz (hướng nhìn), color, ph, moving, acc }] đã lọc gần camera
     if (this.extra) for (const p of this.extra()) {
-      if (i >= MAX + CROWD) break;
+      if (i >= MAX + CROWD || k++ >= MAX + CROWD) break;
       q.setFromEuler(this._e.set(0, Math.atan2(-p.fx, -p.fz), 0)); v.set(p.x, p.y, p.z);
       m.compose(v, q, this._one);
+      if (det) { MD.add(p.mdl ??= Math.floor(Math.random() * NM), m, p.ph, p.moving); continue; }
       this.mesh.setMatrixAt(i, m); this.mesh.setColorAt(i, this._c.set(p.color)); this.phase.setXYZ(i, p.ph, p.moving, p.acc);
       i++;
     }
     this.mesh.count = i;
+    if (det) MD.end();
+    MD.visible = det;
     this.mesh.instanceMatrix.needsUpdate = true;
     this.mesh.instanceColor.needsUpdate = true;
     this.phase.needsUpdate = true;
