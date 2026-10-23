@@ -1049,7 +1049,7 @@ export class City {
       }
       for (let s = Math.ceil(zA / 12) * 12; s < zB; s += 12) {
         const pf = prof(s);
-        if (!pf?.plant || pf.w < 1) continue;
+        if (!pf?.plant || pf.w < 1 || this.medianTreesOff) continue;   // Landmark: cây dải phân cách do sgnTrees dựng (model chi tiết)
         const p = this.road.at(s, this._p), u = (mr() - 0.5) * 0.4, k = 0.7 + mr() * 0.25;
         mTrees.push([p.x + Math.cos(p.th) * u, p.y + pf.h, p.z - Math.sin(p.th) * u, mr() * 6.28, k, k, k]);
       }

@@ -13,7 +13,10 @@ const BY_MAP = {
   avenue: ['assets/tex/ocean-waves.png'],
   hlg: ['assets/tex/ocean-waves.png', 'assets/hlg-env.json'],
   nyc: ['assets/nyc-buildings.json', 'assets/nyc-streets.json'],
-  sgn: ['assets/models/sgn/landmark81.glb', 'assets/sgn-env.json'],
+  sgn: ['assets/models/sgn/landmark81.glb', 'assets/sgn-env.json',
+    'assets/models/sgn/trees/acacia.glb', 'assets/models/sgn/trees/maple.glb', 'assets/models/sgn/trees/palm-fan.glb',
+    'assets/models/sgn/trees/palm-date.glb', 'assets/models/sgn/trees/cypress.glb', 'assets/models/sgn/trees/urban-tall.glb',
+    'assets/models/sgn/trees/urban-round.glb'],
 };
 // tải sau cùng (chỉ cần khi chú chọn): xe Mazda, nhân vật Chisa
 export const EXTRA = ['assets/models/mazda-rx-vision.glb', 'assets/models/chisa_wuthering_waves.glb'];
