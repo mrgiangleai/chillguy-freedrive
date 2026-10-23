@@ -12,8 +12,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Chill Drive</title>
-  <link rel="stylesheet" href="style.css?v=6b499017">
-  <link rel="modulepreload" href="app.js?v=0db380dd">
+  <link rel="stylesheet" href="style.css?v=22065f04">
+  <link rel="modulepreload" href="app.js?v=a1cff8ca">
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -44,7 +44,10 @@
         <button class="qbox" type="button" data-ch="0">Người lái</button><button class="qbox" type="button" data-ch="1">Chisa</button>
       </div></div>
       <div class="r-row"><span class="r-lab">Xem</span><div class="r-opts">
-        <button class="qbox r-check" id="r-spin" type="button" aria-pressed="true" title="Xoay chậm trên bàn xoay"><i></i>Tự quay</button>
+        <button class="qbox r-check" id="r-spin" type="button" aria-pressed="true" title="Bục tròn quay chậm"><i></i>Tự quay</button>
+        <button class="qbox r-check" id="r-phys" type="button" aria-pressed="true" title="Vật lý: xe / người rơi xuống, đứng trên bục và quay theo bục thật"><i></i>Vật lý</button>
+        <button class="qbox" id="r-pose" type="button" title="Người lái đứng cạnh xe / ngồi trong xe">Đứng cạnh xe</button>
+        <button class="qbox" id="r-led" type="button" title="Màu đèn LED tường sau: trắng / vàng / RGB">LED · Trắng</button>
       </div></div>
       <div id="r-load" hidden><div class="lb-track"><div class="lb-fill"></div></div><div class="lb-text"></div></div>
     </div>
@@ -55,6 +58,8 @@
       <div id="r-lform" hidden></div>
       <small id="r-lhint">Kéo chấm sáng trong cảnh để dời đèn (xoay camera để đổi chiều sâu).</small>
     </section>
+    <button class="r-arrow" id="r-prev" type="button" aria-label="Trước (←)">‹</button>
+    <button class="r-arrow" id="r-next" type="button" aria-label="Tiếp theo (→)">›</button>
     <button class="qbox r-go" id="r-start" type="button" title="Vào game (Enter)">Start</button>
   </div>
 
@@ -176,6 +181,6 @@
   <div id="fade"></div>
   <div id="modename"></div>
   <div id="placename"><b></b><span></span></div>
-  <script type="module" src="app.js?v=0db380dd"></script>
+  <script type="module" src="app.js?v=a1cff8ca"></script>
 </body>
 </html>

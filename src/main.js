@@ -1870,24 +1870,32 @@ function cockpitPitch() {
   return clamp(lo <= hi ? lo : hi, -0.1, 0.6);
 }
 
-// showroom Race!: tab Xe chỉ hiện xe; tab Người chỉ hiện nhân vật đứng giữa bàn xoay (không hiện cùng nhau)
+// showroom Race!: xe + người lái cùng đứng trên bục; người đứng cạnh cửa tài xế hoặc ngồi trong xe (tay trên vô lăng)
+let raceStand = true;
 function showroomFrame(dt) {
   showroom.update(dt);
-  const solo = showroom.subject === 'person';
-  cars.root.visible = !solo;
   cars.cabinLevel = 0; cars.cabin.intensity = 0;
   if (person.ready) {
-    person.root.visible = solo;
-    if (solo) {
+    person.root.visible = true;
+    person.head.scale.setScalar(1);
+    if (raceStand && !characterLoading) {
       if (person.root.parent !== showroom.spin) showroom.spin.add(person.root);
-      person.head.scale.setScalar(1);
-      person.root.position.set(0, 0, 0);
-      person.root.rotation.set(0, 0.75, 0);            // nhìn về phía camera lúc mở
+      const d = cars.dim;
+      person.root.position.set(-d.width / 2 - 0.75, showroom.drops.person.y, -d.length * 0.06);
+      person.root.rotation.set(0, -2.15, 0);            // quay ra ngoài, hơi về phía đầu xe
       person.tilt.rotation.set(0, 0, 0);
       person.recline(0);
       person.footShade.value = 0;
       person.play('Idle_Loop', person.current ? 0.3 : 0);
       person.update(dt);
+    } else {
+      if (person.root.parent !== cars.tilt) cars.tilt.add(person.root);
+      if (person.current !== person.actions.Driving_Loop) stop.sit();
+      person.update(dt);
+      person.footShade.value = 1;
+      showroom.scene.updateMatrixWorld();
+      seatPose(cars.dim.seat);
+      if (cars.current?.steer) gripWheel(cars.current.steer);
     }
   }
   showroom.render(simNow / 1000);
@@ -2315,15 +2323,20 @@ function frame(now) {
 // ---------- chế độ Race!: showroom chọn xe / nhân vật + đèn tự thêm (chưa có luật đua: Start => vào Drive) ----------
 // thanh trượt của đèn đang chọn: get / set trên cfg; only = chỉ cho loại đèn đó
 const LIGHT_FIELDS = [
-  { k: 'x', label: 'X', min: -10, max: 10, step: 0.05, get: (c) => c.pos[0], set: (c, v) => { c.pos[0] = v; }, fmt: (v) => v.toFixed(1) },
-  { k: 'y', label: 'Cao', min: 0.15, max: 5.45, step: 0.05, get: (c) => c.pos[1], set: (c, v) => { c.pos[1] = v; }, fmt: (v) => v.toFixed(1) },
-  { k: 'z', label: 'Z', min: -8.3, max: 10, step: 0.05, get: (c) => c.pos[2], set: (c, v) => { c.pos[2] = v; }, fmt: (v) => v.toFixed(1) },
-  { k: 'intensity', label: 'Độ sáng', min: 0, max: 400, step: 1, fmt: (v) => Math.round(v) },
-  { k: 'size', label: 'Độ lớn', min: 1, max: 30, step: 0.5, fmt: (v) => v.toFixed(1) + ' m' },
+  { k: 'x', label: 'X', min: -8.8, max: 8.8, step: 0.05, only: 'spot omni dir', get: (c) => c.pos[0], set: (c, v) => { c.pos[0] = v; }, fmt: (v) => v.toFixed(1) },
+  { k: 'y', label: 'Cao', min: 0.15, max: 5.45, step: 0.05, only: 'spot omni dir', get: (c) => c.pos[1], set: (c, v) => { c.pos[1] = v; }, fmt: (v) => v.toFixed(1) },
+  { k: 'z', label: 'Z', min: -5, max: 10.8, step: 0.05, only: 'spot omni dir', get: (c) => c.pos[2], set: (c, v) => { c.pos[2] = v; }, fmt: (v) => v.toFixed(1) },
+  { k: 'intensity', label: 'Độ sáng', min: 0, max: 400, step: 1, only: 'spot omni', fmt: (v) => Math.round(v) },
+  { k: 'intensity', label: 'Độ sáng', min: 0, max: 10, step: 0.05, only: 'dir', fmt: (v) => v.toFixed(2) },
+  { k: 'intensity', label: 'Độ sáng', min: 0, max: 3, step: 0.01, only: 'hemi', fmt: (v) => v.toFixed(2) },
+  { k: 'intensity', label: 'Độ sáng', min: 0, max: 4, step: 0.01, only: 'led', fmt: (v) => '×' + v.toFixed(2) },
+  { k: 'intensity', label: 'Mức', min: 0.3, max: 2, step: 0.01, only: 'exposure', fmt: (v) => v.toFixed(2) },
+  { k: 'size', label: 'Độ lớn', min: 1, max: 30, step: 0.5, only: 'spot omni', fmt: (v) => v.toFixed(1) + ' m' },
   { k: 'spread', label: 'Độ toả', min: 5, max: 85, step: 1, only: 'spot', fmt: (v) => Math.round(v) + '°' },
   { k: 'spread', label: 'Độ toả', min: 0, max: 100, step: 1, only: 'omni', fmt: (v) => Math.round(v) + '%' },
   { k: 'soft', label: 'Độ mềm', min: 0, max: 1, step: 0.01, only: 'spot', fmt: (v) => Math.round(v * 100) + '%' },
 ];
+const ROOM_LIGHT_COUNT = showroom.userLights.filter((l) => l.builtin).length;   // đèn có sẵn đứng đầu danh sách
 const race = {
   begin: null,                                    // = begin(mode) của màn hình chờ (gán trong init)
   loading: false,
@@ -2342,12 +2355,14 @@ const race = {
       b.onclick = () => this.pickCar(i);
       box.append(b);
     });
+    try { showroom.physics = localStorage.getItem('chilldrive.racePhys') !== '0'; } catch { /* bỏ qua */ }
+    showroom.personRoot = person.root;
+    showroom.settle('car'); showroom.settle('person');
     this.tab('car');
     this.lights();
   },
   close() {
     if (!showroom.active) return;
-    cars.root.visible = true;
     if (person.ready) { cars.tilt.add(person.root); person.root.visible = true; stop.place(cars.dim); stop.sit(); }
     showroom.close(env.carEnvRT?.texture);
     this.editLights(false);
@@ -2358,17 +2373,24 @@ const race = {
     showroom.setSubject(t);
     $('race').querySelectorAll('.r-tabs button').forEach((b) => { b.classList.toggle('on', b.dataset.tab === t); b.setAttribute('aria-selected', b.dataset.tab === t); });
     $('race').querySelectorAll('.r-row[data-for]').forEach((r) => { r.hidden = r.dataset.for !== t; });
+    $('r-prev').title = $('r-next').title = t === 'car' ? 'Xe trước / tiếp theo' : 'Người trước / tiếp theo';
     this.sync();
+  },
+  // nút ‹ › hai bên: xe / người trước – tiếp theo (theo tab đang mở; Chisa chỉ đi với Mustang)
+  step(dir) {
+    if (showroom.subject === 'car') this.pickCar((state.car + dir + cars.list.length) % cars.list.length);
+    else if (cars.current?.def?.id === 'mustang') this.pickCharacter((state.character + dir + 2) % 2);
+    else toast('Chisa chỉ đi với Mustang — chọn Mustang ở tab Xe', false, 2200);
   },
   async pickCar(i) {
     if (this.loading || i === state.car) return;
     this.loading = true; this.sync();
-    try { await chooseCar(i); } finally { this.loading = false; this.progress(null); this.sync(); }
+    try { await chooseCar(i); } finally { this.loading = false; this.progress(null); showroom.settle('car'); this.sync(); }
   },
   async pickCharacter(i) {
     if (characterLoading || i === state.character) return;
     const p = chooseCharacter(i); this.sync();
-    await p; this.sync();
+    await p; showroom.settle('person'); this.sync();
   },
   // thanh tải xe (Mazda ~20 MB): f = 0..1, null = ẩn
   progress(f) {
@@ -2388,6 +2410,11 @@ const race = {
     });
     $('r-spin').classList.toggle('on', showroom.spinOn);
     $('r-spin').setAttribute('aria-pressed', showroom.spinOn);
+    $('r-phys').classList.toggle('on', showroom.physics);
+    $('r-phys').setAttribute('aria-pressed', showroom.physics);
+    $('r-pose').textContent = raceStand ? 'Đứng cạnh xe' : 'Ngồi trong xe';
+    $('r-led').textContent = 'LED · ' + ['Trắng', 'Vàng', 'RGB'][showroom.ledMode];
+    $('r-prev').disabled = $('r-next').disabled = this.loading || characterLoading;
     $('r-start').disabled = this.loading || characterLoading;
   },
   start() {
@@ -2400,6 +2427,7 @@ const race = {
     showroom.editing = on;
     $('r-lights').hidden = !on;
     $('r-lighttog').classList.toggle('on', on);
+    $('race').classList.toggle('editing', on);
     if (on) this.lights();
   },
   // danh sách đèn + bảng thanh trượt của đèn đang chọn
@@ -2409,20 +2437,21 @@ const race = {
     showroom.userLights.forEach((it, n) => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.textContent = (it.cfg.type === 'spot' ? 'Spot ' : 'Omni ') + (n + 1);
+      b.textContent = it.builtin ? it.builtin.name : (it.cfg.type === 'spot' ? 'Spot ' : 'Omni ') + (n + 1 - ROOM_LIGHT_COUNT);
+      if (it.builtin) b.classList.add('room');
       b.classList.toggle('on', it === showroom.selected);
       b.onclick = () => { showroom.select(it); this.lights(); };
       list.append(b);
     });
     const sel = showroom.selected, form = $('r-lform');
-    $('r-add-spot').disabled = $('r-add-omni').disabled = showroom.userLights.length >= 8;
-    $('r-lhint').textContent = showroom.userLights.length ? 'Kéo chấm sáng trong cảnh để dời đèn (xoay camera để đổi chiều sâu). Tự lưu.' : 'Chưa có đèn — bấm + Spot / + Omni.';
+    $('r-add-spot').disabled = $('r-add-omni').disabled = showroom.userLights.length - ROOM_LIGHT_COUNT >= 8;
+    $('r-lhint').textContent = 'Chọn đèn để chỉnh; kéo chấm sáng trong cảnh để dời đèn (xoay camera để đổi chiều sâu). Tự lưu.';
     form.hidden = !sel;
     form.textContent = '';
     if (!sel) return;
     const c = sel.cfg;
     for (const f of LIGHT_FIELDS) {
-      if (f.only && f.only !== c.type) continue;
+      if (!f.only.split(' ').includes(c.type)) continue;
       const lab = document.createElement('label'), inp = document.createElement('input'), out = document.createElement('output');
       lab.append(Object.assign(document.createElement('span'), { textContent: f.label }), inp, out);
       Object.assign(inp, { type: 'range', min: f.min, max: f.max, step: f.step });
@@ -2433,15 +2462,19 @@ const race = {
       inp.dataset.k = f.k;
       form.append(lab);
     }
-    const lab = document.createElement('label'), col = document.createElement('input');
-    col.type = 'color'; col.value = c.color;
-    col.oninput = () => { c.color = col.value; showroom.applyLight(sel); };
-    col.onchange = () => showroom.saveLights();
-    lab.append(Object.assign(document.createElement('span'), { textContent: 'Màu' }), col, document.createElement('span'));
-    form.append(lab);
+    for (const [k, label] of [['color', c.type === 'hemi' ? 'Màu trời' : 'Màu'], ['color2', 'Màu đất']]) {
+      if (c[k] === undefined) continue;
+      const lab = document.createElement('label'), col = document.createElement('input');
+      col.type = 'color'; col.value = c[k];
+      col.oninput = () => { c[k] = col.value; showroom.applyLight(sel); };
+      col.onchange = () => showroom.saveLights();
+      lab.append(Object.assign(document.createElement('span'), { textContent: label }), col, document.createElement('span'));
+      form.append(lab);
+    }
     const del = document.createElement('button');
-    del.type = 'button'; del.textContent = 'Xoá đèn này';
-    del.onclick = () => { showroom.removeLight(sel); showroom.saveLights(); this.lights(); };
+    del.type = 'button';
+    del.textContent = sel.builtin ? 'Về mặc định' : 'Xoá đèn này';
+    del.onclick = () => { if (sel.builtin) showroom.resetLight(sel); else showroom.removeLight(sel); showroom.saveLights(); this.lights(); };
     form.append(del);
   },
   // sau khi kéo chấm sáng: cập nhật thanh X / Cao / Z
@@ -2465,13 +2498,27 @@ $('r-spin').onclick = () => {
   try { localStorage.setItem('chilldrive.raceSpin', showroom.spinOn ? '1' : '0'); } catch { /* bỏ qua */ }
   race.sync();
 };
+$('r-phys').onclick = () => {
+  showroom.physics = !showroom.physics;
+  try { localStorage.setItem('chilldrive.racePhys', showroom.physics ? '1' : '0'); } catch { /* bỏ qua */ }
+  showroom.settle('car'); showroom.settle('person');
+  race.sync();
+};
+$('r-pose').onclick = () => { raceStand = !raceStand; if (raceStand) showroom.settle('person'); race.sync(); };
+$('r-led').onclick = () => {
+  showroom.setLedMode((showroom.ledMode + 1) % 3);
+  try { localStorage.setItem('chilldrive.raceLed', showroom.ledMode); } catch { /* bỏ qua */ }
+  race.sync();
+};
+$('r-prev').onclick = () => race.step(-1);
+$('r-next').onclick = () => race.step(1);
 $('r-lighttog').onclick = () => race.editLights(!showroom.editing);
 $('r-lclose').onclick = () => race.editLights(false);
 for (const type of ['spot', 'omni']) {
   $('r-add-' + type).onclick = () => {
     // đèn mới đặt lệch theo số đèn để không chồng lên nhau, phía camera đang nhìn
-    const n = showroom.userLights.length, a = showroom.orbit.yaw + (n % 2 ? -0.7 : 0.7);
-    const it = showroom.addLight(type, { pos: [Math.sin(a) * 3.2, 3.4, Math.max(-7.5, Math.cos(a) * 3.2)] });
+    const n = showroom.userLights.length - ROOM_LIGHT_COUNT, a = showroom.orbit.yaw + (n % 2 ? -0.7 : 0.7);
+    const it = showroom.addLight(type, { pos: [Math.sin(a) * 3.2, 3.4, Math.max(-4.8, Math.cos(a) * 3.2)] });
     if (it) { showroom.select(it); showroom.saveLights(); race.lights(); }
   };
 }
@@ -2594,6 +2641,7 @@ async function init() {
     if (showroom.active) {
       if (e.code !== 'Escape' && e.target.closest?.('input, button')) return;   // đang chỉnh thanh trượt / nút đang được chọn (Enter = bấm nút đó)
       if (e.code === 'Enter') race.start(); else if (e.code === 'Escape') race.close(); else if (e.code === 'KeyL') race.editLights(!showroom.editing);
+      else if (e.code === 'ArrowLeft') race.step(-1); else if (e.code === 'ArrowRight') race.step(1);
       return;
     }
     if (e.code === 'Enter' || e.code === 'Digit1') begin('chill'); else if (e.code === 'Digit2') begin('drive'); else if (e.code === 'Digit3') race.open();

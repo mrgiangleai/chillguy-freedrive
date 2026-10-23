@@ -67,6 +67,17 @@ html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: non
 #r-lform input[type=color] { width: 100%; height: 22px; border: 0; padding: 0; background: none; }
 #r-lform output { text-align: right; opacity: .75; font-variant-numeric: tabular-nums; }
 #r-lights small { opacity: .55; font-size: 10.5px; line-height: 1.35; }
+/* nút ‹ › hai bên xe: nền vuông mờ */
+#race .r-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 56px; height: 56px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .2);
+  background: rgba(255, 255, 255, .08); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); color: #fff; cursor: pointer;
+  font: 200 34px/1 "Helvetica Neue", "Segoe UI Light", Roboto, Arial, sans-serif; padding: 0 0 4px; transition: background .2s, border-color .2s; }
+#race .r-arrow:hover:not(:disabled) { background: rgba(255, 255, 255, .2); border-color: rgba(255, 255, 255, .5); }
+#race .r-arrow:disabled { opacity: .35; cursor: default; }
+#r-prev { left: max(18px, env(safe-area-inset-left)); }
+#r-next { right: max(18px, env(safe-area-inset-right)); }
+#r-llist button.room { border-style: dashed; }
+#race.editing #r-next { right: calc(max(18px, env(safe-area-inset-right)) + 262px); }
+@media (max-height: 500px), (max-width: 640px) { #race.editing #r-next { right: calc(max(18px, env(safe-area-inset-right)) + 220px); } }
 #r-load { width: min(360px, 60vw); }
 #r-load[hidden] { display: none; }
 #r-load .lb-track { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .18); overflow: hidden; }
@@ -80,6 +91,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: non
   #race .r-opts .qbox { min-width: 62px; height: 32px; padding: 0 10px; }
   #race .r-go { width: 92px; height: 42px; font-size: 12px; }
   #race .r-tabs { margin-left: 62px; }
+  #race .r-arrow { width: 42px; height: 42px; font-size: 26px; }
   #race .r-tabs button { min-width: 64px; height: 26px; font-size: 10.5px; }
   #r-lights { width: 210px; max-height: calc(100vh - 80px); padding: 8px 10px; gap: 6px; }
 }
