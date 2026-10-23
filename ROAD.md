@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -36,7 +36,7 @@
   => xoá `caches` + unregister trước khi thử.
 - **Chế độ Stop / camera admin** (`src/adminCam.js`, nút Setting 🛠️ `#b-admin`, phím **`**; không lưu): `frame()` dùng `dt = 0` + `simNow`
   đứng yên (shader nước / cỏ / sương / hậu kỳ) => mọi thứ đứng hình; đặt Trời trong + Ban ngày (trả lại khi tắt, `saveScope` bỏ qua); tắt xoá phông.
-  Camera admin ghi đè sau `rig.update` (rig giữ trạng thái): phím 1 Top (40 m) / 2 Front / 3 Side (12 m; lăn = khoảng cách 2–800 m, kéo = xoay quanh xe)
+  Camera admin ghi đè sau `rig.update` (rig giữ trạng thái), bật Stop là vào Free từ đúng vị trí + góc nhìn hiện tại: phím 1 Top (40 m) / 2 Front / 3 Side (12 m; lăn = khoảng cách 2–800 m, kéo = xoay quanh xe)
   / 4 Free (30 m/s; WASD, E/Space lên, Q/C xuống, Shift ×8, lăn = tốc độ, kéo = nhìn). Bảng `#admin` (không ẩn theo idle) hiện góc + toạ độ camera + `drive.s`.
   Camera admin không xuống dưới đất / nước (`admin.groundAt` = `rig.groundAt`, cách mặt 0.5 m); phím 0 = về vị trí ban đầu (Free: chỗ lúc bật Stop;
   góc khác: quanh xe, mặc định), nút ◎ trên bản đồ = về xe.
@@ -561,3 +561,4 @@
   Phiên người 3D / Stop (đã gộp vào mục 1 / 3): người đi bộ 3D (Setting 🚶), chế độ Stop + camera admin (phím `), phanh bấm đúp,
   bấm bản đồ để dời tới; chú báo pan Stop ngược => đã đảo cho cùng chiều camera thường. Tất cả chưa xem trên máy thật — chú tự test.
 - **#2 — Camera admin không xuyên đất, phím 0 về vị trí ban đầu (23/10/2026)**.
+- **#3 — Bật Stop vào thẳng bay tự do từ camera hiện tại (23/10/2026)**.

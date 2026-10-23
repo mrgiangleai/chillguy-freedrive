@@ -171,10 +171,10 @@ export class AdminCam {
     this.free.speed = 30;
     this.captureFree();
     this.start = { pos: this.free.pos.clone(), yaw: this.free.yaw, pitch: this.free.pitch };   // vị trí ban đầu cho phím 0
-    this.mode = 'top';
+    this.mode = 'free';                             // vào Stop: bay tự do từ đúng vị trí + góc nhìn camera đang có
     this.az = 0;
     this.el = EL_TOP;
-    for (const b of this.dom.cams) b.classList.toggle('on', b.dataset.cam === 'top');
+    for (const b of this.dom.cams) b.classList.toggle('on', b.dataset.cam === 'free');
     if (this.dom.panel) this.dom.panel.hidden = false;
     this.syncInfo(true);
   }
