@@ -177,7 +177,8 @@ try { sgnEnv.treesVisible = localStorage.getItem('chilldrive.sgn.treesVisible') 
 sgnEnv.street = {
   * [Symbol.iterator]() {
     const L = SGN.data.length, P = {}, hwAt = (s) => (road.hwAt ? road.hwAt(L + s) : CITY.hw);
-    for (let s = 20; s < 1500; s += 11) { road.at(L + s, P); for (const su of [-1, 1]) { const u = su * (hwAt(s) + CITY.walk * 0.55); yield [P.x + Math.cos(P.th) * u, P.z - Math.sin(P.th) * u, 2, s]; } }
+    // ngoài khu Vinhomes (s < 494: Nguyễn Hữu Cảnh) cây thưa gấp đôi (22 m), trong khu 11 m
+    for (let s = 20; s < 1500; s += s < 494 ? 22 : 11) { road.at(L + s, P); for (const su of [-1, 1]) { const u = su * (hwAt(s) + CITY.walk * 0.55); yield [P.x + Math.cos(P.th) * u, P.z - Math.sin(P.th) * u, 2, s]; } }
     // cây giữa dải phân cách bồn cây (mỗi 12 m, cùng loại cây với phố đó); city.js không dựng cây low-poly ở dải nữa (`medianTreesOff`)
     const md = { w: 0, kind: null };
     for (let s = 6; s < L; s += 12) { road.medianAt(L + s, md); if (md.kind !== 'plant' || md.w < 1) continue; road.at(L + s, P); yield [P.x, P.z, 2, s]; }
@@ -709,7 +710,8 @@ const applyMap = () => {
   city.nyc = isNyc;
   city.street = isSgn;
   city.medianTreesOff = isSgn;
-  city.noPoles = isSgn ? (s) => { const r = ((s % SGN.length) + SGN.length) % SGN.length; return r > 380 && r < 1560; } : null;   // Landmark: Vinhomes đi cáp ngầm
+  // Landmark: cột / dây điện chỉ có ở một số đoạn (~1/3 số đoạn 300 m, chọn theo băm cố định); khu Vinhomes đi cáp ngầm
+  city.noPoles = isSgn ? (s) => { const r = ((s % SGN.length) + SGN.length) % SGN.length; if (r > 380 && r < 1560) return true; const k = Math.floor(r / 300), h = Math.sin(k * 91.7 + 3.1) * 43758.5; return h - Math.floor(h) > 0.33; } : null;
   timesSq.density = state.quality === QUALITY.findIndex((q) => q.id === 'low') ? 0.6 : 1;   // đám đông Times Square: Low ít người hơn
   timesSq.visible = isNyc;      // trước khi dựng khối phố: vùng loại nhà map Phố
   nycBld.visible = isNyc;

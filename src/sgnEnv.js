@@ -230,10 +230,12 @@ export class SgnEnv {
       if (k !== 0) continue;
       let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
       for (let i = 0; i < pts.length; i += 2) { x0 = Math.min(x0, pts[i]); x1 = Math.max(x1, pts[i]); z0 = Math.min(z0, pts[i + 1]); z1 = Math.max(z1, pts[i + 1]); }
-      const want = Math.min(400, Math.round(polyArea(pts) / 110));
-      for (let tries = 0, got = 0; tries < want * 4 && got < want && trees.length < 2600; tries++) {
+      // sát đường (cách mép nhựa < 50 m) dày gấp ~2 (khách đi đường thấy công viên rậm), sâu trong công viên thưa hơn
+      const want = Math.min(700, Math.round(polyArea(pts) / 80));
+      for (let tries = 0, got = 0; tries < want * 4 && got < want && trees.length < 4200; tries++) {
         const x = x0 + (x1 - x0) * r(), z = z0 + (z1 - z0) * r();
         if (!inPoly(x, z, pts) || blocked(x, z) || (this.avoid && this.avoid(x, z))) continue;
+        if (this.roadGap && this.roadGap(x, z) > 50 && r() < 0.55) continue;
         trees.push([x, z]); got++;
       }
     }
@@ -245,6 +247,17 @@ export class SgnEnv {
     }
     this._trees(trees);
     this.count = { buildings: D.b.length, tris, trees: trees.length };
+    // ô công viên / cỏ (lưới 4 m) cho người dạo công viên (cityPeople.parkAt): Set khoá 'gx,gz'
+    this.parkCells = new Set();
+    for (const [k, pts] of D.g) {
+      if (k !== 0) continue;
+      let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+      for (let i = 0; i < pts.length; i += 2) { x0 = Math.min(x0, pts[i]); x1 = Math.max(x1, pts[i]); z0 = Math.min(z0, pts[i + 1]); z1 = Math.max(z1, pts[i + 1]); }
+      for (let x = Math.floor(x0 / 4) * 4; x < x1; x += 4) for (let z = Math.floor(z0 / 4) * 4; z < z1; z += 4) if (inPoly(x + 2, z + 2, pts) && !blocked(x + 2, z + 2)) this.parkCells.add((x / 4) + ',' + (z / 4));
+    }
+  }
+  // (x, z) nằm trên bãi cỏ công viên (không nhà / nước)?
+  inPark(x, z) { return !!this.parkCells && this.parkCells.has(Math.floor(x / 4) + ',' + Math.floor(z / 4));
   }
 
   // tia nước: hình nón hẹp cao 1 m (scale y theo thời gian), màu theo kiểu (0 xanh ngọc, 1 hồng, 2 trắng)
