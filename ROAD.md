@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -362,6 +362,11 @@
   meshopt có thuộc tính số nguyên rút gọn => đổi sang Float32 trước khi applyMatrix4 (không thì cây bẹp). Bảng 🚦 mục "Landmark": nút "Cây model
   chi tiết" (`chilldrive.sgn.trees`) + "Hiện cây (thử đồ hoạ)" (`chilldrive.sgn.treesVisible`). `scripts/check-sgn-trees.mjs`. Cây giữa dải phân
   cách bồn cây cũng vào sgnTrees (mỗi 12 m, cùng loại với phố; `city.medianTreesOff` tắt cây low-poly của city.js).
+  **Mật độ (23/10, chú dặn)**: hàng cây vỉa hè ngoài khu Vinhomes (Nguyễn Hữu Cảnh s < 494) mỗi 22 m (trong khu 11 m); cột / dây điện chỉ ~1/3
+  số đoạn 300 m (băm cố định, `city.noPoles`), khu Vinhomes không có; cây công viên dày hơn ở dải 50 m sát đường (1 / 80 m², sâu trong thưa
+  hơn, trần 4 200 cây). **Người dạo công viên** (API DeepSeek): `cityPeople.parkAt` = `sgnEnv.inPark` (lưới ô 4 m bãi cỏ OSM), `parkCount` 70
+  (Low 35), mode 'park': đi chậm uốn lượn, dừng ngắm, đôi khi đi cặp, ra mép công viên thì quay lại, đứng trên cỏ (+0.25 m); `check-sgn-park.mjs`.
+  Sửa: bỏ đèn hai bên trên cầu dùng `road.widths` (trước kiểm `map === 'sgn'` không bao giờ đúng vì scenery nhận 'city').
   **Nền cỏ cả khu**: lưới ô 6 m trong đa giác `vinhomes`, sát đường ô 2 m luồn dưới vỉa hè (`roadGap` = khoảng tới mép nhựa thật, `sgnNearest`).
   Vào map ở s = L + 60, luôn Hoàng hôn + Nhiều mây (chú dặn, để chụp lại), camera giữ lần trước.
   Trọng tâm (chú dặn): làm đẹp khu quanh Landmark 81; đoạn khác chỉ cần đúng.
@@ -552,3 +557,4 @@
 - **#6 — Landmark: cây model chú tải (23/10/2026)**: mỗi phố 1 loại cây, công viên trộn, GLB chỉ trong 100 m, 2 nút thử đồ hoạ; free hết lượt => API DeepSeek; Claude sửa lỗi cây bẹp (meshopt).
 - **#7 — Cây dải phân cách dùng model chi tiết + sửa lỗi gộp (23/10/2026)**: lúc gộp nhánh chính lấy nhầm `docs/index.html` bản cũ => mất nút 🚶
   (`b-people`), trang không chạy; đã thêm lại. **Bài học**: gộp xung đột `docs/index.html` phải so với bản nhánh chính, đừng `checkout --ours` cả file.
+- **#8 — Landmark: thưa cây ngoài khu, cột điện từng đoạn, công viên sát đường nhiều cây + người dạo (23/10/2026)**: free hết lượt => API DeepSeek; check PASS.
