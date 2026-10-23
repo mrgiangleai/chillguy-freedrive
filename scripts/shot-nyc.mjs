@@ -3,7 +3,7 @@
 //   OUT=shots/ TIME=22 WX=clear Q=low node scripts/shot-nyc.mjs '[["ten-anh", s, d, cam, chờ_ms], …]'
 //   s: vị trí dọc vòng (0..5543, xem nyc-data.json: góc, hầm 2766–3189, cầu cạn 3319–3719, Times Square 470–960); d: làn (5.25 phải, 1.8 trái);
 //   cam: 0 sau xe, 1 sát đường, 2 bên hông, 3 trong xe, 4 quay quanh, 5 từ trên cao; TIME giờ 0–24; WX clear/rain/fog; Q low/good/ultra.
-//   FARSHADOW=1: bật bóng nắng xa. MIRROR=0: tắt kính gương.
+//   FARSHADOW=1: bật bóng nắng xa. PEOPLE3D=1: người đi bộ dùng model 3D (Setting 🚶). MIRROR=0: tắt kính gương.
 //   Ẩn bớt cho nhanh / dễ nhìn lỗi (sửa đường thì ẩn nhà, sửa nhà thì chỉ giữ nhà gần): HIDE=nhóm,nhóm…  nhóm: buildings (nhà OSM + tòa nổi tiếng),
 //   ts (Times Square), people, traffic, props (biển, trụ cứu hoả, cửa tàu), net (phố OSM quanh tuyến), works (hầm / cầu cạn), city (đèn, vạch ngã tư).
 //   NEAR=mét: chỉ giữ các cụm nhà OSM có tâm trong bán kính đó quanh xe (cụm ~300 m tuyến).
@@ -20,7 +20,7 @@ const errs = [];
 p.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errs.push(m.type() + ': ' + m.text().slice(0, 300)); });
 p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
 await p.goto('http://localhost:' + (process.env.PORT || 8080) + '/?map=nyc', { waitUntil: 'domcontentloaded', timeout: 120000 });
-await p.evaluate(([Q, M, F]) => { localStorage.clear(); localStorage.setItem('chilldrive.quality', Q); localStorage.setItem('chilldrive.nyc.mirror', M); localStorage.setItem('chilldrive.farShadow', F); }, [process.env.Q || 'low', process.env.MIRROR || '1', process.env.FARSHADOW === '1' ? '1' : '0']);
+await p.evaluate(([Q, M, F, P]) => { localStorage.clear(); localStorage.setItem('chilldrive.quality', Q); localStorage.setItem('chilldrive.nyc.mirror', M); localStorage.setItem('chilldrive.farShadow', F); localStorage.setItem('chilldrive.people3d', P); }, [process.env.Q || 'low', process.env.MIRROR || '1', process.env.FARSHADOW === '1' ? '1' : '0', process.env.PEOPLE3D === '1' ? '1' : '0']);
 await p.reload({ waitUntil: 'domcontentloaded', timeout: 120000 });
 await p.waitForTimeout(15000);
 await p.evaluate(() => document.getElementById('m-drive').click());
@@ -54,7 +54,7 @@ for (const [name, s, d, cam, wait] of shots) {
   }, [(process.env.HIDE || '').split(',').filter(Boolean), +(process.env.NEAR || 0), +(process.env.RANGE || 0)]);
   await p.waitForTimeout(1500);
   await p.screenshot({ path: OUT + name + '.png', timeout: 150000 }); if (name === 'c-tunnel') { await p.evaluate(() => window.__app.minimap.open()); await p.waitForTimeout(3000); await p.screenshot({ path: OUT + 'c-minimap.png', timeout: 150000 }); await p.evaluate(() => window.__app.minimap.close()); }
-  console.log('shot', name, await p.evaluate(() => { const A = window.__app; return JSON.stringify({ props: A.nycProps.count, bld: A.nycBld.count, crowd: A.timesSq.near.length, nan: A.timesSq.crowd.filter((p) => !Number.isFinite(p.s)).length, s: A.drive.s.toFixed(0), y: A.drive.pos.y.toFixed(2), cars: A.cityTraffic.cars.length, peds: A.cityPeople.peds.length, blocks: A.city.blocks.size }); }));
+  console.log('shot', name, await p.evaluate(() => { const A = window.__app; return JSON.stringify({ props: A.nycProps.count, bld: A.nycBld.count, crowd: A.timesSq.near.length, nan: A.timesSq.crowd.filter((p) => !Number.isFinite(p.s)).length, s: A.drive.s.toFixed(0), y: A.drive.pos.y.toFixed(2), cars: A.cityTraffic.cars.length, peds: A.cityPeople.peds.length, people3d: A.cityPeople.models.models.reduce((t, M) => t + M.n, 0), blocks: A.city.blocks.size }); }));
 }
 if (DRIVE) {          // tự lái thật qua góc 7th Ave → 32nd St từ làn ngoài phải
   const c = 2 * L + 1716.7;
