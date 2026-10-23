@@ -20,6 +20,17 @@
   cây (cọ + cây tán tròn), lối đi lát màu; góc đông nam là dãy biệt thự mái dốc (Villas). Dựng: footprint + chiều cao OSM (tên Park / Central /
   Landmark 1–6), công viên + cây theo `leisure=park` OSM, bờ sông.
 
+## Ảnh tham khảo chú gửi (23/10/2026, Google Street View + drone) — việc theo ảnh
+- Không cần đúng số Landmark mấy; chỉ cần dáng ổn, chân tháp mỗi tòa hơi khác. Chú gửi thêm ảnh khi cần, làm trước 1 cái rồi cái khác sau.
+- **Đường nội khu (Vạn Hoa 4 / 3, Trần Trọng Kim)**: đường đôi, mỗi chiều 2 làn (vạch trắng đứt, mép trắng liền), **dải phân cách giữa có bồn cây
+  bụi + cây thân gỗ / cọ**, không vạch vàng; vỉa hè lát gạch xám, nhiều cây; biển "cấm đi ngược", tốc độ 20. Xe máy nhiều.
+- **Cầu đi bộ xoắn đỏ – vàng** qua Trần Trọng Kim cạnh Landmark 81: ống lưới thép, vòng xoắn đỏ + vành vàng, 2 tháp trụ tròn sọc đen trắng có cầu thang xoắn.
+- **Quảng trường đi bộ** giữa Landmark 81 và các tháp: đá lát bàn cờ, hồ nước nông lan can kính, đài phun sáng xanh ngọc / hồng ban đêm,
+  tượng điêu khắc xanh lá, cọ, quán cà phê / cửa hàng ở chân tháp.
+- **Mặt tiền chính Landmark 81**: khối đế Vincom Center ốp đá vàng nhạt + kính, biển quảng cáo lớn (Dior, màn hình), Katinat, Starbucks; đêm LED dọc vàng / trắng / tím.
+- **Cầu Sài Gòn**: mỗi chiều 3 làn, dải phân cách bê tông (jersey) giữa, lan can thép, cột đèn cao màu xanh dương 2 tay; bên cạnh tuyến metro trên cao.
+- Đêm từ công viên: cầu vòm đá trắng có đèn qua hồ, đài phun nước hồng, tháp sáng nhiều cửa sổ ấm.
+
 ## Cách làm: dùng lại khung map New York (vòng khép kín) + map Phố
 - `mapKind('sgn') = 'city'`: đèn giao thông, người đi bộ, tai nạn, chấm điểm, bảng 🚦. Bộ cài đặt riêng `chilldrive.sgn`.
 - `road.setShape('sgn', loop)` dùng chung code vòng của New York (s quấn vòng). Giao thông 2 chiều kiểu map Phố (không phải một chiều NYC).

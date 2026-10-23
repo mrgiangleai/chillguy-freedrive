@@ -155,7 +155,8 @@ const sgnScene = new SgnScene(scene, (x, z) => terrain.heightAt(x, z));   // map
 const sgnEnv = new SgnEnv(scene, (x, z) => terrain.heightAt(x, z));       // map Landmark: khu Vinhomes (tháp chung cư, biệt thự, công viên, hồ, sông, cây — OSM)
 sgnEnv.onReady = () => { if (sgnEnv.visible) city.extraObb = sgnEnv.obb; };
 sgnEnv.avoid = (x, z) => sgnNear(x, z, 13);                  // cây không mọc trên lòng đường / vỉa hè tuyến
-sgnEnv.base = SGN.data.vinhomes; sgnEnv.walk = CITY.walk;                              // nền thảm cỏ cả khu Vinhomes
+sgnEnv.base = SGN.data.vinhomes; sgnEnv.walk = CITY.walk;
+sgnEnv.plaza = { x: SGN.data.landmark81[0], z: SGN.data.landmark81[1], r: 170 };   // khu đi bộ quanh chân Landmark 81 (đá lát, đài phun, cọ)                              // nền thảm cỏ cả khu Vinhomes
 sgnEnv.roadGap = (x, z) => { const [d, s] = sgnNearest(x, z); return d - road.hwAt(SGN.length + s); };   // nền cỏ: khoảng cách tới mép nhựa thật
 // hàng cây hai bên đường từ Nguyễn Hữu Cảnh qua Vạn Hoa 4 / 3, Trần Trọng Kim (s 0–1500), mỗi 11 m, trên vỉa hè sát lề (tính khi dựng)
 sgnEnv.street = {
@@ -2024,7 +2025,8 @@ function frame(now) {
   if (nycBld.visible) { nycBld.setLamps(st.lamps); nycProps.setLamps(st.lamps); }
   if (timesSq.visible) { timesSq.update(dt, st.lamps, drive.pos, drive.s); timesSq.capture(renderer, scene, dt, st.lamps); }
   if (nycWorks.visible) { nycWorks.setLamps(st.lamps); nycWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
-  if (sgnEnv.visible) { sgnEnv.winK = lightTune.windows; sgnEnv.setLamps(st.lamps); }
+  if (sgnEnv.visible) { sgnEnv.winK = lightTune.windows; sgnEnv.setLamps(st.lamps); sgnEnv.update(dt); }
+  if (sgnScene.visible) sgnScene.setLamps(st.lamps * lightTune.signs);   // LED dọc Landmark 81 theo đèn đêm × "biển hiệu" bảng Lighting
   if (sgnWorks.visible) { sgnWorks.setLamps(st.lamps); sgnWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
   minimap.update(dt);
   updateBlinker(dt);

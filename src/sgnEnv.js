@@ -8,22 +8,23 @@ import { withMist } from './mist.js';
 
 // mặt tiền chung cư Vinhomes (theo ảnh chú gửi): tường trắng xám nhạt, cửa kính tối có lan can ban công trắng, 2 sọc dọc xám đậm (lõi thang / cột)
 // mỗi ô texture; emissive = cửa sổ sáng ban đêm (ngẫu nhiên). 1 ô = 6 khoang × 18 m ngang, 8 tầng × 26.4 m cao
-function vhFacade() {
+function vhFacade(v = 0) {   // v: 0 trắng sọc xám đậm, 1 xám đậm sọc trắng, 2 kem sọc xám nhạt (mỗi tháp 1 kiểu)
   const W = 256, H = 256, c = document.createElement('canvas'), e = document.createElement('canvas');
   c.width = e.width = W; c.height = e.height = H;
   const g = c.getContext('2d'), ge = e.getContext('2d');
-  let seed = 7; const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  g.fillStyle = '#e4e4e0'; g.fillRect(0, 0, W, H); ge.fillStyle = '#000'; ge.fillRect(0, 0, W, H);
+  let seed = 7 + v * 31; const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const [wall, core, rail] = [['#e4e4e0', '#5f6266', '#f7f7f4'], ['#6e7378', '#e6e6e2', '#d9dbd8'], ['#ece4d4', '#9a958a', '#fbf8f0']][v];
+  g.fillStyle = wall; g.fillRect(0, 0, W, H); ge.fillStyle = '#000'; ge.fillRect(0, 0, W, H);
   const fh = H / 8, cw = W / 6;
   for (let fy = 0; fy < 8; fy++) for (let fx = 0; fx < 6; fx++) {
     if (fx === 2) continue;                                          // khoang lõi thang (sọc xám đậm vẽ sau)
     const x = fx * cw + 5, y = fy * fh + 5, w = cw - 10, h = fh - 10;
     g.fillStyle = r() < 0.5 ? '#3c444c' : '#4a535c'; g.fillRect(x, y, w, h);          // kính tối
     g.fillStyle = 'rgba(190,205,215,0.35)'; g.fillRect(x, y, w * 0.45, h);             // phản chiếu trời
-    g.fillStyle = '#f7f7f4'; g.fillRect(x - 3, y + h - 6, w + 6, 2); g.fillRect(x - 3, y + h, w + 6, 4);   // lan can + sàn ban công
-    if (r() < 0.32) { ge.fillStyle = r() < 0.7 ? '#ffd9a0' : '#fff2d8'; ge.fillRect(x + 1, y + 1, w - 2, h - 8); }
+    g.fillStyle = rail; g.fillRect(x - 3, y + h - 6, w + 6, 2); g.fillRect(x - 3, y + h, w + 6, 4);   // lan can + sàn ban công
+    if (r() < 0.45) { ge.fillStyle = r() < 0.7 ? '#ffd9a0' : '#fff2d8'; ge.fillRect(x + 1, y + 1, w - 2, h - 8); }
   }
-  g.fillStyle = '#5f6266'; g.fillRect(2 * cw + 6, 0, cw - 12, H);                     // sọc dọc xám đậm (lõi)
+  g.fillStyle = core; g.fillRect(2 * cw + 6, 0, cw - 12, H);                     // sọc dọc xám đậm (lõi)
   g.fillStyle = '#6c6f73'; g.fillRect(5 * cw + cw - 6, 0, 6, H);                       // cột góc
   const t = new THREE.CanvasTexture(c), te = new THREE.CanvasTexture(e);
   for (const x of [t, te]) { x.wrapS = x.wrapT = THREE.RepeatWrapping; x.anisotropy = 4; }
@@ -54,8 +55,8 @@ export class SgnEnv {
     this.groundAt = groundAt;
     this.group = new THREE.Group(); this.group.visible = false; scene.add(this.group);
     this.state = 'idle'; this.obb = []; this.foot = null; this.winK = 1; this.walk = 4;   // walk: bề rộng vỉa hè tuyến (main đặt)
-    const [map, em] = vhFacade();
-    this.wall = withMist(new THREE.MeshStandardMaterial({ map, emissiveMap: em, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.55, metalness: 0.05 }));
+    this.walls = [0, 1, 2].map((v) => { const [map, em] = vhFacade(v); return withMist(new THREE.MeshStandardMaterial({ map, emissiveMap: em, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.55, metalness: 0.05 })); });
+    this.wall = this.walls[0];
     const [pm, pe] = podiumTex();
     this.podium = withMist(new THREE.MeshStandardMaterial({ map: pm, emissiveMap: pe, emissive: 0xffffff, emissiveIntensity: 0.1, roughness: 0.5 }));
     this.mid = withMist(new THREE.MeshStandardMaterial({ color: 0xe6e0d4, roughness: 0.8 }));
@@ -64,14 +65,30 @@ export class SgnEnv {
     this.tile = withMist(new THREE.MeshStandardMaterial({ color: 0x4a4f57, roughness: 0.7 }));        // mái dốc biệt thự (ngói xám)
     const flat = (color, rough = 1, extra = {}) => withMist(new THREE.MeshStandardMaterial({ color, roughness: rough, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, ...extra }));
     this.ground = [flat(0x5f8a3e), flat(0x3f7a4a), flat(0xc8b38a)];                                // cỏ, sân thể thao, sân chơi
-    this.lawn = flat(0x7a9160);                                       // nền cả khu (thảm cỏ cắt tỉa) — dưới cỏ công viên / nước
+    this.lawn = flat(0x7a9160);
+    this.paving = flat(0xffffff, 0.75, { map: pavingTex() });   // quảng trường đi bộ quanh chân Landmark 81 (đá lát ô bàn cờ)
+    this.jetMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending });
+    this.t = 0; this.lampK = 0;                                       // nền cả khu (thảm cỏ cắt tỉa) — dưới cỏ công viên / nước
     this.water = [flat(0x2f5568, 0.12, { metalness: 0.2 }), flat(0x3b6b78, 0.1, { metalness: 0.2 }), flat(0x4fb3c8, 0.08), flat(0x7cc4d4, 0.1)];
     this.trunk = withMist(new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 0.9 }));
     this.leaf = withMist(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }));
   }
   set visible(v) { this.group.visible = v; if (v && this.state === 'idle') this._load(); }
   get visible() { return this.group.visible; }
-  setLamps(k) { this.wall.emissiveIntensity = 1.1 * k * this.winK; this.podium.emissiveIntensity = (0.1 + 1.2 * k) * this.winK; }
+  // tia nước đài phun: nhấp nhô theo thời gian, ban đêm sáng màu (xanh ngọc / hồng / trắng như ảnh đêm chú gửi)
+  update(dt) {
+    if (!this.jets || !this.group.visible) return;
+    this.t += dt;
+    const J = this.jets, m4 = this._m4 || (this._m4 = new THREE.Matrix4());
+    for (let i = 0; i < J.list.length; i++) {
+      const [x, y, z, ph] = J.list[i], h = 1.2 + 1.6 * (0.5 + 0.5 * Math.sin(this.t * 1.7 + ph));
+      m4.makeScale(1, h, 1).setPosition(x, y, z); J.mesh.setMatrixAt(i, m4);
+    }
+    J.mesh.instanceMatrix.needsUpdate = true;
+    this.jetMat.opacity = 0.35 + 0.45 * this.lampK;
+  }
+  setLamps(k) {
+    this.lampK = k; for (const m of this.walls) m.emissiveIntensity = 1.3 * k * this.winK; this.podium.emissiveIntensity = (0.1 + 1.2 * k) * this.winK; }
 
   async _load() {
     this.state = 'loading';
@@ -87,7 +104,7 @@ export class SgnEnv {
   // street: [{ x, z, nx, nz }] điểm đặt hàng cây hai bên đường nội khu (main truyền vào, theo tuyến + bề rộng đường)
   _build(D) {
     const G = this.groundAt;
-    const walls = [mk(), mk(), mk()], pods = mk(), roofs = mk(), tiles = mk(), grounds = [mk(), mk(), mk()], waters = [mk(), mk(), mk(), mk()];
+    const walls = [mk(), mk(), mk()], towers = [mk(), mk(), mk()], pods = mk(), roofs = mk(), tiles = mk(), grounds = [mk(), mk(), mk()], waters = [mk(), mk(), mk(), mk()];
     const blockers = [];                                      // [minx, minz, maxx, maxz, pts] nhà + nước: không trồng cây vào
     // ---- nhà ----
     for (const [h, cls, , pts] of D.b) {
@@ -97,7 +114,7 @@ export class SgnEnv {
       cx /= n; cz /= n; blockers.push([x0 - 2, z0 - 2, x1 + 2, z1 + 2, pts]);
       const y0 = G(cx, cz) - 0.5, wallH = cls === 2 ? Math.max(4, h - 3) : h, y1 = y0 + 0.5 + wallH;
       let area = 0; for (let i = 0; i < n; i++) { const j = (i + 1) % n; area += pts[2 * i] * pts[2 * j + 1] - pts[2 * j] * pts[2 * i + 1]; }
-      const sg = area > 0 ? 1 : -1, B = walls[cls];
+      const sg = area > 0 ? 1 : -1, B = cls === 0 ? towers[Math.floor(hash(cx, cz) * 3)] : walls[cls];
       let per = (cx * 7.31 + cz * 3.17) % 24;
       for (let i = 0; i < n; i++) {
         const j = (i + 1) % n, ax = pts[2 * i], az = pts[2 * i + 1], bx = pts[2 * j], bz = pts[2 * j + 1], L = Math.hypot(bx - ax, bz - az);
@@ -139,7 +156,8 @@ export class SgnEnv {
       upPoly(B, shape, THREE.ShapeUtils.triangulateShape(shape, []), y + dy);
     };
     // nền cả khu: lưới ô 6 m trong ranh `this.base` (đa giác [x, z][]), chừa lòng đường + vỉa hè tuyến (this.avoidRoad), cao hơn đất 15 cm
-    const lawn = mk();
+    const lawn = mk(), pave = mk(), PL = this.plaza;          // PL: { x, z, r } tâm + bán kính quảng trường đi bộ (main đặt)
+    const inPlaza = (x, z) => PL && (x - PL.x) ** 2 + (z - PL.z) ** 2 < PL.r * PL.r;
     if (this.base) {
       const P = this.base.flat(), C = 6;
       let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
@@ -147,9 +165,10 @@ export class SgnEnv {
       // roadGap(x, z): khoảng còn trống tới mép lòng đường (âm = trên mặt nhựa); ô sát đường chia nhỏ 2 m để luồn kín dưới vỉa hè
       const cell = (x, z, c) => {
         // ô lớn: theo góc cao nhất (đất gồ không trồi lên); ô nhỏ sát đường: góc thấp nhất (không trồi lên mặt vỉa hè)
-        const y = (c < C ? Math.min : Math.max)(G(x, z), G(x + c, z), G(x, z + c), G(x + c, z + c)) + (c < C ? 0.08 : 0.12), b0 = lawn.pos.length / 3;
-        lawn.pos.push(x, y, z, x + c, y, z, x + c, y, z + c, x, y, z + c); lawn.nor.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0); lawn.uv.push(0, 0, 0, 0, 0, 0, 0, 0);
-        lawn.idx.push(b0, b0 + 2, b0 + 1, b0, b0 + 3, b0 + 2);
+        const B = inPlaza(x + c / 2, z + c / 2) ? pave : lawn;
+        const y = (c < C ? Math.min : Math.max)(G(x, z), G(x + c, z), G(x, z + c), G(x + c, z + c)) + (c < C ? 0.08 : 0.12), b0 = B.pos.length / 3;
+        B.pos.push(x, y, z, x + c, y, z, x + c, y, z + c, x, y, z + c); B.nor.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0); B.uv.push(x / 4, z / 4, (x + c) / 4, z / 4, (x + c) / 4, (z + c) / 4, x / 4, (z + c) / 4);
+        B.idx.push(b0, b0 + 2, b0 + 1, b0, b0 + 3, b0 + 2);
       };
       for (let x = x0; x < x1; x += C) for (let z = z0; z < z1; z += C) {
         if (!inPoly(x + C / 2, z + C / 2, P)) continue;
@@ -159,18 +178,30 @@ export class SgnEnv {
         for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) { const sx = x + i * 2, sz = z + j * 2; if (this.roadGap(sx + 1, sz + 1) > this.walk - 1) cell(sx, sz, 2); }
       }
     }
-    for (const [k, pts] of D.g) flatPoly(grounds[k], pts, 0.22);   // cao hơn mặt đất 22 cm: lưới địa hình thô không trồi lên che
+    for (const [k, pts] of D.g) { if (k === 0 && inPlaza(pts[0], pts[1])) continue; flatPoly(grounds[k], pts, 0.22); }   // bãi cỏ OSM trong quảng trường: thay bằng đá lát   // cao hơn mặt đất 22 cm: lưới địa hình thô không trồi lên che
+    const jets = [];
     for (const [k, pts] of D.w) {
       flatPoly(waters[k], pts, k === 0 ? 0.3 : 0.28);
+      if (k === 3) {                                      // đài phun: tia nước rải trong đa giác, cách nhau ~2.5 m (tối đa 40 / đài)
+        let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+        for (let i = 0; i < pts.length; i += 2) { x0 = Math.min(x0, pts[i]); x1 = Math.max(x1, pts[i]); z0 = Math.min(z0, pts[i + 1]); z1 = Math.max(z1, pts[i + 1]); }
+        let n = 0;
+        for (let x = x0 + 1.2; x < x1 && n < 40; x += 2.5) for (let z = z0 + 1.2; z < z1 && n < 40; z += 2.5) {
+          if (!inPoly(x, z, pts)) continue;
+          jets.push([x, G(x, z) + 0.3, z, hash(x, z) * 6.28, n % 5 === 0 ? 2 : (Math.floor(x / 10 + z / 7) & 1)]); n++;
+        }
+      }
       let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
       for (let i = 0; i < pts.length; i += 2) { x0 = Math.min(x0, pts[i]); x1 = Math.max(x1, pts[i]); z0 = Math.min(z0, pts[i + 1]); z1 = Math.max(z1, pts[i + 1]); }
       blockers.push([x0, z0, x1, z1, pts]);
     }
+    if (jets.length) this._jets(jets);
     let tris = 0;
     walls.forEach((B, k) => { tris += mesh(this.group, B, [this.wall, this.mid, this.villa][k]); });
+    towers.forEach((B, k) => { tris += mesh(this.group, B, this.walls[k]); });
     tris += mesh(this.group, pods, this.podium);
     tris += mesh(this.group, roofs, this.roof); tris += mesh(this.group, tiles, this.tile);
-    tris += mesh(this.group, lawn, this.lawn, false);
+    tris += mesh(this.group, lawn, this.lawn, false); tris += mesh(this.group, pave, this.paving, false);
     grounds.forEach((B, k) => { tris += mesh(this.group, B, this.ground[k], false); });
     waters.forEach((B, k) => { tris += mesh(this.group, B, this.water[k], false); });
     // ---- cây: OSM + rải trong công viên / bãi cỏ (1 cây / ~110 m², tối đa 2 600) + hàng cây đường nội khu ----
@@ -189,14 +220,27 @@ export class SgnEnv {
       }
     }
     for (const p of this.street || []) if (!blocked(p[0], p[1])) trees.push(p);
+    // quảng trường đi bộ: cọ rải ~1 cây / 260 m² (không trùng nhà, nước, đường, chân tháp 60 m)
+    if (PL) for (let i = 0; i < Math.PI * PL.r * PL.r / 260; i++) {
+      const a = r() * 6.283, d = PL.r * Math.sqrt(r()), x = PL.x + Math.cos(a) * d, z = PL.z + Math.sin(a) * d;
+      if (!blocked(x, z) && !(this.avoid && this.avoid(x, z)) && (x - PL.x) ** 2 + (z - PL.z) ** 2 > 60 * 60) trees.push([x, z, 1]);
+    }
     this._trees(trees, r);
     this.count = { buildings: D.b.length, tris, trees: trees.length };
   }
 
+  // tia nước: hình nón hẹp cao 1 m (scale y theo thời gian), màu theo kiểu (0 xanh ngọc, 1 hồng, 2 trắng)
+  _jets(list) {
+    const geo = new THREE.ConeGeometry(0.22, 1, 6, 1, true).translate(0, 0.5, 0);
+    const im = new THREE.InstancedMesh(geo, this.jetMat, list.length), col = new THREE.Color(), C = [0x3fe0e8, 0xff5fc8, 0xf2f6ff];
+    list.forEach((j, i) => im.setColorAt(i, col.set(C[j[4]])));
+    im.instanceColor.needsUpdate = true; im.frustumCulled = false; im.renderOrder = 2;
+    this.group.add(im); this.jets = { mesh: im, list };
+  }
   // cây low-poly instanced: 70 % cây tán tròn (thân + khối 20 mặt, xanh đậm nhạt khác nhau), 30 % cọ (thân cao + 7 lá xòe)
   _trees(list, r) {
     const G = this.groundAt, round = [], palm = [];
-    for (const p of list) (r() < 0.3 ? palm : round).push(p);
+    for (const p of list) (p[2] === 1 || r() < 0.3 ? palm : round).push(p);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
     const place = (geo, mat, pts, size, color) => {
       const im = new THREE.InstancedMesh(geo, mat, pts.length);
@@ -225,6 +269,14 @@ export class SgnEnv {
   }
 }
 
+// đá lát quảng trường: ô vuông 2 m xám sáng / xám xanh xen kẽ (bàn cờ như ảnh flycam), mạch vữa mảnh
+function pavingTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { g.fillStyle = (i + j) % 2 ? '#8e9396' : '#c9c8c2'; g.fillRect(i * 64, j * 64, 64, 64); }
+  g.strokeStyle = 'rgba(60,60,60,0.35)'; g.lineWidth = 2; for (let k = 0; k <= 128; k += 64) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k, 128); g.moveTo(0, k); g.lineTo(128, k); g.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
 const hash = (x, z) => { const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return s - Math.floor(s); };
 const inPoly = (x, z, P) => { let c = false; for (let i = 0, j = P.length - 2; i < P.length; j = i, i += 2) if ((P[i + 1] > z) !== (P[j + 1] > z) && x < P[i] + (P[j] - P[i]) * (z - P[i + 1]) / (P[j + 1] - P[i + 1])) c = !c; return c; };
 const polyArea = (p) => { let a = 0; for (let i = 0, j = p.length - 2; i < p.length; j = i, i += 2) a += (p[j] - p[i]) * (p[j + 1] + p[i + 1]); return Math.abs(a / 2); };

@@ -63,12 +63,15 @@ export class SgnScene {
     this.group.visible = false;
     scene.add(this.group);
     this.built = false;
+    this.led = { value: 0 }; this.ledY = { value: 0 };      // đèn LED dọc mặt tháp (0 ngày → 1 đêm), main gọi setLamps
   }
+  setLamps(k) { this.led.value = k; }
   set visible(v) { this.group.visible = v; if (v && !this.built) this._build(); }
   get visible() { return this.group.visible; }
   _build() {
     this.built = true;
     const [x, z] = DATA.landmark81, y = this.groundAt(x, z);
+    this.ledY.value = y;
     const { geometry } = landmark81.build(THREE);
     const code = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.25 }));
     code.position.set(x, y, z);
@@ -85,6 +88,7 @@ export class SgnScene {
       root.traverse((o) => {
         if (!o.isMesh) return;
         o.castShadow = true; o.receiveShadow = true;
+        o.material = ledMaterial(o.material, this.led, this.ledY);
         const P = o.geometry.attributes.position;
         for (let i = 0; i < P.count; i += 3) { v.fromBufferAttribute(P, i).applyMatrix4(o.matrixWorld); if (v.y > yTop) { sx += v.x; sz += v.z; n++; } }
       });
@@ -96,4 +100,29 @@ export class SgnScene {
       this.tower = wrap;
     }, undefined, (e) => console.warn('Landmark 81 GLB', e));
   }
+}
+
+// LED dọc Landmark 81 ban đêm (theo ảnh chú gửi): sọc sáng dọc mỗi ~4.5 m theo phương ngang của mặt tháp (toạ độ thế giới), 1/3 dưới vàng ấm,
+// lên cao trắng, đoạn 300–380 m ánh tím (đèn trình diễn). Cường độ × led.value (0 ngày, 1 đêm). Chèn vào vật liệu gốc của GLB (onBeforeCompile)
+function ledMaterial(mat, led, ledY) {
+  const m = mat.clone();
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uLed = led; sh.uniforms.uLedY = ledY;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vLedP; varying vec3 vLedN;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvLedP = (modelMatrix * vec4(transformed, 1.0)).xyz; vLedN = normalize(mat3(modelMatrix) * objectNormal);');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uLed; uniform float uLedY; varying vec3 vLedP; varying vec3 vLedN;')
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      if (uLed > 0.01 && abs(vLedN.y) < 0.5) {
+        vec2 t = normalize(vec2(-vLedN.z, vLedN.x));
+        float u = dot(vLedP.xz, t) / 4.5, w = fwidth(u) * 2.0, d = abs(fract(u) - 0.5) * 2.0;   // d = 1 ở đường LED (mỗi 4.5 m)
+        // nhìn xa (1 điểm ảnh > khoảng sọc): về độ phủ trung bình 12 % thay vì loang thành mảng sáng
+        float stripe = mix(smoothstep(0.88 - w, 0.88 + w, d), 0.12, clamp(w * 1.5 - 0.3, 0.0, 1.0));
+        float hy = vLedP.y - uLedY;
+        vec3 c = mix(vec3(1.0, 0.72, 0.32), vec3(0.95, 0.95, 1.0), smoothstep(110.0, 190.0, hy));
+        c = mix(c, vec3(0.95, 0.35, 0.85), smoothstep(290.0, 310.0, hy) * (1.0 - smoothstep(370.0, 390.0, hy)));
+        totalEmissiveRadiance += c * stripe * uLed * 1.8;
+      }`);
+  };
+  m.customProgramCacheKey = () => 'sgn-led';
+  return m;
 }
