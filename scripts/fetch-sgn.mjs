@@ -288,14 +288,17 @@ for (let i = 0; i < wpath.length; i++) {
   if (last && last.n === n && Math.abs(a - last.s1) < 1) last.s1 = +(a + cum[i + 1] - cum[i]).toFixed(1);
   else lanes.push({ s0: +a.toFixed(1), s1: +(a + cum[i + 1] - cum[i]).toFixed(1), n });
 }
-// bề rộng theo đoạn: đường nội khu Vinhomes hẹp (Vạn Hoa 4 hai chiều 2 làn, Vạn Hoa 3 một chiều 2 làn => game: 2 làn, mép 4 m, tâm làn ±1.9);
-// còn lại dùng bề rộng mặc định của map (4 làn, mép 7.2 m). widths: [{ s0, s1, hw, lane }] (s1 > s0; game nối dần 25 m hai đầu)
-const NARROW = /Vạn Hoa \d$/;
+// mặt cắt đường theo đoạn (ảnh Street View chú gửi 23/10/2026). widths: [{ s0, s1, hw, lanes: [tâm làn mỗi chiều, từ trong ra], median: { w, kind } }]
+// (s1 > s0; game nối dần 25 m hai đầu). Ngoài các đoạn: mặc định map (4 làn, mép 7.2 m, vạch vàng đôi giữa).
+// - Đường nội khu Vinhomes (Vạn Hoa 4, Vạn Hoa 3, Trần Trọng Kim): đường đôi, mỗi chiều 2 làn 3.5 m, dải phân cách bồn cây 2.4 m (`plant`).
+// - Cầu Sài Gòn 2 + 2 dốc dẫn: mỗi chiều 3 làn 3.5 m + lề 0.6 m, dải phân cách bê tông (jersey) 0.8 m (`jersey`), cột đèn xanh giữa.
 const widths = [];
-for (let i = 0; i < wpath.length; i++) {
-  if (!NARROW.test(wpath[i].tags.name || '')) continue;
-  const a = nodeS[i], b = nodeS[i + 1], last = widths.at(-1);
-  if (last && a - last.s1 < 30) last.s1 = +b.toFixed(1); else widths.push({ s0: +a.toFixed(1), s1: +b.toFixed(1), hw: 4, lane: 1.9 });
+{
+  const seg = (re) => { let a = Infinity, b = -Infinity; for (let i = 0; i < wpath.length; i++) if (re.test(wpath[i].tags.name || '')) { a = Math.min(a, nodeS[i]); b = Math.max(b, nodeS[i + 1]); } return [a, b]; };
+  const [v0] = seg(/Vạn Hoa 4$/), [, t1] = seg(/^Trần Trọng Kim$/);
+  if (Number.isFinite(v0)) widths.push({ s0: +v0.toFixed(1), s1: +t1.toFixed(1), hw: 8.3, lanes: [2.95, 6.45], median: { w: 2.4, kind: 'plant' } });
+  const cb = bridges.find((b) => /Cầu Sài Gòn/.test(b.name));
+  if (cb) widths.push({ s0: +(cb.s0 - 180).toFixed(1), s1: +(cb.s1 + 180).toFixed(1), hw: 11.5, lanes: [2.15, 5.65, 9.15], median: { w: 0.8, kind: 'jersey' } });
 }
 // tên đường theo đoạn (bỏ nhánh không tên, gộp liền nhau)
 const streets = [];
@@ -356,7 +359,7 @@ console.log(`=> ${OUT}: ${(fs.statSync(OUT).size / 1024).toFixed(0)} KB, ${junct
 console.log('  hầm', tunnels.map((t) => `${t.name} ${t.s0}–${t.s1}`).join('; '));
 console.log('  cầu', bridges.map((t) => `${t.name} ${t.s0}–${t.s1}`).join('; '));
 console.log('  đường', streets.map((t) => `${t.s0} ${t.name}`).join(' | '));
-console.log('  hẹp', widths.map((w) => `${w.s0}–${w.s1}`).join(', '));
+console.log('  mặt cắt', widths.map((w) => `${w.s0}–${w.s1} ${w.median.kind} ${w.lanes.length}×2`).join(', '));
 console.log('  khu', zones.map((t) => `${t.s0} ${t.name || '–'}`).join(' | '));
 console.log('  rẽ', corners.map((c) => `${c.s} ${c.dir}`).join(', '));
 
