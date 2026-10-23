@@ -1835,6 +1835,10 @@ function frame(now) {
   drive.d += drive.latVel * dt;
   const lim = road.hwAt(drive.s) - 0.9;
   if (Math.abs(drive.d) > lim && drive.ramp == null) { drive.d = Math.sign(drive.d) * lim; drive.latVel = 0; }
+  if (onSgn()) {                                             // Landmark: có dải phân cách giữa => không lái xuyên qua
+    const md = road.medianAt(drive.s);
+    if (md.w > 0.2) { const mn = md.w / 2 + 1; if (Math.abs(drive.d) < mn) { drive.d = Math.sign(drive.d || 1) * mn; drive.latVel = 0; } }
+  }
   if (onAvenue() && drive.d < AVENUE.median + 1.25) { drive.d = AVENUE.median + 1.25; drive.latVel = Math.max(0, drive.latVel); }   // đại lộ: không qua dải phân cách
   // đại lộ: lái sang phải quá vạch mép ngoài ở đoạn làn giảm tốc trước nút giao => vào nhánh ra, đi xuống đường ngang dưới cầu,
   // qua đường ngang rồi theo nhánh vào leo lại nhập làn ngoài sau cầu (vị trí ngang theo rampU, cao độ nền)
