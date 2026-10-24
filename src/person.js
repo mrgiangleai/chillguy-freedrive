@@ -21,13 +21,14 @@ export class Person {
     this.footShade = { value: 0 };
   }
 
-  async load(url, { chisa = false } = {}) {
+  // rig: null = rig Quaternius (person.glb); 'chisa' / 'male' = rig khác, đổi tên xương + retarget clip của person.glb
+  async load(url, { chisa = false, rig = chisa ? 'chisa' : null } = {}) {
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
     const gltf = await loader.loadAsync(url);
     const model = gltf.scene;
     this.model = model;
-    this.seatRecline = chisa ? 0 : null; // tay Chisa ngắn hơn: ngồi thẳng để đủ tầm vô lăng ở cả hai góc cua
+    this.seatRecline = rig === 'chisa' ? 0 : rig === 'male' ? -0.12 : null;   // tay ngắn: Chisa ngồi thẳng, Nam chồm trước 7° để đủ tầm vô lăng ở cả hai góc cua
     model.traverse((o) => {
       if (!o.isMesh) return;
       o.castShadow = true;
@@ -37,7 +38,10 @@ export class Person {
       for (const m of mats) { m.envMapIntensity = 0.6; withMist(m); }
     });
     this.tilt.add(model);
-    const bone = (n) => chisa ? model.getObjectByName(chisaBoneName(model, n)) : model.getObjectByName(n);
+    const canonical = RIGS[rig], names = new Map();
+    if (canonical) model.traverse(o => { const c = o.isBone && canonical(o.name); if (c) names.set(c, o.name); });
+    const bone = (n) => model.getObjectByName(canonical ? names.get(n) : n);
+    this.bone = bone;                              // tra xương theo tên rig Quaternius (smoke.js: ngón kẹp thuốc)
     this.head = bone('Head');
     this.neck = bone('neck_01');
     this.arms = { l: ['upperarm_l', 'lowerarm_l', 'hand_l'].map(bone), r: ['upperarm_r', 'lowerarm_r', 'hand_r'].map(bone) };
@@ -73,9 +77,16 @@ export class Person {
     model.updateMatrixWorld(true);
     model.traverse((o) => { if (o.isSkinnedMesh && /superhero|body/i.test(o.name + ' ' + o.material?.name)) dress(o, model, this.footShade); });
 
+    if (canonical) {
+      // Model không có clip: dùng animation của person.glb, chuyển delta quay giữa hai bind pose.
+      this.reference = await new Person().load('assets/models/person.glb');
+      // bind A-pose (tay xuôi) khác T-pose của rig gốc => xoay tay / chân / ngón về đúng hướng xương gốc trước, không thì delta cộng thêm
+      // vào tư thế sẵn có (tay đi bộ cắm vào người)
+      if (rig === 'male') alignBind(model, this.reference.bindPositions, bone);
+    }
     // Lưu bind pose trong hệ root trước khi animation/IK đổi xương.
-    this.bindRotations = new Map();
-    model.traverse(o => { if (o.isBone) this.bindRotations.set(o.name, o.getWorldQuaternion(new THREE.Quaternion())); });
+    this.bindRotations = new Map(); this.bindPositions = new Map();
+    model.traverse(o => { if (o.isBone) { this.bindRotations.set(o.name, o.getWorldQuaternion(new THREE.Quaternion())); this.bindPositions.set(o.name, o.getWorldPosition(new THREE.Vector3())); } });
     // ngón tay để cầm vô lăng hờ: [đốt 1..3] mỗi ngón + góc nghỉ (bind) để nới lỏng; ngón cái 3 đốt + đầu ngón
     this.fingers = {}; this.thumbs = {};
     for (const s of ['l', 'r']) {
@@ -84,14 +95,12 @@ export class Person {
       const t = ['thumb_01', 'thumb_02', 'thumb_03', 'thumb_04_leaf'].map((n) => bone(n + '_' + s));
       this.thumbs[s] = t.every(Boolean) ? { bones: t, rest: t[2].quaternion.clone() } : null;
     }
-    if (chisa) {
-      // Model Chisa không có clip: dùng animation hiện có, chuyển delta quay giữa hai bind pose.
-      this.reference = await new Person().load('assets/models/person.glb');
+    if (canonical) {
       this.actions = this.reference.actions; this.mixer = this.reference.mixer; this.current = this.reference.current;
       this.retargetPairs = [];
       model.traverse(o => {
         if (!o.isBone) return;
-        const name = chisaCanonical(o.name), from = name && this.reference.model.getObjectByName(name);
+        const name = canonical(o.name), from = name && this.reference.model.getObjectByName(name);
         if (from) this.retargetPairs.push({ bone: o, from, sourceBind: this.reference.bindRotations.get(name).clone().invert(), targetBind: this.bindRotations.get(o.name).clone() });
       });
     }
@@ -261,6 +270,13 @@ function ik(chain, target, pole) {
   }
 }
 
+// nhân vật chọn được (nút 🧑 / phím X, showroom tab Người); [0] = mặc định
+export const CHARACTERS = [
+  { id: 'male', name: 'Nam', url: 'assets/models/male-rigged.glb', rig: 'male' },
+  { id: 'driver', name: 'Người lái', url: 'assets/models/person.glb', rig: null },
+  { id: 'chisa', name: 'Chisa', url: 'assets/models/chisa_wuthering_waves.glb', rig: 'chisa', mustangOnly: true },
+];
+
 export const HEIGHT = 1.70;          // chiều cao người lái (m) — vừa cabin Mustang (trần thấp, ghế đã hạ)
 const _S = new THREE.Vector3(), _E = new THREE.Vector3(), _W = new THREE.Vector3(), _D = new THREE.Vector3(), _P = new THREE.Vector3();
 const _E2 = new THREE.Vector3(), _A = new THREE.Vector3(), _B = new THREE.Vector3(), _T = new THREE.Vector3();
@@ -326,6 +342,31 @@ function chisaCanonical(name) {
   if (finger) return ['thumb', 'index', 'middle', 'ring', 'pinky'][+finger[2]] + '_0' + (+(finger[3] || 0) + 1) + '_' + finger[1].toLowerCase();
   return null;
 }
-function chisaBoneName(model, canonical) {
-  let name; model.traverse(o => { if (o.isBone && chisaCanonical(o.name) === canonical) name = o.name; }); return name;
+// Tên xương nhân vật nam (Tripo, models/characters/male-rigged-walk.glb) -> tên rig Quaternius. Hip = gốc (chậu + thân);
+// Pelvis (chỉ giữ 2 đùi), NeckTwist02, các xương Twist / ShareBone không ánh xạ => đi theo xương cha.
+function maleCanonical(name) {
+  const torso = { Hip: 'pelvis', Waist: 'spine_01', Spine01: 'spine_02', Spine02: 'spine_03', NeckTwist01: 'neck_01', Head: 'Head' };
+  if (torso[name]) return torso[name];
+  const limb = name.match(/^([LR])_(Clavicle|Upperarm|Forearm|Hand|Thigh|Calf|Foot|ToeBase)$/);
+  if (limb) return ({ Clavicle: 'clavicle', Upperarm: 'upperarm', Forearm: 'lowerarm', Hand: 'hand', Thigh: 'thigh', Calf: 'calf', Foot: 'foot', ToeBase: 'ball' })[limb[2]] + '_' + limb[1].toLowerCase();
+  const finger = name.match(/^([LR])_(Thumb|Index|Mid|Ring|Pinky)([123])$/);
+  if (finger) return ({ Thumb: 'thumb', Index: 'index', Mid: 'middle', Ring: 'ring', Pinky: 'pinky' })[finger[2]] + '_0' + finger[3] + '_' + finger[1].toLowerCase();
+  return null;
+}
+const RIGS = { chisa: chisaCanonical, male: maleCanonical };
+
+// Xoay từng xương tay / chân / ngón (cha trước con) để hướng xương -> xương con trùng hướng bind của rig gốc
+// (`ref` = vị trí bind theo tên xương gốc; lúc tải root ở gốc toạ độ nên hệ thế giới = hệ root).
+const ALIGN = [['clavicle', 'upperarm'], ['upperarm', 'lowerarm'], ['lowerarm', 'hand'], ['hand', 'middle_01'],
+  ['thigh', 'calf'], ['calf', 'foot'], ['foot', 'ball'],
+  ...['thumb', 'index', 'middle', 'ring', 'pinky'].flatMap(f => [[f + '_01', f + '_02'], [f + '_02', f + '_03']])];
+function alignBind(model, ref, bone) {
+  model.updateMatrixWorld(true);
+  const from = new THREE.Vector3(), to = new THREE.Vector3();
+  for (const s of ['l', 'r']) for (const [a, b] of ALIGN) {
+    const ta = bone(a + '_' + s), tb = bone(b + '_' + s), ra = ref.get(a + '_' + s), rb = ref.get(b + '_' + s);
+    if (!ta || !tb || !ra || !rb) continue;
+    from.subVectors(tb.getWorldPosition(_B), ta.getWorldPosition(_A)).normalize(); to.subVectors(rb, ra).normalize();
+    turn(ta, from, to); ta.updateMatrixWorld(true);
+  }
 }

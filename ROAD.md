@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -20,7 +20,7 @@
   `goto(..., { waitUntil: 'domcontentloaded' })`; map có cài đặt "Tự động" ghi đè camera / giờ => đặt lại ngay trước khi chụp.
   Máy chậm => môi trường (env map) chưa kịp chụp lại khi đổi giờ: gọi `__app.env.update(0.016, drive.pos); env._captureEnv()`.
 - **Kiểm tra tự động** (node, không cần trình duyệt; đều PASS): `scripts/check-traffic.mjs`, `check-traffic-policy.mjs`, `check-steering.mjs`,
-  `check-stopscene.mjs`, `check-hlg.mjs`, `check-nyc.mjs`, `check-sgn.mjs`, `check-nyc-wave.mjs`, `check-nyc-buildings.mjs`, `check-nyc-sound.mjs`, `check-nyc-landmark-roads.mjs`, `check-ped-yield.mjs`, `check-nyc-props.mjs`, `check-nyc-sidecam.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
+  `check-stopscene.mjs`, `check-hlg.mjs`, `check-nyc.mjs`, `check-sgn.mjs`, `check-nyc-wave.mjs`, `check-nyc-buildings.mjs`, `check-nyc-sound.mjs`, `check-nyc-landmark-roads.mjs`, `check-ped-yield.mjs`, `check-nyc-props.mjs`, `check-nyc-sidecam.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-male.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
   `check-waterfalls.mjs`, `check-rear-glass.mjs [model.glb]`. Model tải lên nặng: nén bằng `npx @gltf-transform/cli@4 webp … --quality 82`
   rồi `meshopt` (giữ file gốc); sóng biển bake bằng `node scripts/bake-ocean.mjs`. **Fixture GUI** `scripts/*-preview.js` (giữ cảnh cố định để chụp):
   bundle bằng esbuild ra `docs/<tên>-check.js`, sao `docs/index.html` thành trang riêng đổi script sang bundle đó; chụp xong
@@ -134,7 +134,15 @@
 - **Cầm vô lăng**: điểm bám `steer.grip` (Mustang: vành 0.153 m, cổ tay bán kính 0.178, sâu 0.065, hàng khớp theo tiếp tuyến);
   cầm hờ `person.looseGrip(side, 0.15, surfAt, n)`: đốt ngón 2–3 nới 15% về góc nghỉ (45% thì ngón duỗi thẳng qua vành),
   ngón cái IK nằm dọc mặt vành phía người lái, hướng lên đỉnh, đầu ngón cách gốc 82% chiều dài (bấu nhẹ).
-- **Nhân vật**: nút 🧑 đổi Người lái / Chisa (chỉ Mustang; Chisa retarget 52 xương từ rig Quaternius, ngồi thẳng hơn).
+- **Nhân vật** (`CHARACTERS` trong `src/person.js`, [0] = mặc định): nút 🧑 / phím X / showroom tab Người xoay vòng **Nam** (mặc định) → Người lái
+  (person.glb Quaternius) → Chisa (chỉ Mustang, bỏ qua khi xe khác; ngồi thẳng `seatRecline 0`). Rig khác Quaternius: `load(url, { rig })`, bảng tên xương
+  `RIGS` (`chisaCanonical`, `maleCanonical`) → retarget 52 xương từ clip person.glb (`reference`); `person.bone(tênQuaternius)` tra xương (smoke.js dùng).
+  **Nam**: file gốc `models/characters/male-rigged-walk.glb` (Tripo, 78 xương, 18.6k tam giác, **không có clip** dù tên "walk" — đi / đứng / ngồi /
+  hút thuốc đều là clip person.glb retarget). File xuất lỗi: xương TRS rỗng, IBM ở hệ Z-up lệch tâm => `node scripts/prepare-male.mjs <ra.glb>` dựng lại
+  (đổi trục y→x, z→y, x→z + dời 0.489 m, sai lệch TB 2.5 cm) rồi `gltf-transform optimize … --compress meshopt --texture-compress webp --texture-size 1024
+  --simplify false` => `docs/assets/models/male-rigged.glb` 362 KB (COMMON trong preload). Bind A-pose => `alignBind` xoay tay / chân / ngón về hướng
+  T-pose của rig gốc trước khi lưu bind (không thì tay đi bộ cắm vào người). Hip = pelvis (Pelvis / Twist / ShareBone đi theo cha); ngón cái chỉ 3 đốt
+  => không có IK ngón cái (`thumbs` null). Tay ngắn => chồm trước 7° (`seatRecline −0.12`). `scripts/check-male.mjs` PASS (IK cổ tay 0.002 mm, đầu y 1.005).
 - **Ngồi lái (Mustang)**: model ghế đặt quá cao so với trần (đệm 0.60, trần 1.27 m) => cụm ghế hạ 19 cm (đáy đệm khuất dưới sàn
   0.362) + trượt lên trước 16 cm (`cars.js`, `seat.drop/forward`); xương chậu đặt tại `seat.hip` (stopscene.place), lưng ngả 0.1 rad,
   chân IK duỗi tới sàn (cổ chân `seat.foot`, mũi giày chếch lên 24°), tay IK giữ vô lăng (khuỷu gập ~77°). Đo: lún đệm 1.6 cm,
@@ -567,6 +575,7 @@
 - Vài tảng đá terrain trông lơ lửng trên vách núi gần đường (s≈250) — chưa sửa.
 - Map Phố: camera Từ trên cao hay bị nhà chắn nên kéo sát xe; Mustang/Mazda NPC không chạy trong phố (thay bằng xe dựng code).
 - Chưa nghe trên máy thật: tiếng người nói chuyện (`setChatter`), còi hụ, tiếng va chạm. Chưa chụp cận đèn đi bộ.
+- Nhân vật Nam: chưa xem trên máy thật (tư thế đi bộ / ngồi / hút thuốc retarget, mặt + texture 1024); chưa có test cầm vô lăng Mazda cho Nam.
 - `QUICK_OPENING = true` (TẠM, đầu game 0.5 s) — bật lại khi chú bảo. Kiểm thử Playwright: vào game bằng `#m-chill` / `#m-drive`.
 
 ## 6. Nhật ký cập nhật
@@ -582,3 +591,5 @@
 - **#5 — Showroom: trần + tường sau, tab Xe / Người riêng, đèn Spot / Omni tự chỉnh (23/10/2026)**: xem mục 1 "Chế độ Race!". Chưa chạy thử — chú tự test.
 - **#6 — Showroom: bục dày quay + vật lý, xe + người cùng hiện, phòng 4 vách, LED tường chạy lên đổi màu, chỉnh mọi đèn, nút ‹ › (23/10/2026)**:
   xem mục 1 "Chế độ Race!". Chưa chạy thử — chú tự test.
+- **#7 — Nhân vật Nam (model Tripo chú gửi) làm nhân vật mặc định (24/10/2026)**: sửa rig lỗi xuất, retarget clip person.glb (file không có clip walk),
+  nút 🧑 / showroom 3 lựa chọn Nam / Người lái / Chisa. Xem mục 1 "Nhân vật". Chưa chạy thử — chú tự test.

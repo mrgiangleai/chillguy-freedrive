@@ -34,7 +34,7 @@ import { Post } from './post.js';
 import { installMist, MIST } from './mist.js';
 import { WET } from './wetGlass.js';
 import { WetReflection } from './reflection.js';
-import { Person } from './person.js';
+import { Person, CHARACTERS } from './person.js';
 import { StopScene, PARK_DEFAULTS } from './stopscene.js';
 import { Nature } from './nature.js';
 import { RearMirror } from './mirror.js';
@@ -573,9 +573,9 @@ const setBtn = (btn, icon, text) => { btn.querySelector('b').textContent = icon;
 
 function refreshUI() {
   setBtn(el.car, '🚗', cars.list[state.car]?.name ?? '…');
-  setBtn(el.character, '🧑', characterLoading ? 'Đang tải…' : state.character === 1 ? 'Chisa' : 'Người lái');
-  el.character.disabled = characterLoading || !person.ready || stop.active || cars.current?.def?.id !== 'mustang';
-  el.character.title = cars.current?.def?.id === 'mustang' ? 'Đổi nhân vật' : 'Chisa hiện hỗ trợ Mustang';
+  setBtn(el.character, '🧑', characterLoading ? 'Đang tải…' : CHARACTERS[state.character].name);
+  el.character.disabled = characterLoading || !person.ready || stop.active;
+  el.character.title = 'Đổi nhân vật' + (cars.current?.def?.id === 'mustang' ? '' : ' (Chisa chỉ đi với Mustang)');
   setBtn(el.map, MAPS[state.map].icon, MAPS[state.map].name);
   setBtn(el.cam, '🎥', CAMERAS[state.cam].name);
   setBtn(el.weather, WEATHERS[state.weather].icon, WEATHERS[state.weather].name);
@@ -609,7 +609,7 @@ function refreshUI() {
   q('q-pause', stop.state === 'parked' ? 'Resume' : 'Pause', stop.state === 'parked' ? 'Đi tiếp (phím P)' : 'Dừng xe (phím P)', stop.active);
   q('q-car', 'Car', 'Xe: ' + (cars.list[state.car]?.name ?? '…') + ' (phím C)');
   q('q-cam', 'Camera', 'Camera: ' + CAMERAS[state.cam].name + ' (phím Q)');
-  q('q-driver', 'Driver', 'Nhân vật: ' + (state.character === 1 ? 'Chisa' : 'Người lái') + ' (phím X)').disabled = el.character.disabled;
+  q('q-driver', 'Driver', 'Nhân vật: ' + CHARACTERS[state.character].name + ' (phím X)').disabled = el.character.disabled;
   q('q-map', 'Map', 'Map: ' + MAPS[state.map].name + ' (phím M)');
   q('q-weather', 'Weather', 'Thời tiết: ' + WEATHERS[state.weather].name + ' (phím R)');
   q('q-time', 'Time', 'Thời gian: ' + TIMES[state.time].name + ' (phím T)');
@@ -643,22 +643,27 @@ const say = (t) => { if (state.started) toast(t, false, 1600); };
 function lensLabel() { return Math.round(rig.focal) + 'mm f/' + rig.aperture; }
 
 let characterLoading = false, characterRequest = 0;
+// có trên xe đang chọn không (Chisa chỉ được căn cho Mustang)
+const charFits = (i) => !CHARACTERS[i].mustangOnly || cars.current?.def?.id === 'mustang';
+// nhân vật kế tiếp theo hướng dir, bỏ qua nhân vật không hợp xe
+const stepCharacter = (dir) => { let i = state.character; do i = (i + dir + CHARACTERS.length) % CHARACTERS.length; while (!charFits(i)); return i; };
 async function chooseCharacter(i) {
   if (stop.active) return;
-  i = cars.current?.def?.id === 'mustang' ? i % 2 : 0;
+  i = (i + CHARACTERS.length) % CHARACTERS.length;
+  if (!charFits(i)) i = 0;
   const request = ++characterRequest;
   characterLoading = true; refreshUI();
   let next;
   try {
-    next = await new Person().load(i ? 'assets/models/chisa_wuthering_waves.glb' : 'assets/models/person.glb', { chisa: i === 1 });
-    if (request !== characterRequest || (i && cars.current?.def?.id !== 'mustang')) { next.dispose(); return; }
+    next = await new Person().load(CHARACTERS[i].url, { rig: CHARACTERS[i].rig });
+    if (request !== characterRequest || !charFits(i)) { next.dispose(); return; }
     person.replace(next); state.character = i;
     stop.place(cars.dim); stop.sit();
     compileFor(post.sceneRT, camera, person.root).catch(() => {});
   } catch (e) { next?.dispose(); console.warn('Không tải được nhân vật', e); }
   finally { if (request === characterRequest) { characterLoading = false; refreshUI(); } }
 }
-const nextCharacter = () => { if (!characterLoading && person.ready && cars.current?.def?.id === 'mustang') { say('Nhân vật · ' + ((state.character + 1) % 2 === 1 ? 'Chisa' : 'Người lái')); return chooseCharacter(state.character + 1); } };
+const nextCharacter = () => { if (!characterLoading && person.ready) { const i = stepCharacter(1); say('Nhân vật · ' + CHARACTERS[i].name); return chooseCharacter(i); } };
 
 async function chooseCar(i) {
   if (stop.active) return;                        // đang dừng xe: không đổi xe
@@ -670,8 +675,8 @@ async function chooseCar(i) {
     console.error('Không tải được xe', cars.list[state.car].name, e);
     if (cars.list.length > 1) { cars.list.splice(state.car, 1); return chooseCar(state.car); }
   }
-  // Chisa chỉ được căn cho Mustang; xe khác dùng lại người lái mặc định.
-  if (cars.current?.def?.id !== 'mustang' && (state.character || characterLoading)) await chooseCharacter(0);
+  // Chisa chỉ được căn cho Mustang; xe khác dùng lại nhân vật mặc định.
+  if (!charFits(state.character) || (characterLoading && cars.current?.def?.id !== 'mustang')) await chooseCharacter(0);
   if (person.ready && !stop.active) { stop.place(cars.dim); stop.sit(); }
   mirror.place(cars.dim, cars.current.screen);
   dash.place(cars.current.screen);
@@ -2376,11 +2381,10 @@ const race = {
     $('r-prev').title = $('r-next').title = t === 'car' ? 'Xe trước / tiếp theo' : 'Người trước / tiếp theo';
     this.sync();
   },
-  // nút ‹ › hai bên: xe / người trước – tiếp theo (theo tab đang mở; Chisa chỉ đi với Mustang)
+  // nút ‹ › hai bên: xe / người trước – tiếp theo (theo tab đang mở; Chisa chỉ đi với Mustang => bỏ qua khi xe khác)
   step(dir) {
     if (showroom.subject === 'car') this.pickCar((state.car + dir + cars.list.length) % cars.list.length);
-    else if (cars.current?.def?.id === 'mustang') this.pickCharacter((state.character + dir + 2) % 2);
-    else toast('Chisa chỉ đi với Mustang — chọn Mustang ở tab Xe', false, 2200);
+    else this.pickCharacter(stepCharacter(dir));
   },
   async pickCar(i) {
     if (this.loading || i === state.car) return;
@@ -2400,13 +2404,12 @@ const race = {
     if (f !== null) { bar.querySelector('.lb-fill').style.width = (f * 100).toFixed(1) + '%'; bar.querySelector('.lb-text').textContent = 'Đang tải xe… ' + Math.round(f * 100) + '%'; }
   },
   sync() {
-    const mustang = cars.current?.def?.id === 'mustang';
     [...$('r-cars').children].forEach((b, i) => { b.classList.toggle('on', i === state.car); b.disabled = this.loading; });
     $('r-chars').querySelectorAll('button').forEach((b) => {
       const i = +b.dataset.ch;
       b.classList.toggle('on', i === state.character);
-      b.disabled = characterLoading || this.loading || (i === 1 && !mustang);
-      b.title = i === 1 && !mustang ? 'Chisa chỉ đi với Mustang (chọn Mustang ở tab Xe)' : '';
+      b.disabled = characterLoading || this.loading || !charFits(i);
+      b.title = !charFits(i) ? 'Chisa chỉ đi với Mustang (chọn Mustang ở tab Xe)' : '';
     });
     $('r-spin').classList.toggle('on', showroom.spinOn);
     $('r-spin').setAttribute('aria-pressed', showroom.spinOn);
@@ -2604,7 +2607,7 @@ async function init() {
     nature.setRadius(QUALITY[state.quality].trees);
     compileFor(post.sceneRT, camera, nature.group).catch(() => {});
   }).catch((e) => console.warn('Không tải được cây / đá chi tiết', e));
-  chooseCar(0).then(() => person.load('assets/models/person.glb')).then(() => {
+  chooseCar(0).then(() => person.load(CHARACTERS[0].url, { rig: CHARACTERS[0].rig })).then(() => {
     cars.tilt.add(person.root);
     if (cars.current) { stop.place(cars.dim); stop.sit(); }
     compileFor(post.sceneRT, camera, person.root).catch(() => {});

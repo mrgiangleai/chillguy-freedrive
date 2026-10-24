@@ -105,8 +105,9 @@ export class Smoke {
     if (hold) {
       // điếu thuốc kẹp trong khe giữa ngón trỏ và ngón giữa (giữa đốt 2 - 3 của hai ngón), chĩa ngang ra trước - sang phải;
       // đầu lọc cách khe ngón 3 cm (phía miệng), đầu đốt cách 5.5 cm
-      if (!this.fg && this.person.model) {
-        const f = ['index_02_r', 'index_03_r', 'middle_02_r', 'middle_03_r'].map((n) => this.person.model.getObjectByName(n));
+      if ((!this.fg || this.fgModel !== this.person.model) && this.person.model) {   // đổi nhân vật => tìm lại xương ngón
+        this.fgModel = this.person.model;
+        const f = ['index_02_r', 'index_03_r', 'middle_02_r', 'middle_03_r'].map((n) => this.person.bone(n));
         this.fg = f.every(Boolean) ? f : arm.slice(1);
       }
       const G = this._c;

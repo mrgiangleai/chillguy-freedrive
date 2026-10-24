@@ -4,8 +4,8 @@
 // - ensure(urls, onProgress): tải các file còn thiếu, báo tiến độ theo byte thật (đọc dòng dữ liệu); file đã lưu bỏ qua ngay.
 // - queue(urls): tải ngầm từng file một (không chặn game), dùng ở màn hình chờ và sau khi vào game.
 export const CACHE = 'chilldrive-assets-v1';
-// tài nguyên dùng chung mọi map (xe mặc định, người lái, cây chi tiết, xe ngựa, texture đất đá)
-export const COMMON = ['assets/models/mustang.glb', 'assets/models/person.glb', 'assets/models/nature.glb', 'assets/models/carriage.glb',
+// tài nguyên dùng chung mọi map (xe mặc định, nhân vật mặc định Nam + person.glb (clip động tác của mọi nhân vật), cây chi tiết, xe ngựa, texture đất đá)
+export const COMMON = ['assets/models/mustang.glb', 'assets/models/male-rigged.glb', 'assets/models/person.glb', 'assets/models/nature.glb', 'assets/models/carriage.glb',
   'assets/tex/dirt.webp', 'assets/tex/gravel.webp', 'assets/tex/rock.webp', 'assets/tex/rock_n.webp'];
 // tài nguyên riêng từng map (map không có ở đây chỉ cần COMMON)
 const BY_MAP = {
