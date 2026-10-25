@@ -148,6 +148,8 @@
   **Clip riêng từ Rig Tool (`ownClips`)**: nếu file Nam có đủ `OWN_CLIPS` (Driving_Loop, Idle_Loop, Walk_Loop, Sitting_Enter, Sitting_Exit) => dùng
   thẳng clip trong file: không retarget / alignBind / handUnroll, `seatRecline 0`, `seatPose` bỏ IK chân, `gripWheel` chỉ gọi `person.steerHold`
   (xoay cổ tay + bàn tay quanh trục vô lăng theo góc lái, ngón giữ clip). Thiếu clip => cách cũ + console.warn. `scripts/check-own-clips.mjs` PASS.
+  **Mông không xuyên ghế**: rig Rig Tool đặt xương chậu cao hơn khớp háng ~10.4 cm (người lái mẫu −2.1 cm) => `seatLift` nâng người phần chênh
+  khi ngồi (Nam: 12.5 cm, tối đa 15 cm; stopscene.place). Rig Tool `seatLiftUnits` tính y hệt để hạ ghế cảnh thử.
   Rig Tool `src/core/mustangSeat.js` đã lấy đúng số đo xe này (vô lăng (0, 0.433, 0.435), sàn −0.088, cổ chân (±0.09, 0, 0.76) tính từ pelvis). Bản Tripo cũ (`male-rigged-walk.glb`, `scripts/prepare-male.mjs`) để tham khảo.
 - **Ngồi lái (Mustang)**: model ghế đặt quá cao so với trần (đệm 0.60, trần 1.27 m) => cụm ghế hạ 19 cm (đáy đệm khuất dưới sàn
   0.362) + trượt lên trước 16 cm (`cars.js`, `seat.drop/forward`); xương chậu đặt tại `seat.hip` (stopscene.place), lưng ngả 0.1 rad,
@@ -601,7 +603,7 @@
   nút 🧑 / showroom 3 lựa chọn Nam / Người lái / Chisa. Xem mục 1 "Nhân vật". Chưa chạy thử — chú tự test.
 - **#8 — Nam dùng rig chú làm bằng Rig Tool (25/10/2026)**: thay `male-rigged.glb`, tên xương Quaternius, thêm xoay lòng bàn tay khi căn bind
   (ngón ôm vô lăng). Clip lái / đi vẫn của person.glb. Chú báo tay xoắn => trả bàn tay về sau retarget (`handUnroll`). Xem mục 1 "Nhân vật".
-  Chưa chạy thử trong game — chú tự test.
+  Chưa chạy thử trong game — chú tự test. Thêm `seatLift` (mông xuyên ghế: xương chậu rig tool cao hơn khớp háng).
 - **#9 — Chỉnh trong Rig Tool sao vào game y vậy (25/10/2026)**: game dùng thẳng clip trong file Nam khi đủ 5 clip (ownClips), tay chỉ xoay theo
   vô lăng; sửa số đo Mustang trong Rig Tool cho khớp game (trước lệch vô lăng 8.5 cm, sàn 25 cm). Chú cần xuất lại có tick 5 clip ở Thư viện.
-  Chưa chạy thử trong game — chú tự test.
+  Chưa chạy thử trong game — chú tự test. Thêm `seatLift` (mông xuyên ghế: xương chậu rig tool cao hơn khớp háng).

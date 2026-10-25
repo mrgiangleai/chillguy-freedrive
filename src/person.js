@@ -16,6 +16,7 @@ export class Person {
     this.actions = {};
     this.current = null;
     this.handUnroll = null;                       // rig Nam: góc trả bàn tay về sau retarget (alignBind)
+    this.seatLift = 0;                            // m nâng người khi ngồi (clip riêng: mông nằm trên đệm)
     this.headOffsetSit = new THREE.Vector3();   // vị trí xương đầu (so với root) ở tư thế lái xe
     this.hipOffsetSit = new THREE.Vector3();    // vị trí xương chậu (so với root) ở tư thế lái xe
     // 0..1: giày nằm trong hốc để chân tối (ngồi lái) => sẫm lại; model không có che sáng nên giày trắng nổi bật qua vô lăng
@@ -119,6 +120,9 @@ export class Person {
     this.headOffsetSit.copy(this.head.getWorldPosition(new THREE.Vector3()));
     this.root.worldToLocal(this.headOffsetSit);
     if (this.pelvis) this.root.worldToLocal(this.pelvis.getWorldPosition(this.hipOffsetSit));
+    // Clip riêng: xương chậu của rig Rig Tool nằm cao hơn khớp háng ~10 cm, còn của người lái mẫu ngang khớp háng (−2.1 cm) =>
+    // đặt xương chậu vào cùng điểm ghế thì mông lún sâu hơn => nâng người phần chênh (giống cảnh thử Mustang của Rig Tool).
+    this.seatLift = this.ownClips ? seatLift(this.bindPositions, this.pelvis, this.legs) : 0;
     this.ready = true;
     return this;
   }
@@ -300,6 +304,15 @@ export const CHARACTERS = [
   { id: 'driver', name: 'Người lái', url: 'assets/models/person.glb', rig: null },
   { id: 'chisa', name: 'Chisa', url: 'assets/models/chisa_wuthering_waves.glb', rig: 'chisa', mustangOnly: true },
 ];
+
+// Xương chậu cao hơn khớp háng (xương đùi) bao nhiêu lúc bind, so với người lái mẫu person.glb (−2.1 cm) => nâng khi ngồi (m).
+// Rig Tool tính đúng như vậy (src/core/mustangSeat.js seatLiftOf) để cảnh thử khớp game.
+export const PELVIS_ABOVE_HIPS_REFERENCE = -0.021;
+export function seatLift(bind, pelvis, legs) {
+  const p = pelvis && bind.get(pelvis.name), l = legs && bind.get(legs.l[0].name), r = legs && bind.get(legs.r[0].name);
+  if (!p || !l || !r) return 0;
+  return Math.min(Math.max(p.y - (l.y + r.y) / 2 - PELVIS_ABOVE_HIPS_REFERENCE, 0), 0.15);
+}
 
 // clip game cần khi dùng clip riêng của model (Rig Tool: tick các clip này ở Thư viện, tên xương Quaternius)
 export const OWN_CLIPS = ['Driving_Loop', 'Idle_Loop', 'Walk_Loop', 'Sitting_Enter', 'Sitting_Exit'];

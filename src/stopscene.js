@@ -84,7 +84,7 @@ export class StopScene {
     const [ex, ey, ez] = dim.eye;
     if (dim.seat?.hip) {                            // xe đã đo ghế: đặt xương chậu đúng chỗ ngồi trên đệm
       const o = this.person.hipOffsetSit, [hx, hy, hz] = dim.seat.hip;
-      this.seat.set(hx + o.x, hy - o.y, hz + o.z);
+      this.seat.set(hx + o.x, hy - o.y + (this.person.seatLift || 0), hz + o.z);   // seatLift: mông nằm trên đệm (clip riêng)
     } else this.seat.set(ex + h.x, ey - 0.1 - h.y, ez + 0.06 + h.z);
     this.out.set(-dim.width / 2 - 0.5, 0, this.seat.z - 0.1);
     this.lean.set(-dim.width / 2 - 0.16, 0, -dim.length / 2 + 1.05);   // (bề ngang tính cả gương => sát chắn bùn trước)

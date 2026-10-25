@@ -32,6 +32,8 @@ try { GLTFLoader.prototype.loadAsync = async () => gltf; await person.load('own'
 assert(person.ownClips, 'All game clips present => own clips');
 assert(!person.reference && !person.retargetPairs, 'No retarget from person.glb');
 assert.equal(person.seatRecline, 0, 'No lean forced on top of the clip');
+console.log('seatLift', person.seatLift.toFixed(3), 'm');
+assert(Math.abs(person.seatLift - 0.125) < 0.01, 'Rig Tool pelvis sits ~12.5 cm higher above the hip joints than the reference => lift');
 person.root.visible = true;
 person.play('Driving_Loop', 0); person.update(0.016); person.recline(0.1);
 for (const [name, q] of Object.entries(pose)) {
