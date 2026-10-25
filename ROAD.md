@@ -142,7 +142,8 @@
   --simplify false --join false --flatten false --instance false` => `docs/assets/models/male-rigged.glb` 377 KB (COMMON trong preload).
   `maleCanonical` = giữ nguyên tên Quaternius. 5 clip trong file (idle/walk/run/sit/typing của tool) **không dùng**: đi / đứng / ngồi / hút thuốc vẫn là clip
   person.glb retarget (Walk_Loop mượt như cũ). Bind A-pose => `alignBind` xoay tay / chân / ngón về hướng T-pose của rig gốc + `rollHand` xoay lòng bàn tay
-  cho hàng khớp ngón trùng rig gốc (không thì clip gập ngón quặp ngang, không ôm vành). Giữ `seatRecline −0.12`.
+  cho hàng khớp ngón trùng rig gốc (không thì clip gập ngón quặp ngang, không ôm vành) — góc này ~105–115°, nên sau retarget `handUnroll` trả bàn tay
+  về (ngón giữ góc so với bàn tay), không thì cổ tay vặn xoắn. Giữ `seatRecline −0.12`.
   `scripts/check-male.mjs` PASS (cổ tay 0.000 mm, ngón ôm vành ở 5 góc lái). Bản Tripo cũ (`male-rigged-walk.glb`, `scripts/prepare-male.mjs`) để tham khảo.
 - **Ngồi lái (Mustang)**: model ghế đặt quá cao so với trần (đệm 0.60, trần 1.27 m) => cụm ghế hạ 19 cm (đáy đệm khuất dưới sàn
   0.362) + trượt lên trước 16 cm (`cars.js`, `seat.drop/forward`); xương chậu đặt tại `seat.hip` (stopscene.place), lưng ngả 0.1 rad,
@@ -595,4 +596,5 @@
 - **#7 — Nhân vật Nam (model Tripo chú gửi) làm nhân vật mặc định (24/10/2026)**: sửa rig lỗi xuất, retarget clip person.glb (file không có clip walk),
   nút 🧑 / showroom 3 lựa chọn Nam / Người lái / Chisa. Xem mục 1 "Nhân vật". Chưa chạy thử — chú tự test.
 - **#8 — Nam dùng rig chú làm bằng Rig Tool (25/10/2026)**: thay `male-rigged.glb`, tên xương Quaternius, thêm xoay lòng bàn tay khi căn bind
-  (ngón ôm vô lăng). Clip lái / đi vẫn của person.glb. Xem mục 1 "Nhân vật". Chưa chạy thử trong game — chú tự test.
+  (ngón ôm vô lăng). Clip lái / đi vẫn của person.glb. Chú báo tay xoắn => trả bàn tay về sau retarget (`handUnroll`). Xem mục 1 "Nhân vật".
+  Chưa chạy thử trong game — chú tự test.

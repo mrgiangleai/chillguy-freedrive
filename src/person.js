@@ -15,6 +15,7 @@ export class Person {
     this.ready = false;
     this.actions = {};
     this.current = null;
+    this.handUnroll = null;                       // rig Nam: góc trả bàn tay về sau retarget (alignBind)
     this.headOffsetSit = new THREE.Vector3();   // vị trí xương đầu (so với root) ở tư thế lái xe
     this.hipOffsetSit = new THREE.Vector3();    // vị trí xương chậu (so với root) ở tư thế lái xe
     // 0..1: giày nằm trong hốc để chân tối (ngồi lái) => sẫm lại; model không có che sáng nên giày trắng nổi bật qua vô lăng
@@ -82,7 +83,7 @@ export class Person {
       this.reference = await new Person().load('assets/models/person.glb');
       // bind A-pose (tay xuôi) khác T-pose của rig gốc => xoay tay / chân / ngón về đúng hướng xương gốc trước, không thì delta cộng thêm
       // vào tư thế sẵn có (tay đi bộ cắm vào người)
-      if (rig === 'male') alignBind(model, this.reference.bindPositions, bone);
+      if (rig === 'male') this.handUnroll = alignBind(model, this.reference.bindPositions, bone);
     }
     // Lưu bind pose trong hệ root trước khi animation/IK đổi xương.
     this.bindRotations = new Map(); this.bindPositions = new Map();
@@ -149,6 +150,9 @@ export class Person {
       bone.parent.getWorldQuaternion(_qp);
       bone.quaternion.copy(_qp.invert().multiply(_qw)); bone.updateMatrixWorld(true);
     }
+    // Bàn tay đã xoay lòng cho trùng rig gốc chỉ để ngón map đúng; trả lại hướng tự nhiên (ngón con giữ nguyên góc so với bàn tay)
+    // => cổ tay không bị vặn xoắn.
+    for (const { bone, unroll } of this.handUnroll || []) { bone.quaternion.multiply(unroll); bone.updateMatrixWorld(true); }
   }
 
   // Giữ root mà xe/camera/StopScene đang tham chiếu; thay rig sau khi tải thành công.
@@ -357,17 +361,24 @@ const ALIGN = [['clavicle', 'upperarm'], ['upperarm', 'lowerarm'], ['lowerarm', 
   ...['thumb', 'index', 'middle', 'ring', 'pinky'].flatMap(f => [[f + '_01', f + '_02'], [f + '_02', f + '_03']])];
 function alignBind(model, ref, bone) {
   model.updateMatrixWorld(true);
+  const unrolls = [];
   const from = new THREE.Vector3(), to = new THREE.Vector3();
   for (const s of ['l', 'r']) for (const [a, b] of ALIGN) {
     const ta = bone(a + '_' + s), tb = bone(b + '_' + s), ra = ref.get(a + '_' + s), rb = ref.get(b + '_' + s);
     if (!ta || !tb || !ra || !rb) continue;
     from.subVectors(tb.getWorldPosition(_B), ta.getWorldPosition(_A)).normalize(); to.subVectors(rb, ra).normalize();
     turn(ta, from, to); ta.updateMatrixWorld(true);
-    if (a === 'hand') rollHand(ta, to, bone('index_01_' + s), bone('pinky_01_' + s), ref.get('index_01_' + s), ref.get('pinky_01_' + s));
+    if (a === 'hand') {
+      const before = ta.quaternion.clone();
+      rollHand(ta, to, bone('index_01_' + s), bone('pinky_01_' + s), ref.get('index_01_' + s), ref.get('pinky_01_' + s));
+      unrolls.push({ bone: ta, unroll: ta.quaternion.clone().invert().multiply(before) });
+    }
   }
+  return unrolls;
 }
 // Xoay bàn tay quanh trục cổ tay -> ngón giữa để hàng khớp ngón (trỏ -> út) trùng rig gốc: lòng bàn tay cùng hướng thì clip
-// gập ngón mới ôm vào lòng (model đứng tay xuôi chéo, lòng úp vào trong => không xoay thì ngón quặp ngang).
+// gập ngón mới ôm vào lòng (model đứng tay xuôi chéo, lòng úp vào trong => không xoay thì ngón quặp ngang). Chỉ dùng cho bind:
+// applyRetarget trả bàn tay về (handUnroll), không thì cổ tay vặn ~110°.
 function rollHand(hand, axis, index, pinky, refIndex, refPinky) {
   if (!index || !pinky || !refIndex || !refPinky) return;
   const across = pinky.getWorldPosition(_B).sub(index.getWorldPosition(_A));
