@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -137,12 +137,13 @@
 - **Nhân vật** (`CHARACTERS` trong `src/person.js`, [0] = mặc định): nút 🧑 / phím X / showroom tab Người xoay vòng **Nam** (mặc định) → Người lái
   (person.glb Quaternius) → Chisa (chỉ Mustang, bỏ qua khi xe khác; ngồi thẳng `seatRecline 0`). Rig khác Quaternius: `load(url, { rig })`, bảng tên xương
   `RIGS` (`chisaCanonical`, `maleCanonical`) → retarget 52 xương từ clip person.glb (`reference`); `person.bone(tênQuaternius)` tra xương (smoke.js dùng).
-  **Nam**: file gốc `models/characters/male-rigged-walk.glb` (Tripo, 78 xương, 18.6k tam giác, **không có clip** dù tên "walk" — đi / đứng / ngồi /
-  hút thuốc đều là clip person.glb retarget). File xuất lỗi: xương TRS rỗng, IBM ở hệ Z-up lệch tâm => `node scripts/prepare-male.mjs <ra.glb>` dựng lại
-  (đổi trục y→x, z→y, x→z + dời 0.489 m, sai lệch TB 2.5 cm) rồi `gltf-transform optimize … --compress meshopt --texture-compress webp --texture-size 1024
-  --simplify false` => `docs/assets/models/male-rigged.glb` 362 KB (COMMON trong preload). Bind A-pose => `alignBind` xoay tay / chân / ngón về hướng
-  T-pose của rig gốc trước khi lưu bind (không thì tay đi bộ cắm vào người). Hip = pelvis (Pelvis / Twist / ShareBone đi theo cha); ngón cái chỉ 3 đốt
-  => không có IK ngón cái (`thumbs` null). Tay ngắn => chồm trước 7° (`seatRecline −0.12`). `scripts/check-male.mjs` PASS (IK cổ tay 0.002 mm, đầu y 1.005).
+  **Nam**: rig làm lại bằng **Rig Tool** của chú (xuất tên xương Quaternius, 64 xương, có ngón; thiếu spine_02 / xương lá) =>
+  file gốc `models/characters/male-rigged-tool.glb` (3.9 MB) → `gltf-transform optimize … --compress meshopt --texture-compress webp --texture-size 1024
+  --simplify false --join false --flatten false --instance false` => `docs/assets/models/male-rigged.glb` 377 KB (COMMON trong preload).
+  `maleCanonical` = giữ nguyên tên Quaternius. 5 clip trong file (idle/walk/run/sit/typing của tool) **không dùng**: đi / đứng / ngồi / hút thuốc vẫn là clip
+  person.glb retarget (Walk_Loop mượt như cũ). Bind A-pose => `alignBind` xoay tay / chân / ngón về hướng T-pose của rig gốc + `rollHand` xoay lòng bàn tay
+  cho hàng khớp ngón trùng rig gốc (không thì clip gập ngón quặp ngang, không ôm vành). Giữ `seatRecline −0.12`.
+  `scripts/check-male.mjs` PASS (cổ tay 0.000 mm, ngón ôm vành ở 5 góc lái). Bản Tripo cũ (`male-rigged-walk.glb`, `scripts/prepare-male.mjs`) để tham khảo.
 - **Ngồi lái (Mustang)**: model ghế đặt quá cao so với trần (đệm 0.60, trần 1.27 m) => cụm ghế hạ 19 cm (đáy đệm khuất dưới sàn
   0.362) + trượt lên trước 16 cm (`cars.js`, `seat.drop/forward`); xương chậu đặt tại `seat.hip` (stopscene.place), lưng ngả 0.1 rad,
   chân IK duỗi tới sàn (cổ chân `seat.foot`, mũi giày chếch lên 24°), tay IK giữ vô lăng (khuỷu gập ~77°). Đo: lún đệm 1.6 cm,
@@ -593,3 +594,5 @@
   xem mục 1 "Chế độ Race!". Chưa chạy thử — chú tự test.
 - **#7 — Nhân vật Nam (model Tripo chú gửi) làm nhân vật mặc định (24/10/2026)**: sửa rig lỗi xuất, retarget clip person.glb (file không có clip walk),
   nút 🧑 / showroom 3 lựa chọn Nam / Người lái / Chisa. Xem mục 1 "Nhân vật". Chưa chạy thử — chú tự test.
+- **#8 — Nam dùng rig chú làm bằng Rig Tool (25/10/2026)**: thay `male-rigged.glb`, tên xương Quaternius, thêm xoay lòng bàn tay khi căn bind
+  (ngón ôm vô lăng). Clip lái / đi vẫn của person.glb. Xem mục 1 "Nhân vật". Chưa chạy thử trong game — chú tự test.

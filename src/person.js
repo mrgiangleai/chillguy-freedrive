@@ -342,16 +342,11 @@ function chisaCanonical(name) {
   if (finger) return ['thumb', 'index', 'middle', 'ring', 'pinky'][+finger[2]] + '_0' + (+(finger[3] || 0) + 1) + '_' + finger[1].toLowerCase();
   return null;
 }
-// Tên xương nhân vật nam (Tripo, models/characters/male-rigged-walk.glb) -> tên rig Quaternius. Hip = gốc (chậu + thân);
-// Pelvis (chỉ giữ 2 đùi), NeckTwist02, các xương Twist / ShareBone không ánh xạ => đi theo xương cha.
+// Nhân vật nam: rig làm lại bằng Rig Tool, xuất với tên xương Quaternius (models/characters/male-rigged-tool.glb) => tên giữ nguyên;
+// chỉ không có spine_02 và các xương lá (*_leaf), clip vẫn lấy của person.glb (retarget).
+const QUATERNIUS = /^(pelvis|spine_0[1-3]|neck_01|Head|(clavicle|upperarm|lowerarm|hand|thigh|calf|foot|ball)_[lr]|(thumb|index|middle|ring|pinky)_0[1-3]_[lr])$/;
 function maleCanonical(name) {
-  const torso = { Hip: 'pelvis', Waist: 'spine_01', Spine01: 'spine_02', Spine02: 'spine_03', NeckTwist01: 'neck_01', Head: 'Head' };
-  if (torso[name]) return torso[name];
-  const limb = name.match(/^([LR])_(Clavicle|Upperarm|Forearm|Hand|Thigh|Calf|Foot|ToeBase)$/);
-  if (limb) return ({ Clavicle: 'clavicle', Upperarm: 'upperarm', Forearm: 'lowerarm', Hand: 'hand', Thigh: 'thigh', Calf: 'calf', Foot: 'foot', ToeBase: 'ball' })[limb[2]] + '_' + limb[1].toLowerCase();
-  const finger = name.match(/^([LR])_(Thumb|Index|Mid|Ring|Pinky)([123])$/);
-  if (finger) return ({ Thumb: 'thumb', Index: 'index', Mid: 'middle', Ring: 'ring', Pinky: 'pinky' })[finger[2]] + '_0' + finger[3] + '_' + finger[1].toLowerCase();
-  return null;
+  return QUATERNIUS.test(name) ? name : null;
 }
 const RIGS = { chisa: chisaCanonical, male: maleCanonical };
 
@@ -368,5 +363,16 @@ function alignBind(model, ref, bone) {
     if (!ta || !tb || !ra || !rb) continue;
     from.subVectors(tb.getWorldPosition(_B), ta.getWorldPosition(_A)).normalize(); to.subVectors(rb, ra).normalize();
     turn(ta, from, to); ta.updateMatrixWorld(true);
+    if (a === 'hand') rollHand(ta, to, bone('index_01_' + s), bone('pinky_01_' + s), ref.get('index_01_' + s), ref.get('pinky_01_' + s));
   }
+}
+// Xoay bàn tay quanh trục cổ tay -> ngón giữa để hàng khớp ngón (trỏ -> út) trùng rig gốc: lòng bàn tay cùng hướng thì clip
+// gập ngón mới ôm vào lòng (model đứng tay xuôi chéo, lòng úp vào trong => không xoay thì ngón quặp ngang).
+function rollHand(hand, axis, index, pinky, refIndex, refPinky) {
+  if (!index || !pinky || !refIndex || !refPinky) return;
+  const across = pinky.getWorldPosition(_B).sub(index.getWorldPosition(_A));
+  const want = new THREE.Vector3().subVectors(refPinky, refIndex);
+  across.addScaledVector(axis, -across.dot(axis)); want.addScaledVector(axis, -want.dot(axis));
+  if (across.lengthSq() < 1e-10 || want.lengthSq() < 1e-10) return;
+  turn(hand, across.normalize(), want.normalize()); hand.updateMatrixWorld(true);
 }
