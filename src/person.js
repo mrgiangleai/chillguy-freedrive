@@ -33,9 +33,10 @@ export class Person {
     // File xuất từ Rig Tool có đủ clip game cần => dùng thẳng (chỉnh trong tool sao, vào game y vậy): không retarget,
     // không bẻ bind, không ngả / chồm lưng, không IK chân; tay chỉ xoay theo vô lăng khi đánh lái (steerHold).
     const missing = OWN_CLIPS.filter((n) => !gltf.animations.some((c) => c.name === n));
-    this.ownClips = rig === 'male' && !missing.length;
+    // Người lái (person.glb, dáng chú chỉnh bằng Rig Tool rồi nướng vào file — scripts/bake-person-pose.mjs) cũng dùng thẳng clip.
+    this.ownClips = (rig === 'male' || rig === null) && !missing.length;
     if (rig === 'male' && missing.length) console.warn('[person] model thiếu clip, dùng clip person.glb:', missing.join(', '));
-    this.seatRecline = rig === 'chisa' ? 0 : rig === 'male' ? (this.ownClips ? 0 : -0.12) : null;   // tay ngắn: Chisa ngồi thẳng, Nam chồm trước 7° để đủ tầm vô lăng ở cả hai góc cua
+    this.seatRecline = this.ownClips ? 0 : rig === 'chisa' ? 0 : rig === 'male' ? -0.12 : null;   // tay ngắn: Chisa ngồi thẳng, Nam chồm trước 7° để đủ tầm vô lăng ở cả hai góc cua
     model.traverse((o) => {
       if (!o.isMesh) return;
       o.castShadow = true;

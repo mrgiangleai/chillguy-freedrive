@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -154,6 +154,7 @@
   từng clip, Lưu => `models/person.rigtool.json` (chép từ cạnh person.glb) → `node scripts/bake-person-pose.mjs` nướng vào
   `docs/assets/models/person.glb` bằng đúng `applyAdjustments` của Rig Tool (đọc lại kiểm từng track); bản gốc `models/characters/person.original.glb`,
   luôn nướng từ bản gốc. Lần 1 (25/10): Idle 11 xương, Walk 8, Driving 15 + mở ngón −0.7 (vai bớt đưa ra sau); Sitting_Enter / Exit chưa chỉnh.
+  Người lái cũng ở chế độ `ownClips` (không ngả lưng / IK chân / kéo tay; tay chỉ xoay theo vô lăng) => game y dáng trong Rig Tool.
   Rig Tool `src/core/mustangSeat.js` đã lấy đúng số đo xe này (vô lăng (0, 0.433, 0.435), sàn −0.088, cổ chân (±0.09, 0, 0.76) tính từ pelvis). Bản Tripo cũ (`male-rigged-walk.glb`, `scripts/prepare-male.mjs`) để tham khảo.
 - **Ngồi lái (Mustang)**: model ghế đặt quá cao so với trần (đệm 0.60, trần 1.27 m) => cụm ghế hạ 19 cm (đáy đệm khuất dưới sàn
   0.362) + trượt lên trước 16 cm (`cars.js`, `seat.drop/forward`); xương chậu đặt tại `seat.hip` (stopscene.place), lưng ngả 0.1 rad,
@@ -595,3 +596,5 @@
 - Đã tóm tắt tới commit "Người lái: nướng dáng chú chỉnh trong Rig Tool vào person.glb" (25/10/2026): mã ở mục 1 "Nhân vật" (Nam = rig Rig Tool,
   clip riêng `ownClips`, `seatLift`, `handUnroll`, nướng dáng person.glb), mục 1 "Chế độ Race!" (showroom), camera admin / Stop ở mục 1 / 3.
   Tất cả chưa xem trên máy thật — chú tự test.
+- **#1 — Người lái dùng thẳng clip (ownClips) (25/10/2026)**: chú báo dáng trong game khác Rig Tool (đầu gối gập cao, ngón chỉ thẳng) do game còn
+  ngả lưng + IK chân / tay đè lên => bỏ cho Người lái như Nam. Chưa xem trong game — chú tự test.
