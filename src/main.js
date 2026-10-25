@@ -1912,7 +1912,7 @@ const GRIP = 0.08;            // góc cầm (rad dưới phương ngang): gần 
 // tư thế ngồi trên ghế đã đo (config `seat`): ngả lưng, chân duỗi tới sàn (gọi trước gripWheel: ngả lưng làm dời vai)
 const _ft = new THREE.Vector3(), _fp = new THREE.Vector3(), _fd = new THREE.Vector3();
 function seatPose(seat) {
-  if (!seat) return;
+  if (!seat || person.ownClips) return;                         // clip riêng (Rig Tool): giữ nguyên dáng ngồi của clip
   person.recline(seat.recline || 0);
   const m = cars.tilt.matrixWorld, [fx, fy, fz] = seat.foot, cx = seat.hip[0];
   for (const [side, x] of [['l', fx], ['r', 2 * cx - fx]]) {
@@ -1931,6 +1931,10 @@ function gripWheel(sw) {
   _wr.set(1, 0, 0).transformDirection(m);
   _wr.addScaledVector(_wn, -_wr.dot(_wn)).normalize();
   _wu.crossVectors(_wn, _wr);
+  if (person.ownClips) {                                        // clip riêng: tay đúng như clip, chỉ xoay theo vô lăng khi đánh lái
+    for (const side of ['r', 'l']) person.steerHold(side, _wc, _wn, cars.steerAngle || 0);
+    return;
+  }
   for (const [side, ang] of [['r', -GRIP], ['l', Math.PI + GRIP]]) {
     const a = ang + (cars.steerAngle || 0), cx = Math.cos(a), cy = Math.sin(a);
     // Offset theo xe: căn lòng bàn tay với vành thật, giữ tư thế ngón của animation.

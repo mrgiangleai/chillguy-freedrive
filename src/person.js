@@ -29,7 +29,12 @@ export class Person {
     const gltf = await loader.loadAsync(url);
     const model = gltf.scene;
     this.model = model;
-    this.seatRecline = rig === 'chisa' ? 0 : rig === 'male' ? -0.12 : null;   // tay ngắn: Chisa ngồi thẳng, Nam chồm trước 7° để đủ tầm vô lăng ở cả hai góc cua
+    // File xuất từ Rig Tool có đủ clip game cần => dùng thẳng (chỉnh trong tool sao, vào game y vậy): không retarget,
+    // không bẻ bind, không ngả / chồm lưng, không IK chân; tay chỉ xoay theo vô lăng khi đánh lái (steerHold).
+    const missing = OWN_CLIPS.filter((n) => !gltf.animations.some((c) => c.name === n));
+    this.ownClips = rig === 'male' && !missing.length;
+    if (rig === 'male' && missing.length) console.warn('[person] model thiếu clip, dùng clip person.glb:', missing.join(', '));
+    this.seatRecline = rig === 'chisa' ? 0 : rig === 'male' ? (this.ownClips ? 0 : -0.12) : null;   // tay ngắn: Chisa ngồi thẳng, Nam chồm trước 7° để đủ tầm vô lăng ở cả hai góc cua
     model.traverse((o) => {
       if (!o.isMesh) return;
       o.castShadow = true;
@@ -78,7 +83,7 @@ export class Person {
     model.updateMatrixWorld(true);
     model.traverse((o) => { if (o.isSkinnedMesh && /superhero|body/i.test(o.name + ' ' + o.material?.name)) dress(o, model, this.footShade); });
 
-    if (canonical) {
+    if (canonical && !this.ownClips) {
       // Model không có clip: dùng animation của person.glb, chuyển delta quay giữa hai bind pose.
       this.reference = await new Person().load('assets/models/person.glb');
       // bind A-pose (tay xuôi) khác T-pose của rig gốc => xoay tay / chân / ngón về đúng hướng xương gốc trước, không thì delta cộng thêm
@@ -96,7 +101,7 @@ export class Person {
       const t = ['thumb_01', 'thumb_02', 'thumb_03', 'thumb_04_leaf'].map((n) => bone(n + '_' + s));
       this.thumbs[s] = t.every(Boolean) ? { bones: t, rest: t[2].quaternion.clone() } : null;
     }
-    if (canonical) {
+    if (canonical && !this.ownClips) {
       this.actions = this.reference.actions; this.mixer = this.reference.mixer; this.current = this.reference.current;
       this.retargetPairs = [];
       model.traverse(o => {
@@ -249,6 +254,21 @@ export class Person {
   // hoặc chĩa theo `pole` (hướng thế giới, vd. ra ngoài - xuống dưới) nếu có.
   // Gọi sau mixer.update (animation ghi đè lại mỗi khung hình).
   reach(side, target, pole = null) { const arm = this.arms?.[side]; if (arm) ik(arm, target, pole); }
+
+  // Clip riêng (ownClips): giữ nguyên tay của clip, chỉ xoay cổ tay + bàn tay quanh trục vô lăng `axis` (qua `center`) một góc
+  // `angle` khi đánh lái — khuỷu theo IK, bàn tay xoay cùng vành, ngón giữ nguyên clip. Gọi sau mixer.update.
+  steerHold(side, center, axis, angle) {
+    const arm = this.arms?.[side];
+    if (!arm || !angle) return;
+    const [up, lo, hand] = arm;
+    const q = _qs.setFromAxisAngle(axis, angle);
+    const W = hand.getWorldPosition(new THREE.Vector3()).sub(center).applyQuaternion(q).add(center);
+    const pole = lo.getWorldPosition(new THREE.Vector3()).sub(center).applyQuaternion(q).add(center).sub(up.getWorldPosition(_S));
+    const handWorld = hand.getWorldQuaternion(new THREE.Quaternion()).premultiply(q);
+    ik(arm, W, pole);
+    hand.parent.getWorldQuaternion(_qp);
+    hand.quaternion.copy(_qp.invert().multiply(handWorld)); hand.updateMatrixWorld(true);
+  }
 }
 
 function ik(chain, target, pole) {
@@ -281,10 +301,13 @@ export const CHARACTERS = [
   { id: 'chisa', name: 'Chisa', url: 'assets/models/chisa_wuthering_waves.glb', rig: 'chisa', mustangOnly: true },
 ];
 
+// clip game cần khi dùng clip riêng của model (Rig Tool: tick các clip này ở Thư viện, tên xương Quaternius)
+export const OWN_CLIPS = ['Driving_Loop', 'Idle_Loop', 'Walk_Loop', 'Sitting_Enter', 'Sitting_Exit'];
+
 export const HEIGHT = 1.70;          // chiều cao người lái (m) — vừa cabin Mustang (trần thấp, ghế đã hạ)
 const _S = new THREE.Vector3(), _E = new THREE.Vector3(), _W = new THREE.Vector3(), _D = new THREE.Vector3(), _P = new THREE.Vector3();
 const _E2 = new THREE.Vector3(), _A = new THREE.Vector3(), _B = new THREE.Vector3(), _T = new THREE.Vector3();
-const _q = new THREE.Quaternion(), _qw = new THREE.Quaternion(), _qp = new THREE.Quaternion();
+const _q = new THREE.Quaternion(), _qw = new THREE.Quaternion(), _qp = new THREE.Quaternion(), _qs = new THREE.Quaternion();
 // xoay xương để hướng `from` (thế giới) thành `to`
 function turn(bone, from, to) {
   _q.setFromUnitVectors(from, to);
