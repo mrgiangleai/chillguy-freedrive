@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -150,6 +150,10 @@
   (xoay cổ tay + bàn tay quanh trục vô lăng theo góc lái, ngón giữ clip). Thiếu clip => cách cũ + console.warn. `scripts/check-own-clips.mjs` PASS.
   **Mông không xuyên ghế**: rig Rig Tool đặt xương chậu cao hơn khớp háng ~10.4 cm (người lái mẫu −2.1 cm) => `seatLift` nâng người phần chênh
   khi ngồi (Nam: 12.5 cm, tối đa 15 cm; stopscene.place). Rig Tool `seatLiftUnits` tính y hệt để hạ ghế cảnh thử.
+  **Dáng 5 clip person.glb (Người lái + clip retarget của Nam / Chisa) chú chỉnh bằng Rig Tool**: mở `person.glb` "Giữ rig có sẵn", Sửa dáng
+  từng clip, Lưu => `models/person.rigtool.json` (chép từ cạnh person.glb) → `node scripts/bake-person-pose.mjs` nướng vào
+  `docs/assets/models/person.glb` bằng đúng `applyAdjustments` của Rig Tool (đọc lại kiểm từng track); bản gốc `models/characters/person.original.glb`,
+  luôn nướng từ bản gốc. Lần 1 (25/10): Idle 11 xương, Walk 8, Driving 15 + mở ngón −0.7 (vai bớt đưa ra sau); Sitting_Enter / Exit chưa chỉnh.
   Rig Tool `src/core/mustangSeat.js` đã lấy đúng số đo xe này (vô lăng (0, 0.433, 0.435), sàn −0.088, cổ chân (±0.09, 0, 0.76) tính từ pelvis). Bản Tripo cũ (`male-rigged-walk.glb`, `scripts/prepare-male.mjs`) để tham khảo.
 - **Ngồi lái (Mustang)**: model ghế đặt quá cao so với trần (đệm 0.60, trần 1.27 m) => cụm ghế hạ 19 cm (đáy đệm khuất dưới sàn
   0.362) + trượt lên trước 16 cm (`cars.js`, `seat.drop/forward`); xương chậu đặt tại `seat.hip` (stopscene.place), lưng ngả 0.1 rad,
@@ -583,27 +587,11 @@
 - Vài tảng đá terrain trông lơ lửng trên vách núi gần đường (s≈250) — chưa sửa.
 - Map Phố: camera Từ trên cao hay bị nhà chắn nên kéo sát xe; Mustang/Mazda NPC không chạy trong phố (thay bằng xe dựng code).
 - Chưa nghe trên máy thật: tiếng người nói chuyện (`setChatter`), còi hụ, tiếng va chạm. Chưa chụp cận đèn đi bộ.
-- Nhân vật Nam: chưa xem trên máy thật (tư thế đi bộ / ngồi / hút thuốc retarget, mặt + texture 1024); chưa có test cầm vô lăng Mazda cho Nam.
+- Nhân vật Nam: chưa xem trên máy thật; chờ chú xuất lại Nam có 5 clip (Rig Tool nhóm "Dùng trong game Chill Drive") để bật `ownClips`;
+  chưa có test cầm vô lăng Mazda cho Nam. Dáng person.glb đã nướng: chưa xem trong game.
 - `QUICK_OPENING = true` (TẠM, đầu game 0.5 s) — bật lại khi chú bảo. Kiểm thử Playwright: vào game bằng `#m-chill` / `#m-drive`.
 
 ## 6. Nhật ký cập nhật
-- Đã tóm tắt tới commit "Landmark: người dạo công viên + ROAD.md" (23/10/2026): map Landmark — đường nội khu đúng bề rộng, Landmark 1–6, đêm +
-  quảng trường, đường đôi / cầu Sài Gòn / cầu xoắn / tượng, cây model chú tải (cả dải phân cách), mật độ cây / cột điện, người dạo công viên
-  (xem mục 1 "Map Landmark 81", SGN_PLAN.md). Bài học gộp: xung đột `docs/index.html` phải so bản nhánh chính, không `checkout --ours` cả file.
-  Phiên người 3D / Stop (đã gộp vào mục 1 / 3): người đi bộ 3D (Setting 🚶), chế độ Stop + camera admin (phím `), phanh bấm đúp,
-  bấm bản đồ để dời tới; chú báo pan Stop ngược => đã đảo cho cùng chiều camera thường. Tất cả chưa xem trên máy thật — chú tự test.
-- **#2 — Camera admin không xuyên đất, phím 0 về vị trí ban đầu (23/10/2026)**.
-- **#3 — Bật Stop vào thẳng bay tự do từ camera hiện tại (23/10/2026)**.
-- **#4 — Chế độ Race!: showroom chọn xe + người lái (23/10/2026)**: hộp thứ 3 ở màn hình vào game, showroom tối sang (đèn studio, sàn bóng, bàn xoay
-  "Tự quay"), Start vào Drive. Xem mục 1 "Chế độ Race!". Chưa chạy thử — chú tự test.
-- **#5 — Showroom: trần + tường sau, tab Xe / Người riêng, đèn Spot / Omni tự chỉnh (23/10/2026)**: xem mục 1 "Chế độ Race!". Chưa chạy thử — chú tự test.
-- **#6 — Showroom: bục dày quay + vật lý, xe + người cùng hiện, phòng 4 vách, LED tường chạy lên đổi màu, chỉnh mọi đèn, nút ‹ › (23/10/2026)**:
-  xem mục 1 "Chế độ Race!". Chưa chạy thử — chú tự test.
-- **#7 — Nhân vật Nam (model Tripo chú gửi) làm nhân vật mặc định (24/10/2026)**: sửa rig lỗi xuất, retarget clip person.glb (file không có clip walk),
-  nút 🧑 / showroom 3 lựa chọn Nam / Người lái / Chisa. Xem mục 1 "Nhân vật". Chưa chạy thử — chú tự test.
-- **#8 — Nam dùng rig chú làm bằng Rig Tool (25/10/2026)**: thay `male-rigged.glb`, tên xương Quaternius, thêm xoay lòng bàn tay khi căn bind
-  (ngón ôm vô lăng). Clip lái / đi vẫn của person.glb. Chú báo tay xoắn => trả bàn tay về sau retarget (`handUnroll`). Xem mục 1 "Nhân vật".
-  Chưa chạy thử trong game — chú tự test. Thêm `seatLift` (mông xuyên ghế: xương chậu rig tool cao hơn khớp háng).
-- **#9 — Chỉnh trong Rig Tool sao vào game y vậy (25/10/2026)**: game dùng thẳng clip trong file Nam khi đủ 5 clip (ownClips), tay chỉ xoay theo
-  vô lăng; sửa số đo Mustang trong Rig Tool cho khớp game (trước lệch vô lăng 8.5 cm, sàn 25 cm). Chú cần xuất lại có tick 5 clip ở Thư viện.
-  Chưa chạy thử trong game — chú tự test. Thêm `seatLift` (mông xuyên ghế: xương chậu rig tool cao hơn khớp háng).
+- Đã tóm tắt tới commit "Người lái: nướng dáng chú chỉnh trong Rig Tool vào person.glb" (25/10/2026): mã ở mục 1 "Nhân vật" (Nam = rig Rig Tool,
+  clip riêng `ownClips`, `seatLift`, `handUnroll`, nướng dáng person.glb), mục 1 "Chế độ Race!" (showroom), camera admin / Stop ở mục 1 / 3.
+  Tất cả chưa xem trên máy thật — chú tự test.
