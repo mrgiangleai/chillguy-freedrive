@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { withMist } from './mist.js';
+import { PED_BONES, PED_BONE, PED_GLSL, bakePedWalk, pedWalkTexture, loadPedRig } from './pedWalk.js';
 
 // Người đi bộ dùng model 3D (Setting 🚶 "Người 3D", mặc định tắt): CityPeople gọi begin / add / end thay cho hình người hộp.
 // - 13 model gốc ở `models/street-human/` (không đưa lên web); bản nén (simplify ~5k tam giác, webp 512, meshopt) ở
@@ -31,6 +32,75 @@ export const PEOPLE_MODELS = [
   { id: 'hijab', h: 1.63, armX: 0.15, legs: false, smooth: 3, armDrop: 0.45, armPitch: 0.4 },
 ];
 const HIP = 0.52, SH = 0.815;              // khớp háng / vai theo tỉ lệ chiều cao
+// tay model vung 50 % biên độ clip: phần lớn model tay dính liền thân áo => vung / gập khuỷu nhiều thì lưới nách dãn (scripts/check-people-walk.mjs)
+export const MODEL_WALK = { arm: 0.5 };
+
+// khớp của model (cho nướng clip nhân vật chính, pedWalk.js): co giãn khớp người hộp — chân theo độ cao háng, thân theo háng → vai,
+// tay theo chiều cao (đo từ vai xuống). axes: { upper_l: [điểm, hướng], thigh_r: … } trục tay / chân đo trên lưới (fitLimbs)
+// => khớp tay / chân nằm trên trục đó và fix quay trục về thẳng đứng
+function modelJoints(def, axes = {}) {
+  const h = def.h, hip = (def.hip ?? HIP) * h, sh = (def.sh ?? SH) * h, k = h / 1.79, fix = [];
+  const joints = PED_BONES.map(([name, , [x, y, z]], i) => {
+    const arm = /^(upper|fore|hand)/.test(name), side = name.slice(-2);
+    const ny = arm ? sh - (1.4 - y) * k : y <= 0.86 ? y * hip / 0.86 : hip + (y - 0.86) * (sh - hip) / (1.4 - 0.86);
+    const ax = axes[(arm ? 'upper' : 'thigh') + side];
+    if (ax && (arm || /^(thigh|calf|foot)/.test(name))) {
+      const [p, d] = ax, top = arm ? sh : hip, t = (top - ny) / -d.y;   // khớp trên trục, cách khớp gốc theo chiều dài khúc
+      const o = new THREE.Vector3(...p).addScaledVector(d, (top - p[1]) / d.y);
+      fix[i] = new THREE.Quaternion().setFromUnitVectors(d, new THREE.Vector3(0, -1, 0));
+      return [o.x + d.x * t, o.y + d.y * t, o.z + d.z * t];
+    }
+    return [arm ? Math.sign(x) * 0.145 * h : x * k, ny, z * k];
+  });
+  return { joints, fix };
+}
+// trục tay / chân mỗi bên: đường nối trọng tâm nửa trên và nửa dưới các đỉnh thuộc hẳn tay / chân (trọng số ≥ 0.8)
+function fitLimbs(def, parts) {
+  const axes = {};
+  for (const [key, w, lim] of [['upper', 'arm', 0], ['thigh', 'leg', 0]]) for (const side of ['_l', '_r']) {
+    const pts = [];
+    for (const { P, LG, AM } of parts) for (let i = 0; i < LG.length; i++) {
+      const v = (w === 'arm' ? AM[i] / (def.armSwing ?? 1) : LG[i] / (def.legSwing ?? 1)) * (side === '_r' ? 1 : -1);
+      if (v >= 0.8) pts.push(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]);
+    }
+    if (pts.length < 30) continue;
+    const ys = []; for (let i = 1; i < pts.length; i += 3) ys.push(pts[i]);
+    ys.sort((a, b) => a - b);
+    const mid = ys[ys.length >> 1], hi = new THREE.Vector3(), lo = new THREE.Vector3();
+    let nh = 0, nl = 0;
+    for (let i = 0; i < pts.length; i += 3) {
+      if (pts[i + 1] >= mid) { hi.x += pts[i]; hi.y += pts[i + 1]; hi.z += pts[i + 2]; nh++; } else { lo.x += pts[i]; lo.y += pts[i + 1]; lo.z += pts[i + 2]; nl++; }
+    }
+    hi.divideScalar(nh); lo.divideScalar(nl);
+    const d = lo.clone().sub(hi).normalize();
+    if (d.y > -0.7) continue;                            // không ra hướng thõng xuống => giữ khớp ước
+    axes[key + side] = [hi.toArray(), d];
+  }
+  return axes;
+}
+// mỗi đỉnh gắn ≤ 2 xương (i0, i1, trọng số i0) theo trọng số chân / tay đã có (leg / arm có dấu = bên) và độ cao so với khớp
+function skinVertex(J, y, leg, arm, bw) {
+  const W = new Map(), put = (b, w) => w > 0 && W.set(b, (W.get(b) ?? 0) + w);
+  const chain = (names, w) => {                        // khúc trên → dưới, trộn quanh khớp
+    for (let c = 0; c < names.length; c++) {
+      const top = c ? J[PED_BONE[names[c]]][1] : Infinity, bot = c + 1 < names.length ? J[PED_BONE[names[c + 1]]][1] : -Infinity;
+      const a = THREE.MathUtils.clamp((y - bot) / bw + 0.5, 0, 1) * THREE.MathUtils.clamp((top - y) / bw + 0.5, 0, 1);
+      put(PED_BONE[names[c]], a * w);
+    }
+  };
+  const aw = Math.min(1, Math.abs(arm)), lw = Math.min(1, Math.abs(leg)) * (1 - aw);
+  const sd = (v) => (v > 0 ? '_r' : '_l');
+  if (aw) chain(['upper', 'fore', 'hand'].map((n) => n + sd(arm)), aw);
+  if (lw) chain(['thigh', 'calf', 'foot'].map((n) => n + sd(leg)), lw);
+  const body = 1 - aw - lw;
+  if (body > 0) {                                      // đầu trên cổ, thân giữa, chậu dưới háng (váy dài: cả vạt váy theo chậu)
+    const hA = THREE.MathUtils.clamp((y - J[PED_BONE.head][1]) / bw + 0.5, 0, 1), pA = THREE.MathUtils.clamp((J[PED_BONE.pelvis][1] - y) / bw + 0.5, 0, 1);
+    put(PED_BONE.head, hA * body); put(PED_BONE.pelvis, pA * body); put(PED_BONE.spine, Math.max(0, 1 - hA - pA) * body);
+  }
+  const top = [...W].sort((a, b) => b[1] - a[1]);
+  const [b0, w0] = top[0] ?? [PED_BONE.spine, 1], [b1, w1] = top[1] ?? [b0, 0];
+  return [b0, b1, w0 / (w0 + w1)];
+}
 
 const _v = new THREE.Vector3(), _n = new THREE.Vector3(), _m = new THREE.Matrix4(), _m2 = new THREE.Matrix4(), _q = new THREE.Quaternion();
 
@@ -135,7 +205,7 @@ function smoothWeights(geo, LG, AM, iters) {
 }
 function smoothInto(L, LG, AM) { for (let i = 0; i < LG.length; i++) { L[i * 4] = LG[i]; L[i * 4 + 1] = AM[i]; } }
 
-async function buildModel(loader, def) {
+export async function buildModel(loader, def) {
   const gltf = await loader.loadAsync(DIR + def.id + '.glb');
   const root = gltf.scene;
   if (def.tpose) lowerArmBones(root);
@@ -201,7 +271,15 @@ async function buildModel(loader, def) {
     if (idx) for (let t = 0; t < idx.length; t += 3) [idx[t + 1], idx[t + 2]] = [idx[t + 2], idx[t + 1]];
     else flipNonIndexed(g);
     g.computeBoundingSphere();
-    out.push({ geo: g, mat: mesh.material });
+    out.push({ geo: g, mat: mesh.material, P, LG, AM });
+  }
+  // gắn xương clip nhân vật chính (pedWalk.js) cho từng đỉnh, theo trục tay / chân đo trên cả model
+  out.rig = modelJoints(def, fitLimbs(def, out));
+  for (const o of out) {
+    const n = o.LG.length, SK = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) SK.set(skinVertex(out.rig.joints, o.P[i * 3 + 1], o.LG[i] / (def.legSwing ?? 1), o.AM[i] / (def.armSwing ?? 1), 0.05 * def.h), i * 3);
+    o.geo.setAttribute('aSkin', new THREE.BufferAttribute(SK, 3));
+    delete o.P; delete o.LG; delete o.AM;
   }
   return out;
 }
@@ -212,16 +290,31 @@ function flipNonIndexed(g) {
   }
 }
 
-function patch(src) {
+// uni: { uWalkTex, uWalkOn } riêng model + { uTime, uDur } chung với người hộp (cityPeople.walk)
+export function patch(src, uni) {
   const mat = new THREE.MeshStandardMaterial({
     map: src.map ?? null, color: src.color ?? 0xffffff, normalMap: null, roughness: Math.max(0.6, src.roughness ?? 0.8), metalness: 0,
     transparent: false, alphaTest: src.transparent || src.alphaTest ? 0.5 : 0, side: src.side ?? THREE.FrontSide, vertexColors: !!src.vertexColors,
   });
   mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, uni);
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec4 aLimb;\nattribute vec3 aWalk;')
+      .replace('#include <common>', `#include <common>
+        attribute vec4 aLimb;
+        attribute vec3 aSkin;
+        attribute vec3 aWalk;
+        ${PED_GLSL}`)
       .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
-        float sw = sin(aWalk.x) * aWalk.y;
+        // clip nhân vật chính (pedWalk.js): ≤ 2 xương mỗi đỉnh; chưa nướng xong thì đung đưa tự làm như cũ; aWalk.z = 4 · nói chuyện + 8 · nằm
+        float talk = mod(floor(aWalk.z / 4.0), 2.0), still = step(7.5, aWalk.z);
+        bool useClip = uWalkOn > 0.5 && still < 0.5;
+        mat4 pedM = mat4(1.0);
+        if (useClip) {
+          pedM = pedPose(int(aSkin.x), 0, talk);
+          if (aSkin.z < 0.999) pedM = pedM * aSkin.z + pedPose(int(aSkin.y), 0, talk) * (1.0 - aSkin.z);
+        }
+        objectNormal = mat3(pedM) * objectNormal;
+        float sw = useClip || still > 0.5 ? 0.0 : sin(aWalk.x) * aWalk.y;
         float la = sw * 0.5 * aLimb.x, aa = -sw * 0.5 * aLimb.y;           // chân / tay ngược pha, bên trái / phải ngược nhau
         float lc = cos(la), ls = sin(la), ac = cos(aa), as_ = sin(aa);
         objectNormal = vec3(objectNormal.x, objectNormal.y * lc - objectNormal.z * ls, objectNormal.y * ls + objectNormal.z * lc);
@@ -231,14 +324,17 @@ function patch(src) {
         transformed = vec3(transformed.x, transformed.y * lc - transformed.z * ls, transformed.y * ls + transformed.z * lc);
         transformed.y += aLimb.z - aLimb.w;
         transformed = vec3(transformed.x, transformed.y * ac - transformed.z * as_, transformed.y * as_ + transformed.z * ac);
-        transformed.y += aLimb.w - aLimb.z * (1.0 - cos(sw * 0.5));          // chân xoạc => hạ người cho bàn chân chạm đất`);
+        transformed.y += aLimb.w - aLimb.z * (1.0 - cos(sw * 0.5));          // chân xoạc => hạ người cho bàn chân chạm đất
+        transformed = (pedM * vec4(transformed, 1.0)).xyz;`);
   };
-  mat.customProgramCacheKey = () => 'street-model' + (mat.map ? 'm' : '');
+  mat.customProgramCacheKey = () => 'street-model-walk' + (mat.map ? 'm' : '');
   return withMist(mat);
 }
 
 export class StreetModels {
-  constructor(parent, capacity) {
+  // walk: uniform chung với người hộp ({ uTime, uDur } của cityPeople.walk)
+  constructor(parent, capacity, walk) {
+    this.walk = walk;
     this.group = new THREE.Group();
     parent.add(this.group);
     this.cap = capacity;
@@ -249,13 +345,20 @@ export class StreetModels {
   load() {
     if (this._loading) return this._loading;
     const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
+    const rig = loadPedRig().catch((e) => { console.warn('[streetModels] không nướng được clip đi bộ, dùng dáng tự làm', e); return null; });
     this._loading = Promise.all(PEOPLE_MODELS.map(async (def) => {
       const parts = await buildModel(loader, def);
+      const uni = { uWalkTex: { value: null }, uWalkOn: { value: 0 }, uTime: this.walk.uTime, uDur: this.walk.uDur };
+      rig.then((gltf) => {
+        if (!gltf) return;
+        uni.uWalkTex.value = pedWalkTexture(bakePedWalk(gltf.scene, gltf.animations, parts.rig.joints, [0.05 * def.h, -0.07 * def.h], parts.rig.fix, MODEL_WALK));
+        uni.uWalkOn.value = 1;
+      }).catch((e) => console.warn('[streetModels] nướng clip lỗi', def.id, e));
       const matrix = new THREE.InstancedBufferAttribute(new Float32Array(this.cap * 16), 16).setUsage(THREE.DynamicDrawUsage);
       const walk = new THREE.InstancedBufferAttribute(new Float32Array(this.cap * 3), 3).setUsage(THREE.DynamicDrawUsage);
       const meshes = parts.map(({ geo, mat }) => {
         geo.setAttribute('aWalk', walk);
-        const m = new THREE.InstancedMesh(geo, patch(mat), this.cap);
+        const m = new THREE.InstancedMesh(geo, patch(mat, uni), this.cap);
         m.instanceMatrix = matrix; m.count = 0; m.castShadow = true; m.frustumCulled = false;
         this.group.add(m);
         return m;
@@ -266,12 +369,12 @@ export class StreetModels {
   }
   get count() { return this.models.length || PEOPLE_MODELS.length; }
   begin() { for (const M of this.models) M.n = 0; }
-  // k: chỉ số model, m: ma trận đặt người (Matrix4), ph / moving: pha bước + đang đi
-  add(k, m, ph, moving) {
+  // k: chỉ số model, m: ma trận đặt người (Matrix4), ph / moving: pha bước + đang đi (0…1), flags: 4 = nói chuyện, 8 = nằm
+  add(k, m, ph, moving, flags = 0) {
     const M = this.models[k % this.models.length];
     if (!M || M.n >= this.cap) return;
     m.toArray(M.matrix.array, M.n * 16);
-    M.walk.setXYZ(M.n, ph, moving, 0);
+    M.walk.setXYZ(M.n, ph, moving, flags);
     M.n++;
   }
   end() {

@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -527,7 +527,10 @@
   gập trước ngực theo ngực). Shader đọc `texelFetch` theo `aBone`: đi = pha bước (`aWalk.x`, vòng clip 1.21 m = đúng nhịp 5.2 rad/m cũ),
   đứng = Idle (nói chuyện: Idle_Talking) theo `uTime` lệch pha mỗi người, chuyển đứng ↔ đi mượt (`_mv`, ~0.25 s); `aWalk.z` = đồ dùng + 4 · nói
   chuyện + 8 · nằm (người bị đâm giữ dáng thẳng). Chưa nướng xong / lỗi => dáng tự làm cũ. Đám đông Times Square dùng chung. Shadow vẫn dáng
-  đứng thẳng (như trước). Người 3D (`streetModels`) chưa theo clip. `node scripts/check-ped-walk.mjs` kiểm bản nướng.
+  đứng thẳng (như trước). `node scripts/check-ped-walk.mjs` kiểm bản nướng.
+  **Người 3D cũng theo clip**: mỗi model nướng riêng (khớp co giãn theo `h` / háng / vai, trục tay / chân đo trên lưới `fitLimbs` + `fix` quay
+  về thẳng đứng), mỗi đỉnh ≤ 2 xương (`aSkin`, từ trọng số chân / tay `aLimb` sẵn có + độ cao so với khớp); tay vung 50 % clip (`MODEL_WALK`,
+  vì tay dính thân áo => nách dãn). Không có dáng điện thoại. `node scripts/check-people-walk.mjs`: dãn cạnh 5–17 cm (dáng cũ 0–16 cm), chân chạm đất.
   **Người đi bộ thêm**: ~16% bấm điện thoại (tay phải đưa ra trước 0.75 rad trong shader, điện thoại nằm dưới bàn tay; thỉnh
   thoảng đứng lại 3–9 s), ~14% đeo tai nghe trắng (đỉnh `aAcc` ẩn khi không dùng; `aWalk.z` = đồ dùng). Hai người ngược chiều
   gặp nhau cùng vỉa hè (≤ 1.6 m) => 35% dừng nói chuyện 6–16 s, quay mặt vào nhau (hồi 25 s). Tiếng nói không chữ:
@@ -633,3 +636,5 @@
 - **#6 — Trang luôn lấy bản mới (28/10/2026)**: chú chưa thấy thay đổi người đi bộ trên web — GitHub Pages `max-age=600` nên `fetch` trong
   docs/sw.js lấy index.html cũ ≤ 10 phút => sw `page()` dùng `cache: 'no-cache'` (hỏi lại máy chủ, 304 nếu không đổi). Dáng clip chỉ áp cho người hộp
   (Setting 🚶 Người 3D tắt); bật Người 3D thì vẫn dáng tự làm của streetModels.
+- **#7 — Người 3D đi theo clip nhân vật chính (28/10/2026)**: Claude tự làm; shader kiểm glslangValidator, check-people-walk / ped-walk / nyc /
+  ped-yield / traffic / sgn-park PASS. Có thể thấy nách / háng hơi dãn ở vài model (racer, ff-jota, ff-skyler) — chú tự test.

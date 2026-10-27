@@ -1,10 +1,8 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { CITY } from './road.js';
 import { withMist } from './mist.js';
 import { StreetModels, PEOPLE_MODELS } from './streetModels.js';
-import { PED_BONE, PED_FRAMES, bakePedWalk, pedWalkTexture } from './pedWalk.js';
+import { PED_BONE, PED_GLSL, bakePedWalk, pedWalkTexture, loadPedRig } from './pedWalk.js';
 
 // Người đi bộ map Phố (dựng bằng code, 1 InstancedMesh, chân tay đung đưa trong vertex shader theo pha bước chân).
 // Mọi người dùng toạ độ đường chính: s (dọc đường), u (ngang, + = bên phải); vận tốc (vs, vu).
@@ -93,30 +91,13 @@ export class CityPeople {
         .replace('#include <common>', `#include <common>
           attribute float aTint, aSwing, aPivot, aArm, aAcc, aBone;
           attribute vec3 aWalk;
-          uniform highp sampler2D uWalkTex;
-          uniform float uWalkOn, uTime;
-          uniform vec2 uDur;
-          // ma trận xương b của khung nội suy t (0…1 một vòng) trong khối động tác blk (pedWalk.js)
-          mat4 pedBone(int blk, float t) {
-            float x = fract(t) * ${PED_FRAMES}.0, a = fract(x);
-            int f0 = int(x), f1 = (f0 + 1) % ${PED_FRAMES}, c = int(aBone) * 3;
-            mat4 m = mat4(0.0);
-            for (int r = 0; r < 3; r++) {
-              vec4 v = mix(texelFetch(uWalkTex, ivec2(c + r, blk * ${PED_FRAMES} + f0), 0), texelFetch(uWalkTex, ivec2(c + r, blk * ${PED_FRAMES} + f1), 0), a);
-              m[0][r] = v.x; m[1][r] = v.y; m[2][r] = v.z; m[3][r] = v.w;
-            }
-            m[3][3] = 1.0;
-            return m;
-          }`)
+          ${PED_GLSL}`)
         .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
           float accK = mod(aWalk.z, 4.0), talk = mod(floor(aWalk.z / 4.0), 2.0), still = step(7.5, aWalk.z);
           float isPh = step(1.5, accK), isMu = step(0.5, accK) * (1.0 - isPh);
           mat4 pedM;
           if (uWalkOn > 0.5 && still < 0.5) {
-            int ph = int(isPh);
-            float off = fract(aWalk.x * 0.6180339);              // lệch pha đứng mỗi người (pha bước giữ nguyên khi đứng)
-            mat4 st = talk > 0.5 ? pedBone(4 + ph, uTime / uDur.y + off) : pedBone(2 + ph, uTime / uDur.x + off);
-            pedM = aWalk.y > 0.999 ? pedBone(ph, aWalk.x / 6.2831853) : aWalk.y < 0.001 ? st : st * (1.0 - aWalk.y) + pedBone(ph, aWalk.x / 6.2831853) * aWalk.y;
+            pedM = pedPose(int(aBone), int(isPh), talk);
           } else {
             float pa = mix(sin(aWalk.x) * 0.55 * aWalk.y * aSwing, 0.75, aArm * isPh) * (1.0 - still), pc = cos(pa), ps = sin(pa);
             pedM = mat4(1.0, 0.0, 0.0, 0.0, 0.0, pc, ps, 0.0, 0.0, -ps, pc, 0.0, 0.0, aPivot * (1.0 - pc), -aPivot * ps, 1.0);
@@ -138,7 +119,7 @@ export class CityPeople {
     this.mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array((MAX + CROWD) * 3), 3);
     this.mesh.count = 0; this.mesh.castShadow = true; this.mesh.frustumCulled = false;
     this.group.add(this.mesh);
-    this.models = new StreetModels(this.group, MAX + CROWD);   // Setting 🚶 "Người 3D": thay người hộp bằng model GLB
+    this.models = new StreetModels(this.group, MAX + CROWD, this.walk);   // Setting 🚶 "Người 3D": thay người hộp bằng model GLB
     this._det = false;
     this.peds = [];          // { s, u, vs, vu, speed, mode: walk|wait|cross|fallen|script, ph, color, n?, side? }
     this.timers = new Map();
@@ -154,7 +135,7 @@ export class CityPeople {
   // chưa xong (hoặc lỗi) thì dùng dáng tự làm trong shader. Chỉ chạy trong trình duyệt (script kiểm tra Node bỏ qua).
   _loadWalk() {
     if (this._walkReq || typeof document === 'undefined') return;
-    this._walkReq = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync('assets/models/person.glb')
+    this._walkReq = loadPedRig()
       .then((gltf) => {
         const b = bakePedWalk(gltf.scene, gltf.animations);
         this.walk.uWalkTex.value = pedWalkTexture(b);
@@ -459,7 +440,7 @@ export class CityPeople {
       else { q.setFromEuler(this._e.set(0, yaw, 0)); v.set(wx, y, wz); }
       m.compose(v, q, this._one);
       p.wx = v.x; p.wz = v.z;
-      if (det && !p.kind) { MD.add(p.mdl ??= Math.floor(Math.random() * NM), m, p.ph, p.moving); continue; }
+      if (det && !p.kind) { MD.add(p.mdl ??= Math.floor(Math.random() * NM), m, p.ph, this._mv(p, dt), (p.chatT > 0 ? 4 : 0) + (p.mode === 'fallen' ? 8 : 0)); continue; }
       this.mesh.setMatrixAt(i, m);
       this.mesh.setColorAt(i, this._c.set(p.color));
       this.phase.setXYZ(i, p.ph, this._mv(p, dt), (p.acc || 0) + (p.chatT > 0 ? 4 : 0) + (p.mode === 'fallen' ? 8 : 0));
@@ -470,7 +451,7 @@ export class CityPeople {
       if (i >= MAX + CROWD || k++ >= MAX + CROWD) break;
       q.setFromEuler(this._e.set(0, Math.atan2(-p.fx, -p.fz), 0)); v.set(p.x, p.y, p.z);
       m.compose(v, q, this._one);
-      if (det) { MD.add(p.mdl ??= Math.floor(Math.random() * NM), m, p.ph, p.moving); continue; }
+      if (det) { MD.add(p.mdl ??= Math.floor(Math.random() * NM), m, p.ph, this._mv(p, dt)); continue; }
       this.mesh.setMatrixAt(i, m); this.mesh.setColorAt(i, this._c.set(p.color)); this.phase.setXYZ(i, p.ph, this._mv(p, dt), p.acc);
       i++;
     }
