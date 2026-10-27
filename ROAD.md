@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -630,3 +630,6 @@
   check-ped-walk / nyc / ped-yield / traffic / sgn-park / nyc-sidecam PASS. Chưa xem hình — chú tự test.
 - **#5 — Người đi bộ chậm lại một nửa (28/10/2026)**: chú thấy đi nhanh giả => vỉa hè 0.55–0.8 m/s, công viên 0.3–0.55, đám đông Times Square
   dạo 0.45–0.75; qua đường chỉ còn 0.75 × cũ (kịp đèn xanh). Nhịp bước theo quãng đường nên chân vẫn khớp. Check PASS. Chú tự test.
+- **#6 — Trang luôn lấy bản mới (28/10/2026)**: chú chưa thấy thay đổi người đi bộ trên web — GitHub Pages `max-age=600` nên `fetch` trong
+  docs/sw.js lấy index.html cũ ≤ 10 phút => sw `page()` dùng `cache: 'no-cache'` (hỏi lại máy chủ, 304 nếu không đổi). Dáng clip chỉ áp cho người hộp
+  (Setting 🚶 Người 3D tắt); bật Người 3D thì vẫn dáng tự làm của streetModels.

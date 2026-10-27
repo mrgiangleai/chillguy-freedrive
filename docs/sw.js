@@ -46,7 +46,8 @@ async function asset(req, rel) {
 async function page(req) {
   const c = await caches.open(PAGES);
   try {
-    const res = await fetch(req);
+    // no-cache: luôn hỏi lại máy chủ (GitHub Pages cho trình duyệt giữ trang 10 phút => vào ngay sau khi push vẫn ra bản cũ)
+    const res = await fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' });
     if (res.ok && res.status === 200) {
       c.put(req, res.clone());
       const u = new URL(req.url);                                   // app.js?v=… đổi bản: bỏ bản cũ cùng đường dẫn
