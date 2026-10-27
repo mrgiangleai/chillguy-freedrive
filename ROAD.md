@@ -413,6 +413,11 @@
   hơn, trần 4 200 cây). **Người dạo công viên** (API DeepSeek): `cityPeople.parkAt` = `sgnEnv.inPark` (lưới ô 4 m bãi cỏ OSM), `parkCount` 70
   (Low 35), mode 'park': đi chậm uốn lượn, dừng ngắm, đôi khi đi cặp, ra mép công viên thì quay lại, đứng trên cỏ (+0.25 m); `check-sgn-park.mjs`.
   Sửa: bỏ đèn hai bên trên cầu dùng `road.widths` (trước kiểm `map === 'sgn'` không bao giờ đúng vì scenery nhận 'city').
+  **Nhà / sông / cây thật urban:EXPORT (27/10, DeepSeek free)**: chú tải FBX (vòng Ø 2 450 m tâm 10.79514, 106.72347; nguồn OSM + Overture +
+  Copernicus) — gốc ở `/Volumes/SSD 1TB/VIBE CODING/3d model/saigon/(Landmark81) urban-export_10.7951_106.7235_2450m.fbx`, chép vào `.scratch/`
+  (gitignore) rồi `node scripts/convert-urban-export.mjs` => `docs/assets/sgn-city.{bin,json}` (7 068 toà tách theo thành phần liên thông, dời
+  khớp tuyến bằng IDW trên `offs` của sgn-data; bỏ trong Vinhomes / Landmark 81 / lấn đường), `sgn-water.json`, `sgn-ue-trees.json` (13 335 cây
+  => sgnTrees). `src/sgnCity.js`: 1 mesh / loại nhà, cửa sổ đêm bằng shader, obb camera. Nhà map Phố tắt trong vòng 1 225 m (`sgnCircleCenter`).
   **Nền cỏ cả khu**: lưới ô 6 m trong đa giác `vinhomes`, sát đường ô 2 m luồn dưới vỉa hè (`roadGap` = khoảng tới mép nhựa thật, `sgnNearest`).
   Vào map ở s = L + 60, luôn Hoàng hôn + Nhiều mây (chú dặn, để chụp lại), camera giữ lần trước.
   Trọng tâm (chú dặn): làm đẹp khu quanh Landmark 81; đoạn khác chỉ cần đúng.
@@ -598,3 +603,4 @@
   Tất cả chưa xem trên máy thật — chú tự test.
 - **#1 — Người lái dùng thẳng clip (ownClips) (25/10/2026)**: chú báo dáng trong game khác Rig Tool (đầu gối gập cao, ngón chỉ thẳng) do game còn
   ngả lưng + IK chân / tay đè lên => bỏ cho Người lái như Nam. Chưa xem trong game — chú tự test.
+- **#1 — Landmark: nhà / sông / cây thật từ urban:EXPORT (27/10/2026)**: DeepSeek free; check-sgn-city / sgn / trees / nyc PASS. Chưa xem hình — chú tự test.
