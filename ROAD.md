@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -418,6 +418,10 @@
   (gitignore) rồi `node scripts/convert-urban-export.mjs` => `docs/assets/sgn-city.{bin,json}` (7 068 toà tách theo thành phần liên thông, dời
   khớp tuyến bằng IDW trên `offs` của sgn-data; bỏ trong Vinhomes / Landmark 81 / lấn đường), `sgn-water.json`, `sgn-ue-trees.json` (13 335 cây
   => sgnTrees). `src/sgnCity.js`: 1 mesh / loại nhà, cửa sổ đêm bằng shader, obb camera. Nhà map Phố tắt trong vòng 1 225 m (`sgnCircleCenter`).
+  **Nhà phố Việt Nam (27/10)** (`vnHouses.js`, 5 GLB RimiChama CC-BY trong `docs/assets/models/sgn/houses/`, meshopt 320 KB): `city.vnHouse(s)` (main
+  `sgnVnHouse`): ngoài vòng urban:EXPORT, ~45 % đoạn 300 m (băm) => mỗi lô mặt tiền 50 % thay bằng nhà ống / nhà phố / chung cư mini (`vnPlace`:
+  chọn model vừa bề ngang, 2 căn nếu đủ, chung cư mini khi lô ≥ 14 m), mặt tiền thẳng hàng dãy phố, obb camera; mảnh gộp theo vật liệu.
+  Giả định mặt tiền model hướng −Z (xoay 180°) — **chưa xem hình**: nếu nhà quay lưng ra đường thì bỏ `makeRotationY(Math.PI)` trong `_prepare`.
   **Nền cỏ cả khu**: lưới ô 6 m trong đa giác `vinhomes`, sát đường ô 2 m luồn dưới vỉa hè (`roadGap` = khoảng tới mép nhựa thật, `sgnNearest`).
   Vào map ở s = L + 60, luôn Hoàng hôn + Nhiều mây (chú dặn, để chụp lại), camera giữ lần trước.
   Trọng tâm (chú dặn): làm đẹp khu quanh Landmark 81; đoạn khác chỉ cần đúng.
@@ -604,3 +608,4 @@
 - **#1 — Người lái dùng thẳng clip (ownClips) (25/10/2026)**: chú báo dáng trong game khác Rig Tool (đầu gối gập cao, ngón chỉ thẳng) do game còn
   ngả lưng + IK chân / tay đè lên => bỏ cho Người lái như Nam. Chưa xem trong game — chú tự test.
 - **#1 — Landmark: nhà / sông / cây thật từ urban:EXPORT (27/10/2026)**: DeepSeek free; check-sgn-city / sgn / trees / nyc PASS. Chưa xem hình — chú tự test.
+- **#2 — Landmark: nhà phố Việt Nam xen kẽ (27/10/2026)**: worker free (bị ngắt giữa chừng, code dùng được), Claude sửa 6 lỗi; check PASS. Chú tự test.
