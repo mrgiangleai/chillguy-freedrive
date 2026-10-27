@@ -56,6 +56,7 @@ export class SgnEnv {
     this.groundAt = groundAt;
     this.group = new THREE.Group(); this.group.visible = false; scene.add(this.group);
     this.state = 'idle'; this.obb = []; this.foot = null; this.winK = 1; this.walk = 4;   // walk: bề rộng vỉa hè tuyến (main đặt)
+    this.city = null;                                                                      // SgnCity: cây urban:EXPORT (main gán)
     this.walls = [0, 1, 2].map((v) => { const [map, em] = vhFacade(v); return withMist(new THREE.MeshStandardMaterial({ map, emissiveMap: em, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.55, metalness: 0.05 })); });
     this.wall = this.walls[0];
     const [pm, pe] = podiumTex();
@@ -99,6 +100,8 @@ export class SgnEnv {
     this.state = 'loading';
     try {
       const D = await fetch('assets/sgn-env.json').then((r) => r.json());
+      // chờ cây urban:EXPORT tối đa 3 s (sgnCity bắt đầu tải trước); quá hạn thì dựng luôn, không cần reflow
+      if (this.city && this.city.ready) await Promise.race([this.city.ready, new Promise((r) => setTimeout(r, 3000))]);
       this.foot = D.b;
       this._build(D);
       this.state = 'ready';
@@ -245,6 +248,8 @@ export class SgnEnv {
       const a = r() * 6.283, d = PL.r * Math.sqrt(r()), x = PL.x + Math.cos(a) * d, z = PL.z + Math.sin(a) * d;
       if (!blocked(x, z) && !(this.avoid && this.avoid(x, z)) && (x - PL.x) ** 2 + (z - PL.z) ** 2 > 60 * 60) trees.push([x, z, 1]);
     }
+    // cây thật ngoài khu Vinhomes từ urban:EXPORT (tag-less [x, z] => treeKind trộn loại như cây OSM)
+    if (this.city && this.city.treePts) for (const p of this.city.treePts) trees.push(p);
     this._trees(trees);
     this.count = { buildings: D.b.length, tris, trees: trees.length };
     // ô công viên / cỏ (lưới 4 m) cho người dạo công viên (cityPeople.parkAt): Set khoá 'gx,gz'

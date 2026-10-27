@@ -5,6 +5,7 @@ import { HlgEnv } from './hlgEnv.js';
 import { NYC, NYC_DIM, nycLoop, nycStreet, NycWorks } from './nyc.js';
 import { SGN, sgnLoop, sgnStreet, sgnZone, SgnScene } from './sgn.js';
 import { SgnEnv } from './sgnEnv.js';
+import { SgnCity } from './sgnCity.js';
 import { TimesSquare } from './timesSquare.js';
 import { NycBuildings } from './nycBuildings.js';
 import { NycStreetProps } from './nycStreet.js';
@@ -172,7 +173,11 @@ sgnScene.place = () => {
   return out;
 };
 const sgnEnv = new SgnEnv(scene, (x, z) => terrain.heightAt(x, z));       // map Landmark: khu Vinhomes (tháp chung cư, biệt thự, công viên, hồ, sông, cây — OSM)
-sgnEnv.onReady = () => { if (sgnEnv.visible) city.extraObb = sgnEnv.obb; };
+const sgnCity = new SgnCity(scene, (x, z) => terrain.heightAt(x, z));     // nhà / sông / cây thật quanh Landmark 81 (urban:EXPORT)
+sgnEnv.city = sgnCity;                                                    // sgnEnv chờ cây của sgnCity rồi dựng chung
+const sgnObb = () => { if (sgnEnv.visible) city.extraObb = sgnEnv.obb.concat(sgnCity.obb); };
+sgnEnv.onReady = sgnObb;
+sgnCity.onReady = sgnObb;
 sgnEnv.avoid = (x, z) => sgnNear(x, z, 13);                  // cây không mọc trên lòng đường / vỉa hè tuyến
 sgnEnv.base = SGN.data.vinhomes; sgnEnv.walk = CITY.walk;
 sgnEnv.plaza = { x: SGN.data.landmark81[0], z: SGN.data.landmark81[1], r: 170 };   // khu đi bộ quanh chân Landmark 81 (đá lát, đài phun, cọ)                              // nền thảm cỏ cả khu Vinhomes
@@ -780,8 +785,9 @@ const applyMap = () => {
   nycWorks.visible = isNyc;
   sgnWorks.visible = isSgn;
   sgnScene.visible = isSgn;
+  sgnCity.visible = isSgn;                                     // bắt đầu tải trước khi sgnEnv dựng cây
   sgnEnv.visible = isSgn;
-  if (isSgn) sgnEnv.onReady();                                 // camera không xuyên tháp chung cư (khi đã tải)
+  if (isSgn) { sgnEnv.onReady(); sgnCity.onReady(); }           // camera không xuyên tháp / nhà thật (khi đã tải)
   fireflies.ground.clear();     // độ cao mặt đất nhớ theo hình đường cũ
   traffic.policy.city = isCity;
   if (incident.active) incident.finish();
@@ -889,7 +895,23 @@ function sgnNear(x, z, r) {
   return false;
 }
 const inPoly = (x, z, P) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) if ((P[i][1] > z) !== (P[j][1] > z) && x < P[i][0] + (P[j][0] - P[i][0]) * (z - P[i][1]) / (P[j][1] - P[i][1])) c = !c; return c; };
+// tâm vòng tròn urban:EXPORT (lat 10.79514, lon 106.72347) trong toạ độ game; offset nội suy IDW 8 điểm gần nhất
+let sgnCore = null;
+function sgnCircleCenter() {
+  if (sgnCore) return sgnCore;
+  const D = SGN.data, E0 = (106.72347 - D.origin[1]) * D.KE, N0 = (10.79514 - D.origin[0]) * D.KN, best = [];
+  for (const p of D.offs) {
+    const d = (p[0] - E0) ** 2 + (p[1] - N0) ** 2;
+    if (best.length < 8) best.push([d, p]); else if (d < best[7][0]) best[7] = [d, p]; else continue;
+    best.sort((a, b) => a[0] - b[0]);
+  }
+  let w = 0, de = 0, dn = 0;
+  for (const [d, p] of best) { const q = 1 / (d + 1e-6); w += q; de += p[2] * q; dn += p[3] * q; }
+  return (sgnCore = [E0 + de / w, -(N0 + dn / w)]);
+}
 function sgnNoHouse(x, z) {
+  const [hx, hz] = sgnCircleCenter();
+  if ((x - hx) ** 2 + (z - hz) ** 2 < 1225 * 1225) return true;   // trong vòng urban:EXPORT: nhà thật sgnCity thay nhà map Phố
   if (!sgnNoGrid) {
     sgnNoGrid = new Map();
     const L = sgnLoop(), P = {};
@@ -2231,6 +2253,7 @@ function frame(now) {
   if (timesSq.visible) { timesSq.update(dt, st.lamps, drive.pos, drive.s); timesSq.capture(renderer, scene, dt, st.lamps); }
   if (nycWorks.visible) { nycWorks.setLamps(st.lamps); nycWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
   if (sgnEnv.visible) { sgnEnv.winK = lightTune.windows; sgnEnv.setLamps(st.lamps); sgnEnv.update(dt, camera.position); }
+  if (sgnCity.visible) sgnCity.setLamps(st.lamps * lightTune.windows);
   if (sgnScene.visible) sgnScene.setLamps(st.lamps * lightTune.signs);   // LED dọc Landmark 81 theo đèn đêm × "biển hiệu" bảng Lighting
   if (sgnWorks.visible) { sgnWorks.setLamps(st.lamps); sgnWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
   minimap.update(dt);
@@ -2685,4 +2708,4 @@ init();
 preload.registerSW();                                            // lưu tài nguyên trên thiết bị (docs/sw.js)
 
 // hook phục vụ debug / kiểm thử
-window.__app = { __Raycaster: THREE.Raycaster, __V3: THREE.Vector3, sgnWorks, sgnScene, sgnEnv, nycBld, nycProps, timesSq, nycNet, nycWorks, get crashFx() { return crashFx; }, get blinker() { return blinker; }, get violations() { return violations; }, minimap, avenue, hlgEnv, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), admin, setAdmin: (v) => setAdmin(v), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { __Raycaster: THREE.Raycaster, __V3: THREE.Vector3, sgnWorks, sgnScene, sgnEnv, sgnCity, nycBld, nycProps, timesSq, nycNet, nycWorks, get crashFx() { return crashFx; }, get blinker() { return blinker; }, get violations() { return violations; }, minimap, avenue, hlgEnv, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), admin, setAdmin: (v) => setAdmin(v), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

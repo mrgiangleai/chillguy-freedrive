@@ -14,6 +14,7 @@ const BY_MAP = {
   hlg: ['assets/tex/ocean-waves.png', 'assets/hlg-env.json'],
   nyc: ['assets/nyc-buildings.json', 'assets/nyc-streets.json'],
   sgn: ['assets/models/sgn/landmark81.glb', 'assets/sgn-env.json',
+    'assets/sgn-city.bin', 'assets/sgn-city.json', 'assets/sgn-water.json', 'assets/sgn-ue-trees.json',
     'assets/models/sgn/trees/acacia.glb', 'assets/models/sgn/trees/maple.glb', 'assets/models/sgn/trees/palm-fan.glb',
     'assets/models/sgn/trees/palm-date.glb', 'assets/models/sgn/trees/cypress.glb', 'assets/models/sgn/trees/urban-tall.glb',
     'assets/models/sgn/trees/urban-round.glb'],
