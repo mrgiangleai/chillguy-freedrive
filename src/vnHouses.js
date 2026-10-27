@@ -103,7 +103,7 @@ export class VnHouses {
     const norm = new THREE.Matrix4().makeTranslation(-cx, -cy, -cz);
     // rotate so facade faces local +Z? spec says "rotate so the facade faces local +Z"
     // if facade is -Z, rotate 180 around Y
-    norm.multiply(new THREE.Matrix4().makeRotationY(Math.PI));
+    // model gốc đã có mặt tiền quay +Z (chú xem trong game 28/10: xoay 180° làm nhà quay lưng ra đường) => không xoay
     // also maybe need to detect, but try common case
     const parts = [];
     root.traverse((o) => {

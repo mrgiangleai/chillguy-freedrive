@@ -421,7 +421,7 @@
   **Nhà phố Việt Nam (27/10)** (`vnHouses.js`, 5 GLB RimiChama CC-BY trong `docs/assets/models/sgn/houses/`, meshopt 320 KB): `city.vnHouse(s)` (main
   `sgnVnHouse`): ngoài vòng urban:EXPORT, ~45 % đoạn 300 m (băm) => mỗi lô mặt tiền 50 % thay bằng nhà ống / nhà phố / chung cư mini (`vnPlace`:
   chọn model vừa bề ngang, 2 căn nếu đủ, chung cư mini khi lô ≥ 14 m), mặt tiền thẳng hàng dãy phố, obb camera; mảnh gộp theo vật liệu.
-  Giả định mặt tiền model hướng −Z (xoay 180°) — **chưa xem hình**: nếu nhà quay lưng ra đường thì bỏ `makeRotationY(Math.PI)` trong `_prepare`.
+  Mặt tiền model gốc đã quay +Z => không xoay (bản đầu xoay 180° làm nhà quay lưng ra đường — chú báo 28/10, đã sửa).
   **Nền cỏ cả khu**: lưới ô 6 m trong đa giác `vinhomes`, sát đường ô 2 m luồn dưới vỉa hè (`roadGap` = khoảng tới mép nhựa thật, `sgnNearest`).
   Vào map ở s = L + 60, luôn Hoàng hôn + Nhiều mây (chú dặn, để chụp lại), camera giữ lần trước.
   Trọng tâm (chú dặn): làm đẹp khu quanh Landmark 81; đoạn khác chỉ cần đúng.
