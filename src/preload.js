@@ -17,7 +17,9 @@ const BY_MAP = {
     'assets/sgn-city.bin', 'assets/sgn-city.json', 'assets/sgn-water.json', 'assets/sgn-ue-trees.json',
     'assets/models/sgn/trees/acacia.glb', 'assets/models/sgn/trees/maple.glb', 'assets/models/sgn/trees/palm-fan.glb',
     'assets/models/sgn/trees/palm-date.glb', 'assets/models/sgn/trees/cypress.glb', 'assets/models/sgn/trees/urban-tall.glb',
-    'assets/models/sgn/trees/urban-round.glb'],
+    'assets/models/sgn/trees/urban-round.glb',
+    'assets/models/sgn/houses/tube-house.glb', 'assets/models/sgn/houses/tube-house3.glb', 'assets/models/sgn/houses/urban-house.glb',
+    'assets/models/sgn/houses/urban-house2.glb', 'assets/models/sgn/houses/3d-mini-apartment.glb'],
 };
 // tải sau cùng (chỉ cần khi chú chọn): xe Mazda, nhân vật Chisa
 export const EXTRA = ['assets/models/mazda-rx-vision.glb', 'assets/models/chisa_wuthering_waves.glb'];
