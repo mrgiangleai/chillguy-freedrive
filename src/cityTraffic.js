@@ -4,6 +4,7 @@ import { withMist } from './mist.js';
 import { createHeadlights, placeHeadlights, updateHeadlights } from './headlights.js';
 
 // Giao thông map Phố: xe dựng bằng code (xe con, xe kei, taxi, xe van, xe buýt, xe máy có người lái), mỗi loại 1 InstancedMesh
+// (bật "Thêm xe thật vào giao thông": xe thường thay bằng bản nhẹ xe thật của chú — addReal / realOn)
 // (thân sơn nhận màu riêng từng xe qua instanceColor × aTint; kính bóng; đèn tự phát sáng). Không dùng model nặng.
 // - Đường chính: 2 làn mỗi chiều (CITY.lanes), bám xe trước (giữ khoảng cách theo tốc độ), dừng đèn đỏ (city.stopAhead),
 //   đổi sang làn cùng chiều bên cạnh để vượt xe chậm (kể cả xe mình) khi làn kia trống.
@@ -65,6 +66,21 @@ function lamps(o, hw, y, zf, zr, w = 0.3) {
     boxAt(o, s * (hw - 0.03), y + 0.12, zr - 0.04, 0.07, 0.1, 0.12, AMBER, { ind: s });
   }
 }
+
+// đèn cho xe thật (L = dim.lamps: head / tail = [x, y, z] tâm bóng đèn bên +x, đầu xe ở -z): hộp mỏng nhô 3 cm khỏi tâm đèn
+function realLamps(o, L) {
+  const [hx, hy, hz] = L.head, [tx, ty, tz] = L.tail;
+  for (const s of [-1, 1]) {
+    boxAt(o, s * hx, hy, hz - 0.03, 0.2, 0.08, 0.04, HEAD, L_);
+    boxAt(o, s * tx, ty, tz + 0.03, 0.2, 0.07, 0.04, TAIL, L_);
+    boxAt(o, s * (hx + 0.13), hy - 0.02, hz - 0.01, 0.06, 0.06, 0.04, AMBER, { ind: s });   // xi nhan cạnh đèn pha / đèn hậu
+    boxAt(o, s * (tx + 0.13), ty, tz + 0.01, 0.06, 0.06, 0.04, AMBER, { ind: s });
+  }
+}
+const L_ = { glow: true };
+// xe thường được thay bằng xe thật khi bật "Thêm xe thật vào giao thông" (giữ buýt, taxi, cảnh sát, cấp cứu)
+const REAL_SWAP = new Set(['sedan', 'kei', 'van', 'scooter', 'truck', 'container']);
+const REAL_MAX = 80;               // tối đa mỗi model xe thật cùng lúc
 
 // xe con kiểu sedan (dài 4.5 m, đầu xe ở -z)
 function sedan(o, { L: len = 4.5, W = 1.75, H = 1.44, taxi = false } = {}) {
@@ -256,28 +272,9 @@ export class CityTraffic {
     };
     mat.customProgramCacheKey = () => 'city-vehicle';
     withMist(mat);
+    this.mat = mat;
     this.meshes = {};
-    for (const [k, def] of Object.entries(TYPES)) {
-      const o = mk();
-      def.build(o);
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.Float32BufferAttribute(o.pos, 3));
-      g.setAttribute('normal', new THREE.Float32BufferAttribute(o.nor, 3));
-      g.setAttribute('color', new THREE.Float32BufferAttribute(o.col, 3));
-      g.setAttribute('aTint', new THREE.Float32BufferAttribute(o.tint, 1));
-      g.setAttribute('aGlow', new THREE.Float32BufferAttribute(o.glow, 1));
-      g.setAttribute('aGloss', new THREE.Float32BufferAttribute(o.gloss, 1));
-      g.setAttribute('aFlash', new THREE.Float32BufferAttribute(o.flash, 1));
-      const im = new THREE.InstancedMesh(g, mat, def.max);
-      im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(def.max * 3), 3);
-      im.honk = new THREE.InstancedBufferAttribute(new Float32Array(def.max), 1).setUsage(THREE.DynamicDrawUsage);
-      g.setAttribute('aHonk', im.honk);
-      im.blink = new THREE.InstancedBufferAttribute(new Float32Array(def.max), 1).setUsage(THREE.DynamicDrawUsage);
-      g.setAttribute('aBlink', im.blink);
-      im.count = 0; im.castShadow = true; im.frustumCulled = false;
-      this.group.add(im);
-      this.meshes[k] = im;
-    }
+    for (const [k, def] of Object.entries(TYPES)) { const o = mk(); def.build(o); this._addType(k, o, def.max); }
     this.cars = [];            // { type, s, d, dir, v, vMax, len, wid, color, lane, cross?: {n, u, a, dir} }
     this.ctrl = { lane: null, maxV: Infinity };
     this._p = {}; this._m = new THREE.Matrix4(); this._q = new THREE.Quaternion(); this._v = new THREE.Vector3(); this._one = new THREE.Vector3(1, 1, 1);
@@ -290,11 +287,67 @@ export class CityTraffic {
     this.vr = { main: [30, 52], cross: [30, 52] };
     this.cfg = MODES.city;
   }
+  // 1 loại xe = 1 InstancedMesh (hình học dựng bằng mk(), vật liệu chung có đèn tự sáng / còi / xi nhan)
+  _addType(k, o, max) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(o.pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(o.nor, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(o.col, 3));
+    g.setAttribute('aTint', new THREE.Float32BufferAttribute(o.tint, 1));
+    g.setAttribute('aGlow', new THREE.Float32BufferAttribute(o.glow, 1));
+    g.setAttribute('aGloss', new THREE.Float32BufferAttribute(o.gloss, 1));
+    g.setAttribute('aFlash', new THREE.Float32BufferAttribute(o.flash, 1));
+    const im = new THREE.InstancedMesh(g, this.mat, max);
+    im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(max * 3), 3);
+    im.honk = new THREE.InstancedBufferAttribute(new Float32Array(max), 1).setUsage(THREE.DynamicDrawUsage);
+    g.setAttribute('aHonk', im.honk);
+    im.blink = new THREE.InstancedBufferAttribute(new Float32Array(max), 1).setUsage(THREE.DynamicDrawUsage);
+    g.setAttribute('aBlink', im.blink);
+    im.count = 0; im.castShadow = true; im.frustumCulled = false;
+    this.group.add(im);
+    this.meshes[k] = im;
+    return im;
+  }
+  // xe thật của chú (npcCars.js: bản nhẹ, gộp theo vật liệu): mỗi xe = loại `real<i>`; thân = vài InstancedMesh vật liệu gốc
+  // (chung ma trận với loại đó), đèn pha / hậu / xi nhan = hộp nhỏ dựng bằng mk() đặt đúng tâm đèn (dim.lamps) để vẫn sáng ban đêm
+  addReal(models) {
+    if (this.realTypes) return;
+    this.realTypes = []; this.realParts = {};
+    models.forEach((M, i) => {
+      const k = 'real' + i, o = mk();
+      realLamps(o, M.lamps);
+      TYPES[k] = { len: M.dim.length, wid: M.dim.width, v: [38, 52], max: REAL_MAX, real: true };
+      this._addType(k, o, REAL_MAX).castShadow = false;
+      this.realParts[k] = M.parts.map(({ geometry, material }) => {
+        const im = new THREE.InstancedMesh(geometry, material, REAL_MAX);
+        im.count = 0; im.frustumCulled = false; im.castShadow = !material.transparent; im.receiveShadow = true;
+        this.group.add(im);
+        return im;
+      });
+      this.realTypes.push(k);
+    });
+    this.realOn = this.realOn;                               // áp ngay cho xe đang chạy
+  }
+  // bật: mọi xe thường (trừ buýt / taxi / xe ưu tiên) thành xe thật; tắt: xe thật về xe con dựng code. Xe đang chạy đổi ngay.
+  set realOn(v) {
+    this._realOn = !!v;
+    const on = this._realOn && this.realTypes?.length;
+    for (const c of this.cars) {
+      if (c.script || c.crashed) continue;
+      const t = on && REAL_SWAP.has(c.type) ? this._realType() : !on && TYPES[c.type]?.real ? 'sedan' : null;
+      if (t) { c.type = t; c.len = TYPES[t].len; c.wid = TYPES[t].wid; }
+    }
+  }
+  get realOn() { return this._realOn; }
+  _realType() {
+    const R = this.realTypes, k = R[Math.floor(Math.random() * R.length)];
+    return this.cars.filter((c) => c.type === k).length < REAL_MAX ? k : R.find((x) => this.cars.filter((c) => c.type === x).length < REAL_MAX) || null;
+  }
   // đổi cấu hình theo map ('city' | 'avenue'); gọi trước khi bật visible
   setMode(id) { this.cfg = MODES[id] || MODES.city; this.cars.length = 0; this.filled = false; this.crossTimers.clear(); }
   get lanes() { return this.cfg.lanes; }
 
-  set visible(v) { this.group.visible = v; if (v) this._emSetup(); if (!v) { this.releaseModels(); this.cars.length = 0; this.filled = false; this.crossTimers.clear(); } }
+  set visible(v) { this.group.visible = v; if (v) this._emSetup(); if (!v) { this.cars.length = 0; this.filled = false; this.crossTimers.clear(); } }
   get visible() { return this.group.visible; }
 
   // xe kịch bản (cảnh sát / cấp cứu): chạy tới quãng `to` rồi dừng, bỏ qua đèn; script = null => chạy tiếp như xe thường.
@@ -312,10 +365,6 @@ export class CityTraffic {
     return this.cars.filter((c) => !c.cross && !c.xr && !c.script && !c.crashed && c.dir > 0 && Math.abs(c.d - d) < 1.8 && c.s < s && s - c.s < 30 && c.v < 0.6);
   }
     // bỏ hết xe model của chú khỏi phố (tắt tuỳ chọn / rời phố)
-  releaseModels() {
-    this.cars = this.cars.filter((c) => !c.model || c.crashed);
-    if (this.pool) for (const v of this.pool()) if (v.cityBusy) { v.cityBusy = false; v.busy = false; v.root.visible = false; }
-  }
   xrS(c) { return c.xr.I.s + c.xr.a; }
   remove(c) { const i = this.cars.indexOf(c); if (i >= 0) this.cars.splice(i, 1); }
   // xe (đường chính hoặc đường ngang) chồng lên hình chữ nhật [s ± len/2] × [d ± wid/2] (toạ độ đường chính)
@@ -403,10 +452,14 @@ export class CityTraffic {
     if (TYPES[type].heavy && extra.home !== undefined && this.cfg.lanes.indexOf(Math.abs(extra.home)) === 0) type = 'sedan';
     const def = TYPES[type], cols = this.cfg.colors?.[type] || COLORS[type];
     const em = type === 'police' || type === 'ambulance';
+    // xe thật của chú: giữ dải tốc độ của loại xe gốc, lấy kích thước model
+    const real = this._realOn && this.realTypes?.length && REAL_SWAP.has(type) ? this._realType() : null;
+    if (real) type = real;
     const li = extra.home !== undefined ? this.cfg.lanes.indexOf(Math.abs(extra.home)) : -1;
     const raw = def.v[0] + Math.random() * (def.v[1] - def.v[0]), R = extra.xr ? this.vr.cross : this.vr.main;
     const v = em ? raw * KMH : this.kmh(raw, R) * KMH * (li >= 0 ? this.cfg.laneK[li] : 1);
-    return Object.assign({ type, len: def.len, wid: def.wid, vMax: v, v, color: cols[Math.floor(Math.random() * cols.length)], lat: 0 }, extra);
+    const D = real ? TYPES[real] : def;
+    return Object.assign({ type, len: D.len, wid: D.wid, vMax: v, v, color: cols[Math.floor(Math.random() * cols.length)], lat: 0 }, extra);
   }
   // tốc độ gốc của loại xe (km/h trong V_REF) => km/h theo khoảng R mà chú chỉnh
   kmh(raw, R) { return R[0] + (raw - V_REF[0]) / (V_REF[1] - V_REF[0]) * (R[1] - R[0]); }
@@ -420,11 +473,6 @@ export class CityTraffic {
   update(dt, s, d, v, lamps, playerLen = 4.6) {
     if (!this.group.visible) return;
     this.uLamp.value = lamps; this.uTime.value += dt; this._dt = dt; this._s = s;
-    // xe model của chú: thả lại xe không còn chạy trong phố
-    if (this.pool) {
-      const used = new Set(this.cars.filter((c) => c.model).map((c) => c.model));
-      for (const v of this.pool()) if (v.cityBusy && !used.has(v)) { v.cityBusy = false; v.busy = false; v.root.visible = false; }
-    }
     const road = this.road, cfg = this.cfg, lanes = cfg.lanes, AHEAD = cfg.ahead, BEHIND = cfg.behind, MAIN_GAP = cfg.gap;
     const maxL = Math.max(road.maxLanes || 0, lanes.length);   // Landmark: đoạn cầu có 3 làn mỗi chiều (map khác = số làn cấu hình)
     // ---- sinh xe đường chính ----
@@ -449,15 +497,8 @@ export class CityTraffic {
       const dd = cfg.oneway ? dir * l : dir * road.laneAt(at, li);   // một chiều: dir chỉ chọn nửa làn, xe vẫn chạy +s
       if (li >= (cfg.cross ? road.laneCountAt(at) : laneCount(at))) continue;
       if (Math.random() < dt * 0.35 * Math.min(1, this.density) && this._free(at, dd, MAIN_GAP[0] / this.density + 10) && Math.abs(at - s) > 30) {
-        const free = this.useModels && this.pool && Math.random() < 0.35 ? this.pool().find((x) => !x.busy && !x.carriage) : null;
-        if (free) {                                          // thỉnh thoảng là xe model của chú
-          free.busy = free.cityBusy = true;
-          const vm = this.kmh(36 + Math.random() * 14, this.vr.main) * KMH;
-          this.cars.push({ type: 'model', model: free, s: at, d: dd, home: dd, laneI: li, dir: cdir, len: free.dim.length, wid: free.dim.width, vMax: cdir > 0 && at > s ? Math.min(vm, Math.max(4, v - 2)) : vm, v: vm, lat: 0, color: '#ffffff' });
-        } else {
-          const t = this._pick();
-          if (t) { const c = this._new(t, { s: at, d: dd, home: dd, laneI: li, dir: cdir }); if (cdir > 0 && at > s) c.vMax = Math.min(c.vMax, Math.max(4, v - 2)); this.cars.push(c); }
-        }
+        const t = this._pick();
+        if (t) { const c = this._new(t, { s: at, d: dd, home: dd, laneI: li, dir: cdir }); if (cdir > 0 && at > s) c.vMax = Math.min(c.vMax, Math.max(4, v - 2)); this.cars.push(c); }
       }
     }
     // ---- xe đường ngang ở các ngã tư gần ----
@@ -540,7 +581,7 @@ export class CityTraffic {
       }
       let want = c.vMax;
       // đại lộ: xe làn ngoài đôi khi rẽ vào nhánh ra ở nút giao (22%), đi chậm trên nhánh, qua đường ngang rồi nhập lại
-      if (this.avenue && !cfg.cross && c.ramp == null && Math.abs(Math.abs(c.home) - AVENUE.lanes[2]) < 0.1 && !c.model) {
+      if (this.avenue && !cfg.cross && c.ramp == null && Math.abs(Math.abs(c.home) - AVENUE.lanes[2]) < 0.1) {
         const k = icIndex(c.s), t = (c.s - icS(k)) * c.dir;
         if (c.rk !== k && t > -485 && t < -460) { c.rk = k; if (c.exitK === k || Math.random() < 0.22) c.ramp = k; }
       }
@@ -548,7 +589,7 @@ export class CityTraffic {
       if (this.avenue && !cfg.cross && c.ramp == null && !c.script) {
         // tuyến 2 làn (HLG): xe làn giữa thỉnh thoảng sang làn giảm tốc trước nút giao để ra nhánh
         const k = icIndex(c.s), t = (c.s - icS(k)) * c.dir;
-        if (li === 1 && !c.model && c.xk !== k && t > -640 && t < -560) {
+        if (li === 1 && c.xk !== k && t > -640 && t < -560) {
           c.xk = k;
           if (Math.random() < 0.18 && !main.some((e) => e !== c && Math.abs(e.d - c.dir * lanes[2]) < 2.2 && Math.abs(e.s - c.s) < 25)) { c.home = c.dir * lanes[2]; c.changing = true; c.exitK = k; }
         }
@@ -689,17 +730,6 @@ export class CityTraffic {
     for (const k in this.meshes) counts[k] = 0;
     const m = this._m, q = this._q, vv = this._v, p = this._p;
     for (const c of this.cars) {
-      if (c.model) {                                         // xe model của chú (Mustang / Mazda) chạy trong phố
-        const v = c.model;
-        road.at(c.s, p);
-        v.root.position.set(p.x + Math.cos(p.th) * c.d, p.y, p.z - Math.sin(p.th) * c.d);
-        v.root.rotation.set(0, p.th + (c.dir < 0 ? Math.PI : 0) - c.dir * Math.atan2(c.lat, Math.max(3, c.v)), 0, 'YXZ');
-        v.root.visible = true;
-        for (const w of v.wheels) w.pivot.rotation.x += c.dir * (c.v * this._dt) / w.radius;
-        updateHeadlights(v.headlights, v.root, this.camera, Math.max(0.15, lamps) * 0.24 * this.uNpc.value);
-        for (const t of v.tails) t.material.opacity = (0.25 + 0.6 * lamps) * 0.6;
-        continue;
-      }
       const im = this.meshes[c.type], i = counts[c.type]++;
       if (i >= TYPES[c.type].max) continue;
       let yaw;
@@ -735,6 +765,11 @@ export class CityTraffic {
       if (im.instanceColor) im.instanceColor.needsUpdate = true;
       im.honk.needsUpdate = true;
       im.blink.needsUpdate = true;
+    }
+    // thân xe thật: chung ma trận với hộp đèn của loại đó
+    if (this.realParts) for (const k in this.realParts) {
+      const src = this.meshes[k], n = src.count, a = src.instanceMatrix.array.subarray(0, n * 16);
+      for (const im of this.realParts[k]) { im.count = n; im.instanceMatrix.array.set(a); im.instanceMatrix.needsUpdate = true; }
     }
     this._emUpdate(lamps);
   }
