@@ -4,6 +4,7 @@ import { ROAD } from './road.js';
 import { TRAFFIC, trafficSpeed, trafficCurveSpeed, stepTraffic } from './traffic-ai.js';
 import { createHeadlights, placeHeadlights, updateHeadlights, lampsFor } from './headlights.js';
 import { loadCarriage, CARRIAGE } from './carriage.js';
+import { npcFile } from './npcCars.js';
 
 // Xe ngược chiều: 10–25 giây, tối đa 2; cùng chiều: 25–60 giây, tối đa 1 (ít xe => nhẹ máy). Tốc độ 50–200 km/h.
 // Xe ngược chiều xuất hiện xa phía trước
@@ -69,13 +70,16 @@ export class Traffic {
     return true;
   }
 
-  async _load(excludeId) {
+  // NPC dùng bản nhẹ của xe (npcCars.js). Mặc định bỏ xe chú đang lái; bật "Thêm xe thật vào giao thông" (allCars) => đủ mọi xe.
+  // only: chỉ tải thêm xe đó (bật nút khi kho đã tải thiếu xe chú đang lái)
+  async _load(excludeId, only) {
     this.loading = true;
-    const defs = this.cars.list.filter(d => d.id !== excludeId).sort(() => Math.random() - 0.5);
-    for (let i = 0; i < TRAFFIC.maxActive + TRAFFIC.sameMax && defs.length; i++) {
+    if (!only) this.excluded = this.allCars ? null : excludeId;
+    const defs = this.cars.list.filter(d => only ? d.id === only : this.allCars || d.id !== excludeId).sort(() => Math.random() - 0.5);
+    for (let i = 0; i < (only ? 2 : TRAFFIC.maxActive + TRAFFIC.sameMax) && defs.length; i++) {
       const def = defs[i % defs.length];
       try {
-        const entry = await this.cars._load(def);
+        const entry = await this.cars._load({ ...def, file: npcFile(def) });
         if (this.cars.prepare) { try { await this.cars.prepare(entry.group); } catch { /* bỏ qua */ } }
         this.pool.push(this._vehicle(entry));
       } catch (e) { console.warn('traffic', def.id, e); }

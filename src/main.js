@@ -20,6 +20,7 @@ import { Avenue } from './avenue.js';
 import { Minimap } from './minimap.js';
 import { City, SIGNAL } from './city.js';
 import { CityTraffic } from './cityTraffic.js';
+import { loadNpcCars } from './npcCars.js';
 import { CityPeople } from './cityPeople.js';
 import { CityIncident } from './cityIncident.js';
 import { CrashFx } from './crashfx.js';
@@ -309,7 +310,14 @@ function impact(rel, latSign) {
   crashFx.hit(power, hoodPos, rel > 5.5);
   audio.crash(power);
 }
-cityTraffic.pool = () => traffic.pool;          // xe model của chú (Mustang / Mazda) dùng chung kho xe NPC
+// bảng 🚦 "Thêm xe thật vào giao thông": lần đầu bật mới tải bản nhẹ xe thật (npcCars.js) cho giao thông phố (mọi map phố);
+// map ngắm cảnh (traffic.js) vốn chỉ có xe thật — bật thì có cả xe chú đang lái
+let npcCarsLoading = false;
+function wantRealTraffic() {
+  if (!trafficTune.models || npcCarsLoading || !cars.loader) return;
+  npcCarsLoading = true;
+  loadNpcCars(cars).then((ms) => { if (ms.length) cityTraffic.addReal(ms); }).catch((e) => console.warn('npc cars', e));
+}
 let driverHidden = false, crashCam = null, crashGrace = 0, hitCool = 0, tollWarn = null, tollPaid = null;
 const incident = new CityIncident(cityTraffic, cityPeople, {   // map Phố: đâm xe / người => cảnh sát + cấp cứu
   toast: (t, bad) => toast(t, bad),
@@ -520,8 +528,9 @@ function applyTrafficTune() {
   for (const v of traffic.active || []) if (!v.carriage) { v.cruise *= ck; }
   cityPeople.walkers = Math.round(T.walkers);
   city.clockRate = 1 / trafficTune.signal;
-  cityTraffic.useModels = !!trafficTune.models;
-  if (!trafficTune.models) cityTraffic.releaseModels();
+  cityTraffic.realOn = !!trafficTune.models;
+  traffic.allCars = !!trafficTune.models;
+  if (traffic.allCars && traffic.excluded && traffic.pool.length) { const id = traffic.excluded; traffic.excluded = null; traffic._load(null, id); }
   if (onSgn()) {
     city.vnHouse = (s) => sgnVnHouse(s);
     // start loading when entering map sgn
@@ -1496,7 +1505,7 @@ renderTune = () => {
       trafficTune.score = v; $('b-score').hidden = !v;
       if (v) resetSession(); else { $('score').hidden = true; say('Đã tắt chấm điểm'); }
     } });
-    addToggle({ label: 'Thêm xe của chú (Mustang, Mazda) vào giao thông', get: () => trafficTune.models, set: (v) => { trafficTune.models = v; applyTrafficTune(); } });
+    addToggle({ label: 'Thêm xe thật vào giao thông', get: () => trafficTune.models, set: (v) => { trafficTune.models = v; applyTrafficTune(); } });
     addHeading('Xe và người');
     addToggle({ label: 'Giao thông ngẫu nhiên (xe + người)' + (trafficTune.auto && trafficLevel ? ' — đang: ' + trafficLevel.name : ''), get: () => trafficTune.auto, set: (v) => {
       trafficTune.auto = v;
@@ -2197,7 +2206,7 @@ function frame(now) {
     }
     traffic.playerHome = drive.home; traffic.playerGoal = stop.active ? 0 : drive.goal;
     if (cityTraffic.visible) {
-      if (trafficTune.models && !traffic.pool.length && !traffic.loading) traffic._load(cars.current.def.id);
+      wantRealTraffic();
       cityTraffic.playerRamp = drive.ramp != null ? { k: drive.ramp, s: drive.s } : null;
       cityTraffic.update(dt, drive.s, drive.d, drive.v, st.lamps, cars.dim.length);
       cityPeople.update(dt, drive.s);

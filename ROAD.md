@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -473,8 +473,14 @@
   ban đêm (`_boats(dt)`); nhịp chính giữa 2 tháp (|t| < 84) không có trụ để làm luồng tàu.
   Khu chung cư (~9% lô mặt tiền, `apartment` trong `_build`): tòa nhà lùi 11 m, công viên nhỏ (cỏ `lawnMat`, hàng rào cây, cây tán
   tròn `broadleafGeometry`, ghế), bậc thang lên sân sảnh (sàn tầng trệt = sân), ban công 3D từng tầng (sàn + lan can); mẫu A 10–13
-  tầng bậc hẹp 4 cây, mẫu B 6–8 tầng bậc rộng + ghế; nhà bên trong khối chừa chỗ. Bảng 🚦 có "Thêm xe của chú": xe model
-  Mustang/Mazda từ kho `traffic.pool` chạy như xe phố (`cityTraffic.pool/useModels/releaseModels`).
+  tầng bậc hẹp 4 cây, mẫu B 6–8 tầng bậc rộng + ghế; nhà bên trong khối chừa chỗ. Bảng 🚦 có **"Thêm xe thật vào giao thông"**
+  (`trafficTune.models`, lưu chung mọi map): bật => MỌI xe thường ở Phố / Đại lộ / New York / Landmark (sedan, kei, van, xe máy, xe tải,
+  container) thành xe thật của chú; giữ buýt, taxi, cảnh sát, cấp cứu. Xe NPC dùng **bản nhẹ** `docs/assets/models/npc/*.glb`
+  (`scripts/make-npc-cars.sh`: gltf-transform simplify ~24k tam giác/xe, WebP 256, meshopt; Mazda 19.8 MB → 505 KB, Mustang → 418 KB),
+  chỉ tải lần đầu bật (`wantRealTraffic` trong main). `npcCars.js` tải qua `cars._load` (cùng vật liệu sơn/kính/env) rồi gộp mảnh theo
+  vật liệu; `cityTraffic.addReal` tạo loại `real<i>` = InstancedMesh mỗi vật liệu (tối đa 80/model, bánh không quay) + hộp đèn
+  pha/hậu/xi nhan dựng code tại `dim.lamps` (vẫn sáng đêm, còi nháy, xi nhan). `realOn` đổi ngay xe đang chạy (tắt => về sedan).
+  Map ngắm cảnh (`traffic.js`) vốn chỉ có xe thật: nay luôn dùng bản nhẹ; bật nút => có cả xe chú đang lái (`traffic.allCars`).
   **Xi nhan** (`setBlinker/updateBlinker` trong main): phím `,` trái / `.` phải bật–tắt (điện thoại: giữ ◀ / ▶ tự bật), 4 quầng vàng
   góc xe mình + mũi tên `#blink` dưới đồng hồ + tiếng tách (`audio.tick`); đổi làn xong tự tắt sau 1.5 s, quên thì tắt sau 15 s.
   Ở Phố / Đại lộ: đổi làn (cùng chiều) không bật đúng bên => "↔ Đổi làn không bật xi nhan!" (cộng `violations`); vào nhánh ra
@@ -515,6 +521,13 @@
   quanh vai), trọng số chân / tay mỗi đỉnh (`aLimb`) => shader đung đưa theo pha bước, hạ người khi xoạc chân. Tham số từng model ở `PEOPLE_MODELS`.
   Mỗi model × vật liệu = 1 InstancedMesh (~70 lượt vẽ). Người kịch bản (cảnh sát / cấp cứu / người lái) vẫn dùng người hộp (đồng phục).
   Fixture: `node scripts/shot-people.mjs [id,…]`; `shot-nyc.mjs` nhận `PEOPLE3D=1`. Không có điện thoại / tai nghe trên model 3D.
+  **Dáng người hộp theo clip nhân vật chính** (`src/pedWalk.js`): lúc bật map có người, tải person.glb (đã đệm) và nướng Walk_Loop /
+  Idle_Loop / Idle_Talking_Loop (30 khung) ra texture ma trận 15 xương (đùi, cẳng, giày, cánh tay, cẳng tay, bàn tay, thân, đầu; delta quay
+  so với bind chữ T, khớp tính lại theo chiều dài khúc người hộp, mỗi khung nâng / hạ cho giày chạm đất) × có / không cầm điện thoại (tay phải
+  gập trước ngực theo ngực). Shader đọc `texelFetch` theo `aBone`: đi = pha bước (`aWalk.x`, vòng clip 1.21 m = đúng nhịp 5.2 rad/m cũ),
+  đứng = Idle (nói chuyện: Idle_Talking) theo `uTime` lệch pha mỗi người, chuyển đứng ↔ đi mượt (`_mv`, ~0.25 s); `aWalk.z` = đồ dùng + 4 · nói
+  chuyện + 8 · nằm (người bị đâm giữ dáng thẳng). Chưa nướng xong / lỗi => dáng tự làm cũ. Đám đông Times Square dùng chung. Shadow vẫn dáng
+  đứng thẳng (như trước). Người 3D (`streetModels`) chưa theo clip. `node scripts/check-ped-walk.mjs` kiểm bản nướng.
   **Người đi bộ thêm**: ~16% bấm điện thoại (tay phải đưa ra trước 0.75 rad trong shader, điện thoại nằm dưới bàn tay; thỉnh
   thoảng đứng lại 3–9 s), ~14% đeo tai nghe trắng (đỉnh `aAcc` ẩn khi không dùng; `aWalk.z` = đồ dùng). Hai người ngược chiều
   gặp nhau cùng vỉa hè (≤ 1.6 m) => 35% dừng nói chuyện 6–16 s, quay mặt vào nhau (hồi 25 s). Tiếng nói không chữ:
@@ -595,7 +608,9 @@
 - Chưa xem trên máy thật: chuyển động sóng biển (đã sửa giật 2 lần), cảnh dừng xe mới (quay quanh + zoom 5 s), xe ngựa ban đêm,
   map Biển ban đêm / mưa / trong xe; vân sóng lặp còn thấy khi nhìn từ trên cao.
 - Vài tảng đá terrain trông lơ lửng trên vách núi gần đường (s≈250) — chưa sửa.
-- Map Phố: camera Từ trên cao hay bị nhà chắn nên kéo sát xe; Mustang/Mazda NPC không chạy trong phố (thay bằng xe dựng code).
+- Map Phố: camera Từ trên cao hay bị nhà chắn nên kéo sát xe.
+- Xe thật trong giao thông (bản nhẹ, instancing): chưa xem hình / FPS trên máy thật; simplify mạnh (error 0.03, không khoá mép) có thể
+  lộ lỗ / méo khi nhìn gần — muốn nét hơn thì giảm `--simplify-error` trong `scripts/make-npc-cars.sh` rồi chạy lại.
 - Chưa nghe trên máy thật: tiếng người nói chuyện (`setChatter`), còi hụ, tiếng va chạm. Chưa chụp cận đèn đi bộ.
 - Nhân vật Nam: chưa xem trên máy thật; chờ chú xuất lại Nam có 5 clip (Rig Tool nhóm "Dùng trong game Chill Drive") để bật `ownClips`;
   chưa có test cầm vô lăng Mazda cho Nam. Dáng person.glb đã nướng: chưa xem trong game.
@@ -609,3 +624,12 @@
   ngả lưng + IK chân / tay đè lên => bỏ cho Người lái như Nam. Chưa xem trong game — chú tự test.
 - **#1 — Landmark: nhà / sông / cây thật từ urban:EXPORT (27/10/2026)**: DeepSeek free; check-sgn-city / sgn / trees / nyc PASS. Chưa xem hình — chú tự test.
 - **#2 — Landmark: nhà phố Việt Nam xen kẽ (27/10/2026)**: worker free (bị ngắt giữa chừng, code dùng được), Claude sửa 6 lỗi; check PASS. Chú tự test.
+- **#3 — Thêm xe thật vào giao thông (28/10/2026)**: đổi nút "Thêm xe của chú" => mọi xe thường mọi map phố là Mustang/Mazda bản nhẹ
+  (instancing), bỏ cách cũ mượn 35% xe từ kho GLB đầy đủ. Claude làm; check-traffic / check-traffic-policy PASS. Chưa xem hình — chú tự test.
+- **#4 — Người NPC đi theo clip của nhân vật chính (28/10/2026)**: Claude tự làm (nướng clip ra texture + shader); shader kiểm bằng glslangValidator,
+  check-ped-walk / nyc / ped-yield / traffic / sgn-park / nyc-sidecam PASS. Chưa xem hình — chú tự test.
+- **#5 — Người đi bộ chậm lại một nửa (28/10/2026)**: chú thấy đi nhanh giả => vỉa hè 0.55–0.8 m/s, công viên 0.3–0.55, đám đông Times Square
+  dạo 0.45–0.75; qua đường chỉ còn 0.75 × cũ (kịp đèn xanh). Nhịp bước theo quãng đường nên chân vẫn khớp. Check PASS. Chú tự test.
+- **#6 — Trang luôn lấy bản mới (28/10/2026)**: chú chưa thấy thay đổi người đi bộ trên web — GitHub Pages `max-age=600` nên `fetch` trong
+  docs/sw.js lấy index.html cũ ≤ 10 phút => sw `page()` dùng `cache: 'no-cache'` (hỏi lại máy chủ, 304 nếu không đổi). Dáng clip chỉ áp cho người hộp
+  (Setting 🚶 Người 3D tắt); bật Người 3D thì vẫn dáng tự làm của streetModels.
