@@ -331,6 +331,10 @@ const toGame = (lat, lon) => {
   let bj = 0, bd = Infinity; for (let j = 0; j < R1.length; j += 2) { const d = (R1[j][0] - E) ** 2 + (R1[j][1] - N) ** 2; if (d < bd) { bd = d; bj = j; } }
   return [+(E + off[bj][0]).toFixed(1), +(-(N + off[bj][1])).toFixed(1)];
 };
+// bảng độ lệch (đường đã làm mượt − đường thật) mỗi 20 m dọc tuyến: [E, N thật, dE, dN] — để dời dữ liệu ngoài (nhà urban:EXPORT…) khớp tuyến
+// bằng nội suy IDW (trơn, nhà không bị méo). Toạ độ thật: E = (lon − lon0)·KE, N = (lat − lat0)·KN với origin trong sgn-data
+const offs = [];
+for (let j = 0; j < R1.length; j += Math.max(1, Math.round(20 / d1))) offs.push([+R1[j][0].toFixed(1), +R1[j][1].toFixed(1), +off[j][0].toFixed(2), +off[j][1].toFixed(2)]);
 const areas = AREAS.map(([name, la, lo, r]) => { const [x, z] = toGame(la, lo); return { name, x, z, r }; });
 // khu theo đoạn dọc tuyến (cố định, không nhấp nháy ở mép): mẫu mỗi 25 m lấy khu có d / r nhỏ nhất (< 1), gộp liền nhau,
 // đoạn ngắn hơn 150 m nhập vào đoạn trước. zones: [{ s0, name }] (name '' = không thuộc khu nào)
@@ -352,7 +356,7 @@ const vinhomes = [[10.7963, 106.7193], [10.7976, 106.7215], [10.7979, 106.7262],
 
 const data = {
   source: 'OpenStreetMap contributors (ODbL)', bbox: BB, origin: [lat0, lon0], step: +step.toFixed(4), length: +L.toFixed(1), turn: +TURN.toFixed(5),
-  corners, streets, tunnels, bridges, junctions, lanes, areas, zones, landmark81, vinhomes, widths, elev, x, z, heading,
+  corners, streets, tunnels, bridges, junctions, lanes, areas, zones, landmark81, vinhomes, widths, offs, KE: +KE.toFixed(3), KN, elev, x, z, heading,
 };
 fs.writeFileSync(OUT, JSON.stringify(data));
 console.log(`=> ${OUT}: ${(fs.statSync(OUT).size / 1024).toFixed(0)} KB, ${junctions.length} ngã tư (${junctions.filter((j) => j.signal).length} có đèn), ${corners.length} khúc rẽ lớn`);
