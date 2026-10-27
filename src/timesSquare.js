@@ -388,12 +388,12 @@ TimesSquare.prototype._spawnCrowd = function () {
   for (const z of this.zones) for (let i = 0; i < Math.round(z.n * this.density); i++) {
     if (z.kind === 'cross') {                                        // đứng chờ ở 2 mép vỉa hè của vạch qua đường
       const side = i % 2 ? 1 : -1;
-      this.crowd.push({ zn: z, s: z.J - 8.4 + (r() - 0.5) * 3.2, u: side * (CITY.hw + 0.8 + r() * 1.8), ts: 0, tu: 0, speed: 1.3 + r() * 0.4, wait: 0, ph: r() * 6.28,
+      this.crowd.push({ zn: z, s: z.J - 8.4 + (r() - 0.5) * 3.2, u: side * (CITY.hw + 0.8 + r() * 1.8), ts: 0, tu: 0, speed: 0.98 + r() * 0.3, wait: 0, ph: r() * 6.28,
         moving: 0, acc: r() < 0.2 ? 2 : r() < 0.35 ? 1 : 0, color: SHIRTS[Math.floor(r() * SHIRTS.length)], ds: 0, du: -side, x: 0, y: 0, z: 0, fx: 0, fz: 1,
         side, delay: r() * 1.5, state: 'wait' });
       continue;
     }
-    const p = { zn: z, s: z.s0 + r() * (z.s1 - z.s0), u: z.u0 + r() * (z.u1 - z.u0), ts: 0, tu: 0, speed: 0.9 + r() * 0.6, wait: r() * 6, ph: r() * 6.28,
+    const p = { zn: z, s: z.s0 + r() * (z.s1 - z.s0), u: z.u0 + r() * (z.u1 - z.u0), ts: 0, tu: 0, speed: 0.45 + r() * 0.3, wait: r() * 6, ph: r() * 6.28,
       moving: 0, acc: r() < 0.2 ? 2 : r() < 0.35 ? 1 : 0, color: SHIRTS[Math.floor(r() * SHIRTS.length)], ds: 1, du: 0, x: 0, y: 0, z: 0, fx: 0, fz: 1 };
     this._target(p);
     this.crowd.push(p);

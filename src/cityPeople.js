@@ -192,7 +192,7 @@ export class CityPeople {
 
   _walker(s, side, dir) {
     const off = 1.0 + Math.random() * 2.6, r = Math.random();
-    return { s, u: side * (this._hw(s) + off), walkOff: off, vs: 0, vu: 0, dir, speed: 1.1 + Math.random() * 0.5, mode: 'walk',
+    return { s, u: side * (this._hw(s) + off), walkOff: off, vs: 0, vu: 0, dir, speed: 0.55 + Math.random() * 0.25, mode: 'walk',
       ph: Math.random() * 6.28, color: SHIRTS[Math.floor(Math.random() * SHIRTS.length)], acc: r < 0.16 ? 2 : r < 0.3 ? 1 : 0, cool: 5 * Math.random() };
   }
   // ---- người dạo công viên (map Landmark): đi chậm trên bãi cỏ hai bên đường ----
@@ -215,7 +215,7 @@ export class CityPeople {
   }
   _parkPed(s, u, amp) {
     const r = Math.random();
-    return { s, u, baseU: u, amp, vs: 0, vu: 0, dir: Math.random() < 0.5 ? -1 : 1, speed: 0.6 + Math.random() * 0.5, mode: 'park',
+    return { s, u, baseU: u, amp, vs: 0, vu: 0, dir: Math.random() < 0.5 ? -1 : 1, speed: 0.3 + Math.random() * 0.25, mode: 'park',
       ph: Math.random() * 6.28, color: SHIRTS[Math.floor(Math.random() * SHIRTS.length)], acc: r < 0.16 ? 2 : r < 0.3 ? 1 : 0,
       mph: Math.random() * 6.28, mdir: Math.random() < 0.5 ? -1 : 1, mrate: 0.08 + Math.random() * 0.09, pauseT: 0, pauseCool: 3 + Math.random() * 12 };
   }
@@ -259,7 +259,7 @@ export class CityPeople {
       if (J !== null && Math.abs(ts - J) < CITY.side + 0.8) ts = J + Math.sign(ts - J || 1) * (CITY.side + 0.8 + Math.random());
       p.mode = 'watch'; p.chatT = 0; p.pauseT = 0; p.mate = null;
       p.target = [ts, side * (this._hw(ts) + 0.5 + Math.random() * 2.4)]; p.path = null;
-      p.look = [s, u]; p.speed = 1.2 + Math.random() * 0.5;
+      p.look = [s, u]; p.speed = 0.6 + Math.random() * 0.25;
       p.acc0 = p.acc; if (p.acc !== 2 && Math.random() < 0.3) p.acc = 2;   // giơ điện thoại quay
     }
   }
@@ -396,7 +396,7 @@ export class CityPeople {
           }
         }
         if (p.mode === 'cross') {
-          vu = -p.side * p.speed * (p.jaywalk ? 1.35 : 1) * 1.15;
+          vu = -p.side * p.speed * (p.jaywalk ? 1.35 : 1) * 1.725;   // qua đường nhanh hơn đi dạo (= 0.75 × tốc độ cũ, kịp đèn xanh)
           if (p.u * p.side < -(pHW + 0.9)) {
             p.crossing = false; p.mode = 'walk'; p.jaywalk = false; p.jay = undefined;
             p.walkOff = 1.2 + Math.random() * 2; p.u = -p.side * (pHW + p.walkOff); p.dir = Math.random() < 0.5 ? -1 : 1;
