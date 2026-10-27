@@ -1,7 +1,10 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { CITY } from './road.js';
 import { withMist } from './mist.js';
 import { StreetModels, PEOPLE_MODELS } from './streetModels.js';
+import { PED_BONE, PED_FRAMES, bakePedWalk, pedWalkTexture } from './pedWalk.js';
 
 // Người đi bộ map Phố (dựng bằng code, 1 InstancedMesh, chân tay đung đưa trong vertex shader theo pha bước chân).
 // Mọi người dùng toạ độ đường chính: s (dọc đường), u (ngang, + = bên phải); vận tốc (vs, vu).
@@ -20,39 +23,43 @@ const CROWD = 520;             // thêm cho đám đông ngoài (Times Square, `
 const SHIRTS = ['#e9e6df', '#2b2d33', '#6d7d8f', '#8c2f2f', '#c9a96e', '#3d5f4b', '#d7c6b0', '#5a4a6e', '#b8c4d6', '#1f3552'];
 const KIND_COL = { officer: '#1d2a48', medic: '#e9eef2', driver: '#121214' };
 
-// hình người cao ~1.7 m, mặt trước = -z. aSwing: +1/−1 chi đung đưa (chân/tay ngược pha), aPivot: độ cao khớp
+// hình người cao ~1.7 m, mặt trước = -z. aSwing: +1/−1 chi đung đưa (chân/tay ngược pha), aPivot: độ cao khớp (dáng tự làm,
+// dùng khi chưa nướng xong clip); aBone: xương trong pedWalk.js (dáng theo clip đi bộ / đứng / nói chuyện của nhân vật chính)
 function personGeometry() {
   const P = [], N = [], C = [], T = [], S = [], V = [];
-  const R = [], A = [];
+  const R = [], A = [], B = [];
   // arm: 1 = tay phải (đưa lên khi bấm điện thoại); acc: 1 = tai nghe, 2 = điện thoại (ẩn khi người đó không dùng)
-  const add = (x0, x1, y0, y1, z0, z1, col, tint, swing = 0, pivot = 0, arm = 0, acc = 0) => {
+  const add = (x0, x1, y0, y1, z0, z1, col, tint, swing = 0, pivot = 0, arm = 0, acc = 0, bone = 'spine') => {
     [x0, x1] = [Math.min(x0, x1), Math.max(x0, x1)];
     const g = new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0).translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2).toNonIndexed();
     const p = g.attributes.position.array, n = g.attributes.normal.array;
     for (let i = 0; i < p.length / 3; i++) {
       P.push(p[i * 3], p[i * 3 + 1], p[i * 3 + 2]); N.push(n[i * 3], n[i * 3 + 1], n[i * 3 + 2]);
-      C.push(...col); T.push(tint); S.push(swing); V.push(pivot); R.push(arm); A.push(acc);
+      C.push(...col); T.push(tint); S.push(swing); V.push(pivot); R.push(arm); A.push(acc); B.push(PED_BONE[bone]);
     }
   };
   const HP = [0.86, 0.86, 0.9];                                                       // tai nghe trắng (dễ thấy trên tóc đen)
   const JEANS = [0.16, 0.2, 0.3], SHOE = [0.07, 0.07, 0.08], SKIN = [0.78, 0.6, 0.48], HAIR = [0.06, 0.05, 0.05], W = [1, 1, 1];
   for (const s of [-1, 1]) {
-    add(s * 0.04, s * 0.17, 0.08, 0.86, -0.08, 0.08, JEANS, 0, s, 0.86);              // chân
-    add(s * 0.04, s * 0.17, 0.0, 0.08, -0.13, 0.09, SHOE, 0, s, 0.86);                 // giày
-    add(s * 0.21, s * 0.31, 0.82, 1.42, -0.06, 0.06, W, 1, -s, 1.42, s > 0 ? 1 : 0);    // tay áo
-    add(s * 0.215, s * 0.305, 0.74, 0.82, -0.05, 0.05, SKIN, 0, -s, 1.42, s > 0 ? 1 : 0); // bàn tay
-    add(s * 0.1, s * 0.15, 1.54, 1.68, -0.05, 0.05, HP, 0, 0, 0, 0, 1);               // chụp tai nghe
-    add(s * 0.11, s * 0.13, 1.66, 1.78, -0.018, 0.018, HP, 0, 0, 0, 0, 1);
+    const lr = s > 0 ? '_r' : '_l', r = s > 0 ? 1 : 0;
+    add(s * 0.04, s * 0.17, 0.46, 0.86, -0.08, 0.08, JEANS, 0, s, 0.86, 0, 0, 'thigh' + lr);     // đùi
+    add(s * 0.045, s * 0.165, 0.08, 0.48, -0.075, 0.075, JEANS, 0, s, 0.86, 0, 0, 'calf' + lr);   // cẳng chân
+    add(s * 0.04, s * 0.17, 0.0, 0.08, -0.13, 0.09, SHOE, 0, s, 0.86, 0, 0, 'foot' + lr);         // giày
+    add(s * 0.21, s * 0.31, 1.11, 1.42, -0.06, 0.06, W, 1, -s, 1.42, r, 0, 'upper' + lr);       // tay áo (cánh tay)
+    add(s * 0.215, s * 0.305, 0.82, 1.13, -0.055, 0.055, W, 1, -s, 1.42, r, 0, 'fore' + lr);    // tay áo (cẳng tay)
+    add(s * 0.215, s * 0.305, 0.74, 0.82, -0.05, 0.05, SKIN, 0, -s, 1.42, r, 0, 'hand' + lr);   // bàn tay
+    add(s * 0.1, s * 0.15, 1.54, 1.68, -0.05, 0.05, HP, 0, 0, 0, 0, 1, 'head');                  // chụp tai nghe
+    add(s * 0.11, s * 0.13, 1.66, 1.78, -0.018, 0.018, HP, 0, 0, 0, 0, 1, 'head');
   }
-  add(-0.13, 0.13, 1.76, 1.79, -0.02, 0.02, HP, 0, 0, 0, 0, 1);                        // vòng tai nghe
+  add(-0.13, 0.13, 1.76, 1.79, -0.02, 0.02, HP, 0, 0, 0, 0, 1, 'head');                        // vòng tai nghe
   // điện thoại nằm ngang dưới bàn tay phải (tay đưa ra trước => màn hình hướng về mặt)
-  add(0.225, 0.295, 0.71, 0.728, -0.12, 0.02, [0.04, 0.04, 0.05], 0, -1, 1.42, 1, 2);
-  add(0.23, 0.29, 0.728, 0.732, -0.112, 0.012, [0.75, 0.88, 1.0], 0, -1, 1.42, 1, 2);
+  add(0.225, 0.295, 0.71, 0.728, -0.12, 0.02, [0.04, 0.04, 0.05], 0, -1, 1.42, 1, 2, 'hand_r');
+  add(0.23, 0.29, 0.728, 0.732, -0.112, 0.012, [0.75, 0.88, 1.0], 0, -1, 1.42, 1, 2, 'hand_r');
   add(-0.21, 0.21, 0.84, 1.44, -0.11, 0.11, W, 1);                                     // thân áo
-  add(-0.06, 0.06, 1.44, 1.5, -0.05, 0.05, SKIN, 0);                                   // cổ
-  add(-0.1, 0.1, 1.5, 1.72, -0.11, 0.1, SKIN, 0);                                      // đầu
-  add(-0.11, 0.11, 1.66, 1.76, -0.11, 0.12, HAIR, 0);                                  // tóc
-  add(-0.11, 0.11, 1.52, 1.68, 0.07, 0.12, HAIR, 0);
+  add(-0.06, 0.06, 1.44, 1.5, -0.05, 0.05, SKIN, 0, 0, 0, 0, 0, 'head');               // cổ
+  add(-0.1, 0.1, 1.5, 1.72, -0.11, 0.1, SKIN, 0, 0, 0, 0, 0, 'head');                  // đầu
+  add(-0.11, 0.11, 1.66, 1.76, -0.11, 0.12, HAIR, 0, 0, 0, 0, 0, 'head');              // tóc
+  add(-0.11, 0.11, 1.52, 1.68, 0.07, 0.12, HAIR, 0, 0, 0, 0, 0, 'head');
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
@@ -62,6 +69,7 @@ function personGeometry() {
   g.setAttribute('aPivot', new THREE.Float32BufferAttribute(V, 1));
   g.setAttribute('aArm', new THREE.Float32BufferAttribute(R, 1));
   g.setAttribute('aAcc', new THREE.Float32BufferAttribute(A, 1));
+  g.setAttribute('aBone', new THREE.Float32BufferAttribute(B, 1));
   return g;
 }
 
@@ -77,17 +85,45 @@ export class CityPeople {
     this.phase = new THREE.InstancedBufferAttribute(new Float32Array((MAX + CROWD) * 3), 3).setUsage(THREE.DynamicDrawUsage);   // pha bước, đang đi, đồ dùng
     g.setAttribute('aWalk', this.phase);
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+    // aWalk = (pha bước, đang đi 0…1, đồ dùng + 4 · nói chuyện + 8 · nằm yên); đồ dùng 1 = tai nghe, 2 = điện thoại
+    this.walk = { uWalkTex: { value: null }, uWalkOn: { value: 0 }, uTime: { value: 0 }, uDur: { value: new THREE.Vector2(2.5, 2.9) } };
     mat.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, this.walk);
       sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nattribute float aTint, aSwing, aPivot, aArm, aAcc;\nattribute vec3 aWalk;')
+        .replace('#include <common>', `#include <common>
+          attribute float aTint, aSwing, aPivot, aArm, aAcc, aBone;
+          attribute vec3 aWalk;
+          uniform highp sampler2D uWalkTex;
+          uniform float uWalkOn, uTime;
+          uniform vec2 uDur;
+          // ma trận xương b của khung nội suy t (0…1 một vòng) trong khối động tác blk (pedWalk.js)
+          mat4 pedBone(int blk, float t) {
+            float x = fract(t) * ${PED_FRAMES}.0, a = fract(x);
+            int f0 = int(x), f1 = (f0 + 1) % ${PED_FRAMES}, c = int(aBone) * 3;
+            mat4 m = mat4(0.0);
+            for (int r = 0; r < 3; r++) {
+              vec4 v = mix(texelFetch(uWalkTex, ivec2(c + r, blk * ${PED_FRAMES} + f0), 0), texelFetch(uWalkTex, ivec2(c + r, blk * ${PED_FRAMES} + f1), 0), a);
+              m[0][r] = v.x; m[1][r] = v.y; m[2][r] = v.z; m[3][r] = v.w;
+            }
+            m[3][3] = 1.0;
+            return m;
+          }`)
         .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
-          float isPh = step(1.5, aWalk.z), isMu = step(0.5, aWalk.z) * (1.0 - isPh);
-          float pa = mix(sin(aWalk.x) * 0.55 * aWalk.y * aSwing, 0.75, aArm * isPh), pc = cos(pa), ps = sin(pa);
-          objectNormal = vec3(objectNormal.x, objectNormal.y * pc - objectNormal.z * ps, objectNormal.y * ps + objectNormal.z * pc);`)
+          float accK = mod(aWalk.z, 4.0), talk = mod(floor(aWalk.z / 4.0), 2.0), still = step(7.5, aWalk.z);
+          float isPh = step(1.5, accK), isMu = step(0.5, accK) * (1.0 - isPh);
+          mat4 pedM;
+          if (uWalkOn > 0.5 && still < 0.5) {
+            int ph = int(isPh);
+            float off = fract(aWalk.x * 0.6180339);              // lệch pha đứng mỗi người (pha bước giữ nguyên khi đứng)
+            mat4 st = talk > 0.5 ? pedBone(4 + ph, uTime / uDur.y + off) : pedBone(2 + ph, uTime / uDur.x + off);
+            pedM = aWalk.y > 0.999 ? pedBone(ph, aWalk.x / 6.2831853) : aWalk.y < 0.001 ? st : st * (1.0 - aWalk.y) + pedBone(ph, aWalk.x / 6.2831853) * aWalk.y;
+          } else {
+            float pa = mix(sin(aWalk.x) * 0.55 * aWalk.y * aSwing, 0.75, aArm * isPh) * (1.0 - still), pc = cos(pa), ps = sin(pa);
+            pedM = mat4(1.0, 0.0, 0.0, 0.0, 0.0, pc, ps, 0.0, 0.0, -ps, pc, 0.0, 0.0, aPivot * (1.0 - pc), -aPivot * ps, 1.0);
+          }
+          objectNormal = mat3(pedM) * objectNormal;`)
         .replace('#include <begin_vertex>', `#include <begin_vertex>
-          transformed.y -= aPivot;
-          transformed = vec3(transformed.x, transformed.y * pc - transformed.z * ps, transformed.y * ps + transformed.z * pc);
-          transformed.y += aPivot;
+          transformed = (pedM * vec4(transformed, 1.0)).xyz;
           float accHide = aAcc > 1.5 ? 1.0 - isPh : (aAcc > 0.5 ? 1.0 - isMu : 0.0);
           transformed *= 1.0 - accHide;`)
         .replace('#include <color_vertex>', `vColor = vec3(1.0);
@@ -96,7 +132,7 @@ export class CityPeople {
             vColor = mix(vColor, vColor * instanceColor.xyz, aTint);
           #endif`);
     };
-    mat.customProgramCacheKey = () => 'city-person';
+    mat.customProgramCacheKey = () => 'city-person-walk';
     withMist(mat);
     this.mesh = new THREE.InstancedMesh(g, mat, MAX + CROWD);
     this.mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array((MAX + CROWD) * 3), 3);
@@ -114,6 +150,19 @@ export class CityPeople {
     this._parkN = 0;           // số người dạo công viên
     this.groundAt = null;      // (x, z) => cao độ mặt đất (người dạo công viên)
   }
+  // nướng clip đi bộ / đứng / nói chuyện của nhân vật chính (person.glb, đã có trong bộ nhớ đệm từ lúc tải trước) cho người hộp;
+  // chưa xong (hoặc lỗi) thì dùng dáng tự làm trong shader. Chỉ chạy trong trình duyệt (script kiểm tra Node bỏ qua).
+  _loadWalk() {
+    if (this._walkReq || typeof document === 'undefined') return;
+    this._walkReq = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync('assets/models/person.glb')
+      .then((gltf) => {
+        const b = bakePedWalk(gltf.scene, gltf.animations);
+        this.walk.uWalkTex.value = pedWalkTexture(b);
+        this.walk.uDur.value.set(b.dur.Idle_Loop, b.dur.Idle_Talking_Loop);
+        this.walk.uWalkOn.value = 1;
+      })
+      .catch((e) => console.warn('[cityPeople] không nướng được clip đi bộ, dùng dáng tự làm', e));
+  }
   get parkCount() { return this._parkN; }
   set parkCount(n) {
     n = Math.max(0, Math.round(n) || 0);
@@ -124,7 +173,7 @@ export class CityPeople {
     if ((drop -= n) > 0) this.peds = this.peds.filter((p) => p.mode !== 'park' || drop-- <= 0);
   }
 
-  set visible(v) { this.group.visible = v; if (!v) { this.peds.length = 0; this.filled = false; this.timers.clear(); } }
+  set visible(v) { this.group.visible = v; if (v) this._loadWalk(); if (!v) { this.peds.length = 0; this.filled = false; this.timers.clear(); } }
   // ambient = có người đi bộ vỉa hè / qua đường (Phố). Đại lộ: tắt — chỉ người kịch bản của cảnh tai nạn (cảnh sát, cấp cứu, người lái)
   set ambient(v) { if (v !== this._amb) { this.peds.length = 0; this.filled = false; this.timers.clear(); } this._amb = v; }
   get ambient() { return this._amb ?? true; }
@@ -136,6 +185,8 @@ export class CityPeople {
     this.models.load().then(() => { this._det = !!this._want; }).catch((e) => console.warn('Không tải được người 3D', e));
   }
   get detailed() { return !!this._want; }
+  // đang đi 0…1 trượt mượt (~0.25 s) để dáng đứng ↔ đi chuyển dần, không giật
+  _mv(p, dt) { return (p._mv = p._mv === undefined ? +!!p.moving : p._mv + (+!!p.moving - p._mv) * Math.min(1, dt * 8)); }
   // mép đường tại s: map Landmark co / nở theo đoạn (road.widths); map khác giữ CITY.hw như cũ (kể cả Đại lộ)
   _hw(s) { return this.road.widths ? this.road.hwAt(s) : CITY.hw; }
 
@@ -411,7 +462,7 @@ export class CityPeople {
       if (det && !p.kind) { MD.add(p.mdl ??= Math.floor(Math.random() * NM), m, p.ph, p.moving); continue; }
       this.mesh.setMatrixAt(i, m);
       this.mesh.setColorAt(i, this._c.set(p.color));
-      this.phase.setXYZ(i, p.ph, p.moving, p.acc || 0);
+      this.phase.setXYZ(i, p.ph, this._mv(p, dt), (p.acc || 0) + (p.chatT > 0 ? 4 : 0) + (p.mode === 'fallen' ? 8 : 0));
       i++;
     }
     // đám đông ngoài (Times Square): [{ x, y, z, fx, fz (hướng nhìn), color, ph, moving, acc }] đã lọc gần camera
@@ -420,10 +471,11 @@ export class CityPeople {
       q.setFromEuler(this._e.set(0, Math.atan2(-p.fx, -p.fz), 0)); v.set(p.x, p.y, p.z);
       m.compose(v, q, this._one);
       if (det) { MD.add(p.mdl ??= Math.floor(Math.random() * NM), m, p.ph, p.moving); continue; }
-      this.mesh.setMatrixAt(i, m); this.mesh.setColorAt(i, this._c.set(p.color)); this.phase.setXYZ(i, p.ph, p.moving, p.acc);
+      this.mesh.setMatrixAt(i, m); this.mesh.setColorAt(i, this._c.set(p.color)); this.phase.setXYZ(i, p.ph, this._mv(p, dt), p.acc);
       i++;
     }
     this.mesh.count = i;
+    this.walk.uTime.value = (this.walk.uTime.value + dt) % 3600;
     if (det) MD.end();
     MD.visible = det;
     this.mesh.instanceMatrix.needsUpdate = true;

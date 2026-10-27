@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -515,6 +515,13 @@
   quanh vai), trọng số chân / tay mỗi đỉnh (`aLimb`) => shader đung đưa theo pha bước, hạ người khi xoạc chân. Tham số từng model ở `PEOPLE_MODELS`.
   Mỗi model × vật liệu = 1 InstancedMesh (~70 lượt vẽ). Người kịch bản (cảnh sát / cấp cứu / người lái) vẫn dùng người hộp (đồng phục).
   Fixture: `node scripts/shot-people.mjs [id,…]`; `shot-nyc.mjs` nhận `PEOPLE3D=1`. Không có điện thoại / tai nghe trên model 3D.
+  **Dáng người hộp theo clip nhân vật chính** (`src/pedWalk.js`): lúc bật map có người, tải person.glb (đã đệm) và nướng Walk_Loop /
+  Idle_Loop / Idle_Talking_Loop (30 khung) ra texture ma trận 15 xương (đùi, cẳng, giày, cánh tay, cẳng tay, bàn tay, thân, đầu; delta quay
+  so với bind chữ T, khớp tính lại theo chiều dài khúc người hộp, mỗi khung nâng / hạ cho giày chạm đất) × có / không cầm điện thoại (tay phải
+  gập trước ngực theo ngực). Shader đọc `texelFetch` theo `aBone`: đi = pha bước (`aWalk.x`, vòng clip 1.21 m = đúng nhịp 5.2 rad/m cũ),
+  đứng = Idle (nói chuyện: Idle_Talking) theo `uTime` lệch pha mỗi người, chuyển đứng ↔ đi mượt (`_mv`, ~0.25 s); `aWalk.z` = đồ dùng + 4 · nói
+  chuyện + 8 · nằm (người bị đâm giữ dáng thẳng). Chưa nướng xong / lỗi => dáng tự làm cũ. Đám đông Times Square dùng chung. Shadow vẫn dáng
+  đứng thẳng (như trước). Người 3D (`streetModels`) chưa theo clip. `node scripts/check-ped-walk.mjs` kiểm bản nướng.
   **Người đi bộ thêm**: ~16% bấm điện thoại (tay phải đưa ra trước 0.75 rad trong shader, điện thoại nằm dưới bàn tay; thỉnh
   thoảng đứng lại 3–9 s), ~14% đeo tai nghe trắng (đỉnh `aAcc` ẩn khi không dùng; `aWalk.z` = đồ dùng). Hai người ngược chiều
   gặp nhau cùng vỉa hè (≤ 1.6 m) => 35% dừng nói chuyện 6–16 s, quay mặt vào nhau (hồi 25 s). Tiếng nói không chữ:
@@ -609,3 +616,5 @@
   ngả lưng + IK chân / tay đè lên => bỏ cho Người lái như Nam. Chưa xem trong game — chú tự test.
 - **#1 — Landmark: nhà / sông / cây thật từ urban:EXPORT (27/10/2026)**: DeepSeek free; check-sgn-city / sgn / trees / nyc PASS. Chưa xem hình — chú tự test.
 - **#2 — Landmark: nhà phố Việt Nam xen kẽ (27/10/2026)**: worker free (bị ngắt giữa chừng, code dùng được), Claude sửa 6 lỗi; check PASS. Chú tự test.
+- **#3 — Người NPC đi theo clip của nhân vật chính (28/10/2026)**: Claude tự làm (nướng clip ra texture + shader); shader kiểm bằng glslangValidator,
+  check-ped-walk / nyc / ped-yield / traffic / sgn-park / nyc-sidecam PASS. Chưa xem hình — chú tự test.
