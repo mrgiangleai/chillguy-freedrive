@@ -6,6 +6,7 @@ import { hLow } from './terrain-noise.js';
 import { houseGeometry } from './town.js';
 import { broadleafGeometry } from './scenery.js';
 import { usPedAtlas } from './usPedAtlas.js';
+import { vnPlace } from './vnHouses.js';
 
 // Map Phố (kiểu phố Nhật): dựng theo từng "khối phố" n = đoạn đường giữa ngã tư n và n+1 (road.junction).
 // Mỗi khối: đường ngang + vỉa hè + vạch kẻ của ngã tư n, vạch kẻ đường chính trong khối, vỉa hè hai bên, nhà (dãy mặt tiền,
@@ -295,6 +296,8 @@ export class City {
     this.scene = scene;
     this.road = road;
     this.roadMat = roadMat;
+    this.vnHouses = null;
+    this.vnHouse = null;
     this.group = new THREE.Group();
     this.group.visible = false;
     scene.add(this.group);
@@ -802,6 +805,7 @@ export class City {
     const B = [];             // [x, z, yaw, w, h, d, type, seed, shop, row, color, house, base, plinth]
     const obb = [];           // cho camera: [x, z, cos, sin, nửa rộng, nửa sâu, đỉnh]
     const signs = [], vends = [];
+    const vnPlacements = [];
     const r = rng(n * 7919 + 17);
     const floors = (type, far) => {
       const k = r();
@@ -909,6 +913,23 @@ export class City {
         const u = su * (FRONT + d / 2 + (this.street ? this.road.hwAt(s + w / 2) - HW : 0));
         const x = p.x + Math.cos(p.th) * u, z = p.z - Math.sin(p.th) * u;
         const yaw = p.th + (su > 0 ? -Math.PI / 2 : Math.PI / 2);
+        // map Landmark: một số đoạn thay nhà dựng code bằng nhà phố Việt Nam (GLB, vnHouses.js) — mặt tiền thẳng hàng dãy phố, có obb camera.
+        // Model chưa tải xong => dựng nhà thường như cũ (không dựng lại sau)
+        if (this.vnHouse && this.vnHouses?.loaded && w >= 4 && this.vnHouse(s + w / 2) && r() < 0.5) {
+          const placed = vnPlace(w, r);
+          if (placed.length) {
+            const along = [-Math.sin(p.th), -Math.cos(p.th)];          // hướng tiến của đường (dọc mặt tiền)
+            for (const pl of placed) {
+              const M = this.vnHouses.models[pl.model], sc = pl.scale * M.baseScale, dep = M.depth * sc, wid = M.width * sc;
+              const uh = su * (FRONT + dep / 2 + (this.street ? this.road.hwAt(s + w / 2) - HW : 0));
+              const cx = p.x + Math.cos(p.th) * uh + along[0] * pl.offset, cz = p.z - Math.sin(p.th) * uh + along[1] * pl.offset;
+              vnPlacements.push([cx, p.y + WALK_Y, cz, yaw, pl.model, pl.scale]);
+              obb.push(cx, cz, Math.cos(yaw), Math.sin(yaw), wid / 2, dep / 2, p.y + WALK_Y + M.height * sc);
+            }
+            s += w + (r() < 0.3 ? 0.4 + r() * 1.2 : 0.05);
+            continue;
+          }
+        }
         const type = pickType(true), shop = type !== 3 && r() < 0.8;
         const g0 = p.y + WALK_Y;
         const h = add(x, z, yaw, w, d, type, shop, false, g0);
@@ -1166,6 +1187,12 @@ export class City {
     }
     if (cJ) this._signals(group, FcJ, () => FcJ.y, true);
     else this._signals(group, F, gJ);
+    // VN houses
+    if (vnPlacements.length > 0 && this.vnHouses) {
+      const vnGroup = new THREE.Group();
+      const ok = this.vnHouses.buildChunk(vnGroup, vnPlacements);
+      if (ok && vnGroup.children.length > 0) group.add(vnGroup);
+    }
     this.group.add(group);
     return group;
   }

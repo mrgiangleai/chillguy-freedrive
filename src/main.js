@@ -11,6 +11,7 @@ import { NycBuildings } from './nycBuildings.js';
 import { NycStreetProps } from './nycStreet.js';
 import { NycStreetNet } from './nycNet.js';
 import { NycSound } from './nycSound.js';
+import { VnHouses } from './vnHouses.js';
 // mặc định của game = bộ cài đặt chú chỉnh trên Safari (xuất localStorage 21/10/2026): người chơi mới nhận bộ này,
 // nút "Mặc định" trong các bảng chỉnh trả về số của bộ này (không phải số gốc trong code)
 import DEF from './default-settings.json' with { type: 'json' };
@@ -144,6 +145,8 @@ const wipers = new Wipers();
 const fireflies = new Fireflies(scene);
 const town = new ValleyTown(scene);           // map núi: thị trấn + đèn đường dưới thung lũng
 const city = new City(scene, road, scenery.roadMat, scenery);
+const vnHouses = new VnHouses();
+city.vnHouses = vnHouses;
 scenery.extraLamps = () => city.lamps();   // map Phố: nhà, vỉa hè, ngã tư, vạch kẻ
 rig.collide = (pos, cam, dt) => city.collide(pos, cam, dt);
 const dash = new DashScreen();                // màn hình giải trí trên taplo (hắt sáng lên người lái)
@@ -519,6 +522,13 @@ function applyTrafficTune() {
   city.clockRate = 1 / trafficTune.signal;
   cityTraffic.useModels = !!trafficTune.models;
   if (!trafficTune.models) cityTraffic.releaseModels();
+  if (onSgn()) {
+    city.vnHouse = (s) => sgnVnHouse(s);
+    // start loading when entering map sgn
+    if (vnHouses && vnHouses.ready) { /* already started */ }
+  } else {
+    city.vnHouse = null;
+  }
 }
 // thông số chỉnh tay (bảng camera / thời tiết / thời gian / Lighting / dừng xe) lưu RIÊNG cho Chill và Drive: đổi nhóm map
 // (applyMap) => cất bộ đang dùng, nạp bộ của nhóm kia. Giao thông chỉ có ở Drive; sương có bộ riêng trong mistTune.
@@ -931,6 +941,24 @@ function sgnNoHouse(x, z) {
     for (let k = 0; k < a.length; k += 2) if ((a[k] - x) ** 2 + (a[k + 1] - z) ** 2 < 70 * 70) return true;
   }
   return false;
+}
+
+function sgnVnHouse(s) {
+  if (!onSgn()) return false;
+  const [hx, hz] = sgnCircleCenter();
+  const L = SGN.length;
+  let P = {};
+  try { if (road.street) road.street.at(L + s, P); else if (road.at) road.at(L + s, P); } catch {}
+  const x = P.x || 0, z = P.z || 0;
+  if ((x - hx) ** 2 + (z - hz) ** 2 < 1225 * 1225) return false; // inside urban circle
+  try { if (typeof inPoly === 'function' && inPoly(x, z, SGN.data.vinhomes)) return false; } catch {}
+  if ((x - SGN.data.landmark81[0]) ** 2 + (z - SGN.data.landmark81[1]) ** 2 < 380 * 380) return false;
+  if ((x - SGN.data.landmark81[0]) ** 2 + (z - SGN.data.landmark81[1]) ** 2 < 1560 * 1560 && s >= 380 && s <= 1560) return false;
+  const idx = Math.floor((((s % L) + L) % L) / 300);          // theo vị trí trong vòng (mỗi vòng giống nhau)
+  // deterministic hash
+  let h = Math.imul(idx + 131542391, 1000000009);
+  h = ((h ^ (h >>> 13)) >>> 0);
+  return (h % 10000) / 10000 < 0.45;
 }
 // Landmark: dưới tốc độ luôn hiện đường + khu đang ở; đổi đường / khu => chữ lớn giữa màn hình (khu mới: tên khu, dòng dưới tên đường)
 let sgnName = null, sgnArea = null, placeT = 0;
