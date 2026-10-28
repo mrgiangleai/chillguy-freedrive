@@ -4,7 +4,7 @@
 
 > Đọc trước khi sửa. Xong: 1 dòng **Nhật ký** + tăng bộ đếm; đủ 10 => gộp vào mục trạng thái, đặt lại 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 18/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 19/10**
 
 ## 1. Tổng quan
 
@@ -146,3 +146,4 @@
 - **#16 — (28/10/2026)**: sao 1 200, lấp lánh chậm (0.25–0.7 rad/s). Vệt đèn trên hồ Đà Lạt: bỏ cách lấy từ ảnh phản chiếu (lệch chỗ), thay `dalatScene.updateStreaks` — quad instanced mỗi bóng đèn tại giao điểm tia camera → ảnh ảo (x, 2y0 − y, z) với mặt nước, kéo dài về phía camera, mặt nạ hồ, cộng sáng × `water.lamp` × mức bật đèn.
 - **#17 — Đà Lạt (28/10/2026)**: mảng sáng lạ trên hồ = quầng / vũng sáng giả đèn đường (cộng sáng) lọt vào `lakeRefl` => ẩn `scenery.glowMat` / `poolMat` khi vẽ phản chiếu, ảnh phản chiếu cắt ≤ 1.
 - **#18 — (28/10/2026)**: bỏ vệt đèn trên hồ (`updateStreaks`, chỉ thấy chấm bóng đèn, chú bỏ). Phạm vi đèn đường thật: thanh tới 800 m, mặc định `range` 800.
+- **#19 — Đà Lạt ánh sáng giả đèn đường (28/10/2026)**: `FAKE_LIGHT` + `addFakeLight(terrain.mat / scenery.roadMat)`: ảnh 1024² (canvas, mỗi bóng đèn 1 vệt tròn bán kính `fakeR` 18 m, cộng dồn) phủ ±1300 m; shader cộng màu đèn × albedo × `fakeK` (3) × mức bật đèn vào emissive. Vẽ lại mỗi 1 s khi số đèn / bán kính đổi. 💡 Lighting (chỉ Đà Lạt): 'Ánh sáng giả quanh cột' (0 = tắt), 'Bán kính'. Bỏ vũng sáng decal ở Đà Lạt.

@@ -86,6 +86,26 @@ export function dalatTreeMix(T) {
   return out;
 }
 
+// ánh sáng giả của đèn đường (Đà Lạt, ban đêm): ảnh xám 1024² phủ khung uFakeB, mỗi cột đèn 1 vệt tròn mềm bán kính R m (cộng dồn);
+// shader mặt đất + mặt đường cộng thêm màu đèn × albedo × độ sáng => nhìn từ xa vẫn thấy cả vòng hồ sáng mà không cần đèn thật
+export const FAKE_LIGHT = { uFakeTex: { value: null }, uFakeB: { value: new THREE.Vector4(-1300, -1300, 1300, 1300) }, uFakeK: { value: 0 }, uFakeCol: { value: new THREE.Color(1, 0.8, 0.55) } };
+export function addFakeLight(mat) {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = function (sh, r) {
+    if (prev) prev.call(this, sh, r);
+    Object.assign(sh.uniforms, FAKE_LIGHT);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vFakeW;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvFakeW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vFakeW;\nuniform sampler2D uFakeTex;\nuniform vec4 uFakeB;\nuniform float uFakeK;\nuniform vec3 uFakeCol;')
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      if (uFakeK > 0.0) {
+        vec2 fu = (vFakeW.xz - uFakeB.xy) / (uFakeB.zw - uFakeB.xy);
+        if (fu.x > 0.0 && fu.y > 0.0 && fu.x < 1.0 && fu.y < 1.0) totalEmissiveRadiance += uFakeCol * diffuseColor.rgb * texture2D(uFakeTex, fu).r * uFakeK;
+      }`);
+  };
+  mat.needsUpdate = true;
+}
+
 let LOOP = null;
 export function dalatLoop() {
   if (LOOP) return LOOP;
@@ -307,6 +327,29 @@ export class DalatScene {
     });
     return out;
   }
+  // vẽ lại ảnh ánh sáng giả khi số đèn / bán kính đổi. lamps: mảng [x, y, z] bóng đèn (chunk scenery, cả vòng hồ)
+  updateFakeLight(lamps, R) {
+    const key = lamps.length + ':' + R;
+    if (key === this._fakeKey) return;
+    this._fakeKey = key;
+    const N = 1024, B = FAKE_LIGHT.uFakeB.value, sx = N / (B.z - B.x), sz = N / (B.w - B.y);
+    const cv = this._fakeCv || (this._fakeCv = document.createElement('canvas')); cv.width = cv.height = N;
+    const c = cv.getContext('2d');
+    c.globalCompositeOperation = 'source-over'; c.fillStyle = '#000'; c.fillRect(0, 0, N, N);
+    c.globalCompositeOperation = 'lighter';
+    const seen = new Set(), rp = Math.max(2, R * sx);
+    for (const [x, , z] of lamps) {
+      const k = Math.round(x) + ',' + Math.round(z); if (seen.has(k)) continue; seen.add(k);     // chunk trùng vòng
+      const px = (x - B.x) * sx, pz = (z - B.y) * sz, g = c.createRadialGradient(px, pz, 0, px, pz, rp);
+      g.addColorStop(0, 'rgba(255,255,255,0.95)'); g.addColorStop(0.35, 'rgba(255,255,255,0.45)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = g; c.fillRect(px - rp, pz - rp, rp * 2, rp * 2);
+    }
+    if (!FAKE_LIGHT.uFakeTex.value) {
+      const t = new THREE.CanvasTexture(cv); t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false;
+      FAKE_LIGHT.uFakeTex.value = t;
+    } else FAKE_LIGHT.uFakeTex.value.needsUpdate = true;
+  }
+
   // impostor: chụp model cây (nhìn ngang, ánh sáng đều) vào ảnh 256 × 400 có kênh alpha => 2 tấm chéo nhau, pháp tuyến hướng lên
   // (sáng đều mọi hướng nắng). Gốc (0, 0, 0), cao 1 m như model đã chuẩn hoá
   _impostor(parts) {

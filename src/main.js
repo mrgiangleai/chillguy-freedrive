@@ -6,7 +6,7 @@ import { NYC, NYC_DIM, nycLoop, nycStreet, NycWorks } from './nyc.js';
 import { SGN, sgnLoop, sgnStreet, sgnZone, SgnScene } from './sgn.js';
 import { SgnEnv } from './sgnEnv.js';
 import { SgnCity } from './sgnCity.js';
-import { DALAT, dalatLoop, dalatDem, DalatScene, WATER_DROP } from './dalat.js';
+import { DALAT, dalatLoop, dalatDem, DalatScene, WATER_DROP, FAKE_LIGHT, addFakeLight } from './dalat.js';
 import { Diag } from './diag.js';
 import { TimesSquare } from './timesSquare.js';
 import { NycBuildings } from './nycBuildings.js';
@@ -96,6 +96,7 @@ camera.layers.enable(3);   // layer 3: mặt đường, cỏ, cây, mưa — ch�
 const road = new Road();
 const scenery = new Scenery(scene, road, renderer);
 const terrain = new Terrain(scene, road, renderer);
+addFakeLight(terrain.mat); addFakeLight(scenery.roadMat);   // ánh sáng giả đèn đường (map Đà Lạt; map khác uFakeK = 0)
 const env = new Environment(renderer, scene, camera);
 env.starPx = renderer.getPixelRatio();          // cỡ sao theo độ phân giải (điện thoại ×2–3)
 const reeds = new ReedField(scene, renderer);
@@ -183,6 +184,7 @@ sgnScene.place = () => {
 };
 const sgnEnv = new SgnEnv(scene, (x, z) => terrain.heightAt(x, z));       // map Landmark: khu Vinhomes (tháp chung cư, biệt thự, công viên, hồ, sông, cây — OSM)
 const sgnCity = new SgnCity(scene, (x, z) => terrain.heightAt(x, z));     // nhà / sông / cây thật quanh Landmark 81 (urban:EXPORT)
+let fakeT = 1;
 const diag = new Diag();                                                 // chẩn đoán map Đà Lạt (tạm thời, tới khi hết đơ)
 let diagTris = '';
 diag.info = () => diagTris;
@@ -844,6 +846,7 @@ const applyMap = () => {
   $('b-trees').hidden = $('b-water').hidden = !isDalat;
   if ((tuneKind === 'trees' || tuneKind === 'water') && !isDalat) closeTune();
   dalatScene.visible = isDalat;
+  if (!isDalat) FAKE_LIGHT.uFakeK.value = 0;
   dm('dalatScene.visible');
   if (isSgn) { sgnEnv.onReady(); sgnCity.onReady(); }           // camera không xuyên tháp / nhà thật (khi đã tải)
   fireflies.ground.clear();     // độ cao mặt đất nhớ theo hình đường cũ
@@ -1654,7 +1657,7 @@ renderTune = () => {
     addColor({ label: 'Màu đèn pha', get: () => H.color, set: (v) => { H.color = v; } });
     addHeading('Đèn đường');
     [['intensity','Cường độ',0,500,1],['distance','Tầm phủ (m)',10,250,1],['angle','Góc mở (rad)',.1,1.55,.01],['glowOpacity','Độ sáng quầng',0,2,.01],['glowSize','Kích thước quầng',1,24,.1],
-      ['range','Phạm vi đèn sáng thật quanh camera (m)',20,800,10], [onDalat() ? 'countDalat' : 'count', 'Số đèn sáng thật' + (onDalat() ? ' (Đà Lạt)' : '') + ' — nhiều thì nặng', 0, 24, 1]]
+      ['range','Phạm vi đèn sáng thật quanh camera (m)',20,800,10], ...(onDalat() ? [['fakeK','Ánh sáng giả quanh cột (Đà Lạt, 0 = tắt)',0,12,0.1], ['fakeR','Bán kính ánh sáng giả (m)',5,40,1]] : []), [onDalat() ? 'countDalat' : 'count', 'Số đèn sáng thật' + (onDalat() ? ' (Đà Lạt)' : '') + ' — nhiều thì nặng', 0, 24, 1]]
       .forEach(([key,label,min,max,step]) => addNumber({ label,min,max,step,get:()=>Lp[key] ?? STREETLIGHT_DEFAULTS[key],set:(v)=>{ Lp[key]=v; } }));
     addColor({ label: 'Màu đèn đường', get: () => Lp.color, set: (v) => { Lp.color = v; } });
     addHeading('Map Phố');
@@ -2366,6 +2369,8 @@ function frame(now) {
   if (sgnEnv.visible) { sgnEnv.winK = lightTune.windows; sgnEnv.setLamps(st.lamps); sgnEnv.update(dt, camera.position); }
   if (sgnCity.visible) sgnCity.setLamps(st.lamps * lightTune.windows);
   if (dalatScene.visible) { dalatScene.setLamps(st.lamps * lightTune.windows); diag.lap('trước dalatScene'); dalatScene.update(dt, camera.position);
+    if ((fakeT += dt) > 1) { fakeT = 0; const L = []; for (const c of scenery.chunks.values()) for (const l of c.userData.lamps || []) L.push(l[0]); dalatScene.updateFakeLight(L, scenery.lampTune.fakeR ?? 18); }
+    FAKE_LIGHT.uFakeK.value = (scenery.lampTune.fakeK ?? 3) * scenery.lampOn; FAKE_LIGHT.uFakeCol.value.set(scenery.lampTune.color);
     diag.lap('dalatScene'); }
   if (sgnScene.visible) sgnScene.setLamps(st.lamps * lightTune.signs);   // LED dọc Landmark 81 theo đèn đêm × "biển hiệu" bảng Lighting
   if (sgnWorks.visible) { sgnWorks.setLamps(st.lamps); sgnWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
