@@ -54,7 +54,8 @@ function pineGeometry() {
 
 // cài đặt cây (bảng 🌲 Cây, chỉ map Đà Lạt; lưu `chilldrive.dalat.trees`): bật / tắt, mật độ %, bán kính cây GLB chi tiết (m),
 // khoảng cách xa nhất còn vẽ cây nón (m), số cây GLB tối đa. Mặc định thấp vì máy điện thoại treo khi vẽ đủ 20 485 cây + 129 cây GLB × 11k tam giác
-export const DALAT_TREE_DEFAULTS = { high: { on: 1, density: 100, lodR: 60, far: 700, maxHi: 120 }, low: { on: 1, density: 60, lodR: 30, far: 400, maxHi: 40 } };
+export const DALAT_TREE_DEFAULTS = { high: { on: 1, model3d: 0, density: 100, lodR: 60, far: 700, maxHi: 120 }, low: { on: 1, model3d: 0, density: 60, lodR: 30, far: 400, maxHi: 40 } };
+// model3d = 1: cây xa cũng là model 3D chú đưa (bản nhẹ pine-far.glb ~1.6k tam giác, không đổ bóng) thay cây nón demo
 const TREE_KEY = 'chilldrive.dalat.trees', HI_CAP = 1500;
 
 export class DalatScene {
@@ -63,10 +64,18 @@ export class DalatScene {
     this.groundAt = groundAt;
     this.group = new THREE.Group(); this.group.visible = false; scene.add(this.group);
     this.trees = new THREE.Group(); this.group.add(this.trees);
+    this.cones = new THREE.Group(); this.farModels = new THREE.Group(); this.trees.add(this.cones, this.farModels);
     this.state = 'idle';
     this.lampU = { value: 0 };
     this.lodU = { value: new THREE.Vector3(0, 0, 0) };   // (x, z, R) — tâm + bán kính vùng GLB lúc chia gần nhất (shader nón bỏ cây trong vùng)
     this.kU = { value: new THREE.Vector2(1, 700) };      // (mật độ 0..1, khoảng cách xa nhất cây nón)
+    // shader cây xa (nón / model nhẹ): bỏ cây trong vùng GLB chi tiết (lodU), xa hơn kU.y, hoặc aRnd > mật độ kU.x
+    this._lodHook = (sh) => {
+      sh.uniforms.uDalatLod = this.lodU; sh.uniforms.uDalatK = this.kU;
+      sh.vertexShader = 'uniform vec3 uDalatLod;\nuniform vec2 uDalatK;\nattribute float aRnd;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+        { vec2 ip = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz - uDalatLod.xy; float d2 = dot(ip, ip);
+          if (d2 < uDalatLod.z * uDalatLod.z || d2 > uDalatK.y * uDalatK.y || aRnd > uDalatK.x) transformed *= 0.0; }`);
+    };
     this.onLake = null;                        // (tex, bounds) khi tách xong mặt hồ Xuân Hương (main => ocean.setLake)
     this.lake = null;
     this.jobs = [];                            // việc dựng chia nhỏ, mỗi khung làm tới ~6 ms (vào map không đứng hình)
@@ -89,6 +98,8 @@ export class DalatScene {
     const T = this.tune;
     T.maxHi = Math.min(HI_CAP, Math.max(0, Math.round(T.maxHi)));
     this.trees.visible = !!T.on;
+    this.cones.visible = !T.model3d; this.farModels.visible = !!T.model3d;
+    if (T.model3d) this._buildFar();
     this.kU.value.set(T.density / 100, T.far);
     this._lodAt = null;                                              // chia lại ngay khung sau
     if (save) try { localStorage.setItem(TREE_KEY, JSON.stringify(T)); } catch { /* chế độ riêng tư */ }
@@ -103,6 +114,7 @@ export class DalatScene {
     fetch('assets/dalat/dalat-streets.json').then((r) => r.json()).then((S) => { got('streets.json'); job(`dải đường (${S.s.length})`, () => this._streets(S.s)); }).catch((e) => console.warn('dalat-streets', e));
     fetch('assets/dalat/dalat-trees.json').then((r) => r.json()).then((T) => { got('trees.json'); job('mảng cây', () => this._trees(T)); }).catch((e) => console.warn('dalat-trees', e));
     loader.load('assets/models/dalat/pine.glb', (gltf) => { got('pine.glb'); job('cây GLB', () => this._pine(gltf.scene)); }, undefined, (e) => console.warn('dalat-pine', e));
+    loader.load('assets/models/dalat/pine-far.glb', (gltf) => { got('pine-far.glb'); job('cây GLB xa', () => { this.farParts = this._extract(gltf.scene); this._buildFar(); }); }, undefined, (e) => console.warn('dalat-pine-far', e));
   }
 
   _city(root) {
@@ -179,10 +191,20 @@ export class DalatScene {
 
   // cây thông GLB ("pine tree" — bolojun, Sketchfab, CC-BY-SA-4.0; simplify 12 % + WebP 512 + meshopt): chuẩn hoá cao 1 m, gốc thân về (0, 0, 0)
   _pine(root) {
+    this.pineParts = this._extract(root).map(({ g, m }) => {
+      const im = new THREE.InstancedMesh(g, m, HI_CAP);
+      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      im.count = 0; im.frustumCulled = false; im.castShadow = true; im.receiveShadow = true;
+      this.trees.add(im); return im;
+    });
+    this._lodAt = null;
+  }
+  // gộp transform vào geometry, chuẩn hoá cao 1 m, gốc thân về (0, 0, 0); lá trong suốt => cắt alpha + 2 mặt
+  _extract(root) {
     root.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(root), k = 1 / ((box.max.y - box.min.y) || 1);
     const norm = new THREE.Matrix4().makeScale(k, k, k).multiply(new THREE.Matrix4().makeTranslation(-(box.min.x + box.max.x) / 2, -box.min.y, -(box.min.z + box.max.z) / 2));
-    const parts = [];
+    const out = [];
     root.traverse((o) => {
       if (!o.isMesh) return;
       const g = o.geometry.clone();
@@ -196,13 +218,36 @@ export class DalatScene {
       const m = o.material.clone();
       if (m.transparent || m.alphaTest > 0) { m.alphaTest = 0.5; m.transparent = false; m.depthWrite = true; }
       m.side = THREE.DoubleSide; m.shadowSide = THREE.DoubleSide;
-      const im = new THREE.InstancedMesh(g, m, HI_CAP);
-      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      im.count = 0; im.frustumCulled = false; im.castShadow = true; im.receiveShadow = true;
-      this.trees.add(im); parts.push(im);
+      out.push({ g, m });
     });
-    this.pineParts = parts;
-    this._lodAt = null;
+    return out;
+  }
+  // cây xa bằng model nhẹ: dựng theo ô 300 m (mỗi ô 1 việc) khi bật model3d và đã có cả mảng cây + model
+  _buildFar() {
+    if (this._farBuilt || !this.farParts || !this.cells || !this.tune.model3d) return;
+    this._farBuilt = true;
+    const parts = this.farParts.map(({ g, m }, k) => {
+      const mm = m.clone(); mm.onBeforeCompile = this._lodHook; mm.customProgramCacheKey = () => 'dalat-far-' + k;
+      return { g, m: mm };
+    });
+    for (const idx of this.cells) this.jobs.push({ name: 'ô cây model xa', quiet: true, f: () => {
+      const rnd = new Float32Array(idx.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), sc = new THREE.Vector3();
+      const ims = parts.map(({ g, m }) => {
+        const gg = new THREE.BufferGeometry();
+        for (const name of Object.keys(g.attributes)) gg.setAttribute(name, g.attributes[name]);
+        if (g.index) gg.setIndex(g.index);
+        return new THREE.InstancedMesh(gg, m, idx.length);
+      });
+      idx.forEach((i, n) => {
+        const h = this.th[i] * (0.9 + ((i * 7919) % 100) / 500);
+        q.setFromAxisAngle(up, (i * 2.399) % 6.283);
+        m4.compose(p.set(this.tx[i], this.ty[i], this.tz[i]), q, sc.set(h, h, h));
+        for (const im of ims) im.setMatrixAt(n, m4);
+        rnd[n] = this.trnd[i];
+      });
+      const attr = new THREE.InstancedBufferAttribute(rnd, 1);
+      for (const im of ims) { im.geometry.setAttribute('aRnd', attr); im.receiveShadow = true; im.computeBoundingSphere(); this.farModels.add(im); }
+    } });
   }
 
   // mỗi khung: làm việc dựng còn chờ (≤ ~6 ms); camera đi > 8 m (hoặc 0.6 s) => chia lại cây gần (GLB, gần nhất trước, tối đa maxHi) / xa (nón)
@@ -248,12 +293,7 @@ export class DalatScene {
   // shader bỏ cây trong vùng GLB (lodU), xa hơn kU.y, hoặc số ngẫu nhiên aRnd > mật độ kU.x
   _trees(T) {
     const geo = pineGeometry(), mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
-    const lodU = this.lodU, kU = this.kU, lodHook = (sh) => {
-      sh.uniforms.uDalatLod = lodU; sh.uniforms.uDalatK = kU;
-      sh.vertexShader = 'uniform vec3 uDalatLod;\nuniform vec2 uDalatK;\nattribute float aRnd;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
-        { vec2 ip = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz - uDalatLod.xy; float d2 = dot(ip, ip);
-          if (d2 < uDalatLod.z * uDalatLod.z || d2 > uDalatK.y * uDalatK.y || aRnd > uDalatK.x) transformed *= 0.0; }`);
-    };
+    const lodHook = this._lodHook;
     mat.onBeforeCompile = lodHook;
     mat.customProgramCacheKey = () => 'dalat-cone';
     const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }); depth.onBeforeCompile = lodHook;
@@ -271,7 +311,9 @@ export class DalatScene {
       const ck = Math.floor(x / 300) + ',' + Math.floor(z / 300);
       (cells.get(ck) || cells.set(ck, []).get(ck)).push(k);
     }
-    for (const idx of cells.values()) this.jobs.push({ name: 'ô cây nón', quiet: true, f: () => {
+    this.cells = [...cells.values()];
+    this._buildFar();
+    for (const idx of this.cells) this.jobs.push({ name: 'ô cây nón', quiet: true, f: () => {
       const g = new THREE.BufferGeometry();
       for (const name of Object.keys(geo.attributes)) g.setAttribute(name, geo.attributes[name]);
       const rnd = new Float32Array(idx.length);
@@ -285,7 +327,7 @@ export class DalatScene {
       g.setAttribute('aRnd', new THREE.InstancedBufferAttribute(rnd, 1));
       im.castShadow = true; im.receiveShadow = true; im.customDepthMaterial = depth;
       im.computeBoundingSphere();
-      this.trees.add(im);
+      this.cones.add(im);
     } });
     this._lodAt = null;
   }

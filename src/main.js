@@ -1562,11 +1562,12 @@ renderTune = () => {
     $('tune-title').textContent = 'Cây · Đà Lạt';
     const T = dalatScene.tune, put = (k) => (v) => dalatScene.setTune({ [k]: v });
     addToggle({ label: 'Hiện cây', get: () => T.on, set: put('on') });
+    addToggle({ label: 'Cây xa', get: () => T.model3d, set: put('model3d'), names: ['Demo (nón)', 'Model 3D'] });
     addNumber({ label: 'Mật độ cây (%)', min: 0, max: 100, step: 5, get: () => T.density, set: put('density') });
     addNumber({ label: 'Cây model chi tiết trong (m)', min: 0, max: 200, step: 5, get: () => T.lodR, set: put('lodR') });
     addNumber({ label: 'Số cây chi tiết tối đa', min: 0, max: 1500, step: 10, get: () => T.maxHi, set: put('maxHi') });
     addNumber({ label: 'Vẽ cây xa tới (m)', min: 50, max: 2500, step: 50, get: () => T.far, set: put('far') });
-    addHeading('Cây chi tiết ~11k tam giác/cây, cây xa (nón) ~80 tam giác/cây');
+    addHeading('Cây chi tiết ~11k tam giác/cây; cây xa: nón ~80, model 3D nhẹ ~1.6k tam giác/cây');
     return;
   }
   if (tuneKind === 'nature') {

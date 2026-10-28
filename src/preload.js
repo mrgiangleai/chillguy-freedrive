@@ -13,7 +13,7 @@ const BY_MAP = {
   avenue: ['assets/tex/ocean-waves.png'],
   hlg: ['assets/tex/ocean-waves.png', 'assets/hlg-env.json'],
   nyc: ['assets/nyc-buildings.json', 'assets/nyc-streets.json'],
-  dalat: ['assets/models/dalat/pine.glb', 'assets/dalat/dalat-city.glb', 'assets/dalat/dalat-trees.json', 'assets/dalat/dalat-streets.json'],
+  dalat: ['assets/models/dalat/pine.glb', 'assets/models/dalat/pine-far.glb', 'assets/dalat/dalat-city.glb', 'assets/dalat/dalat-trees.json', 'assets/dalat/dalat-streets.json'],
   sgn: ['assets/models/sgn/landmark81.glb', 'assets/sgn-env.json',
     'assets/sgn-city.bin', 'assets/sgn-city.json', 'assets/sgn-water.json', 'assets/sgn-ue-trees.json',
     'assets/models/sgn/trees/acacia.glb', 'assets/models/sgn/trees/maple.glb', 'assets/models/sgn/trees/palm-fan.glb',
