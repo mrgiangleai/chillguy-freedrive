@@ -624,6 +624,7 @@ function refreshUI() {
   $('b-lighting').classList.toggle('on', tuneKind === 'lighting');
   $('b-animals').classList.toggle('on', tuneKind === 'animals');
   $('b-nature').classList.toggle('on', tuneKind === 'nature');
+  $('b-trees').classList.toggle('on', tuneKind === 'trees');
   $('b-park').classList.toggle('on', tuneKind === 'park');
   setBtn($('b-people'), '🚶', 'Người 3D: ' + (cityPeople.detailed ? 'Bật' : 'Tắt'));
   $('b-people').classList.toggle('on', cityPeople.detailed);
@@ -814,8 +815,9 @@ const applyMap = () => {
   sgnCity.visible = isSgn;                                     // bắt đầu tải trước khi sgnEnv dựng cây
   sgnEnv.visible = isSgn;
   const dalatLow = state.quality === QUALITY.findIndex((q) => q.id === 'low');
-  dalatScene.treeStride = dalatLow ? 2 : 1;   // Low: nửa số cây (áp dụng khi dựng lần đầu)
-  dalatScene.lodR = dalatLow ? 45 : 90;        // cây thông GLB chi tiết quanh camera
+  dalatScene.loadTune(dalatLow);               // cài đặt cây (bảng 🌲 Cây; chưa lưu => mặc định theo chất lượng)
+  $('b-trees').hidden = !isDalat;
+  if (tuneKind === 'trees' && !isDalat) closeTune();
   dalatScene.visible = isDalat;
   if (isSgn) { sgnEnv.onReady(); sgnCity.onReady(); }           // camera không xuyên tháp / nhà thật (khi đã tải)
   fireflies.ground.clear();     // độ cao mặt đất nhớ theo hình đường cũ
@@ -1535,6 +1537,18 @@ renderTune = () => {
     addNumber({ label: 'Độ dài pha đèn (×)', min: 0.3, max: 3, step: 0.1, get: () => trafficTune.signal, set: (v) => { trafficTune.signal = v; applyTrafficTune(); } });
     return;
   }
+  if (tuneKind === 'trees') {                                        // map Đà Lạt: thử hiển thị cây (đổi tức thì, lưu chilldrive.dalat.trees)
+    tuneMode.hidden = true;
+    $('tune-title').textContent = 'Cây · Đà Lạt';
+    const T = dalatScene.tune, put = (k) => (v) => dalatScene.setTune({ [k]: v });
+    addToggle({ label: 'Hiện cây', get: () => T.on, set: put('on') });
+    addNumber({ label: 'Mật độ cây (%)', min: 0, max: 100, step: 5, get: () => T.density, set: put('density') });
+    addNumber({ label: 'Cây model chi tiết trong (m)', min: 0, max: 200, step: 5, get: () => T.lodR, set: put('lodR') });
+    addNumber({ label: 'Số cây chi tiết tối đa', min: 0, max: 1500, step: 10, get: () => T.maxHi, set: put('maxHi') });
+    addNumber({ label: 'Vẽ cây xa tới (m)', min: 50, max: 2500, step: 50, get: () => T.far, set: put('far') });
+    addHeading('Cây chi tiết ~11k tam giác/cây, cây xa (nón) ~80 tam giác/cây');
+    return;
+  }
   if (tuneKind === 'nature') {
     tuneMode.hidden = true;
     $('tune-title').textContent = 'Nature · cỏ cây';
@@ -1672,7 +1686,8 @@ $('tune-close').onclick = closeTune;
 $('tune-reset').onclick = () => {
   // về số gốc trong code rồi phủ bộ mặc định của chú (`DEF`, theo nhóm Chill / Drive)
   const D = defSet(), g = isDriveMap(state.map) ? 'drive' : 'chill';
-  if (tuneKind === 'camera') { const id = CAMERAS[state.cam].id; rig.resetTune(id); Object.assign(rig.tune[id], D.camera?.[id] || {}); rig.setMode(state.cam); onCamChange(); }
+  if (tuneKind === 'trees') dalatScene.resetTune();
+  else if (tuneKind === 'camera') { const id = CAMERAS[state.cam].id; rig.resetTune(id); Object.assign(rig.tune[id], D.camera?.[id] || {}); rig.setMode(state.cam); onCamChange(); }
   else if (tuneKind === 'weather') {
     const w = WEATHERS[state.weather].id === 'auto' ? env.weather : WEATHERS[state.weather].id; env.resetWeather(w); Object.assign(env.weatherProfiles[w] || {}, D.weather?.[w] || {});
     env.resetTune(); Object.assign(env.tune, D.environment || {}); env.snapWeather(w);
@@ -1697,6 +1712,7 @@ $('b-traffic').onclick = () => (tuneKind === 'traffic' ? closeTune() : openTune(
 $('b-lighting').onclick = () => (tuneKind === 'lighting' ? closeTune() : openTune('lighting'));
 $('b-animals').onclick = () => (tuneKind === 'animals' ? closeTune() : openTune('animals'));
 $('b-nature').onclick = () => (tuneKind === 'nature' ? closeTune() : openTune('nature'));
+$('b-trees').onclick = () => (tuneKind === 'trees' ? closeTune() : openTune('trees'));
 $('b-mode').onclick = () => { if (state.started) setGameMode(state.mode === 'drive' ? 'chill' : 'drive'); };
 $('b-park').onclick = () => (tuneKind === 'park' ? closeTune() : openTune('park'));
 el.music.onclick = nextMusic;

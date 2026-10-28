@@ -4,7 +4,7 @@
 
 > Đọc trước khi sửa. Xong: 1 dòng **Nhật ký** + tăng bộ đếm; đủ 10 => gộp vào mục trạng thái, đặt lại 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 0/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
 
 ## 1. Tổng quan
 
@@ -96,7 +96,8 @@
   → `.scratch/dalat.fbx`): game x = X, z = −Y, y = Z − 86.3 (mặt hồ). `src/dalat-data.json`: tuyến 5 m + `road` (cao độ tuyệt đối, ≥ hồ + 0.8, dốc ≤ 6.8 %)
   + DEM 10 m => `TP.dem`; road.js `_loopPt` `loop.abs(s)`. `docs/assets/dalat/`: `dalat-city.glb` (6 071 toà + cầu + nước, meshopt 1.07 MB),
   `dalat-trees.json` (20 485 cây), `dalat-streets.json` (548 đường OSM khác). `src/dalat.js` `DalatScene`: cửa sổ đêm `SgnCity._shader`;
-  cây thông `docs/assets/models/dalat/pine.glb` (CC-BY-SA-4.0, 475 KB) trong `lodR` 90 m (Low 45, cap 1 500), xa = nón code. Mặt hồ = nước map Biển
+  cây thông `docs/assets/models/dalat/pine.glb` (CC-BY-SA-4.0, 475 KB, 11k tam giác) gần camera (gần nhất trước, ≤ `maxHi`), xa = nón code theo ô 300 m (shader bỏ cây trong vùng GLB / xa hơn `far` / `aRnd` > mật độ).
+  Bảng 🌲 Cây (`b-trees`, chỉ Đà Lạt; `chilldrive.dalat.trees`): bật/tắt, mật độ %, `lodR`, `maxHi`, `far` — mặc định High 100/60/120/700, Low 60/30/40/400 (`DALAT_TREE_DEFAULTS`). Dựng chia việc `jobs` ≤ 6 ms/khung. Mặt hồ = nước map Biển
   chế độ hồ (`ocean.setLake`, mặt nạ từ tam giác WATER, xanh lá đậm). `BY_MAP.dalat`. Chưa: nhà chi tiết, vỉa hè, đèn quanh hồ, đồi ngoài 2.5 km; chưa thử trình duyệt.
 - **Xe thật** (`trafficTune.models`, chung): bật => mọi xe thường ở Phố/Đại lộ/NYC/Landmark thành xe thật; giữ buýt, taxi, cảnh sát, cấp cứu. Bản nhẹ `docs/assets/models/npc/*.glb` (`scripts/make-npc-cars.sh`: ~24k tam giác), tải lần đầu bật (`wantRealTraffic`); `npcCars.js` qua `cars._load`; `cityTraffic.addReal` tạo `real<i>` = InstancedMesh/vật liệu (≤ 80/model) + hộp đèn `dim.lamps`; `realOn` đổi ngay. Ngắm cảnh (`traffic.js`) luôn bản nhẹ (`traffic.allCars`).
 - **Bản đồ tròn**: NYC vẽ footprint + mạng phố (`nycBld.foot`, `nycNet.streets`), tuyến vàng `CITY.hw`; SGN thêm tên đường/khu; camera tốc độ = chấm đỏ; Stop hiện mọi map.
@@ -127,3 +128,4 @@
 ## 6. Nhật ký cập nhật
 
 - Đã tóm tắt tới commit ae9d380 (28/10/2026, gồm Đà Lạt). Bản đầy đủ trước khi nén: ROAD-ARCHIVE.md (chỉ tra khi ROAD.md thiếu).
+- **#1 — Đà Lạt treo khi vào map (28/10/2026)**: do GPU (≈2.2 M tam giác nón + tới 129 cây GLB × 11k + bóng) => giới hạn khoảng cách / số cây, dựng dần; thêm bảng 🌲 Cây. Chưa thử máy thật.

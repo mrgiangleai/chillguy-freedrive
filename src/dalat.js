@@ -52,87 +52,56 @@ function pineGeometry() {
   return geo;
 }
 
+// cài đặt cây (bảng 🌲 Cây, chỉ map Đà Lạt; lưu `chilldrive.dalat.trees`): bật / tắt, mật độ %, bán kính cây GLB chi tiết (m),
+// khoảng cách xa nhất còn vẽ cây nón (m), số cây GLB tối đa. Mặc định thấp vì máy điện thoại treo khi vẽ đủ 20 485 cây + 129 cây GLB × 11k tam giác
+export const DALAT_TREE_DEFAULTS = { high: { on: 1, density: 100, lodR: 60, far: 700, maxHi: 120 }, low: { on: 1, density: 60, lodR: 30, far: 400, maxHi: 40 } };
+const TREE_KEY = 'chilldrive.dalat.trees', HI_CAP = 1500;
+
 export class DalatScene {
   // groundAt(x, z): độ cao địa hình (DEM) — dải đường phụ / cây đặt theo đó
   constructor(scene, groundAt) {
     this.groundAt = groundAt;
     this.group = new THREE.Group(); this.group.visible = false; scene.add(this.group);
+    this.trees = new THREE.Group(); this.group.add(this.trees);
     this.state = 'idle';
     this.lampU = { value: 0 };
-    this.treeStride = 1;                       // Low: 2 => nửa số cây
-    this.lodR = 90;                            // cây thông GLB chi tiết trong bán kính này quanh camera (Low: 45), xa hơn => cây nón code
-    this.lodU = { value: new THREE.Vector3(0, 0, 0) };   // (x, z, R) — tâm + bán kính vùng chi tiết lúc chia gần nhất (shader cây xa bỏ cây trong vùng)
+    this.lodU = { value: new THREE.Vector3(0, 0, 0) };   // (x, z, R) — tâm + bán kính vùng GLB lúc chia gần nhất (shader nón bỏ cây trong vùng)
+    this.kU = { value: new THREE.Vector2(1, 700) };      // (mật độ 0..1, khoảng cách xa nhất cây nón)
     this.onLake = null;                        // (tex, bounds) khi tách xong mặt hồ Xuân Hương (main => ocean.setLake)
     this.lake = null;
+    this.jobs = [];                            // việc dựng chia nhỏ, mỗi khung làm tới ~6 ms (vào map không đứng hình)
+    this.tune = { ...DALAT_TREE_DEFAULTS.high };
   }
   set visible(v) { this.group.visible = v; if (v && this.state === 'idle') this._load(); }
   get visible() { return this.group.visible; }
   setLamps(k) { this.lampU.value = Math.max(0, k); }
 
+  // nạp cài đặt đã lưu (không có => mặc định theo chất lượng)
+  loadTune(low) {
+    this._low = !!low;
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(TREE_KEY) || 'null'); } catch { /* chế độ riêng tư */ }
+    this.setTune({ ...DALAT_TREE_DEFAULTS[low ? 'low' : 'high'], ...(saved || {}) }, false);
+  }
+  resetTune() { try { localStorage.removeItem(TREE_KEY); } catch { /* chế độ riêng tư */ } this.loadTune(this._low); }
+  setTune(patch, save = true) {
+    Object.assign(this.tune, patch);
+    const T = this.tune;
+    T.maxHi = Math.min(HI_CAP, Math.max(0, Math.round(T.maxHi)));
+    this.trees.visible = !!T.on;
+    this.kU.value.set(T.density / 100, T.far);
+    this._lodAt = null;                                              // chia lại ngay khung sau
+    if (save) try { localStorage.setItem(TREE_KEY, JSON.stringify(T)); } catch { /* chế độ riêng tư */ }
+  }
+
   _load() {
     this.state = 'loading';
-    const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
-    loader.load('assets/dalat/dalat-city.glb', (gltf) => this._city(gltf.scene), undefined, (e) => console.warn('dalat-city', e));
-    loader.load('assets/models/dalat/pine.glb', (gltf) => this._pine(gltf.scene), undefined, (e) => console.warn('dalat-pine', e));
-    fetch('assets/dalat/dalat-trees.json').then((r) => r.json()).then((T) => this._trees(T)).catch((e) => console.warn('dalat-trees', e));
-    fetch('assets/dalat/dalat-streets.json').then((r) => r.json()).then((S) => this._streets(S.s)).catch((e) => console.warn('dalat-streets', e));
-  }
-
-  _city(root) {
-    const winShader = (shader) => SgnCity.prototype._shader.call({ lampU: this.lampU }, shader);   // cửa sổ sáng ban đêm như map Landmark
-    root.updateMatrixWorld(true);
-    root.traverse((o) => {
-      if (!o.isMesh) return;
-      const name = o.material.name || o.name, color = o.material.color.clone();
-      if (name === 'WATER') {
-        this._splitLake(o);
-        // ao / hồ nhỏ khác (cao độ khác mặt hồ): xanh lá đậm, ít lóa
-        o.material = new THREE.MeshStandardMaterial({ color: 0x1d3a22, roughness: 0.3, metalness: 0, side: THREE.DoubleSide,
-          polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-        o.receiveShadow = true;
-      } else {
-        o.material = new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0 });
-        if (name.startsWith('BUILDINGS')) o.material.onBeforeCompile = winShader;
-        o.castShadow = o.receiveShadow = true;
-      }
-      o.matrixAutoUpdate = false; o.updateMatrix();
-    });
-    this.group.add(root);
-    this.state = 'ready';
-  }
-
-  // tách tam giác mặt hồ Xuân Hương (y ≈ 0, trong đa giác hồ) khỏi lưới WATER => vẽ mặt nạ canvas cho nước map Biển (ocean.setLake)
-  _splitLake(o) {
-    const g = o.geometry, P = g.attributes.position, ix = g.index, n = ix ? ix.count : P.count, v = new THREE.Vector3();
-    const keep = [], lake = [], poly = DATA.lake;
-    const inPoly = (x, z) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) if ((poly[i][1] > z) !== (poly[j][1] > z) && x < poly[i][0] + (poly[j][0] - poly[i][0]) * (z - poly[i][1]) / (poly[j][1] - poly[i][1])) c = !c; return c; };
-    for (let t = 0; t < n; t += 3) {
-      const tri = [];
-      for (let k = 0; k < 3; k++) { v.fromBufferAttribute(P, ix ? ix.getX(t + k) : t + k).applyMatrix4(o.matrixWorld); tri.push(v.x, v.y, v.z); }
-      const cx = (tri[0] + tri[3] + tri[6]) / 3, cy = (tri[1] + tri[4] + tri[7]) / 3, cz = (tri[2] + tri[5] + tri[8]) / 3;
-      (Math.abs(cy) < 0.4 && inPoly(cx, cz) ? lake : keep).push(...tri);
-    }
-    const ng = new THREE.BufferGeometry();
-    ng.setAttribute('position', new THREE.BufferAttribute(new Float32Array(keep), 3)); ng.computeVertexNormals();
-    o.geometry = ng; o.position.set(0, 0, 0); o.scale.set(1, 1, 1); o.quaternion.identity();   // toạ độ đã là thế giới (bỏ khử lượng tử meshopt của node)
-    if (!lake.length) return;
-    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
-    for (let i = 0; i < lake.length; i += 3) { x0 = Math.min(x0, lake[i]); x1 = Math.max(x1, lake[i]); z0 = Math.min(z0, lake[i + 2]); z1 = Math.max(z1, lake[i + 2]); }
-    x0 -= 20; z0 -= 20; x1 += 20; z1 += 20;
-    const W = 1024, H = Math.round(W * (z1 - z0) / (x1 - x0)), cv = document.createElement('canvas');
-    cv.width = W; cv.height = H;
-    const c = cv.getContext('2d'), sx = W / (x1 - x0), sz = H / (z1 - z0);
-    c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
-    c.fillStyle = '#fff'; c.strokeStyle = '#fff'; c.lineWidth = 2; c.lineJoin = 'round';   // nét viền 2 px (~3 m): nước lấn dưới mép bờ, không hở
-    for (let i = 0; i < lake.length; i += 9) {
-      c.beginPath();
-      c.moveTo((lake[i] - x0) * sx, (lake[i + 2] - z0) * sz); c.lineTo((lake[i + 3] - x0) * sx, (lake[i + 5] - z0) * sz); c.lineTo((lake[i + 6] - x0) * sx, (lake[i + 8] - z0) * sz);
-      c.closePath(); c.fill(); c.stroke();
-    }
-    const tex = new THREE.CanvasTexture(cv);
-    tex.flipY = false; tex.colorSpace = THREE.NoColorSpace; tex.generateMipmaps = false; tex.minFilter = tex.magFilter = THREE.LinearFilter;
-    this.lake = { tex, bounds: [x0, z0, x1, z1] };
-    if (this.onLake) this.onLake(tex, this.lake.bounds);
+    const loader = new GLTFLoader(), job = (f) => this.jobs.push(f);
+    loader.setMeshoptDecoder(MeshoptDecoder);
+    loader.load('assets/dalat/dalat-city.glb', (gltf) => job(() => this._city(gltf.scene)), undefined, (e) => console.warn('dalat-city', e));
+    fetch('assets/dalat/dalat-streets.json').then((r) => r.json()).then((S) => job(() => this._streets(S.s))).catch((e) => console.warn('dalat-streets', e));
+    fetch('assets/dalat/dalat-trees.json').then((r) => r.json()).then((T) => job(() => this._trees(T))).catch((e) => console.warn('dalat-trees', e));
+    loader.load('assets/models/dalat/pine.glb', (gltf) => job(() => this._pine(gltf.scene)), undefined, (e) => console.warn('dalat-pine', e));
   }
 
   // cây thông GLB ("pine tree" — bolojun, Sketchfab, CC-BY-SA-4.0; simplify 12 % + WebP 512 + meshopt): chuẩn hoá cao 1 m, gốc thân về (0, 0, 0)
@@ -140,7 +109,7 @@ export class DalatScene {
     root.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(root), k = 1 / ((box.max.y - box.min.y) || 1);
     const norm = new THREE.Matrix4().makeScale(k, k, k).multiply(new THREE.Matrix4().makeTranslation(-(box.min.x + box.max.x) / 2, -box.min.y, -(box.min.z + box.max.z) / 2));
-    this.pineParts = [];
+    const parts = [];
     root.traverse((o) => {
       if (!o.isMesh) return;
       const g = o.geometry.clone();
@@ -154,77 +123,94 @@ export class DalatScene {
       const m = o.material.clone();
       if (m.transparent || m.alphaTest > 0) { m.alphaTest = 0.5; m.transparent = false; m.depthWrite = true; }
       m.side = THREE.DoubleSide; m.shadowSide = THREE.DoubleSide;
-      const im = new THREE.InstancedMesh(g, m, 1500);
+      const im = new THREE.InstancedMesh(g, m, HI_CAP);
       im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       im.count = 0; im.frustumCulled = false; im.castShadow = true; im.receiveShadow = true;
-      this.group.add(im); this.pineParts.push(im);
+      this.trees.add(im); parts.push(im);
     });
+    this.pineParts = parts;
     this._lodAt = null;
   }
 
-  // mỗi khung: camera đi > 8 m (hoặc 0.6 s) => chia lại cây gần (GLB) / xa (nón)
+  // mỗi khung: làm việc dựng còn chờ (≤ ~6 ms); camera đi > 8 m (hoặc 0.6 s) => chia lại cây gần (GLB, gần nhất trước, tối đa maxHi) / xa (nón)
   update(dt, cam) {
-    if (!this.group.visible || !this.pineParts || !this.tx) return;
+    if (!this.group.visible) return;
+    const t0 = performance.now();
+    while (this.jobs.length && performance.now() - t0 < 6) { const j = this.jobs.shift(); j(); }
+    if (!this.tx) return;
     this._lodT = (this._lodT || 0) + dt;
     if (this._lodAt && this._lodT < 0.6 && (cam.x - this._lodAt.x) ** 2 + (cam.z - this._lodAt.z) ** 2 < 64) return;
     this._lodT = 0; this._lodAt = { x: cam.x, z: cam.z };
-    const R = this.lodR, R2 = R * R, C = 50, m4 = this._m4 || (this._m4 = new THREE.Matrix4()), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), sc = new THREE.Vector3();
-    const cap = this.pineParts[0].instanceMatrix.count;
-    let n = 0;
-    const gx = Math.floor(cam.x / C), gz = Math.floor(cam.z / C), r = Math.ceil(R / C);
-    for (let a = -r; a <= r && n < cap; a++) for (let b = -r; b <= r && n < cap; b++) {
-      for (const i of this.tcell.get((gx + a) + ',' + (gz + b)) || []) {
-        const x = this.tx[i], z = this.tz[i];
-        if ((x - cam.x) ** 2 + (z - cam.z) ** 2 > R2) continue;
-        const h = this.th[i] * (0.9 + ((i * 7919) % 100) / 500);
-        q.setFromAxisAngle(up, (i * 2.399) % 6.283);
-        m4.compose(p.set(x, this.ty[i], z), q, sc.set(h, h, h));
-        for (const im of this.pineParts) im.setMatrixAt(n, m4);
-        if (++n >= cap) break;
-      }
+    const T = this.tune, parts = this.pineParts;
+    if (!parts || !T.on || !T.maxHi || T.lodR <= 0) {
+      if (parts) for (const im of parts) im.count = 0;
+      this.lodU.value.set(cam.x, cam.z, 0); return;
     }
-    for (const im of this.pineParts) { im.count = n; im.instanceMatrix.needsUpdate = true; }
-    this.lodU.value.set(cam.x, cam.z, n < cap ? R : 0);                // tràn chỗ (rừng quá dày) => tắt bỏ cây xa, chấp nhận chồng
+    const R = T.lodR, R2 = R * R, C = 50, dens = T.density / 100, cand = this._cand || (this._cand = []);
+    cand.length = 0;
+    const gx = Math.floor(cam.x / C), gz = Math.floor(cam.z / C), r = Math.ceil(R / C);
+    for (let a = -r; a <= r; a++) for (let b = -r; b <= r; b++) for (const i of this.tcell.get((gx + a) + ',' + (gz + b)) || []) {
+      if (this.trnd[i] > dens) continue;
+      const d2 = (this.tx[i] - cam.x) ** 2 + (this.tz[i] - cam.z) ** 2;
+      if (d2 <= R2) cand.push(d2 * 65536 + i);                         // khoá sắp xếp: khoảng cách rồi chỉ số (i < 65 536)
+    }
+    let Reff = R;
+    if (cand.length > T.maxHi) { cand.sort((a, b) => a - b); cand.length = T.maxHi; Reff = Math.sqrt(Math.floor(cand[T.maxHi - 1] / 65536)) + 0.01; }
+    const m4 = this._m4 || (this._m4 = new THREE.Matrix4()), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), sc = new THREE.Vector3();
+    cand.forEach((key, n) => {
+      const i = key % 65536, h = this.th[i] * (0.9 + ((i * 7919) % 100) / 500);
+      q.setFromAxisAngle(up, (i * 2.399) % 6.283);
+      m4.compose(p.set(this.tx[i], this.ty[i], this.tz[i]), q, sc.set(h, h, h));
+      for (const im of parts) im.setMatrixAt(n, m4);
+    });
+    for (const im of parts) { im.count = cand.length; im.instanceMatrix.needsUpdate = true; }
+    this.lodU.value.set(cam.x, cam.z, Reff);                          // tràn maxHi => vùng GLB thu lại tới cây xa nhất được chọn
   }
 
-  // cây xa: nón code theo ô 300 m (mỗi ô 1 InstancedMesh => frustum culling theo ô); shader bỏ cây trong vùng GLB chi tiết (lodU)
+  // cây xa: nón code theo ô 300 m (mỗi ô 1 InstancedMesh => frustum culling theo ô), dựng dần mỗi ô 1 việc;
+  // shader bỏ cây trong vùng GLB (lodU), xa hơn kU.y, hoặc số ngẫu nhiên aRnd > mật độ kU.x
   _trees(T) {
     const geo = pineGeometry(), mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
-    const lodU = this.lodU, lodHook = (sh) => {
-      sh.uniforms.uDalatLod = lodU;
-      sh.vertexShader = 'uniform vec3 uDalatLod;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
-        { vec2 ip = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz - uDalatLod.xy;
-          if (dot(ip, ip) < uDalatLod.z * uDalatLod.z) transformed *= 0.0; }`);
+    const lodU = this.lodU, kU = this.kU, lodHook = (sh) => {
+      sh.uniforms.uDalatLod = lodU; sh.uniforms.uDalatK = kU;
+      sh.vertexShader = 'uniform vec3 uDalatLod;\nuniform vec2 uDalatK;\nattribute float aRnd;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+        { vec2 ip = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz - uDalatLod.xy; float d2 = dot(ip, ip);
+          if (d2 < uDalatLod.z * uDalatLod.z || d2 > uDalatK.y * uDalatK.y || aRnd > uDalatK.x) transformed *= 0.0; }`);
     };
     mat.onBeforeCompile = lodHook;
+    mat.customProgramCacheKey = () => 'dalat-cone';
     const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }); depth.onBeforeCompile = lodHook;
+    depth.customProgramCacheKey = () => 'dalat-cone-depth';
     const nT = T.length / 3;
-    this.tx = new Float32Array(nT); this.tz = new Float32Array(nT); this.ty = new Float32Array(nT); this.th = new Float32Array(nT); this.tcell = new Map();
-    for (let i = 0, k = 0; i < T.length; i += 3, k++) {
-      this.tx[k] = T[i]; this.tz[k] = T[i + 1]; this.th[k] = T[i + 2]; this.ty[k] = this.groundAt(T[i], T[i + 1]) - 0.2;
-      if (k % this.treeStride) continue;
-      const key = Math.floor(T[i] / 50) + ',' + Math.floor(T[i + 1] / 50);
+    this.tx = new Float32Array(nT); this.tz = new Float32Array(nT); this.ty = new Float32Array(nT); this.th = new Float32Array(nT); this.trnd = new Float32Array(nT);
+    this.tcell = new Map();
+    const cells = new Map();
+    for (let k = 0; k < nT; k++) {
+      const x = T[k * 3], z = T[k * 3 + 1];
+      this.tx[k] = x; this.tz[k] = z; this.th[k] = T[k * 3 + 2]; this.ty[k] = this.groundAt(x, z) - 0.2;
+      const r = Math.sin(k * 12.9898 + 78.233) * 43758.5453; this.trnd[k] = r - Math.floor(r);
+      const key = Math.floor(x / 50) + ',' + Math.floor(z / 50);
       (this.tcell.get(key) || this.tcell.set(key, []).get(key)).push(k);
+      const ck = Math.floor(x / 300) + ',' + Math.floor(z / 300);
+      (cells.get(ck) || cells.set(ck, []).get(ck)).push(k);
     }
-    const C = 300, cells = new Map(), stride = this.treeStride;
-    for (let i = 0, k = 0; i < T.length; i += 3, k++) {
-      if (k % stride) continue;
-      const key = Math.floor(T[i] / C) + ',' + Math.floor(T[i + 1] / C);
-      (cells.get(key) || cells.set(key, []).get(key)).push(i);
-    }
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), sc = new THREE.Vector3();
-    for (const idx of cells.values()) {
-      const im = new THREE.InstancedMesh(geo, mat, idx.length);
+    for (const idx of cells.values()) this.jobs.push(() => {
+      const g = new THREE.BufferGeometry();
+      for (const name of Object.keys(geo.attributes)) g.setAttribute(name, geo.attributes[name]);
+      const rnd = new Float32Array(idx.length);
+      const im = new THREE.InstancedMesh(g, mat, idx.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), sc = new THREE.Vector3();
       idx.forEach((i, n) => {
-        const x = T[i], z = T[i + 1], h = T[i + 2], w = h * (0.85 + ((i * 7919) % 100) / 400);
+        const h = this.th[i], w = h * (0.85 + ((i * 7919) % 100) / 400);
         q.setFromAxisAngle(up, (i * 2.399) % 6.283);
-        m4.compose(p.set(x, this.groundAt(x, z) - 0.2, z), q, sc.set(w, h, w));
-        im.setMatrixAt(n, m4);
+        m4.compose(p.set(this.tx[i], this.ty[i], this.tz[i]), q, sc.set(w, h, w));
+        im.setMatrixAt(n, m4); rnd[n] = this.trnd[i];
       });
+      g.setAttribute('aRnd', new THREE.InstancedBufferAttribute(rnd, 1));
       im.castShadow = true; im.receiveShadow = true; im.customDepthMaterial = depth;
       im.computeBoundingSphere();
-      this.group.add(im);
-    }
+      this.trees.add(im);
+    });
+    this._lodAt = null;
   }
 
   // các đường khác trong vùng: dải nhựa phủ trên địa hình (cao hơn mặt đất 0.15 m), lấy mẫu mỗi 4 m
