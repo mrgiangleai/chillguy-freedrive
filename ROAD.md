@@ -4,7 +4,7 @@
 
 > Đọc trước khi sửa. Xong: 1 dòng **Nhật ký** + tăng bộ đếm; đủ 10 => gộp vào mục trạng thái, đặt lại 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 10/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 11/10**
 
 ## 1. Tổng quan
 
@@ -138,3 +138,4 @@
 - **#8 — Đà Lạt hồ (28/10/2026)**: bỏ lớp phản chiếu phẳng; phản chiếu `lakeRefl` trộn vào chính mặt nước gợn sóng 30 % (`ocean.setLakeReflection`, méo theo gợn như vũng mưa). Lòng hồ = cả đa giác OSM (DEM −5.5 + mặt nạ nước) => hết mảng đất tối lộ ra trong hồ.
 - **#9 — Đà Lạt (28/10/2026)**: phản chiếu mặt hồ 30 % → 7 % (chú thử).
 - **#10 — Đà Lạt (28/10/2026)**: phản chiếu hồ 10 %; nước hồ sáng hơn (deep ×2.2, turq ×2, soi trời ×0.4).
+- **#11 — Đà Lạt (28/10/2026)**: nước hồ: đáy sâu tối hơn (deep 0.011/0.045/0.019), soi trời ×0.2, nắng ×0.15.
