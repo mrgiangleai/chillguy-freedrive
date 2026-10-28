@@ -169,7 +169,7 @@ function oceanMaterial(u) {
         if (uLake > 0.5 && uReflOn > 0.5) {
           vec4 rc = uReflMat * vec4(vOW.x, uSea, vOW.z, 1.0);
           vec2 ruv = rc.xy / rc.w + wv.yz * 0.02;
-          vec3 rcol = texture2D(uReflTex, ruv).rgb;
+          vec3 rcol = min(texture2D(uReflTex, ruv).rgb, vec3(1.0));   // cắt chói (bóng đèn / cửa sổ HDR) — đèn đã có vệt riêng
           rcol = mix(rcol, dot(rcol, vec3(0.3, 0.59, 0.11)) * normalize(uLakeDeep + 1e-4) * 1.7, uLakeTint * 0.6);
           outgoingLight = mix(outgoingLight, rcol, uReflK * (1.0 - oFoam));
         }

@@ -2444,9 +2444,11 @@ function frame(now) {
 
   // đường ướt: vẽ ảnh phản chiếu cho vũng nước (chỉ khi mưa)
   if (onDalat() && ocean.u.uLake.value > 0.5) {                // hồ Xuân Hương: vẽ cảnh đối xứng qua mặt hồ mỗi khung (ẩn mặt nước khi vẽ)
-    const ov = ocean.group.visible, sv = dalatScene.streak?.visible; ocean.group.visible = false; if (dalatScene.streak) dalatScene.streak.visible = false;
+    // ẩn khi vẽ ảnh phản chiếu: mặt nước, vệt đèn trên hồ, quầng sáng giả + vũng sáng giả của đèn đường (cộng sáng => thành mảng sáng to sau hàng cây)
+    const ov = ocean.group.visible, sv = dalatScene.streak?.visible, gv = scenery.glowMat.visible, pv = scenery.poolMat.visible;
+    ocean.group.visible = false; if (dalatScene.streak) dalatScene.streak.visible = false; scenery.glowMat.visible = scenery.poolMat.visible = false;
     lakeRefl.render(scene, camera, WATER_DROP);
-    ocean.group.visible = ov; if (dalatScene.streak) dalatScene.streak.visible = sv;
+    ocean.group.visible = ov; if (dalatScene.streak) dalatScene.streak.visible = sv; scenery.glowMat.visible = gv; scenery.poolMat.visible = pv;
     ocean.setLakeReflection(lakeRefl, dalatScene.water.refl / 100);   // trộn vào chính mặt nước gợn sóng (như vũng nước mưa), độ rõ theo bảng 💧
   } else if (lakeRefl.active) { lakeRefl.active = false; ocean.setLakeReflection(null); }
   diag.lap('phản chiếu hồ');
