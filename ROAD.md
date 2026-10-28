@@ -4,7 +4,7 @@
 
 > Đọc trước khi sửa. Xong: 1 dòng **Nhật ký** + tăng bộ đếm; đủ 10 => gộp vào mục trạng thái, đặt lại 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
 
 ## 1. Tổng quan
 
@@ -136,3 +136,4 @@
 - **#6 — Đà Lạt cảnh hồ (28/10/2026)**: cây đặt theo `dalatGround` (DEM + xẻ/đắp về mặt đường như terrain.js), cắm sâu 0.35 m; thân tối ×0.45, lá ×1.4; `dalatTreeMix`: sát bờ < 120 m giữ 45 %, xa > 250 m +1 / > 600 m +2 cây kèm (20 485 → 38 269). Mặt nước hạ 1 m (`WATER_DROP`, đáy DEM −3.5 m); hồ bớt soi trời (×0.3) + phản chiếu phẳng `lakeRefl` (WetReflection, mỗi 2 khung, Low 1/4 độ phân giải) trộn Fresnel trong shader nước. Bỏ nhà cách tim vòng hồ < 45 m (`NO_HOUSE`, 82 toà).
 - **#7 — Đà Lạt hồ (28/10/2026)**: mặt nước hạ 3 m (`WATER_DROP` −3, đáy DEM −5.5); phản chiếu không trộn trong nước có sóng nữa mà là lớp phẳng `dalatScene.mirror` cao hơn mặt nước 5 cm (mặt nạ hồ, độ rõ 60 % × Fresnel), `lakeRefl` vẽ mỗi khung (hết giật).
 - **#8 — Đà Lạt hồ (28/10/2026)**: bỏ lớp phản chiếu phẳng; phản chiếu `lakeRefl` trộn vào chính mặt nước gợn sóng 30 % (`ocean.setLakeReflection`, méo theo gợn như vũng mưa). Lòng hồ = cả đa giác OSM (DEM −5.5 + mặt nạ nước) => hết mảng đất tối lộ ra trong hồ.
+- **#9 — Đà Lạt (28/10/2026)**: phản chiếu mặt hồ 30 % → 7 % (chú thử).

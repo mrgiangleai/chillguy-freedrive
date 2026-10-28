@@ -241,8 +241,8 @@ export class Ocean {
     this.level = level; this.group.visible = true;
   }
 
-  // hồ (Đà Lạt): gắn ảnh phản chiếu phẳng (refl đã render; null => tắt), k = độ rõ (0.3)
-  setLakeReflection(refl, k = 0.3) {
+  // hồ (Đà Lạt): gắn ảnh phản chiếu phẳng (refl đã render; null => tắt), k = độ rõ (Đà Lạt: 0.07)
+  setLakeReflection(refl, k = 0.07) {
     const u = this.u; u.uReflK.value = refl && refl.active ? k : 0;
     if (refl) { u.uReflTex.value = refl.rt.texture; u.uReflMat.value.copy(refl.texMatrix); }
   }
