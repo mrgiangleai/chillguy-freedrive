@@ -11,6 +11,9 @@ import { demAt } from './terrain-noise.js';
 import { withMist } from './mist.js';
 
 export const DALAT = { data: DATA, length: DATA.length, start: DATA.start };
+// vòng xoay chính (OSM way 51561593, giao Trần Quốc Toản / Nguyễn Thị Minh Khai / Nguyễn Văn Cừ / Lê Đại Hành, cạnh chợ Đà Lạt):
+// tim vòng r 19 m, mặt đường rộng 14 m (12–26 m), đảo giữa: lát đá + bồn hoa đỏ + hồ nước + tiểu cảnh; các nhánh trong 160 m nở rộng 13 m
+export const ROUNDABOUT = { x: -870.9, z: 514.5, r: 19.1, hw: 7, arm: 6.5, near: 160 };
 export const WATER_DROP = -3;                 // mặt nước game thấp hơn mặt nước FBX 3 m (đáy DEM: −5.5 m)
 
 let DEM = null;
@@ -28,17 +31,18 @@ export function dalatDem() {
 // => cây / dải đường phụ không lơ lửng hay chìm ở chỗ đường đào / đắp
 const sst = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 let SEG = null;
+const NONE = [];
 function loopNear(x, z) {
   if (!SEG) {
     SEG = new Map();
     for (let i = 0; i + 1 < DATA.x.length; i++) {
-      const k = Math.floor(DATA.x[i] / 40) + ',' + Math.floor(DATA.z[i] / 40);
+      const k = (Math.floor(DATA.x[i] / 40) + 512) * 1024 + Math.floor(DATA.z[i] / 40) + 512;   // khoá số (nhanh hơn chuỗi)
       (SEG.get(k) || SEG.set(k, []).get(k)).push(i);
     }
   }
   const gx = Math.floor(x / 40), gz = Math.floor(z / 40);
   let bd = Infinity, bi = 0, bt = 0;
-  for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const i of SEG.get((gx + a) + ',' + (gz + b)) || []) {
+  for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const i of SEG.get((gx + a + 512) * 1024 + gz + b + 512) || NONE) {
     const ax = DATA.x[i], az = DATA.z[i], vx = DATA.x[i + 1] - ax, vz = DATA.z[i + 1] - az, l = vx * vx + vz * vz || 1;
     const t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / l)), d = Math.hypot(x - ax - vx * t, z - az - vz * t);
     if (d < bd) { bd = d; bi = i; bt = t; }
@@ -75,6 +79,7 @@ export function dalatTreeMix(T) {
   };
   for (let k = 0; k < T.length; k += 3) {
     const x = T[k], z = T[k + 1], h = T[k + 2], d = lakeD(x, z);
+    if (Math.hypot(x - ROUNDABOUT.x, z - ROUNDABOUT.z) < ROUNDABOUT.r + ROUNDABOUT.hw + 4) continue;   // không cây trên vòng xoay
     if (d < 120 && hash(x, z) > 0.45) continue;
     out.push(x, z, h);
     const extra = d > 600 ? 2 : d > 250 ? 1 : 0;
@@ -493,9 +498,12 @@ export class DalatScene {
     this.streets = S;                                                 // bản đồ tròn vẽ lại
     const G = dalatGround, buf = [{ pos: [], uv: [] }, { pos: [], uv: [] }];
     this.lanes = [];                                                   // đường cho xe chạy: { hw, P: [[x, z]], cum: [m], len, bb }
+    const RB = ROUNDABOUT, rbD = (x, z) => Math.hypot(x - RB.x, z - RB.z);
     for (const st of S) {
-      const hw = st[0], P = [];
+      let hw = st[0]; const P = [];
       for (let k = 1; k + 1 < st.length; k += 2) P.push([st[k], st[k + 1]]);
+      if (P.every(([x, z]) => rbD(x, z) < RB.r + 6)) continue;            // chính vòng xoay OSM: dựng riêng (_roundabout)
+      if (hw >= 2.6 && P.some(([x, z]) => rbD(x, z) < RB.near)) hw = Math.max(hw, RB.arm);   // nhánh vòng xoay: đường lớn
       const Q = [];
       for (let i = 0; i + 1 < P.length; i++) {
         const [ax, az] = P[i], [bx, bz] = P[i + 1], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 4));
@@ -524,6 +532,7 @@ export class DalatScene {
         this.lanes.push({ hw, P: Q, cum, len: v, bb: [x0, z0, x1, z1] });
       }
     }
+    this._roundabout();
     buf.forEach((B, k) => {
       if (!B.pos.length) return;
       const geo = new THREE.BufferGeometry();
@@ -538,6 +547,65 @@ export class DalatScene {
       m.receiveShadow = true; m.matrixAutoUpdate = false;
       this.group.add(m);
     });
+  }
+
+  // vòng xoay chính: vành mặt đường (texture đường phụ, vạch chia làn đứt ở giữa), viền bó vỉa, đảo giữa lát đá + bồn hoa đỏ,
+  // hồ nước + thành bể trắng, tiểu cảnh cây / hoa ở tâm. Cao độ theo dalatGround (+0.18 => phủ lên mặt đường vòng hồ chỗ chồng)
+  _roundabout() {
+    const RB = ROUNDABOUT, G = dalatGround, N = 72, r0 = RB.r - RB.hw, r1 = RB.r + RB.hw, ring = { pos: [], uv: [] };
+    const P = (r, a, dy = 0.18) => { const x = RB.x + Math.cos(a) * r, z = RB.z + Math.sin(a) * r; return [x, G(x, z) + dy, z]; };
+    for (let i = 0; i < N; i++) {
+      const a0 = i / N * Math.PI * 2, a1 = (i + 1) / N * Math.PI * 2, v0 = a0 * RB.r / 8, v1 = a1 * RB.r / 8;
+      const A = P(r1, a0), B = P(r0, a0), C = P(r1, a1), D = P(r0, a1);
+      ring.pos.push(...A, ...B, ...C, ...C, ...B, ...D); ring.uv.push(1, v0, 0, v0, 1, v1, 1, v1, 0, v0, 0, v1);
+    }
+    const mk = (pos, uv, mat) => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      if (uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      g.computeVertexNormals();
+      const m = new THREE.Mesh(g, mat); m.receiveShadow = true; m.matrixAutoUpdate = false; this.group.add(m); return m;
+    };
+    const ringMat = new THREE.MeshStandardMaterial({ map: streetTexture(true), roughness: 0.9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+    addFakeLight(ringMat); withMist(ringMat);
+    mk(ring.pos, ring.uv, ringMat);
+    // đảo giữa: đĩa lát đá có bồn hoa đỏ (texture canvas toả tròn), viền bó vỉa trắng xám cao 0.25 m
+    const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+    const c = cv.getContext('2d');
+    c.fillStyle = '#b9b4ab'; c.fillRect(0, 0, 256, 256);
+    for (let r = 20; r < 128; r += 9) { c.strokeStyle = r % 18 ? '#a9a39a' : '#c9c4ba'; c.lineWidth = 2; c.beginPath(); c.arc(128, 128, r, 0, Math.PI * 2); c.stroke(); }
+    for (let k = 0; k < 8; k++) {                                   // 8 bồn hoa đỏ / tím hình quạt
+      const a = k / 8 * Math.PI * 2 + 0.2;
+      c.fillStyle = k % 2 ? '#8e1f3a' : '#b02a2a';
+      c.beginPath(); c.arc(128, 128, 118, a, a + 0.42); c.arc(128, 128, 78, a + 0.42, a, true); c.closePath(); c.fill();
+    }
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const isl = { pos: [], uv: [] };
+    for (let i = 0; i < N; i++) {
+      const a0 = i / N * Math.PI * 2, a1 = (i + 1) / N * Math.PI * 2, O = P(0, 0, 0.3);
+      const A = P(r0, a0, 0.3), C = P(r0, a1, 0.3);
+      isl.pos.push(...O, ...C, ...A);
+      isl.uv.push(0.5, 0.5, 0.5 + Math.cos(a1) * 0.5, 0.5 + Math.sin(a1) * 0.5, 0.5 + Math.cos(a0) * 0.5, 0.5 + Math.sin(a0) * 0.5);
+    }
+    const islMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 }); addFakeLight(islMat); withMist(islMat);
+    mk(isl.pos, isl.uv, islMat);
+    const y0 = G(RB.x, RB.z), grp = new THREE.Group(); grp.position.set(RB.x, y0, RB.z);
+    const std = (color, o = {}) => withMist(new THREE.MeshStandardMaterial({ color, roughness: 0.8, ...o }));
+    const add = (geo, mat, y) => { const m = new THREE.Mesh(geo, mat); m.position.y = y; m.castShadow = m.receiveShadow = true; grp.add(m); return m; };
+    add(new THREE.CylinderGeometry(r0 + 0.25, r0 + 0.35, 0.32, 64, 1, true), std(0xd6d3cc), 0.16);           // bó vỉa
+    add(new THREE.CylinderGeometry(6.4, 6.6, 0.6, 48), std(0xeceae4), 0.3);                                // thành bể
+    add(new THREE.CylinderGeometry(6.0, 6.0, 0.04, 48), std(0x2c5a6a, { roughness: 0.15, metalness: 0.2 }), 0.62);   // mặt nước
+    add(new THREE.CylinderGeometry(1.4, 1.8, 1.2, 16), std(0xd9d4c8), 1.2);                                // bệ tiểu cảnh
+    for (let k = 0; k < 5; k++) {                                   // tiểu cảnh: khối cây xanh tỉa + hoa
+      const a = k / 5 * Math.PI * 2, r = k ? 1.1 : 0;
+      const m = add(new THREE.IcosahedronGeometry(k ? 0.7 : 1.0, 1), std(0x3f7a35), k ? 2.3 : 2.9);
+      m.position.x = Math.cos(a) * r; m.position.z = Math.sin(a) * r; m.scale.y = 1.4;
+    }
+    for (let k = 0; k < 14; k++) {
+      const a = k / 14 * Math.PI * 2, m = add(new THREE.SphereGeometry(0.28, 8, 6), std([0xd8323a, 0xf2c12e, 0xe86fa8][k % 3]), 2.0 + (k % 3) * 0.5);
+      m.position.x = Math.cos(a) * 1.6; m.position.z = Math.sin(a) * 1.6;
+    }
+    this.group.add(grp);
   }
 
   // xe chạy trên đường phụ: dùng lại hình xe dựng sẵn của map Phố (cityTraffic: sedan / kei / taxi / van / xe máy, đèn tự sáng ban đêm),

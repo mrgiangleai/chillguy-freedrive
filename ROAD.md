@@ -4,7 +4,7 @@
 
 > Đọc trước khi sửa. Xong: 1 dòng **Nhật ký** + tăng bộ đếm; đủ 10 => gộp vào mục trạng thái, đặt lại 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 20/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 21/10**
 
 ## 1. Tổng quan
 
@@ -148,3 +148,4 @@
 - **#18 — (28/10/2026)**: bỏ vệt đèn trên hồ (`updateStreaks`, chỉ thấy chấm bóng đèn, chú bỏ). Phạm vi đèn đường thật: thanh tới 800 m, mặc định `range` 800.
 - **#19 — Đà Lạt ánh sáng giả đèn đường (28/10/2026)**: `FAKE_LIGHT` + `addFakeLight(terrain.mat / scenery.roadMat)`: ảnh 1024² (canvas, mỗi bóng đèn 1 vệt tròn bán kính `fakeR` 18 m, cộng dồn) phủ ±1300 m; shader cộng màu đèn × albedo × `fakeK` (3) × mức bật đèn vào emissive. Vẽ lại mỗi 1 s khi số đèn / bán kính đổi. 💡 Lighting (chỉ Đà Lạt): 'Ánh sáng giả quanh cột' (0 = tắt), 'Bán kính'. Bỏ vũng sáng decal ở Đà Lạt.
 - **#20 — Đà Lạt đường phụ + xe (28/10/2026)**: dải đường phụ có texture nhựa (canvas `streetTexture`: vạch mép trắng, vạch tim đứt khi hw ≥ 3.2), ánh sáng giả + sương. Xe đường phụ: `initTraffic` dùng hình xe map Phố (`VEHICLE_TYPES/COLORS` export từ cityTraffic, InstancedMesh riêng, vật liệu chung) — sedan/kei/taxi/van/xe máy, 24 xe (Low 10), làn phải, bám xe trước ≥ 12 m, sinh lại trong 450 m quanh camera; 209 đường (hw ≥ 2.6, dài > 60 m).
+- **#21 — Đà Lạt vòng xoay chính (28/10/2026)**: `ROUNDABOUT` (OSM 51561593, tâm −870.9 / 514.5, tim r 19.1): vành đường rộng 14 m (r 12–26, texture đường phụ, vạch chia làn đứt), đảo giữa lát đá + 8 bồn hoa đỏ, bể nước thành trắng, tiểu cảnh cây + hoa; bỏ ribbon vòng OSM, nhánh trong 160 m rộng 13 m, không cây trong r 30 m. `loopNear` khoá số (dựng đường phụ 300 → 50 ms).
