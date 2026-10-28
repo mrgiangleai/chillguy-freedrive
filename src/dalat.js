@@ -9,12 +9,13 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { SgnCity } from './sgnCity.js';
 import { demAt } from './terrain-noise.js';
 import { withMist } from './mist.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const DALAT = { data: DATA, length: DATA.length, start: DATA.start };
 // vòng xoay chính (OSM way 51561593, giao Trần Quốc Toản / Nguyễn Thị Minh Khai / Nguyễn Văn Cừ / Lê Đại Hành, cạnh chợ Đà Lạt):
 // tim vòng r 19 m, mặt đường rộng 14 m (12–26 m), đảo giữa: lát đá + bồn hoa đỏ + hồ nước + tiểu cảnh; các nhánh trong 160 m nở rộng 13 m
 export const ROUNDABOUT = { x: -870.9, z: 514.5, r: 19.1, hw: 7, arm: 6.5, near: 160 };
-// đường vòng hồ gần vòng xoay (≤ 70 m): bỏ vạch vàng tim đường (vạch ở u ≈ 0.5 của texture đường chính => lấy màu nhựa ở u 0.35)
+// đường vòng hồ map Đà Lạt: bỏ vạch mép trắng 2 bên; gần vòng xoay (≤ 70 m) bỏ cả vạch vàng tim đường (vạch ở u ≈ 0.5 của texture đường chính => lấy màu nhựa ở u 0.35)
 export function noCenterLineNearRoundabout(mat) {
   const prev = mat.onBeforeCompile;
   mat.onBeforeCompile = function (sh, r) {
@@ -25,7 +26,10 @@ export function noCenterLineNearRoundabout(mat) {
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vRBW;\nuniform vec4 uRB;\nuniform float uRBOn;')
       .replace('#include <map_fragment>', `#include <map_fragment>
       #ifdef USE_MAP
-      if (uRBOn > 0.5 && length(vRBW.xz - uRB.xy) < uRB.z && abs(vMapUv.x - 0.5) < 0.05) diffuseColor.rgb = texture2D(map, vec2(0.35, vMapUv.y)).rgb;
+      if (uRBOn > 0.5) {
+        if (vMapUv.x < 0.075 || vMapUv.x > 0.925) diffuseColor.rgb = texture2D(map, vec2(0.12, vMapUv.y)).rgb;   // Đà Lạt: không vạch mép trắng
+        else if (length(vRBW.xz - uRB.xy) < uRB.z && abs(vMapUv.x - 0.5) < 0.05) diffuseColor.rgb = texture2D(map, vec2(0.4, vMapUv.y)).rgb;
+      }
       #endif`);
   };
   mat.needsUpdate = true;
@@ -33,6 +37,8 @@ export function noCenterLineNearRoundabout(mat) {
 export const RB_ON = { value: 0 };                 // main bật khi ở map Đà Lạt
 // cột đèn đường không đặt trên vòng xoay (đường vòng hồ đi sát mép vòng)
 export const nearRoundabout = (x, z, pad = 6) => Math.hypot(x - ROUNDABOUT.x, z - ROUNDABOUT.z) < ROUNDABOUT.r + ROUNDABOUT.hw + pad;
+// cầu Sắt — đường vòng hồ qua đập đầu hồ phía bắc (OSM way 301084151, s ≈ 2 910–2 930; mặt đường cao hơn lòng suối tới 3.8 m ở s 2 865–2 950)
+export const BRIDGE = { s0: 2862, s1: 2952 };
 export const WATER_DROP = -3;
 export const DALAT_ENV = 0.4;                // mặt đường / đất ở Đà Lạt: bớt ánh trời (envMap) — trời trong không ám xanh dương xuống đường                 // mặt nước game thấp hơn mặt nước FBX 3 m (đáy DEM: −5.5 m)
 
@@ -512,8 +518,7 @@ export class DalatScene {
     this._lodAt = null;
   }
 
-  // các đường khác trong vùng (OSM): dải nhựa phủ trên địa hình (cao hơn mặt đất 0.15 m), lấy mẫu mỗi 4 m; texture nhựa + vạch mép trắng,
-  // đường ≥ 6.4 m có vạch tim đứt (u ngang 0..1, v dọc = mét / 8)
+  // các đường khác trong vùng (OSM): dải nhựa phủ trên địa hình (cao hơn mặt đất 0.15 m), lấy mẫu mỗi 4 m; nhựa trơn không vạch
   _streets(S) {
     this.streets = S;                                                 // bản đồ tròn vẽ lại
     const G = dalatGround, buf = [{ pos: [], uv: [] }, { pos: [], uv: [] }];
@@ -559,7 +564,7 @@ export class DalatScene {
       geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(B.pos), 3));
       geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(B.uv), 2));
       geo.computeVertexNormals();
-      const mat = new THREE.MeshStandardMaterial({ map: streetTexture(k === 1), roughness: 0.9, envMapIntensity: DALAT_ENV, side: THREE.DoubleSide,
+      const mat = new THREE.MeshStandardMaterial({ map: streetTexture(), roughness: 0.9, envMapIntensity: DALAT_ENV, side: THREE.DoubleSide,
         polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
       addFakeLight(mat);                                              // ánh sáng giả đèn đường cả trên đường phụ
       withMist(mat);
@@ -569,7 +574,7 @@ export class DalatScene {
     });
   }
 
-  // vòng xoay chính: vành mặt đường (texture đường phụ, vạch chia làn đứt ở giữa), viền bó vỉa, đảo giữa lát đá + bồn hoa đỏ,
+  // vòng xoay chính: vành mặt đường (nhựa trơn như đường phụ), viền bó vỉa, đảo giữa lát đá + bồn hoa đỏ,
   // hồ nước + thành bể trắng, tiểu cảnh cây / hoa ở tâm. Cao độ theo dalatGround (+0.18 => phủ lên mặt đường vòng hồ chỗ chồng)
   _roundabout() {
     const RB = ROUNDABOUT, G = dalatGround, N = 72, r0 = RB.r - RB.hw, r1 = RB.r + RB.hw, ring = { pos: [], uv: [] };
@@ -587,7 +592,7 @@ export class DalatScene {
       g.computeVertexNormals();
       const m = new THREE.Mesh(g, mat); m.receiveShadow = true; m.matrixAutoUpdate = false; this.group.add(m); return m;
     };
-    const ringMat = new THREE.MeshStandardMaterial({ map: streetTexture(true), roughness: 0.9, envMapIntensity: DALAT_ENV, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+    const ringMat = new THREE.MeshStandardMaterial({ map: streetTexture(), roughness: 0.9, envMapIntensity: DALAT_ENV, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
     addFakeLight(ringMat); withMist(ringMat);
     mk(ring.pos, ring.uv, ringMat);
     // đảo giữa: đĩa lát đá có bồn hoa đỏ (texture canvas toả tròn), viền bó vỉa trắng xám cao 0.25 m
@@ -629,6 +634,39 @@ export class DalatScene {
       m.position.x = Math.cos(a) * 1.6; m.position.z = Math.sin(a) * 1.6;
     }
     this.group.add(grp);
+  }
+
+  // lan can cầu Sắt (2 bên đường vòng hồ, s0..s1): gờ bê tông 0.45 m + trụ thép mỗi 2.5 m + 2 thanh ngang (cao 1.1 m),
+  // mặt bên bản cầu bê tông thả xuống 1.6 m (che khe dưới mép đường). road: Road của game (loop đã đặt)
+  buildBridge(road) {
+    if (this.bridge) return;
+    const HW = 4.6, B = BRIDGE, step = 2, p = {}, q = {};
+    road.ensure(B.s1 + 10);
+    const conc = [], steel = [];
+    const seg = (out, s, off, w, h, y0) => {                        // hộp nối 2 điểm lệch ngang `off` tại s và s + step
+      road.at(s, p); road.at(s + step, q);
+      const ax = p.x + Math.cos(p.th) * off, az = p.z - Math.sin(p.th) * off, bx = q.x + Math.cos(q.th) * off, bz = q.z - Math.sin(q.th) * off;
+      const dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz) + 0.05;
+      out.push(new THREE.BoxGeometry(w, h, len).rotateY(Math.atan2(dx, dz)).translate((ax + bx) / 2, (p.y + q.y) / 2 + y0 + h / 2, (az + bz) / 2));
+    };
+    for (const side of [-1, 1]) {
+      for (let s = B.s0; s < B.s1; s += step) {
+        seg(conc, s, side * (HW + 0.2), 0.4, 0.45, 0);                 // gờ bê tông
+        seg(conc, s, side * (HW + 0.42), 0.12, 1.6, -1.6);             // mặt bên bản cầu
+        seg(steel, s, side * (HW + 0.2), 0.07, 0.07, 1.05);            // tay vịn
+        seg(steel, s, side * (HW + 0.2), 0.05, 0.05, 0.75);            // thanh giữa
+      }
+      for (let s = B.s0; s <= B.s1; s += 2.5) {
+        road.at(s, p);
+        const x = p.x + Math.cos(p.th) * side * (HW + 0.2), z = p.z - Math.sin(p.th) * side * (HW + 0.2);
+        steel.push(new THREE.BoxGeometry(0.09, 0.7, 0.09).translate(x, p.y + 0.45 + 0.35, z));
+      }
+    }
+    const mk = (parts, mat) => { const m = new THREE.Mesh(mergeGeometries(parts.map((g) => g.toNonIndexed())), mat); m.castShadow = m.receiveShadow = true; m.matrixAutoUpdate = false; return m; };
+    this.bridge = new THREE.Group();
+    this.bridge.add(mk(conc, withMist(new THREE.MeshStandardMaterial({ color: 0xbdb8ae, roughness: 0.9, envMapIntensity: DALAT_ENV }))),
+      mk(steel, withMist(new THREE.MeshStandardMaterial({ color: 0x3b4a44, roughness: 0.5, metalness: 0.6, envMapIntensity: DALAT_ENV }))));
+    this.group.add(this.bridge);
   }
 
   // xe chạy trên đường phụ: dùng lại hình xe dựng sẵn của map Phố (cityTraffic: sedan / kei / taxi / van / xe máy, đèn tự sáng ban đêm),
@@ -707,16 +745,15 @@ export class DalatScene {
   }
 }
 
-// texture đường phụ: nhựa xám lấm tấm + vạch mép trắng liền; center = vạch tim trắng đứt (4 m vạch / 4 m trống trên chu kỳ 8 m)
-function streetTexture(center) {
+// texture đường phụ / vòng xoay: nhựa xám lấm tấm, không vạch kẻ (chú dặn: bỏ viền trắng + vạch giữa)
+let STREET_TEX = null;
+function streetTexture() {
+  if (STREET_TEX) return STREET_TEX;
   const W = 64, H = 256, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const c = cv.getContext('2d');
   c.fillStyle = '#404042'; c.fillRect(0, 0, W, H);
   for (let i = 0; i < 1400; i++) { const g = 52 + Math.random() * 26; c.fillStyle = `rgb(${g},${g},${g + 2})`; c.fillRect(Math.random() * W, Math.random() * H, 1, 1); }
-  c.fillStyle = '#d9d7cf';
-  c.fillRect(2, 0, 2, H); c.fillRect(W - 4, 0, 2, H);
-  if (center) c.fillRect(W / 2 - 1, 0, 2, H / 2);
-  const t = new THREE.CanvasTexture(cv);
+  const t = STREET_TEX = new THREE.CanvasTexture(cv);
   t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   return t;
 }

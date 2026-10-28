@@ -4,7 +4,7 @@
 
 > Đọc trước khi sửa. Xong: 1 dòng **Nhật ký** + tăng bộ đếm; đủ 10 => gộp vào mục trạng thái, đặt lại 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 23/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 24/10**
 
 ## 1. Tổng quan
 
@@ -151,3 +151,4 @@
 - **#21 — Đà Lạt vòng xoay chính (28/10/2026)**: `ROUNDABOUT` (OSM 51561593, tâm −870.9 / 514.5, tim r 19.1): vành đường rộng 14 m (r 12–26, texture đường phụ, vạch chia làn đứt), đảo giữa lát đá + 8 bồn hoa đỏ, bể nước thành trắng, tiểu cảnh cây + hoa; bỏ ribbon vòng OSM, nhánh trong 160 m rộng 13 m, không cây trong r 30 m. `loopNear` khoá số (dựng đường phụ 300 → 50 ms).
 - **#22 — Đà Lạt (28/10/2026)**: trời trong ám xanh xuống đường => `DALAT_ENV` 0.4 (envMap đường phụ / vòng xoay / đường chính / đất ở Đà Lạt), nhựa đường phụ tối hơn. Mép hồ vách bậc thang => DEM lòng hồ sâu dần từ bờ (−3.3 → −5.5 trong 14 m), bờ ngoài dốc thoải 10 m về địa hình gốc (`fetch-dalat.mjs`, dem0).
 - **#23 — Đà Lạt vòng xoay (28/10/2026)**: DEM san phẳng ở 0.8 m trong 50 m quanh tâm (về địa hình gốc tới 85 m, `fetch-dalat.mjs`) => vành / nhánh / đường vòng hồ cùng mặt phẳng; vành vòng xoay 1 cao độ (+0.18), đảo giữa cao hơn 20 cm + thành bó vỉa đứng + mặt bó vỉa sáng. `noCenterLineNearRoundabout(scenery.roadMat)`: bỏ vạch vàng đường chính trong 70 m (`RB_ON`); `scenery.lampSkip` = không cột đèn trên vòng xoay.
+- **#24 — Đà Lạt (28/10/2026)**: bỏ vạch mép trắng đường vòng hồ (shader roadMat khi `RB_ON`, u < 0.075 / > 0.925 lấy màu nhựa), đường phụ + vòng xoay nhựa trơn không vạch (`streetTexture` dùng chung). Cầu Sắt (đập đầu hồ bắc, OSM 301084151): `BRIDGE` s 2 862–2 952, `buildBridge(road)` gờ bê tông + trụ / tay vịn thép + mặt bên bản cầu, gọi trong applyMap.
