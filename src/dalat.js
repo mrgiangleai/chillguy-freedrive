@@ -8,9 +8,10 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { SgnCity } from './sgnCity.js';
 import { demAt } from './terrain-noise.js';
+import { withMist } from './mist.js';
 
 export const DALAT = { data: DATA, length: DATA.length, start: DATA.start };
-export const WATER_DROP = -1;                 // mặt nước game thấp hơn mặt nước FBX 1 m (đáy DEM: −3.5 m)
+export const WATER_DROP = -3;                 // mặt nước game thấp hơn mặt nước FBX 3 m (đáy DEM: −5.5 m)
 
 let DEM = null;
 // lưới độ cao { x0, z0, cell, nx, nz, h } cho `TP.dem` (demAt nội suy song tuyến)
@@ -206,7 +207,7 @@ export class DalatScene {
         // ao / hồ nhỏ khác (cao độ khác mặt hồ): xanh lá đậm, ít lóa
         o.material = new THREE.MeshStandardMaterial({ color: 0x1d3a22, roughness: 0.3, metalness: 0, side: THREE.DoubleSide,
           polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-        o.position.y = WATER_DROP;                                    // mọi mặt nước hạ 1 m (bờ cao hơn, hồ trông sâu)
+        o.position.y = WATER_DROP;                                    // mọi mặt nước hạ 3 m (bờ cao hơn, hồ trông sâu)
         o.receiveShadow = true;
       } else {
         const bld = name.startsWith('BUILDINGS');
@@ -295,6 +296,35 @@ export class DalatScene {
     });
     return out;
   }
+  // lớp phản chiếu mặt hồ (như vũng nước mưa): tấm phẳng cao hơn mặt nước 5 cm, chỉ trong mặt nạ hồ, không gợn sóng
+  // => ảnh phản chiếu đứng yên, không giật theo sóng; độ rõ 60 % (đậm hơn khi nhìn xiên, Fresnel), ngả xanh lá của nước
+  setMirror(refl) {
+    if (!this.lake) return;
+    if (!this.mirror) {
+      const [x0, z0, x1, z1] = this.lake.bounds, U = this.mirrorU = { uRT: { value: null }, uRM: { value: new THREE.Matrix4() }, uLM: { value: this.lake.tex }, uLB: { value: new THREE.Vector4(x0, z0, x1, z1) }, uK: { value: 0.6 } };
+      const m = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false });
+      m.onBeforeCompile = (sh) => {
+        Object.assign(sh.uniforms, U);
+        sh.vertexShader = 'varying vec3 vMW;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvMW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+        sh.fragmentShader = 'uniform sampler2D uRT, uLM; uniform mat4 uRM; uniform vec4 uLB; uniform float uK; varying vec3 vMW;\n' + sh.fragmentShader.replace('#include <map_fragment>', `
+          vec2 lu = (vMW.xz - uLB.xy) / (uLB.zw - uLB.xy);
+          if (texture2D(uLM, lu).r < 0.5) discard;
+          vec4 rc = uRM * vec4(vMW, 1.0);
+          diffuseColor.rgb = texture2D(uRT, rc.xy / rc.w).rgb * vec3(0.78, 0.86, 0.78);
+          float cosT = clamp(normalize(cameraPosition - vMW).y, 0.0, 1.0);
+          diffuseColor.a = uK * (0.55 + 0.45 * pow(1.0 - cosT, 2.0));`);
+      };
+      m.customProgramCacheKey = () => 'dalat-mirror';
+      withMist(m);
+      const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0).rotateX(-Math.PI / 2).translate((x0 + x1) / 2, WATER_DROP + 0.05, (z0 + z1) / 2);
+      this.mirror = new THREE.Mesh(g, m);
+      this.mirror.renderOrder = 2; this.mirror.frustumCulled = false;
+      this.group.add(this.mirror);
+    }
+    this.mirror.visible = !!(refl && refl.active);
+    if (refl) { this.mirrorU.uRT.value = refl.rt.texture; this.mirrorU.uRM.value.copy(refl.texMatrix); }
+  }
+
   // impostor: chụp model cây (nhìn ngang, ánh sáng đều) vào ảnh 256 × 400 có kênh alpha => 2 tấm chéo nhau, pháp tuyến hướng lên
   // (sáng đều mọi hướng nắng). Gốc (0, 0, 0), cao 1 m như model đã chuẩn hoá
   _impostor(parts) {

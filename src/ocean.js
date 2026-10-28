@@ -74,9 +74,6 @@ uniform vec4 uRivPF;                 // tâm sông (x, z) + hướng ngang sông
 uniform float uLake;                 // chế độ hồ (map Đà Lạt, cùng uRiv = 1): chỉ trong mặt nạ hình hồ, sóng rất nhỏ, xanh lá đậm, ít lóa
 uniform sampler2D uLakeM;            // mặt nạ hồ (R > 0.5 = nước) phủ khung uLakeB = (x0, z0, x1, z1)
 uniform vec4 uLakeB;
-uniform sampler2D uReflTex;          // hồ: ảnh phản chiếu phẳng (WetReflection, camera đối xứng qua mặt hồ)
-uniform mat4 uReflMat;
-uniform float uReflOn;
 // khoảng cách có dấu tới tim sông (đã trừ độ uốn 40·sin(u/300) như avenue.js)
 float rivA(vec2 p) { vec2 d = p - uRivPF.xy, f = uRivPF.zw, r = vec2(-f.y, f.x); float u = dot(d, r); return dot(d, f) - uRivM * sin(u / 300.0); }
 uniform vec3 uRoad[${ROAD_N}];
@@ -163,17 +160,6 @@ function oceanMaterial(u) {
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor + smoothstep(150.0, 1500.0, camD) * 0.12 + uRiv * 0.24, 0.85, oFoam);')
       // sông: bớt soi trời (trước như tấm gương trắng bạc, sáng hơn cả cỏ) + bớt vệt nắng chói
       .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nif (uRiv > 0.5) { reflectedLight.indirectSpecular *= 0.4; reflectedLight.directSpecular *= 0.45; }\nif (uLake > 0.5) { reflectedLight.indirectSpecular *= 0.3; reflectedLight.directSpecular *= 0.35; }')
-      // hồ: trộn ảnh phản chiếu cảnh (cây, nhà, đồi) theo Fresnel, méo nhẹ theo gợn sóng, ngả xanh lá của nước
-      .replace('#include <opaque_fragment>', `
-        if (uLake > 0.5 && uReflOn > 0.5) {
-          vec4 rc = uReflMat * vec4(vOW.x, uSea, vOW.z, 1.0);
-          vec2 ruv = rc.xy / rc.w + wv.yz * 0.025;
-          vec3 rcol = texture2D(uReflTex, ruv).rgb * vec3(0.72, 0.82, 0.74);
-          float cosT = clamp(dot(normalize(normal), normalize(-vViewPosition)), 0.0, 1.0);
-          float fres = 0.28 + 0.6 * pow(1.0 - cosT, 3.0);
-          outgoingLight = mix(outgoingLight, rcol, fres * (1.0 - oFoam));
-        }
-        #include <opaque_fragment>`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         {
           vec2 sl = wv.yz / (1.0 + camD / 400.0) * (1.0 - 0.55 * uRiv);   // xa: dịu pháp tuyến (đỡ lấp lánh răng cưa); sông êm hơn
@@ -194,8 +180,7 @@ export class Ocean {
     this.roadPts = Array.from({ length: ROAD_N }, () => new THREE.Vector3());
     this.u = { uWave: { value: null }, uFrame: { value: 0 }, uFrameB: { value: 0 }, uWA: { value: 1 }, uWB: { value: 0 }, uT: { value: 0 }, uSea: { value: 0 }, uLod: { value: 3000 }, uCamW: { value: new THREE.Vector3() }, uRoad: { value: this.roadPts },
       uRiv: { value: 0 }, uRivHW: { value: 100 }, uRivM: { value: 40 }, uRivPF: { value: new THREE.Vector4() },
-      uLake: { value: 0 }, uLakeM: { value: null }, uLakeB: { value: new THREE.Vector4() },
-      uReflTex: { value: null }, uReflMat: { value: new THREE.Matrix4() }, uReflOn: { value: 0 } };
+      uLake: { value: 0 }, uLakeM: { value: null }, uLakeB: { value: new THREE.Vector4() } };
     this.material = null;
     this._p = {};
   }
@@ -243,12 +228,6 @@ export class Ocean {
     this.u.uRiv.value = 1; this.u.uLake.value = 1;
     this.u.uLakeM.value = tex; this.u.uLakeB.value.set(...bounds);
     this.level = level; this.group.visible = true;
-  }
-
-  // hồ (Đà Lạt): gắn ảnh phản chiếu phẳng; refl = WetReflection đã render (null => tắt)
-  setLakeReflection(refl) {
-    const u = this.u; u.uReflOn.value = refl && refl.active ? 1 : 0;
-    if (refl) { u.uReflTex.value = refl.rt.texture; u.uReflMat.value.copy(refl.texMatrix); }
   }
 
   update(time, cam, road, s) {

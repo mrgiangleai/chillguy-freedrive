@@ -190,9 +190,9 @@ for (let pass = 0; pass < 6; pass++) for (let j = 0; j < NX; j++) for (let i = 0
   if (n) dem[k] = a / n;
 }
 for (let k = 0; k < dem.length; k++) if (Number.isNaN(dem[k])) dem[k] = 0;
-// đáy nước: thấp hơn mặt nước FBX 3.5 m
+// đáy nước: thấp hơn mặt nước FBX 5.5 m
 const wet = new Uint8Array(NX * NX);
-raster(WV, WT, (i, j, z) => { const k = j * NX + i; wet[k] = 1; dem[k] = Math.min(dem[k], z - L0 - 3.5); });   // mặt nước game hạ 1 m (dalat.js) => đáy sâu 2.5 m dưới mặt nước
+raster(WV, WT, (i, j, z) => { const k = j * NX + i; wet[k] = 1; dem[k] = Math.min(dem[k], z - L0 - 5.5); });   // mặt nước game hạ 3 m (dalat.js WATER_DROP) => đáy sâu 2.5 m dưới mặt nước
 const demAt = (x, y) => {   // x đông, y bắc
   const fx = Math.min(NX - 1.001, Math.max(0, (x - X0) / CELL)), fy = Math.min(NX - 1.001, Math.max(0, (y - X0) / CELL));
   const i = Math.floor(fx), j = Math.floor(fy), tx = fx - i, ty = fy - j, k = j * NX + i;

@@ -122,7 +122,6 @@ const audio = new ChillAudio();
 const nycSound = new NycSound(audio);                         // map New York: còi xe xa, còi hụ, đám đông Times Square
 const post = new Post(renderer, QUALITY[QUALITY_DEFAULT].msaa);
 const refl = new WetReflection(renderer);
-let lakeReflN = 0;
 const lakeRefl = new WetReflection(renderer);   // map Đà Lạt: phản chiếu cảnh trên mặt hồ Xuân Hương (theo cài đặt phản chiếu của chất lượng)
 const person = new Person();
 const stop = new StopScene(cars, person);
@@ -2420,14 +2419,13 @@ function frame(now) {
   env.mistCover = mistCover; env.mistDens = mistDens;                // sương phủ cả bầu trời
 
   // đường ướt: vẽ ảnh phản chiếu cho vũng nước (chỉ khi mưa)
-  if (onDalat() && ocean.u.uLake.value > 0.5) {                // hồ Xuân Hương: vẽ cảnh đối xứng qua mặt hồ (ẩn mặt nước khi vẽ), mỗi 2 khung
-    if ((lakeReflN = (lakeReflN + 1) % 2) === 0 || !lakeRefl.active) {
-      const ov = ocean.group.visible; ocean.group.visible = false;
-      lakeRefl.render(scene, camera, WATER_DROP);
-      ocean.group.visible = ov;
-    }
-    ocean.setLakeReflection(lakeRefl);
-  } else if (lakeRefl.active) { lakeRefl.active = false; ocean.setLakeReflection(null); }
+  if (onDalat() && ocean.u.uLake.value > 0.5) {                // hồ Xuân Hương: vẽ cảnh đối xứng qua mặt hồ mỗi khung (ẩn mặt nước + lớp phản chiếu khi vẽ)
+    const ov = ocean.group.visible, mv = dalatScene.mirror?.visible;
+    ocean.group.visible = false; if (dalatScene.mirror) dalatScene.mirror.visible = false;
+    lakeRefl.render(scene, camera, WATER_DROP + 0.05);
+    ocean.group.visible = ov; if (dalatScene.mirror) dalatScene.mirror.visible = mv;
+    dalatScene.setMirror(lakeRefl);
+  } else if (lakeRefl.active) { lakeRefl.active = false; dalatScene.setMirror(null); }
   diag.lap('phản chiếu hồ');
   if (st.wet > 0.001) refl.render(scene, camera, drive.pos.y + 0.05);
   else refl.active = false;
