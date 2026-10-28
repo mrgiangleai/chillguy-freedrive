@@ -7,6 +7,7 @@ import { SGN, sgnLoop, sgnStreet, sgnZone, SgnScene } from './sgn.js';
 import { SgnEnv } from './sgnEnv.js';
 import { SgnCity } from './sgnCity.js';
 import { DALAT, dalatLoop, dalatDem, DalatScene } from './dalat.js';
+import { Diag } from './diag.js';
 import { TimesSquare } from './timesSquare.js';
 import { NycBuildings } from './nycBuildings.js';
 import { NycStreetProps } from './nycStreet.js';
@@ -180,8 +181,12 @@ sgnScene.place = () => {
 };
 const sgnEnv = new SgnEnv(scene, (x, z) => terrain.heightAt(x, z));       // map Landmark: khu Vinhomes (tháp chung cư, biệt thự, công viên, hồ, sông, cây — OSM)
 const sgnCity = new SgnCity(scene, (x, z) => terrain.heightAt(x, z));     // nhà / sông / cây thật quanh Landmark 81 (urban:EXPORT)
+const diag = new Diag();                                                 // chẩn đoán map Đà Lạt (tạm thời, tới khi hết đơ)
+let diagTris = '';
+diag.info = () => diagTris;
 const dalatScene = new DalatScene(scene, (x, z) => demAt(dalatDem(), x, z));        // map Hồ Xuân Hương: nhà / hồ / cây thông thật (urban:EXPORT), đường phụ OSM
-dalatScene.onLake = (tex, b) => { if (onDalat()) ocean.setLake(true, 0, tex, b); };   // mặt hồ Xuân Hương = nước map Biển (chế độ hồ)
+dalatScene.diag = diag;
+dalatScene.onLake = (tex, b) => { if (onDalat()) diag.time('ocean.setLake', () => ocean.setLake(true, 0, tex, b)); };   // mặt hồ Xuân Hương = nước map Biển (chế độ hồ)
 sgnEnv.city = sgnCity;                                                    // sgnEnv chờ cây của sgnCity rồi dựng chung
 const sgnObb = () => { if (sgnEnv.visible) city.extraObb = sgnEnv.obb.concat(sgnCity.obb); };
 sgnEnv.onReady = sgnObb;
@@ -749,17 +754,23 @@ function warmShaders(delay = 500) {
   clearTimeout(warmTimer);
   if (skipWarm) return;
   warmTimer = setTimeout(() => {
-    compileFor(post.sceneRT, camera).catch((e) => console.warn('warmup', e));
+    (onDalat() ? diag.time('biên dịch shader (warmShaders)', () => compileFor(post.sceneRT, camera)) : compileFor(post.sceneRT, camera)).catch((e) => console.warn('warmup', e));
   }, delay);
 }
 const applyMap = () => {
+  let dT = performance.now();
+  const dm = (n) => { if (!diagOn) return; const t = performance.now(); diag.mark(n, t - dT); dT = t; };
   const mapId = MAPS[state.map].id, id = mapKind(mapId), isHlg = mapId === 'hlg', isNyc = mapId === 'nyc', isSgn = mapId === 'sgn', isDalat = mapId === 'dalat';
+  const diagOn = isDalat && curMapId !== mapId;                   // chẩn đoán: chỉ lúc mới vào map Đà Lạt
+  if (isDalat) diag.on = true; else diag.on = false;
   if (isHlg && curMapId !== 'hlg') hlgDir = hlgLayout(false);
   setTerrainMap(id);            // đổi tham số địa hình (đồi thấp / đồi núi)
+  dm('setTerrainMap');
   // cao tốc HLG: độ cao thật (SRTM) + gợn rất nhẹ, không có núi xa (đồng bằng Đông Nam Bộ)
   if (isHlg) Object.assign(TP, { low: 1.5, det: 1.2, fine: 0.35, mount: 0, dem: hlgDem(hlgDir) });
   if (isNyc || isSgn) Object.assign(TP, { hill: 0, mount: 0 });   // Manhattan / Sài Gòn: phẳng, không đồi núi xa
   if (isDalat) TP.dem = dalatDem();                              // Đà Lạt: địa hình thật (DEM 10 m từ urban:EXPORT), mặt hồ y = 0
+  dm('DEM → TP.dem');
   hlgEnv.visible = isHlg;
   if (isHlg) hlgEnv.setDir(hlgDir);
   Object.assign(CITY, isNyc ? NYC_DIM : CITY_DIM);              // New York: đường / vỉa hè rộng theo Manhattan
@@ -768,6 +779,7 @@ const applyMap = () => {
   // cao tốc HLG: vào map luôn ở An Phú, chiều đi Dầu Giây; bố trí công trình theo dữ liệu thật (Đại lộ: theo chu kỳ)
   setLayout(isHlg ? hlgDir : null);
   road.setShape(isHlg ? 'hlg' : isNyc ? 'nyc' : isSgn ? 'sgn' : id, isHlg ? hlgDir.real : isNyc ? nycLoop() : isSgn ? sgnLoop() : isDalat ? dalatLoop() : null);   // phố: đường thẳng theo đoạn + ngã tư; đại lộ: cong rất thoải; New York: vòng thật
+  dm('road.setShape');
   // New York: vào map ở đầu Times Square (7th Ave 46 – 45 St), chạy làn ngoài phải
   if (isNyc && curMapId !== mapId) { drive.s = NYC.length + NYC.start; drive.d = CITY.lanes[1]; nycTurn = null; }
   if (isDalat && curMapId !== mapId) drive.s = DALAT.length + DALAT.start;   // Hồ Xuân Hương: bờ nam (Trần Quốc Toản), chiều kim đồng hồ
@@ -775,18 +787,22 @@ const applyMap = () => {
   if (isAvenue && curMapId !== mapId) { drive.s = isHlg ? HLG.start : 150; drive.ramp = null; }   // vào đại lộ: luôn từ đầu đường (cầu cao ở 700 m, cầu sông 2.2 km)
   road.dirt = id === 'forest';  // đồi thông: có đoạn đường đất xuyên rừng
   road.recomputeHeights();      // độ cao đường theo địa hình mới
+  dm('road.recomputeHeights');
   // map Biển: mực nước thấp hơn chỗ thấp nhất của đường 3 m (xét 120 km đường phía trước)
   if (id === 'sea') { road.ensure(drive.s + 120000); let lo = Infinity; for (const p of road.pts) lo = Math.min(lo, p.y); TP.seaLevel = lo - 3; }
   ocean.setMap(id === 'sea', TP.seaLevel);
+  dm('ocean.setMap/setLake');
   if (isDalat && dalatScene.lake) ocean.setLake(true, 0, dalatScene.lake.tex, dalatScene.lake.bounds);   // chưa tải: onLake bật sau
   avenue.visible = isAvenue;    // trước địa hình: khung nút giao để đào kênh đường ngang / nền nhánh rẽ
   avenue.prime(drive.s);
   drive.ramp = null;
   scenery.lampK = isNyc ? 1.35 : 1;   // New York: cột đèn ~15 m, cần vươn dài (đường 18 m)
   scenery.setMap(id);
+  dm('scenery.setMap');
   terrain.reset();
   terrain.setCar(drive.s);
   terrain.prime(camera.position.lengthSq() ? camera.position : drive.pos);
+  dm('terrain.reset+prime');
   reeds.visible = id === 'reed';
   grass.visible = id === 'forest';
   meadow.visible = id === 'meadow' || isAvenue;   // đại lộ: hai bên là cỏ như map Đồi cỏ
@@ -809,6 +825,7 @@ const applyMap = () => {
   city.reset();                 // Phố ↔ New York: khối nhà dựng theo hình đường cũ
   city.visible = isCity;
   city.prime(drive.s);
+  dm('city.reset+prime');
   nycWorks.visible = isNyc;
   sgnWorks.visible = isSgn;
   sgnScene.visible = isSgn;
@@ -819,6 +836,7 @@ const applyMap = () => {
   $('b-trees').hidden = !isDalat;
   if (tuneKind === 'trees' && !isDalat) closeTune();
   dalatScene.visible = isDalat;
+  dm('dalatScene.visible');
   if (isSgn) { sgnEnv.onReady(); sgnCity.onReady(); }           // camera không xuyên tháp / nhà thật (khi đã tải)
   fireflies.ground.clear();     // độ cao mặt đất nhớ theo hình đường cũ
   traffic.policy.city = isCity;
@@ -866,6 +884,7 @@ const applyMap = () => {
   rig.sidePref = id === 'mountain' ? 1 : 0;      // camera bên hông đứng phía thung lũng
   nature.setRadius(QUALITY[state.quality].trees);   // tính lại cây chi tiết cho map mới
   rig.sideSign = 0;
+  dm('applyMap phần cuối'); if (diagOn) diag.clearLast();
   warmShaders();
 };
 // chế độ chọn ở màn hình vào game: Chill = các map ngắm cảnh (không có Phố), Drive = chỉ map Phố
@@ -2060,6 +2079,7 @@ function frame(now) {
   const dt = admin.active ? 0 : rawDt;                 // Stop: mọi mô phỏng đứng yên
   if (!admin.active) simNow += rawDt * 1000;           // đồng hồ shader / nước / cỏ / đom đóm (đứng yên khi Stop)
   if (admin.active) { steerHeld = 0; brakeHeld = false; }   // bỏ nút lái / phanh đang giữ trên điện thoại
+  diag.begin();
   if (showroom.active) { showroomFrame(rawDt); requestAnimationFrame(frame); return; }   // Race!: chỉ vẽ showroom, đường đi đứng yên
 
   if (openingElapsed !== null) {
@@ -2208,7 +2228,7 @@ function frame(now) {
     const R = avenue.river(riverIndex(drive.s));
     ocean.setRiver(Math.abs(R.s - drive.s) < 3500, R.level, R.P, { x: R.fx, z: R.fz }, R.hw, R.mA ?? 40);
   }
-  ocean.update(simNow / 1000, camera.position, road, drive.s);
+  diag.lap('logic đầu khung + scenery'); ocean.update(simNow / 1000, camera.position, road, drive.s); diag.lap('ocean');
   waterfalls.update(simNow / 1000, drive.s, st.light, { d: drive.d, v: drive.v, dim: cars.dim, npcs: traffic.active, cam: camera, audio });
   if (reeds.visible) reeds.update(simNow / 1000, camera.position, road, drive.s, st);
   grass.group.visible = MAPS[state.map].id === 'forest' && st.cover < 0.5;   // tuyết phủ thì ẩn cỏ
@@ -2217,8 +2237,8 @@ function frame(now) {
   if (meadow.visible) meadow.update(simNow / 1000, camera.position, road, drive.s, st);
   cows.update(dt, drive.s, road, terrain);
   terrain.setCar(drive.s);
-  terrain.update(camera.position);
-  nature.update(camera.position, terrain);
+  terrain.update(camera.position); diag.lap('terrain');
+  nature.update(camera.position, terrain); diag.lap('nature');
   terrain.apply(st);
   // đom đóm: lúc trời tối, không mưa / tuyết / gió mạnh
   const ss = THREE.MathUtils.smoothstep;
@@ -2319,10 +2339,10 @@ function frame(now) {
   if (nycWorks.visible) { nycWorks.setLamps(st.lamps); nycWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
   if (sgnEnv.visible) { sgnEnv.winK = lightTune.windows; sgnEnv.setLamps(st.lamps); sgnEnv.update(dt, camera.position); }
   if (sgnCity.visible) sgnCity.setLamps(st.lamps * lightTune.windows);
-  if (dalatScene.visible) { dalatScene.setLamps(st.lamps * lightTune.windows); dalatScene.update(dt, camera.position); }
+  if (dalatScene.visible) { dalatScene.setLamps(st.lamps * lightTune.windows); diag.lap('trước dalatScene'); dalatScene.update(dt, camera.position); diag.lap('dalatScene'); }
   if (sgnScene.visible) sgnScene.setLamps(st.lamps * lightTune.signs);   // LED dọc Landmark 81 theo đèn đêm × "biển hiệu" bảng Lighting
   if (sgnWorks.visible) { sgnWorks.setLamps(st.lamps); sgnWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
-  minimap.update(dt);
+  diag.lap('traffic + khác'); minimap.update(dt); diag.lap('minimap');
   updateBlinker(dt);
   updateSpeedLimit();
   updateSession(dt);
@@ -2409,11 +2429,14 @@ function frame(now) {
   const glassAmt = inCabin ? wipers.wet : 0;
   if (cars.shield) cars.setWiper(wipers.angle(cars.shield.sweep));
   post.begin();
+  diag.lap('logic trước render');
   renderer.render(scene, camera);
+  if (diag.on) { diag.lap('render cảnh'); const R = renderer.info.render; diagTris = `cảnh: ${(R.triangles / 1e6).toFixed(2)} M tam giác · ${R.calls} lượt vẽ`; }
   rayParams();
   wipers.apply(post.final.uniforms, glassAmt > 0.01 ? glassAmt : 0, camera, cars.tilt, cars.shield, simNow / 1000, cars.rearShield);
   post.renderGlassMask(camera, cars.tilt, cars.rearShield);
   post.render(simNow / 1000, cineAmt, drive.fx, dofParams(dt));
+  diag.lap('hậu kỳ'); diag.end();
   if (shotPending) saveShot();
   requestAnimationFrame(frame);
 }

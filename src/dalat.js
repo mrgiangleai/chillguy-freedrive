@@ -96,13 +96,72 @@ export class DalatScene {
 
   _load() {
     this.state = 'loading';
-    const loader = new GLTFLoader(), job = (f) => this.jobs.push(f);
+    const t0 = performance.now(), got = (name) => this.diag?.step('tải + giải mã ' + name + ' (từ lúc vào)', performance.now() - t0);
+    const loader = new GLTFLoader(), job = (name, f) => this.jobs.push({ name, f });
     loader.setMeshoptDecoder(MeshoptDecoder);
-    loader.load('assets/dalat/dalat-city.glb', (gltf) => job(() => this._city(gltf.scene)), undefined, (e) => console.warn('dalat-city', e));
-    fetch('assets/dalat/dalat-streets.json').then((r) => r.json()).then((S) => job(() => this._streets(S.s))).catch((e) => console.warn('dalat-streets', e));
-    fetch('assets/dalat/dalat-trees.json').then((r) => r.json()).then((T) => job(() => this._trees(T))).catch((e) => console.warn('dalat-trees', e));
-    loader.load('assets/models/dalat/pine.glb', (gltf) => job(() => this._pine(gltf.scene)), undefined, (e) => console.warn('dalat-pine', e));
+    loader.load('assets/dalat/dalat-city.glb', (gltf) => { got('dalat-city.glb'); job('dựng nhà + nước (city)', () => this._city(gltf.scene)); }, undefined, (e) => console.warn('dalat-city', e));
+    fetch('assets/dalat/dalat-streets.json').then((r) => r.json()).then((S) => { got('streets.json'); job(`dải đường (${S.s.length})`, () => this._streets(S.s)); }).catch((e) => console.warn('dalat-streets', e));
+    fetch('assets/dalat/dalat-trees.json').then((r) => r.json()).then((T) => { got('trees.json'); job('mảng cây', () => this._trees(T)); }).catch((e) => console.warn('dalat-trees', e));
+    loader.load('assets/models/dalat/pine.glb', (gltf) => { got('pine.glb'); job('cây GLB', () => this._pine(gltf.scene)); }, undefined, (e) => console.warn('dalat-pine', e));
   }
+
+  _city(root) {
+    const winShader = (shader) => SgnCity.prototype._shader.call({ lampU: this.lampU }, shader);   // cửa sổ sáng ban đêm như map Landmark
+    root.updateMatrixWorld(true);
+    root.traverse((o) => {
+      if (!o.isMesh) return;
+      const name = o.material.name || o.name, color = o.material.color.clone();
+      if (name === 'WATER') {
+        if (this.diag) this.diag.time('cắt tam giác hồ + mặt nạ', () => this._splitLake(o)); else this._splitLake(o);
+        // ao / hồ nhỏ khác (cao độ khác mặt hồ): xanh lá đậm, ít lóa
+        o.material = new THREE.MeshStandardMaterial({ color: 0x1d3a22, roughness: 0.3, metalness: 0, side: THREE.DoubleSide,
+          polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+        o.receiveShadow = true;
+      } else {
+        o.material = new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0 });
+        if (name.startsWith('BUILDINGS')) o.material.onBeforeCompile = winShader;
+        o.castShadow = o.receiveShadow = true;
+      }
+      o.matrixAutoUpdate = false; o.updateMatrix();
+    });
+    this.group.add(root);
+    this.state = 'ready';
+  }
+
+  // tách tam giác mặt hồ Xuân Hương (y ≈ 0, trong đa giác hồ) khỏi lưới WATER => vẽ mặt nạ canvas cho nước map Biển (ocean.setLake)
+  _splitLake(o) {
+    const g = o.geometry, P = g.attributes.position, ix = g.index, n = ix ? ix.count : P.count, v = new THREE.Vector3();
+    const keep = [], lake = [], poly = DATA.lake;
+    const inPoly = (x, z) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) if ((poly[i][1] > z) !== (poly[j][1] > z) && x < poly[i][0] + (poly[j][0] - poly[i][0]) * (z - poly[i][1]) / (poly[j][1] - poly[i][1])) c = !c; return c; };
+    for (let t = 0; t < n; t += 3) {
+      const tri = [];
+      for (let k = 0; k < 3; k++) { v.fromBufferAttribute(P, ix ? ix.getX(t + k) : t + k).applyMatrix4(o.matrixWorld); tri.push(v.x, v.y, v.z); }
+      const cx = (tri[0] + tri[3] + tri[6]) / 3, cy = (tri[1] + tri[4] + tri[7]) / 3, cz = (tri[2] + tri[5] + tri[8]) / 3;
+      (Math.abs(cy) < 0.4 && inPoly(cx, cz) ? lake : keep).push(...tri);
+    }
+    const ng = new THREE.BufferGeometry();
+    ng.setAttribute('position', new THREE.BufferAttribute(new Float32Array(keep), 3)); ng.computeVertexNormals();
+    o.geometry = ng; o.position.set(0, 0, 0); o.scale.set(1, 1, 1); o.quaternion.identity();   // toạ độ đã là thế giới (bỏ khử lượng tử meshopt của node)
+    if (!lake.length) return;
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (let i = 0; i < lake.length; i += 3) { x0 = Math.min(x0, lake[i]); x1 = Math.max(x1, lake[i]); z0 = Math.min(z0, lake[i + 2]); z1 = Math.max(z1, lake[i + 2]); }
+    x0 -= 20; z0 -= 20; x1 += 20; z1 += 20;
+    const W = 1024, H = Math.round(W * (z1 - z0) / (x1 - x0)), cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const c = cv.getContext('2d'), sx = W / (x1 - x0), sz = H / (z1 - z0);
+    c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+    c.fillStyle = '#fff'; c.strokeStyle = '#fff'; c.lineWidth = 2; c.lineJoin = 'round';   // nét viền 2 px (~3 m): nước lấn dưới mép bờ, không hở
+    for (let i = 0; i < lake.length; i += 9) {
+      c.beginPath();
+      c.moveTo((lake[i] - x0) * sx, (lake[i + 2] - z0) * sz); c.lineTo((lake[i + 3] - x0) * sx, (lake[i + 5] - z0) * sz); c.lineTo((lake[i + 6] - x0) * sx, (lake[i + 8] - z0) * sz);
+      c.closePath(); c.fill(); c.stroke();
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.flipY = false; tex.colorSpace = THREE.NoColorSpace; tex.generateMipmaps = false; tex.minFilter = tex.magFilter = THREE.LinearFilter;
+    this.lake = { tex, bounds: [x0, z0, x1, z1] };
+    if (this.onLake) this.onLake(tex, this.lake.bounds);
+  }
+
 
   // cây thông GLB ("pine tree" — bolojun, Sketchfab, CC-BY-SA-4.0; simplify 12 % + WebP 512 + meshopt): chuẩn hoá cao 1 m, gốc thân về (0, 0, 0)
   _pine(root) {
@@ -136,7 +195,11 @@ export class DalatScene {
   update(dt, cam) {
     if (!this.group.visible) return;
     const t0 = performance.now();
-    while (this.jobs.length && performance.now() - t0 < 6) { const j = this.jobs.shift(); j(); }
+    while (this.jobs.length && performance.now() - t0 < 6) {
+      const j = this.jobs.shift();
+      try { if (this.diag && !j.quiet) this.diag.time(j.name, j.f); else j.f(); }    // lỗi 1 việc không được làm dừng vòng vẽ
+      catch (e) { console.warn('dalat', j.name, e); this.diag?.step('LỖI ' + j.name + ': ' + e.message); }
+    }
     if (!this.tx) return;
     this._lodT = (this._lodT || 0) + dt;
     if (this._lodAt && this._lodT < 0.6 && (cam.x - this._lodAt.x) ** 2 + (cam.z - this._lodAt.z) ** 2 < 64) return;
@@ -194,7 +257,7 @@ export class DalatScene {
       const ck = Math.floor(x / 300) + ',' + Math.floor(z / 300);
       (cells.get(ck) || cells.set(ck, []).get(ck)).push(k);
     }
-    for (const idx of cells.values()) this.jobs.push(() => {
+    for (const idx of cells.values()) this.jobs.push({ name: 'ô cây nón', quiet: true, f: () => {
       const g = new THREE.BufferGeometry();
       for (const name of Object.keys(geo.attributes)) g.setAttribute(name, geo.attributes[name]);
       const rnd = new Float32Array(idx.length);
@@ -209,7 +272,7 @@ export class DalatScene {
       im.castShadow = true; im.receiveShadow = true; im.customDepthMaterial = depth;
       im.computeBoundingSphere();
       this.trees.add(im);
-    });
+    } });
     this._lodAt = null;
   }
 

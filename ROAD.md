@@ -4,7 +4,7 @@
 
 > Đọc trước khi sửa. Xong: 1 dòng **Nhật ký** + tăng bộ đếm; đủ 10 => gộp vào mục trạng thái, đặt lại 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
 
 ## 1. Tổng quan
 
@@ -129,3 +129,4 @@
 
 - Đã tóm tắt tới commit ae9d380 (28/10/2026, gồm Đà Lạt). Bản đầy đủ trước khi nén: ROAD-ARCHIVE.md (chỉ tra khi ROAD.md thiếu).
 - **#1 — Đà Lạt treo khi vào map (28/10/2026)**: do GPU (≈2.2 M tam giác nón + tới 129 cây GLB × 11k + bóng) => giới hạn khoảng cách / số cây, dựng dần; thêm bảng 🌲 Cây. Chưa thử máy thật.
+- **#2 — Đà Lạt đơ (28/10/2026)**: 8d0e1c4 làm mất `_city`/`_splitLake` (job ném lỗi trong frame() => dừng vòng vẽ) — đã trả lại, job bọc try/catch. Thêm `src/diag.js` (dòng chữ vàng góc trái, chỉ Đà Lạt, TẠM: bước vào map + ms, fps, ms từng phần frame, tam giác / lượt vẽ, khung > 150 ms, lỗi JS, "lần trước kẹt ở") — xoá khi hết đơ.
