@@ -1,4 +1,4 @@
-// Dòng chữ chẩn đoán nhỏ góc trên trái (map Đà Lạt, tạm thời — giữ tới khi tìm ra chỗ đơ): từng bước lúc vào map + ms,
+// Bảng chẩn đoán góc phải (mọi map; 🩺 / phím 1; chỉ đo khi đang hiện): từng bước lúc vào map + ms,
 // fps / khung chậm nhất theo từng phần của frame(), các khung > 150 ms, và lỗi JS (lỗi trong frame() làm dừng vòng vẽ => "đơ").
 const LAST = 'chilldrive.diag.last';
 export class Diag {
@@ -19,7 +19,7 @@ export class Diag {
     document.body.append(el, btn, bar);
     this.active = false;
     try { this.shown = localStorage.getItem('chilldrive.diag.shown') !== '0'; } catch { this.shown = true; }
-    this.steps = []; this.slow = []; this.errors = [];
+    this.steps = []; this.slow = []; this.errors = []; this.title = '';
     try { const l = localStorage.getItem(LAST); if (l) { this.steps.push('LẦN TRƯỚC KẸT Ở: ' + l); localStorage.removeItem(LAST); } } catch { /* chế độ riêng tư */ }
     this.sec = new Map(); this._t = 0; this._fr = 0; this._fmax = 0; this._acc = 0; this._shown = 0;
     const err = (m) => { this.errors.push(m); if (this.errors.length > 4) this.errors.shift(); this._render(); };
@@ -58,15 +58,15 @@ export class Diag {
   mark(name, ms) { this.step(name, ms); try { localStorage.setItem(LAST, 'sau bước: ' + name); } catch { /* chế độ riêng tư */ } }
   clearLast() { try { localStorage.removeItem(LAST); } catch { /* chế độ riêng tư */ } }
   // đo các phần trong frame(): begin() đầu khung, lap(tên) sau mỗi phần, end() cuối khung
-  begin() { if (this.active) this._t = this._t0 = performance.now(); }
+  begin() { this._meas = this.active && this.shown; if (this._meas) this._t = this._t0 = performance.now(); }
   lap(name) {
-    if (!this.active) return;
+    if (!this._meas) return;
     const t = performance.now(), d = t - this._t; this._t = t;
     this._cur = this._cur || {}; this._cur[name] = d;
     const s = this.sec.get(name) || 0; if (d > s) this.sec.set(name, d);
   }
   end() {
-    if (!this.active) return;
+    if (!this._meas) return;
     const t = performance.now(), ms = t - this._t0;
     this._fr++; this._acc += ms; if (ms > this._fmax) this._fmax = ms;
     if (ms > 150 && this._cur) {
@@ -80,7 +80,7 @@ export class Diag {
     const t = performance.now(), span = (t - (this._shown || t)) / 1000 || 1;
     const fps = this._fr / span, avg = this._fr ? this._acc / this._fr : 0;
     const sec = [...this.sec.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => k + ' ' + v.toFixed(0)).join(' · ');
-    this.el.textContent = ['ĐÀ LẠT chẩn đoán', ...this.steps,
+    this.el.textContent = ['Chẩn đoán · ' + this.title, ...this.steps,
       `fps ${fps.toFixed(0)} · CPU khung TB ${avg.toFixed(0)} / max ${this._fmax.toFixed(0)} ms`, sec ? 'max phần: ' + sec : '', this.info ? this.info() : '',
       ...this.slow, ...this.errors].filter(Boolean).join('\n');
     this._shown = t; this._fr = 0; this._acc = 0; this._fmax = 0; this.sec.clear();

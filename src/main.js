@@ -185,7 +185,7 @@ sgnScene.place = () => {
 const sgnEnv = new SgnEnv(scene, (x, z) => terrain.heightAt(x, z));       // map Landmark: khu Vinhomes (tháp chung cư, biệt thự, công viên, hồ, sông, cây — OSM)
 const sgnCity = new SgnCity(scene, (x, z) => terrain.heightAt(x, z));     // nhà / sông / cây thật quanh Landmark 81 (urban:EXPORT)
 let fakeT = 1;
-const diag = new Diag();                                                 // chẩn đoán map Đà Lạt (tạm thời, tới khi hết đơ)
+const diag = new Diag();                                                 // bảng chẩn đoán mọi map (🩺 / phím 1), nút thử tắt từng phần
 let diagTris = '';
 diag.info = () => diagTris;
 // nút thử nhanh trong bảng chẩn đoán: tắt từng phần để xem phần nào làm tụt fps
@@ -780,8 +780,9 @@ const applyMap = () => {
   let dT = performance.now();
   const dm = (n) => { if (!diagOn) return; const t = performance.now(); diag.mark(n, t - dT); dT = t; };
   const mapId = MAPS[state.map].id, id = mapKind(mapId), isHlg = mapId === 'hlg', isNyc = mapId === 'nyc', isSgn = mapId === 'sgn', isDalat = mapId === 'dalat';
-  const diagOn = isDalat && curMapId !== mapId;                   // chẩn đoán: chỉ lúc mới vào map Đà Lạt
-  if (isDalat) diag.on = true; else { diag.resetTests(); diag.on = false; }
+  const diagOn = curMapId !== mapId;                              // chẩn đoán: ghi từng bước lúc mới vào map (mọi map)
+  if (diagOn) { diag.resetTests(); diag.steps.length = 0; }
+  diag.on = true; diag.title = MAPS[state.map].name;
   if (isHlg && curMapId !== 'hlg') hlgDir = hlgLayout(false);
   setTerrainMap(id);            // đổi tham số địa hình (đồi thấp / đồi núi)
   dm('setTerrainMap');
@@ -1852,7 +1853,7 @@ window.addEventListener('keydown', (e) => {
     case 'KeyU': toggleFS(); break;
     case 'KeyK': toggleSettings(); break;
     case 'KeyO': shotPending = true; break;
-    case 'Digit1': if (diag.on) diag.toggle(); break;   // map Đà Lạt: ẩn / hiện bảng chẩn đoán
+    case 'Digit1': if (diag.on) diag.toggle(); break;   // ẩn / hiện bảng chẩn đoán (mọi map)
     case 'KeyY': toggleRecord(e); break;
     case 'KeyJ': if (cityTraffic.visible && trafficTune.score) toggleScore(); break;
     case 'Escape': if (!$('score').hidden) toggleScore(false); break;
@@ -2506,7 +2507,7 @@ function frame(now) {
   post.begin();
   diag.lap('logic trước render');
   renderer.render(scene, camera);
-  if (diag.on) { diag.lap('render cảnh'); const R = renderer.info.render; diagTris = `cảnh: ${(R.triangles / 1e6).toFixed(2)} M tam giác · ${R.calls} lượt vẽ`; }
+  if (diag._meas) { diag.lap('render cảnh'); const R = renderer.info.render; diagTris = `cảnh: ${(R.triangles / 1e6).toFixed(2)} M tam giác · ${R.calls} lượt vẽ`; }
   rayParams();
   wipers.apply(post.final.uniforms, glassAmt > 0.01 ? glassAmt : 0, camera, cars.tilt, cars.shield, simNow / 1000, cars.rearShield);
   post.renderGlassMask(camera, cars.tilt, cars.rearShield);

@@ -4,7 +4,7 @@
 
 > Đọc trước khi sửa. Xong: 1 dòng **Nhật ký** + tăng bộ đếm; đủ 10 => gộp vào mục trạng thái, đặt lại 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 3/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
 
 ## 1. Tổng quan
 
@@ -142,3 +142,4 @@
 - 28/10: Đà Lạt — lá cây xa không còn trơ cành (bù alpha theo mipmap + ngưỡng cắt theo khoảng cách); bảng 🌲 thêm cỡ cây, lá xa, độ sáng lá/thân/cây xa, đổ bóng; nới giới hạn (chi tiết 600 m / 3000 cây, xa 5000 m).
 - 28/10: Đà Lạt — lá cây không sáng hơn cỏ: `_leafHook` chặn độ chói lá ≤ cỏ sáng nhất #6f9850 × leafMax (bảng 🌲 "Lá sáng tối đa").
 - 28/10: bảng chẩn đoán (`diag.addTest`, main.js) thêm nút thử nhanh: phản chiếu hồ, đèn đường thật, vẽ bóng (shadowMap.autoUpdate), nhà (`dalatScene.cityRoot`), cây, địa hình, mặt nước, cảnh ven đường, độ nét ½; rời map => bật lại hết.
+- 28/10: bảng chẩn đoán dùng cho mọi map (tiêu đề = tên map, xoá bước cũ + bật lại nút thử khi đổi map); chỉ đo khi bảng đang hiện (`diag._meas`).
