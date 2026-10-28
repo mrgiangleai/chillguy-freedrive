@@ -106,7 +106,20 @@ export class DalatScene {
   }
 
   _city(root) {
-    const winShader = (shader) => SgnCity.prototype._shader.call({ lampU: this.lampU }, shader);   // cửa sổ sáng ban đêm như map Landmark
+    // cửa sổ sáng ban đêm như map Landmark + màu tường theo toà (băm ô 14 m: vàng kem / hồng đất / xanh xám… kiểu nhà Đà Lạt, trầm để không trắng lóa),
+    // mái (pháp tuyến hướng lên) ngói đỏ sẫm / tôn xám
+    const winShader = (shader) => {
+      SgnCity.prototype._shader.call({ lampU: this.lampU }, shader);
+      shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      {
+        vec2 cell = floor(vCityW.xz / 14.0);
+        float h = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
+        vec3 pal = h < 0.25 ? vec3(0.62, 0.52, 0.32) : h < 0.42 ? vec3(0.55, 0.40, 0.33) : h < 0.57 ? vec3(0.42, 0.47, 0.42)
+          : h < 0.72 ? vec3(0.52, 0.38, 0.28) : h < 0.86 ? vec3(0.40, 0.44, 0.50) : vec3(0.56, 0.54, 0.48);
+        if (vCityN.y > 0.6) pal = h < 0.55 ? vec3(0.36, 0.14, 0.08) : vec3(0.22, 0.23, 0.25);
+        diffuseColor.rgb *= pal;
+      }`);
+    };
     root.updateMatrixWorld(true);
     root.traverse((o) => {
       if (!o.isMesh) return;
@@ -118,8 +131,9 @@ export class DalatScene {
           polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
         o.receiveShadow = true;
       } else {
-        o.material = new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0 });
-        if (name.startsWith('BUILDINGS')) o.material.onBeforeCompile = winShader;
+        const bld = name.startsWith('BUILDINGS');
+        o.material = new THREE.MeshStandardMaterial({ color: bld ? 0xffffff : color, roughness: 0.92, metalness: 0, envMapIntensity: 0.45 });
+        if (bld) o.material.onBeforeCompile = winShader;
         o.castShadow = o.receiveShadow = true;
       }
       o.matrixAutoUpdate = false; o.updateMatrix();
@@ -215,7 +229,7 @@ export class DalatScene {
     for (let a = -r; a <= r; a++) for (let b = -r; b <= r; b++) for (const i of this.tcell.get((gx + a) + ',' + (gz + b)) || []) {
       if (this.trnd[i] > dens) continue;
       const d2 = (this.tx[i] - cam.x) ** 2 + (this.tz[i] - cam.z) ** 2;
-      if (d2 <= R2) cand.push(d2 * 65536 + i);                         // khoá sắp xếp: khoảng cách rồi chỉ số (i < 65 536)
+      if (d2 <= R2) cand.push(Math.floor(d2) * 65536 + i);                         // khoá sắp xếp: khoảng cách rồi chỉ số (i < 65 536)
     }
     let Reff = R;
     if (cand.length > T.maxHi) { cand.sort((a, b) => a - b); cand.length = T.maxHi; Reff = Math.sqrt(Math.floor(cand[T.maxHi - 1] / 65536)) + 0.01; }
@@ -278,6 +292,7 @@ export class DalatScene {
 
   // các đường khác trong vùng: dải nhựa phủ trên địa hình (cao hơn mặt đất 0.15 m), lấy mẫu mỗi 4 m
   _streets(S) {
+    this.streets = S;                                                 // bản đồ tròn vẽ lại
     const pos = [], G = this.groundAt;
     for (const st of S) {
       const hw = st[0], P = [];

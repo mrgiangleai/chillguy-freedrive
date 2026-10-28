@@ -233,7 +233,8 @@ const minimap = new Minimap({
   nyc: () => (state.map >= 0 && MAPS[state.map].id === 'nyc' ? { streets: nycNet.streets, bld: nycBld.foot } : null),
   sgn: () => (onSgn() ? SGN.data : null),
   sgnBld: () => (onSgn() ? sgnEnv.foot : null),                // map Landmark: nhà khu Vinhomes
-  visible: () => state.started && (isDriveMap(state.map) || admin.active),   // Stop: hiện ở mọi map để bấm
+  dalat: () => (onDalat() ? { lake: DALAT.data.lake, streets: dalatScene.streets } : null),   // map Đà Lạt: hồ + đường phụ
+  visible: () => state.started && (isDriveMap(state.map) || onDalat() || admin.active),   // Stop: hiện ở mọi map để bấm; Đà Lạt (Chill) cũng hiện
   mapId: () => mapKind(MAPS[state.map].id),
   s: () => drive.s,
   player: () => ({ x: drive.pos.x, z: drive.pos.z, th: drive.yaw }),
@@ -1794,6 +1795,7 @@ window.addEventListener('keydown', (e) => {
     case 'KeyU': toggleFS(); break;
     case 'KeyK': toggleSettings(); break;
     case 'KeyO': shotPending = true; break;
+    case 'Digit1': if (diag.on) diag.toggle(); break;   // map Đà Lạt: ẩn / hiện bảng chẩn đoán
     case 'KeyY': toggleRecord(e); break;
     case 'KeyJ': if (cityTraffic.visible && trafficTune.score) toggleScore(); break;
     case 'Escape': if (!$('score').hidden) toggleScore(false); break;

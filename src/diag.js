@@ -4,10 +4,17 @@ const LAST = 'chilldrive.diag.last';
 export class Diag {
   constructor() {
     const el = this.el = document.createElement('div');
-    el.style.cssText = 'position:fixed;left:6px;top:6px;z-index:99999;max-width:62vw;font:10px/1.25 ui-monospace,Menlo,monospace;'
-      + 'color:#ff0;background:rgba(0,0,0,.55);padding:3px 5px;border-radius:4px;pointer-events:none;white-space:pre-wrap;display:none';
-    document.body.append(el);
+    // góc phải dưới cụm tốc độ (bảng Setting ở góc trái); nút 🩺 / phím 1 ẩn hiện (nhớ trong localStorage)
+    el.style.cssText = 'position:fixed;right:6px;top:118px;z-index:99999;max-width:46vw;max-height:calc(100vh - 260px);overflow:hidden;'
+      + 'font:10px/1.25 ui-monospace,Menlo,monospace;color:#ff0;background:rgba(0,0,0,.55);padding:3px 5px;border-radius:4px;pointer-events:none;white-space:pre-wrap;display:none';
+    const btn = this.btn = document.createElement('button');
+    btn.textContent = '🩺'; btn.title = 'Ẩn / hiện bảng chẩn đoán (phím 1)';
+    btn.style.cssText = 'position:fixed;right:6px;top:88px;z-index:99999;width:28px;height:26px;padding:0;border-radius:6px;border:1px solid rgba(255,255,255,.3);'
+      + 'background:rgba(0,0,0,.45);color:#fff;font-size:14px;line-height:1;cursor:pointer;display:none';
+    btn.onclick = (e) => { e.stopPropagation(); this.toggle(); };
+    document.body.append(el, btn);
     this.active = false;
+    try { this.shown = localStorage.getItem('chilldrive.diag.shown') !== '0'; } catch { this.shown = true; }
     this.steps = []; this.slow = []; this.errors = [];
     try { const l = localStorage.getItem(LAST); if (l) { this.steps.push('LẦN TRƯỚC KẸT Ở: ' + l); localStorage.removeItem(LAST); } } catch { /* chế độ riêng tư */ }
     this.sec = new Map(); this._t = 0; this._fr = 0; this._fmax = 0; this._acc = 0; this._shown = 0;
@@ -15,7 +22,9 @@ export class Diag {
     window.addEventListener('error', (e) => err('LỖI ' + (e.message || e.error) + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno));
     window.addEventListener('unhandledrejection', (e) => err('LỖI promise ' + (e.reason?.message || e.reason)));
   }
-  set on(v) { this.active = !!v; this.el.style.display = v ? 'block' : 'none'; if (v) this._render(); }
+  set on(v) { this.active = !!v; this.btn.style.display = v ? 'block' : 'none'; this._show(); }
+  toggle() { this.shown = !this.shown; try { localStorage.setItem('chilldrive.diag.shown', this.shown ? '1' : '0'); } catch { /* chế độ riêng tư */ } this._show(); }
+  _show() { this.el.style.display = this.active && this.shown ? 'block' : 'none'; if (this.active) this._render(); }
   get on() { return this.active; }
   // một bước lúc tải (giữ 14 bước gần nhất)
   step(name, ms) {

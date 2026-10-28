@@ -5,9 +5,9 @@ import { ROAD, CITY, IC, tollS, tollIndex, camS, camIndex } from './road.js';
 // (hướng đi luôn lên trên), vẽ ~8 lần/giây. Bấm vào: phóng to giữa màn hình, hướng Bắc lên trên, kéo để di chuyển (pan), lăn chuột /
 // chụm 2 ngón để zoom, nút ◎ về lại xe, nút × (hoặc Esc / bấm ra ngoài) để thu nhỏ.
 const BG = {
-  nyc: '#e3e0d8', sgn: '#e6e2d6', reed: '#cdbb84', forest: '#7fa05a', mountain: '#8fae6a', meadow: '#8db86a', sea: '#7fb6d6', city: '#e8e5df', avenue: '#9cc27a',
+  nyc: '#e3e0d8', sgn: '#e6e2d6', reed: '#cdbb84', forest: '#7fa05a', mountain: '#8fae6a', meadow: '#8db86a', sea: '#7fb6d6', city: '#e8e5df', avenue: '#9cc27a', dalat: '#8fb27a',
 };
-const ROADC = { city: '#ffffff', avenue: '#f6cf6a', nyc: '#fbe3a0', sgn: '#fbe3a0' };
+const ROADC = { city: '#ffffff', avenue: '#f6cf6a', nyc: '#fbe3a0', sgn: '#fbe3a0', dalat: '#fbe3a0' };
 
 // px (màn hình, CSS px) -> toạ độ thế giới khi bản đồ đã phóng to:
 // translate(R,R) · rotate(rot) · scale(z) · translate(-cx,-cz) => đảo ngược lại
@@ -232,6 +232,17 @@ export class Minimap {
       g.fillStyle = '#3b4a5a'; g.strokeStyle = '#fff'; g.lineWidth = Math.max(1.5, 1.5 / z);
       g.fillRect(lx - q / 2, lz - q / 2, q, q); g.strokeRect(lx - q / 2, lz - q / 2, q, q);
       labels.push([lx, lz, 'Landmark 81', 'lm', null]);
+    }
+    // map Đà Lạt: mặt hồ Xuân Hương + đường phụ OSM (dalat-streets.json)
+    const DL = S.dalat?.();
+    if (DL) {
+      if (DL.lake) { g.fillStyle = '#3f6f5a'; g.beginPath(); DL.lake.forEach(([x, z], i) => (i ? g.lineTo(x, z) : g.moveTo(x, z))); g.closePath(); g.fill(); }
+      for (const st of DL.streets || []) {
+        let hit = false; for (let i = 1; i + 1 < st.length && !hit; i += 2) hit = Math.abs(st[i] - cx) < span + 60 && Math.abs(st[i + 1] - cz) < span + 60;
+        if (!hit) continue;
+        const q = []; for (let i = 1; i + 1 < st.length; i += 2) q.push([st[i], st[i + 1]]);
+        line(q, st[0] * 2, '#ece8dc', 0.8);
+      }
     }
     // viền + mặt đường chính
     line(main, hw * 2 + 1.5, 'rgba(60,60,60,0.35)', 3);
