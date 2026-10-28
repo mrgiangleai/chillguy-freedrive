@@ -14,7 +14,8 @@ export const DALAT = { data: DATA, length: DATA.length, start: DATA.start };
 // vòng xoay chính (OSM way 51561593, giao Trần Quốc Toản / Nguyễn Thị Minh Khai / Nguyễn Văn Cừ / Lê Đại Hành, cạnh chợ Đà Lạt):
 // tim vòng r 19 m, mặt đường rộng 14 m (12–26 m), đảo giữa: lát đá + bồn hoa đỏ + hồ nước + tiểu cảnh; các nhánh trong 160 m nở rộng 13 m
 export const ROUNDABOUT = { x: -870.9, z: 514.5, r: 19.1, hw: 7, arm: 6.5, near: 160 };
-export const WATER_DROP = -3;                 // mặt nước game thấp hơn mặt nước FBX 3 m (đáy DEM: −5.5 m)
+export const WATER_DROP = -3;
+export const DALAT_ENV = 0.4;                // mặt đường / đất ở Đà Lạt: bớt ánh trời (envMap) — trời trong không ám xanh dương xuống đường                 // mặt nước game thấp hơn mặt nước FBX 3 m (đáy DEM: −5.5 m)
 
 let DEM = null;
 // lưới độ cao { x0, z0, cell, nx, nz, h } cho `TP.dem` (demAt nội suy song tuyến)
@@ -539,7 +540,7 @@ export class DalatScene {
       geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(B.pos), 3));
       geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(B.uv), 2));
       geo.computeVertexNormals();
-      const mat = new THREE.MeshStandardMaterial({ map: streetTexture(k === 1), roughness: 0.9, side: THREE.DoubleSide,
+      const mat = new THREE.MeshStandardMaterial({ map: streetTexture(k === 1), roughness: 0.9, envMapIntensity: DALAT_ENV, side: THREE.DoubleSide,
         polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
       addFakeLight(mat);                                              // ánh sáng giả đèn đường cả trên đường phụ
       withMist(mat);
@@ -566,7 +567,7 @@ export class DalatScene {
       g.computeVertexNormals();
       const m = new THREE.Mesh(g, mat); m.receiveShadow = true; m.matrixAutoUpdate = false; this.group.add(m); return m;
     };
-    const ringMat = new THREE.MeshStandardMaterial({ map: streetTexture(true), roughness: 0.9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+    const ringMat = new THREE.MeshStandardMaterial({ map: streetTexture(true), roughness: 0.9, envMapIntensity: DALAT_ENV, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
     addFakeLight(ringMat); withMist(ringMat);
     mk(ring.pos, ring.uv, ringMat);
     // đảo giữa: đĩa lát đá có bồn hoa đỏ (texture canvas toả tròn), viền bó vỉa trắng xám cao 0.25 m
@@ -587,10 +588,10 @@ export class DalatScene {
       isl.pos.push(...O, ...C, ...A);
       isl.uv.push(0.5, 0.5, 0.5 + Math.cos(a1) * 0.5, 0.5 + Math.sin(a1) * 0.5, 0.5 + Math.cos(a0) * 0.5, 0.5 + Math.sin(a0) * 0.5);
     }
-    const islMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 }); addFakeLight(islMat); withMist(islMat);
+    const islMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, envMapIntensity: DALAT_ENV }); addFakeLight(islMat); withMist(islMat);
     mk(isl.pos, isl.uv, islMat);
     const y0 = G(RB.x, RB.z), grp = new THREE.Group(); grp.position.set(RB.x, y0, RB.z);
-    const std = (color, o = {}) => withMist(new THREE.MeshStandardMaterial({ color, roughness: 0.8, ...o }));
+    const std = (color, o = {}) => withMist(new THREE.MeshStandardMaterial({ color, roughness: 0.8, envMapIntensity: DALAT_ENV, ...o }));
     const add = (geo, mat, y) => { const m = new THREE.Mesh(geo, mat); m.position.y = y; m.castShadow = m.receiveShadow = true; grp.add(m); return m; };
     add(new THREE.CylinderGeometry(r0 + 0.25, r0 + 0.35, 0.32, 64, 1, true), std(0xd6d3cc), 0.16);           // bó vỉa
     add(new THREE.CylinderGeometry(6.4, 6.6, 0.6, 48), std(0xeceae4), 0.3);                                // thành bể
@@ -688,8 +689,8 @@ export class DalatScene {
 function streetTexture(center) {
   const W = 64, H = 256, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const c = cv.getContext('2d');
-  c.fillStyle = '#4b4b4d'; c.fillRect(0, 0, W, H);
-  for (let i = 0; i < 1400; i++) { const g = 60 + Math.random() * 30; c.fillStyle = `rgb(${g},${g},${g + 2})`; c.fillRect(Math.random() * W, Math.random() * H, 1, 1); }
+  c.fillStyle = '#404042'; c.fillRect(0, 0, W, H);
+  for (let i = 0; i < 1400; i++) { const g = 52 + Math.random() * 26; c.fillStyle = `rgb(${g},${g},${g + 2})`; c.fillRect(Math.random() * W, Math.random() * H, 1, 1); }
   c.fillStyle = '#d9d7cf';
   c.fillRect(2, 0, 2, H); c.fillRect(W - 4, 0, 2, H);
   if (center) c.fillRect(W / 2 - 1, 0, 2, H / 2);

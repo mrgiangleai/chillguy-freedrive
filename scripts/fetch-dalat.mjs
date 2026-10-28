@@ -192,11 +192,19 @@ for (let pass = 0; pass < 6; pass++) for (let j = 0; j < NX; j++) for (let i = 0
 for (let k = 0; k < dem.length; k++) if (Number.isNaN(dem[k])) dem[k] = 0;
 // đáy nước: thấp hơn mặt nước FBX 5.5 m
 const wet = new Uint8Array(NX * NX);
+const dem0 = dem.slice();                                        // địa hình gốc (trước khi đào lòng nước)
 raster(WV, WT, (i, j, z) => { const k = j * NX + i; wet[k] = 1; dem[k] = Math.min(dem[k], z - L0 - 5.5); });   // mặt nước game hạ 3 m (dalat.js WATER_DROP) => đáy sâu 2.5 m dưới mặt nước
-// trong đa giác hồ OSM (chỗ FBX không có nước: bãi / vùng nông sát mặt hồ) cũng là lòng hồ => cùng độ sâu
-for (let j = 0; j < NX; j++) for (let i = 0; i < NX; i++) {
-  const x = X0 + i * CELL, y = X0 + j * CELL;
-  if (inPoly(x, y, ring) || polyDist(x, y, ring) < 6) { const k = j * NX + i; wet[k] = 1; dem[k] = Math.min(dem[k], -5.5); }
+// hồ Xuân Hương (đa giác OSM, cả chỗ FBX thiếu nước): đáy sâu dần từ bờ (−3.3 ở mép => −5.5 khi cách bờ ≥ 14 m) thay vì hạ thẳng
+// −5.5 (vách đứng bậc thang theo ô 10 m); ngoài bờ 10 m: bờ dốc thoải từ mặt nước lên địa hình gốc (mặt nước game −3 so với FBX)
+{
+  const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  for (let j = 0; j < NX; j++) for (let i = 0; i < NX; i++) {
+    const x = X0 + i * CELL, y = X0 + j * CELL, k = j * NX + i;
+    if (Math.abs(x - cx) > 1300 || Math.abs(y - cy) > 1300) continue;
+    const inside = inPoly(x, y, ring), d = polyDist(x, y, ring);
+    if (inside) { wet[k] = 1; dem[k] = Math.min(dem0[k], -3.3 - 2.2 * ss(0, 14, d)); }
+    else if (d < 10) dem[k] = Math.min(dem0[k], -3.3 + (dem0[k] + 3.3) * ss(0, 10, d));
+  }
 }
 const demAt = (x, y) => {   // x đông, y bắc
   const fx = Math.min(NX - 1.001, Math.max(0, (x - X0) / CELL)), fy = Math.min(NX - 1.001, Math.max(0, (y - X0) / CELL));

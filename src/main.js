@@ -6,7 +6,7 @@ import { NYC, NYC_DIM, nycLoop, nycStreet, NycWorks } from './nyc.js';
 import { SGN, sgnLoop, sgnStreet, sgnZone, SgnScene } from './sgn.js';
 import { SgnEnv } from './sgnEnv.js';
 import { SgnCity } from './sgnCity.js';
-import { DALAT, dalatLoop, dalatDem, DalatScene, WATER_DROP, FAKE_LIGHT, addFakeLight } from './dalat.js';
+import { DALAT, dalatLoop, dalatDem, DalatScene, WATER_DROP, DALAT_ENV, FAKE_LIGHT, addFakeLight } from './dalat.js';
 import { Diag } from './diag.js';
 import { TimesSquare } from './timesSquare.js';
 import { NycBuildings } from './nycBuildings.js';
@@ -809,6 +809,7 @@ const applyMap = () => {
   scenery.lampK = isNyc ? 1.35 : 1;   // New York: cột đèn ~15 m, cần vươn dài (đường 18 m)
   scenery.ahead = isDalat ? 21 : 7; scenery.behind = isDalat ? 20 : 1;   // Đà Lạt: dựng đường + đèn cả vòng hồ 4.9 km (nhìn qua hồ thấy đèn bờ bên kia)
   scenery.setMap(id);
+  scenery.roadMat.envMapIntensity = isDalat ? DALAT_ENV : 1; terrain.mat.envMapIntensity = isDalat ? DALAT_ENV : 0.8;   // Đà Lạt: bớt ám xanh trời
   dm('scenery.setMap');
   terrain.reset();
   terrain.setCar(drive.s);
