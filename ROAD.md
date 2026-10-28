@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -20,7 +20,7 @@
   `goto(..., { waitUntil: 'domcontentloaded' })`; map có cài đặt "Tự động" ghi đè camera / giờ => đặt lại ngay trước khi chụp.
   Máy chậm => môi trường (env map) chưa kịp chụp lại khi đổi giờ: gọi `__app.env.update(0.016, drive.pos); env._captureEnv()`.
 - **Kiểm tra tự động** (node, không cần trình duyệt; đều PASS): `scripts/check-traffic.mjs`, `check-traffic-policy.mjs`, `check-steering.mjs`,
-  `check-stopscene.mjs`, `check-hlg.mjs`, `check-nyc.mjs`, `check-sgn.mjs`, `check-nyc-wave.mjs`, `check-nyc-buildings.mjs`, `check-nyc-sound.mjs`, `check-nyc-landmark-roads.mjs`, `check-ped-yield.mjs`, `check-nyc-props.mjs`, `check-nyc-sidecam.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-male.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
+  `check-stopscene.mjs`, `check-hlg.mjs`, `check-nyc.mjs`, `check-sgn.mjs`, `check-dalat.mjs`, `check-nyc-wave.mjs`, `check-nyc-buildings.mjs`, `check-nyc-sound.mjs`, `check-nyc-landmark-roads.mjs`, `check-ped-yield.mjs`, `check-nyc-props.mjs`, `check-nyc-sidecam.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-male.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
   `check-waterfalls.mjs`, `check-rear-glass.mjs [model.glb]`. Model tải lên nặng: nén bằng `npx @gltf-transform/cli@4 webp … --quality 82`
   rồi `meshopt` (giữ file gốc); sóng biển bake bằng `node scripts/bake-ocean.mjs`. **Fixture GUI** `scripts/*-preview.js` (giữ cảnh cố định để chụp):
   bundle bằng esbuild ra `docs/<tên>-check.js`, sao `docs/index.html` thành trang riêng đổi script sang bundle đó; chụp xong
@@ -30,7 +30,7 @@
   [bytes, hash md5 10 ký tự]}); khoá Cache Storage `chilldrive-assets-v1` = đường dẫn + `?h=hash` (KHÔNG dùng `#`: Cache API bỏ fragment)
   => file đổi chỉ tải lại file đó, sửa code chỉ tải lại `app.js`. `sw.js`: `assets/*` lấy bộ nhớ trước; trang / code lấy mạng trước (mất
   mạng dùng bản lưu, bỏ bản `?v=` cũ). `COMMON` (Mustang, người, cây, xe ngựa, texture đất đá) + `BY_MAP` (sea / avenue / hlg:
-  ocean-waves.png; hlg: hlg-env.json; nyc: nyc-buildings / nyc-streets.json) — thêm map / tài nguyên mới thì nhớ thêm vào đây. Màn hình
+  ocean-waves.png; hlg: hlg-env.json; nyc: nyc-buildings / nyc-streets.json; dalat: assets/dalat/*) — thêm map / tài nguyên mới thì nhớ thêm vào đây. Màn hình
   chờ: `queue` ngầm COMMON + map đầu Chill + Phố; bấm Chill / Drive: `ensure` có thanh `#loadbar` theo byte thật (đã lưu thì vào ngay);
   4 s sau khi vào game `queue` các map còn lại theo thứ tự MAPS. Mazda / Chisa (~42 MB) chỉ tải khi chọn. Thử Playwright: SW giữ bản cũ
   => xoá `caches` + unregister trước khi thử.
@@ -425,6 +425,18 @@
   **Nền cỏ cả khu**: lưới ô 6 m trong đa giác `vinhomes`, sát đường ô 2 m luồn dưới vỉa hè (`roadGap` = khoảng tới mép nhựa thật, `sgnNearest`).
   Vào map ở s = L + 60, luôn Hoàng hôn + Nhiều mây (chú dặn, để chụp lại), camera giữ lần trước.
   Trọng tâm (chú dặn): làm đẹp khu quanh Landmark 81; đoạn khác chỉ cần đúng.
+  **Map Hồ Xuân Hương – Đà Lạt** (`dalat`, 🌲, nhóm Chill, cuối `MAPS`; `mapKind` = 'dalat'; 28/10 bản nhanh, Claude): vòng khép kín 4.91 km
+  quanh hồ theo đường OSM thật (Trần Quốc Toản…, chiều kim đồng hồ, hồ bên phải, s = 0 ở bờ nam). `scripts/fetch-dalat.mjs [fbx]` (FBX gốc
+  `/Volumes/SSD 1TB/VIBE CODING/3d model/saigon/(ho xuan huong DL)urban-export_11.9449_108.4456_2520m.fbx`, chép `.scratch/dalat.fbx`):
+  FBX X đông / Y bắc khớp phép chiếu OSM cos(lat) không cần offset => game x = X, z = −Y, y = Z − mặt hồ (86.3). Tuyến = chu trình ngắn nhất
+  cắt tia từ tâm hồ số lẻ lần (đồ thị đường xe trong 300 m quanh hồ), làm mượt vị trí (TB trượt 29 m × 3, R ≥ 28 m). `src/dalat-data.json`:
+  tuyến 5 m + `road` (cao độ tuyệt đối = DEM dọc tuyến làm mượt, ≥ mặt hồ + 0.8, dốc ≤ 6.8 %) + DEM 10 m (Int16 dm base64) => `TP.dem`
+  (terrain `dalat`: low/det/mount 0 => địa hình đúng FBX; đáy nước −1.5 m). road.js `_loopPt`: `loop.abs(s)` cho cao độ tuyệt đối, đất bám
+  mặt đường trừ chỗ cao > 1.5–3.5 m (cầu). `docs/assets/dalat/`: `dalat-city.glb` (6 071 toà 5 loại + cầu + nước, GLB tự ghi → meshopt 1.07 MB),
+  `dalat-trees.json` (20 485 cây [x, z, cao], bỏ trên đường / dưới nước), `dalat-streets.json` (548 đường OSM khác => dải nhựa trên DEM).
+  `src/dalat.js` `DalatScene`: cửa sổ đêm dùng `SgnCity._shader`, cây thông code (InstancedMesh theo ô 300 m, Low = nửa số cây). FBX không
+  có lưới đường => đường lấy OSM. Không cọc tiêu (scenery). `BY_MAP.dalat`. `scripts/check-dalat.mjs` PASS. Chưa: nhà thật chi tiết,
+  vỉa hè, đèn / cảnh quanh hồ, đồi xa ngoài vùng 2.5 km (DEM giữ giá trị mép), Stop đỗ bên phải có thể sát mép hồ.
   **Map Đại lộ** (`avenue`, 🛣️, nhóm Drive cùng Phố; M trong Drive: Phố ↔ Đại lộ): cao tốc 6 làn (`AVENUE`: tâm làn ±2.25 / ±5.75 /
   ±9.25, dải phân cách ±0.5, mép làn ±11, lề khẩn cấp tới ±13), đường cong rất thoải (bán kính ≥ ~2 km), địa hình `avenue` (đồi cỏ
   thấp, cỏ cao `meadow` hai bên), hộ lan thép 2 bên, đèn đường 2 bên xen kẽ. Xe: `cityTraffic` chế độ avenue (3 làn mỗi chiều, tốc
@@ -660,3 +672,5 @@
 - **#7 — Người 3D đi theo clip nhân vật chính (28/10/2026)**: Claude tự làm; shader kiểm glslangValidator, check-people-walk / ped-walk / nyc /
   ped-yield / traffic / sgn-park PASS. Có thể thấy nách / háng hơi dãn ở vài model (racer, ff-jota, ff-skyler) — chú tự test.
 - **Plan model tòa nhà NYC (28/10/2026)**: ghi plan B1–B4 ở đầu mục 5 (nguồn ổ SSD `3d model/city`), chưa làm — phiên mới làm tiếp.
+- **#9 — Map Hồ Xuân Hương – Đà Lạt bản nhanh (28/10/2026)**: Claude tự làm từ FBX urban:EXPORT + OSM (mục map ở trên); check-dalat /
+  nyc / sgn / minimap-jump / steering PASS; chưa thử trình duyệt — chú tự test trên điện thoại.

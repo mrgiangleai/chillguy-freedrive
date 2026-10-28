@@ -455,7 +455,7 @@ export class Scenery {
 
     // cọc tiêu hai bên đường
     const posts = [];
-    for (let s = s0; s < s0 + L && this.map !== 'city' && this.map !== 'avenue'; s += 12) {
+    for (let s = s0; s < s0 + L && this.map !== 'city' && this.map !== 'avenue' && this.map !== 'dalat'; s += 12) {   // Đà Lạt: đường phố, không cọc tiêu
       if (road.dirtAt(s) > 0.05) continue;          // đường đất: không có cọc tiêu
       road.at(s, p);
       for (const side of (this.map === 'mountain' ? [-1] : [-1, 1])) {

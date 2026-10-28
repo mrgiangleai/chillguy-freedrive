@@ -52,6 +52,7 @@ export const MAPS = [
   { id: 'hlg', name: 'Cao tốc HCM – Long Thành – Dầu Giây', icon: '🛣️' },
   { id: 'nyc', name: 'New York', icon: '🗽' },
   { id: 'sgn', name: 'Landmark 81 – TP.HCM', icon: '🌆' },
+  { id: 'dalat', name: 'Hồ Xuân Hương – Đà Lạt', icon: '🌲' },   // nhóm Chill (không nằm trong isDriveMap)
 ];
 
 export const WEATHERS = [

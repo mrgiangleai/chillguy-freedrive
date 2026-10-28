@@ -16,6 +16,8 @@ export const TERRAIN_MAPS = {
   city: { low: 0, det: 0, fine: 0, mount: 300, hill: 9 },
   // đại lộ: đồi cỏ thấp hơn (cao tốc lên xuống rất nhẹ)
   avenue: { low: 11, det: 2.6, fine: 0.45, mount: 380 },
+  // Hồ Xuân Hương – Đà Lạt: độ cao thật hoàn toàn từ DEM urban:EXPORT (TP.dem, main), không gợn / núi giả
+  dalat: { low: 0, det: 0, fine: 0, mount: 0 },
 };
 export const TP = { id: 'reed', ...TERRAIN_MAPS.reed };
 // id lạ => về cỏ lau

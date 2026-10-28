@@ -6,6 +6,7 @@ import { NYC, NYC_DIM, nycLoop, nycStreet, NycWorks } from './nyc.js';
 import { SGN, sgnLoop, sgnStreet, sgnZone, SgnScene } from './sgn.js';
 import { SgnEnv } from './sgnEnv.js';
 import { SgnCity } from './sgnCity.js';
+import { DALAT, dalatLoop, dalatDem, DalatScene } from './dalat.js';
 import { TimesSquare } from './timesSquare.js';
 import { NycBuildings } from './nycBuildings.js';
 import { NycStreetProps } from './nycStreet.js';
@@ -26,7 +27,7 @@ import { CityIncident } from './cityIncident.js';
 import { CrashFx } from './crashfx.js';
 import { Scenery, STREETLIGHT_DEFAULTS } from './scenery.js';
 import { Terrain } from './terrain.js';
-import { setTerrainMap, TP } from './terrain-noise.js';
+import { setTerrainMap, TP, demAt } from './terrain-noise.js';
 import { Environment } from './world.js';
 import { Cars } from './cars.js';
 import { CameraRig, FOCAL_MIN, FOCAL_MAX } from './camera.js';
@@ -74,6 +75,7 @@ const AV_GEARS = [80 * KMH, 100 * KMH, 180 * KMH], AV_MAX = 120 * KMH;
 const mapKind = (id) => (id === 'hlg' ? 'avenue' : id === 'nyc' || id === 'sgn' ? 'city' : id);
 const onNyc = () => MAPS[state.map]?.id === 'nyc';
 const onSgn = () => MAPS[state.map]?.id === 'sgn';
+const onDalat = () => MAPS[state.map]?.id === 'dalat';
 const onAvenue = () => mapKind(MAPS[state.map]?.id) === 'avenue';
 const gears = () => (onAvenue() ? AV_GEARS : GEARS);
 
@@ -178,6 +180,7 @@ sgnScene.place = () => {
 };
 const sgnEnv = new SgnEnv(scene, (x, z) => terrain.heightAt(x, z));       // map Landmark: khu Vinhomes (tháp chung cư, biệt thự, công viên, hồ, sông, cây — OSM)
 const sgnCity = new SgnCity(scene, (x, z) => terrain.heightAt(x, z));     // nhà / sông / cây thật quanh Landmark 81 (urban:EXPORT)
+const dalatScene = new DalatScene(scene, (x, z) => demAt(dalatDem(), x, z));        // map Hồ Xuân Hương: nhà / hồ / cây thông thật (urban:EXPORT), đường phụ OSM
 sgnEnv.city = sgnCity;                                                    // sgnEnv chờ cây của sgnCity rồi dựng chung
 const sgnObb = () => { if (sgnEnv.visible) city.extraObb = sgnEnv.obb.concat(sgnCity.obb); };
 sgnEnv.onReady = sgnObb;
@@ -748,12 +751,13 @@ function warmShaders(delay = 500) {
   }, delay);
 }
 const applyMap = () => {
-  const mapId = MAPS[state.map].id, id = mapKind(mapId), isHlg = mapId === 'hlg', isNyc = mapId === 'nyc', isSgn = mapId === 'sgn';
+  const mapId = MAPS[state.map].id, id = mapKind(mapId), isHlg = mapId === 'hlg', isNyc = mapId === 'nyc', isSgn = mapId === 'sgn', isDalat = mapId === 'dalat';
   if (isHlg && curMapId !== 'hlg') hlgDir = hlgLayout(false);
   setTerrainMap(id);            // đổi tham số địa hình (đồi thấp / đồi núi)
   // cao tốc HLG: độ cao thật (SRTM) + gợn rất nhẹ, không có núi xa (đồng bằng Đông Nam Bộ)
   if (isHlg) Object.assign(TP, { low: 1.5, det: 1.2, fine: 0.35, mount: 0, dem: hlgDem(hlgDir) });
   if (isNyc || isSgn) Object.assign(TP, { hill: 0, mount: 0 });   // Manhattan / Sài Gòn: phẳng, không đồi núi xa
+  if (isDalat) TP.dem = dalatDem();                              // Đà Lạt: địa hình thật (DEM 10 m từ urban:EXPORT), mặt hồ y = 0
   hlgEnv.visible = isHlg;
   if (isHlg) hlgEnv.setDir(hlgDir);
   Object.assign(CITY, isNyc ? NYC_DIM : CITY_DIM);              // New York: đường / vỉa hè rộng theo Manhattan
@@ -761,9 +765,10 @@ const applyMap = () => {
   ROAD.halfWidth = isCity ? CITY.hw : isAvenue ? AVENUE.hw : ROAD_HW;   // phố: 4 làn; đại lộ: 6 làn + lề
   // cao tốc HLG: vào map luôn ở An Phú, chiều đi Dầu Giây; bố trí công trình theo dữ liệu thật (Đại lộ: theo chu kỳ)
   setLayout(isHlg ? hlgDir : null);
-  road.setShape(isHlg ? 'hlg' : isNyc ? 'nyc' : isSgn ? 'sgn' : id, isHlg ? hlgDir.real : isNyc ? nycLoop() : isSgn ? sgnLoop() : null);   // phố: đường thẳng theo đoạn + ngã tư; đại lộ: cong rất thoải; New York: vòng thật
+  road.setShape(isHlg ? 'hlg' : isNyc ? 'nyc' : isSgn ? 'sgn' : id, isHlg ? hlgDir.real : isNyc ? nycLoop() : isSgn ? sgnLoop() : isDalat ? dalatLoop() : null);   // phố: đường thẳng theo đoạn + ngã tư; đại lộ: cong rất thoải; New York: vòng thật
   // New York: vào map ở đầu Times Square (7th Ave 46 – 45 St), chạy làn ngoài phải
   if (isNyc && curMapId !== mapId) { drive.s = NYC.length + NYC.start; drive.d = CITY.lanes[1]; nycTurn = null; }
+  if (isDalat && curMapId !== mapId) drive.s = DALAT.length + DALAT.start;   // Hồ Xuân Hương: bờ nam (Trần Quốc Toản), chiều kim đồng hồ
   if (isSgn && curMapId !== mapId) { drive.s = SGN.length + SGN.start; drive.d = CITY.lanes[1]; sgnName = null; }   // Landmark: Nguyễn Hữu Cảnh, về phía Ba Son
   if (isAvenue && curMapId !== mapId) { drive.s = isHlg ? HLG.start : 150; drive.ramp = null; }   // vào đại lộ: luôn từ đầu đường (cầu cao ở 700 m, cầu sông 2.2 km)
   road.dirt = id === 'forest';  // đồi thông: có đoạn đường đất xuyên rừng
@@ -806,6 +811,8 @@ const applyMap = () => {
   sgnScene.visible = isSgn;
   sgnCity.visible = isSgn;                                     // bắt đầu tải trước khi sgnEnv dựng cây
   sgnEnv.visible = isSgn;
+  dalatScene.treeStride = state.quality === QUALITY.findIndex((q) => q.id === 'low') ? 2 : 1;   // Low: nửa số cây (áp dụng khi dựng lần đầu)
+  dalatScene.visible = isDalat;
   if (isSgn) { sgnEnv.onReady(); sgnCity.onReady(); }           // camera không xuyên tháp / nhà thật (khi đã tải)
   fireflies.ground.clear();     // độ cao mặt đất nhớ theo hình đường cũ
   traffic.policy.city = isCity;
@@ -826,6 +833,7 @@ const applyMap = () => {
   if (isCity && state.started) toast(isNyc ? 'New York — vòng Midtown (dữ liệu thật © OpenStreetMap): đường một chiều, 4 khúc rẽ trái, hầm + cầu cạn Park Ave'
     : isSgn ? 'Landmark 81 – TP.HCM (dữ liệu thật © OpenStreetMap): vòng 18.4 km qua khu Vinhomes, cầu Sài Gòn, hầm Thủ Thiêm'
     : 'Map Phố: tự phanh khi gặp đèn đỏ — giữ phím Space hoặc nút Space');
+  if (isDalat && state.started) toast('Hồ Xuân Hương – Đà Lạt (dữ liệu thật © OpenStreetMap, urban:EXPORT): vòng 4.9 km quanh hồ');
   if (isAvenue && state.started) toast(isHlg ? 'Cao tốc TP.HCM – Long Thành – Dầu Giây (dữ liệu thật © OpenStreetMap) — giữ ← / → để đổi làn'
     : 'Map Đại lộ: cao tốc 6 làn — giữ ← / → để đổi làn');
   cityFront = null;
@@ -2291,6 +2299,7 @@ function frame(now) {
   if (nycWorks.visible) { nycWorks.setLamps(st.lamps); nycWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
   if (sgnEnv.visible) { sgnEnv.winK = lightTune.windows; sgnEnv.setLamps(st.lamps); sgnEnv.update(dt, camera.position); }
   if (sgnCity.visible) sgnCity.setLamps(st.lamps * lightTune.windows);
+  if (dalatScene.visible) dalatScene.setLamps(st.lamps * lightTune.windows);
   if (sgnScene.visible) sgnScene.setLamps(st.lamps * lightTune.signs);   // LED dọc Landmark 81 theo đèn đêm × "biển hiệu" bảng Lighting
   if (sgnWorks.visible) { sgnWorks.setLamps(st.lamps); sgnWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
   minimap.update(dt);
@@ -2745,4 +2754,4 @@ init();
 preload.registerSW();                                            // lưu tài nguyên trên thiết bị (docs/sw.js)
 
 // hook phục vụ debug / kiểm thử
-window.__app = { __Raycaster: THREE.Raycaster, __V3: THREE.Vector3, sgnWorks, sgnScene, sgnEnv, sgnCity, nycBld, nycProps, timesSq, nycNet, nycWorks, get crashFx() { return crashFx; }, get blinker() { return blinker; }, get violations() { return violations; }, minimap, avenue, hlgEnv, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), admin, setAdmin: (v) => setAdmin(v), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };
+window.__app = { dalatScene, __Raycaster: THREE.Raycaster, __V3: THREE.Vector3, sgnWorks, sgnScene, sgnEnv, sgnCity, nycBld, nycProps, timesSq, nycNet, nycWorks, get crashFx() { return crashFx; }, get blinker() { return blinker; }, get violations() { return violations; }, minimap, avenue, hlgEnv, city, cityTraffic, cityPeople, incident, ocean, waterfalls, wing, audio, smoke, cows, traffic, dash, town, fireflies, wipers, meadow, nature, person, stop, toggleStop: () => toggleStop(), admin, setAdmin: (v) => setAdmin(v), refl, MIST, forceCine: (v) => { cineAmt = v; }, post, toggleFast, env, cars, rig, drive, state, nextCharacter, chooseCharacter, nextCar, nextMap, nextCam, nextWeather, nextTime, chooseCar, renderer, scene, camera, scenery, terrain, reeds, grass, road };

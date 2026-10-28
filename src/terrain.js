@@ -28,6 +28,7 @@ const PAL = {
   avenue: { a: col('#6f9a4c'), b: col('#86ad5c'), c: col('#5c8541'), snowLine: 400, trees: false, bare: true },
   sea: { a: col('#cbb98c'), b: col('#bba97c'), c: col('#7f8f55'), snowLine: 600, trees: false, bare: true },   // cát, đá kè, cỏ trên đảo
   // phố: nền bê tông xám giữa các nhà; đồi núi ở xa ngả xanh theo độ cao (CITY_HILL)
+  dalat: { a: col('#5f8a45'), b: col('#6f9850'), c: col('#557d3d'), snowLine: 900, trees: false, bare: true },   // cỏ đồi Đà Lạt (cây thông thật: dalat.js)
   city: { a: col('#77787a'), b: col('#828280'), c: col('#6c6e6c'), snowLine: 900, trees: false, bare: true },
 };
 const CITY_HILL = col('#5f7f45');

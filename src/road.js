@@ -142,7 +142,7 @@ export class Road {
   // real = { loop: true, … }) | khác (đường lượn các map ngắm cảnh) => tính lại toàn bộ điểm đường
   setShape(kind, real = null) {
     const city = kind === 'city' || kind === 'nyc' || kind === 'sgn', avenue = kind === 'avenue' || kind === 'hlg';
-    const loop = kind === 'nyc' || kind === 'sgn' ? real : null;   // vòng khép kín: New York, Landmark TP.HCM
+    const loop = kind === 'nyc' || kind === 'sgn' || kind === 'dalat' ? real : null;   // vòng khép kín: New York, Landmark TP.HCM, hồ Xuân Hương
     real = kind === 'hlg' ? real : null;
     if (city === this.city && avenue === this.avenue && real === this.real && loop === this.loop) return;
     this.city = city; this.avenue = avenue; this.real = real; this.loop = loop;
@@ -188,6 +188,8 @@ export class Road {
   _loopPt(s) {
     const L = this.loop, [i, t] = this._lf(s), x = L.x[i] + (L.x[i + 1] - L.x[i]) * t, z = L.z[i] + (L.z[i + 1] - L.z[i]) * t;
     const e = L.elev(s), y = hLow(x, z);
+    // Đà Lạt: cao độ mặt đường tuyệt đối (DEM dọc tuyến đã làm mượt); địa hình bám mặt đường, chỉ chỗ đường cao hơn đất > 1.5–3.5 m (cầu) mới để đất thấp
+    if (L.abs) { const r = L.abs(s), u = r - y; return { x, z, y: r, g: r - u * sst(1.5, 3.5, u) }; }
     return { x, z, y: y + e, g: y + (e > 0 ? 0 : e) };   // g: mặt đất cho địa hình (dưới cầu cạn: mặt phố; hầm: theo mặt đường, trần che phía trên —
     // trước đây hầm kín dùng mặt phố => ở cửa hầm địa hình dựng thành tấm nghiêng chắn miệng hầm)
   }
