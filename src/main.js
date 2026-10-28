@@ -185,7 +185,7 @@ const diag = new Diag();                                                 // ch�
 let diagTris = '';
 diag.info = () => diagTris;
 const dalatScene = new DalatScene(scene, (x, z) => demAt(dalatDem(), x, z));        // map Hồ Xuân Hương: nhà / hồ / cây thông thật (urban:EXPORT), đường phụ OSM
-dalatScene.diag = diag;
+dalatScene.diag = diag; dalatScene.renderer = renderer;   // renderer: chụp impostor cây xa
 dalatScene.onLake = (tex, b) => { if (onDalat()) diag.time('ocean.setLake', () => ocean.setLake(true, 0, tex, b)); };   // mặt hồ Xuân Hương = nước map Biển (chế độ hồ)
 sgnEnv.city = sgnCity;                                                    // sgnEnv chờ cây của sgnCity rồi dựng chung
 const sgnObb = () => { if (sgnEnv.visible) city.extraObb = sgnEnv.obb.concat(sgnCity.obb); };
@@ -1567,7 +1567,7 @@ renderTune = () => {
     addNumber({ label: 'Cây model chi tiết trong (m)', min: 0, max: 200, step: 5, get: () => T.lodR, set: put('lodR') });
     addNumber({ label: 'Số cây chi tiết tối đa', min: 0, max: 1500, step: 10, get: () => T.maxHi, set: put('maxHi') });
     addNumber({ label: 'Vẽ cây xa tới (m)', min: 50, max: 2500, step: 50, get: () => T.far, set: put('far') });
-    addHeading('Cây chi tiết ~11k tam giác/cây; cây xa: nón ~80, model 3D nhẹ ~1.6k tam giác/cây');
+    addHeading('Cây chi tiết ~11k tam giác/cây; cây xa: nón ~80, model 3D (ảnh chụp model) 4 tam giác/cây');
     return;
   }
   if (tuneKind === 'nature') {

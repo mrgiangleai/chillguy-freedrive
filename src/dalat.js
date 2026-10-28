@@ -55,7 +55,7 @@ function pineGeometry() {
 // cài đặt cây (bảng 🌲 Cây, chỉ map Đà Lạt; lưu `chilldrive.dalat.trees`): bật / tắt, mật độ %, bán kính cây GLB chi tiết (m),
 // khoảng cách xa nhất còn vẽ cây nón (m), số cây GLB tối đa. Mặc định thấp vì máy điện thoại treo khi vẽ đủ 20 485 cây + 129 cây GLB × 11k tam giác
 export const DALAT_TREE_DEFAULTS = { high: { on: 1, model3d: 0, density: 100, lodR: 60, far: 700, maxHi: 120 }, low: { on: 1, model3d: 0, density: 60, lodR: 30, far: 400, maxHi: 40 } };
-// model3d = 1: cây xa cũng là model 3D chú đưa (bản nhẹ pine-far.glb ~1.6k tam giác, không đổ bóng) thay cây nón demo
+// model3d = 1: cây xa là ảnh chụp chính model cây thông chú đưa (impostor 2 tấm chéo, 4 tam giác, không đổ bóng) thay cây nón demo
 const TREE_KEY = 'chilldrive.dalat.trees', HI_CAP = 1500;
 
 export class DalatScene {
@@ -98,7 +98,8 @@ export class DalatScene {
     const T = this.tune;
     T.maxHi = Math.min(HI_CAP, Math.max(0, Math.round(T.maxHi)));
     this.trees.visible = !!T.on;
-    this.cones.visible = !T.model3d; this.farModels.visible = !!T.model3d;
+    const far3d = !!T.model3d && !!this.farParts;                    // model 3D chưa sẵn sàng => tạm giữ cây nón (không để trống)
+    this.cones.visible = !far3d; this.farModels.visible = far3d;
     if (T.model3d) this._buildFar();
     this.kU.value.set(T.density / 100, T.far);
     this._lodAt = null;                                              // chia lại ngay khung sau
@@ -114,7 +115,6 @@ export class DalatScene {
     fetch('assets/dalat/dalat-streets.json').then((r) => r.json()).then((S) => { got('streets.json'); job(`dải đường (${S.s.length})`, () => this._streets(S.s)); }).catch((e) => console.warn('dalat-streets', e));
     fetch('assets/dalat/dalat-trees.json').then((r) => r.json()).then((T) => { got('trees.json'); job('mảng cây', () => this._trees(T)); }).catch((e) => console.warn('dalat-trees', e));
     loader.load('assets/models/dalat/pine.glb', (gltf) => { got('pine.glb'); job('cây GLB', () => this._pine(gltf.scene)); }, undefined, (e) => console.warn('dalat-pine', e));
-    loader.load('assets/models/dalat/pine-far.glb', (gltf) => { got('pine-far.glb'); job('cây GLB xa', () => { this.farParts = this._extract(gltf.scene); this._buildFar(); }); }, undefined, (e) => console.warn('dalat-pine-far', e));
   }
 
   _city(root) {
@@ -191,7 +191,9 @@ export class DalatScene {
 
   // cây thông GLB ("pine tree" — bolojun, Sketchfab, CC-BY-SA-4.0; simplify 12 % + WebP 512 + meshopt): chuẩn hoá cao 1 m, gốc thân về (0, 0, 0)
   _pine(root) {
-    this.pineParts = this._extract(root).map(({ g, m }) => {
+    const src = this._extract(root);
+    if (this.renderer) try { this.farParts = this._impostor(src); this.setTune({}, false); } catch (e) { console.warn('dalat impostor', e); this.diag?.step('LỖI impostor: ' + e.message); }
+    this.pineParts = src.map(({ g, m }) => {
       const im = new THREE.InstancedMesh(g, m, HI_CAP);
       im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       im.count = 0; im.frustumCulled = false; im.castShadow = true; im.receiveShadow = true;
@@ -211,7 +213,7 @@ export class DalatScene {
       for (const name of Object.keys(g.attributes)) {                // meshopt: số nguyên rút gọn => Float32 trước khi applyMatrix4
         const A = g.attributes[name]; if (A.array instanceof Float32Array && !A.isInterleavedBufferAttribute) continue;
         const n = A.itemSize, f = new Float32Array(A.count * n);
-        for (let i = 0; i < A.count; i++) for (let c = 0; c < n; c++) f[i * n + c] = A.getComponent(i, c);
+        for (let i = 0; i < A.count; i++) { f[i * n] = A.getX(i); if (n > 1) f[i * n + 1] = A.getY(i); if (n > 2) f[i * n + 2] = A.getZ(i); if (n > 3) f[i * n + 3] = A.getW(i); }   // getX… (attribute interleaved của meshopt không có getComponent)
         g.setAttribute(name, new THREE.BufferAttribute(f, n));
       }
       g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(norm, o.matrixWorld));
@@ -221,6 +223,31 @@ export class DalatScene {
       out.push({ g, m });
     });
     return out;
+  }
+  // impostor: chụp model cây (nhìn ngang, ánh sáng đều) vào ảnh 256 × 400 có kênh alpha => 2 tấm chéo nhau, pháp tuyến hướng lên
+  // (sáng đều mọi hướng nắng). Gốc (0, 0, 0), cao 1 m như model đã chuẩn hoá
+  _impostor(parts) {
+    const R = this.renderer, HW = 0.32, W = 256, H = Math.round(W / (2 * HW));
+    const rt = new THREE.WebGLRenderTarget(W, H);
+    rt.texture.generateMipmaps = true; rt.texture.minFilter = THREE.LinearMipmapLinearFilter;
+    const sc = new THREE.Scene();
+    for (const { g, m } of parts) sc.add(new THREE.Mesh(g, m));
+    sc.add(new THREE.AmbientLight(0xffffff, 1.3));
+    const dl = new THREE.DirectionalLight(0xffffff, 1.5); dl.position.set(0.6, 1, 1); sc.add(dl);
+    const cam = new THREE.OrthographicCamera(-HW, HW, 1, 0, -5, 5); cam.position.set(0, 0, 2); cam.lookAt(0, 0, 0);
+    const prev = R.getRenderTarget(), pc = R.getClearColor(new THREE.Color()), pa = R.getClearAlpha(), auto = R.shadowMap.autoUpdate;
+    R.shadowMap.autoUpdate = false;
+    R.setRenderTarget(rt); R.setClearColor(0x000000, 0); R.clear(); R.render(sc, cam);
+    R.setRenderTarget(prev); R.setClearColor(pc, pa); R.shadowMap.autoUpdate = auto;
+    const a = new THREE.PlaneGeometry(2 * HW, 1).translate(0, 0.5, 0), b = a.clone().rotateY(Math.PI / 2);
+    const pos = [...a.toNonIndexed().attributes.position.array, ...b.toNonIndexed().attributes.position.array];
+    const uv = [...a.toNonIndexed().attributes.uv.array, ...b.toNonIndexed().attributes.uv.array];
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(new Array(pos.length).fill(0).map((_, k) => (k % 3 === 1 ? 1 : 0)), 3));
+    const m = new THREE.MeshStandardMaterial({ map: rt.texture, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.95, metalness: 0 });
+    return [{ g, m }];
   }
   // cây xa bằng model nhẹ: dựng theo ô 300 m (mỗi ô 1 việc) khi bật model3d và đã có cả mảng cây + model
   _buildFar() {

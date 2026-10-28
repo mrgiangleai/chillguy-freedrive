@@ -4,7 +4,7 @@
 
 > Đọc trước khi sửa. Xong: 1 dòng **Nhật ký** + tăng bộ đếm; đủ 10 => gộp vào mục trạng thái, đặt lại 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 4/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
 
 ## 1. Tổng quan
 
@@ -132,3 +132,4 @@
 - **#2 — Đà Lạt đơ (28/10/2026)**: 8d0e1c4 làm mất `_city`/`_splitLake` (job ném lỗi trong frame() => dừng vòng vẽ) — đã trả lại, job bọc try/catch. Thêm `src/diag.js` (dòng chữ vàng góc trái, chỉ Đà Lạt, TẠM: bước vào map + ms, fps, ms từng phần frame, tam giác / lượt vẽ, khung > 150 ms, lỗi JS, "lần trước kẹt ở") — xoá khi hết đơ.
 - **#3 — Đà Lạt (28/10/2026)**: cây GLB không hiện do khoá sắp xếp `d2·65536 + i` với d2 lẻ => chỉ số lẻ, ma trận NaN (sửa `floor(d2)`); nhà màu trầm theo toà (băm ô 14 m, mái ngói / tôn, envMap 0.45); bản đồ tròn + bấm dời xe ở Đà Lạt (hồ + đường phụ); bảng chẩn đoán sang phải, nút 🩺 / phím 1 ẩn hiện.
 - **#4 — Đà Lạt cây xa model 3D (28/10/2026)**: bảng 🌲 nút "Cây xa: Demo (nón) / Model 3D" (`tune.model3d`, mặc định tắt): `pine-far.glb` (simplify 0.04 + WebP 256 + meshopt, 122 KB, ~1.6k tam giác, không đổ bóng) dựng theo ô 300 m khi bật, cùng shader bỏ cây (`_lodHook`).
+- **#5 — Đà Lạt cây GLB (28/10/2026)**: cây model không hiện vì `_extract` gọi `getComponent` trên attribute interleaved (meshopt) => đổi getX/Y/Z/W. Bỏ `pine-far.glb` (rút gọn mất lá); cây xa Model 3D = impostor chụp `pine.glb` lúc chạy (RT 256×400, 2 tấm chéo, pháp tuyến lên); chưa sẵn sàng thì giữ nón.
