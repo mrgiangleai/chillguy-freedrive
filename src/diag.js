@@ -12,7 +12,11 @@ export class Diag {
     btn.style.cssText = 'position:fixed;right:6px;top:88px;z-index:99999;width:28px;height:26px;padding:0;border-radius:6px;border:1px solid rgba(255,255,255,.3);'
       + 'background:rgba(0,0,0,.45);color:#fff;font-size:14px;line-height:1;cursor:pointer;display:none';
     btn.onclick = (e) => { e.stopPropagation(); this.toggle(); };
-    document.body.append(el, btn);
+    // hàng nút thử nhanh: bật / tắt từng phần để đo fps (không lưu, vào lại map là bật hết)
+    const bar = this.bar = document.createElement('div');
+    bar.style.cssText = 'position:fixed;right:40px;top:88px;z-index:99999;max-width:60vw;display:none;flex-wrap:wrap;gap:3px;justify-content:flex-end';
+    this.t = {};
+    document.body.append(el, btn, bar);
     this.active = false;
     try { this.shown = localStorage.getItem('chilldrive.diag.shown') !== '0'; } catch { this.shown = true; }
     this.steps = []; this.slow = []; this.errors = [];
@@ -23,8 +27,20 @@ export class Diag {
     window.addEventListener('unhandledrejection', (e) => err('LỖI promise ' + (e.reason?.message || e.reason)));
   }
   set on(v) { this.active = !!v; this.btn.style.display = v ? 'block' : 'none'; this._show(); }
+  // thêm 1 nút thử: id => this.t[id] (true = đang bật), onChange(bật?) khi bấm
+  addTest(id, label, onChange) {
+    const b = document.createElement('button');
+    this.t[id] = true;
+    const paint = () => { b.textContent = (this.t[id] ? '✓ ' : '✗ ') + label; b.style.background = this.t[id] ? 'rgba(0,90,0,.7)' : 'rgba(140,0,0,.75)'; };
+    b.style.cssText = 'height:24px;padding:0 6px;border-radius:5px;border:1px solid rgba(255,255,255,.3);color:#fff;font:11px system-ui,sans-serif;cursor:pointer';
+    b.onclick = (e) => { e.stopPropagation(); this.t[id] = !this.t[id]; paint(); onChange?.(this.t[id]); this.sec.clear(); this.slow.length = 0; };
+    paint(); this.bar.append(b);
+    (this._tests || (this._tests = [])).push({ id, paint, onChange });
+  }
+  // bật lại hết (vào lại map)
+  resetTests() { for (const T of this._tests || []) if (!this.t[T.id]) { this.t[T.id] = true; T.paint(); T.onChange?.(true); } }
   toggle() { this.shown = !this.shown; try { localStorage.setItem('chilldrive.diag.shown', this.shown ? '1' : '0'); } catch { /* chế độ riêng tư */ } this._show(); }
-  _show() { this.el.style.display = this.active && this.shown ? 'block' : 'none'; if (this.active) this._render(); }
+  _show() { this.el.style.display = this.active && this.shown ? 'block' : 'none'; this.bar.style.display = this.active && this.shown ? 'flex' : 'none'; if (this.active) this._render(); }
   get on() { return this.active; }
   // một bước lúc tải (giữ 14 bước gần nhất)
   step(name, ms) {

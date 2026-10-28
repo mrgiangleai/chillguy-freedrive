@@ -345,7 +345,7 @@ export class DalatScene {
       }
       o.matrixAutoUpdate = false; o.updateMatrix();
     });
-    this.group.add(root);
+    this.group.add(root); this.cityRoot = root;
     this.state = 'ready';
   }
 

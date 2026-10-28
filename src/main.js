@@ -188,6 +188,16 @@ let fakeT = 1;
 const diag = new Diag();                                                 // chẩn đoán map Đà Lạt (tạm thời, tới khi hết đơ)
 let diagTris = '';
 diag.info = () => diagTris;
+// nút thử nhanh trong bảng chẩn đoán: tắt từng phần để xem phần nào làm tụt fps
+diag.addTest('refl', 'Phản chiếu hồ');
+diag.addTest('lamps', 'Đèn đường thật', (v) => { if (v) for (const l of scenery.lampLights) l.visible = true; });
+diag.addTest('shadow', 'Vẽ bóng', (v) => { renderer.shadowMap.autoUpdate = v; renderer.shadowMap.needsUpdate = true; });
+diag.addTest('city', 'Nhà', (v) => { if (dalatScene.cityRoot) dalatScene.cityRoot.visible = v; });
+diag.addTest('trees', 'Cây', (v) => { dalatScene.trees.visible = v && !!dalatScene.tune.on; });
+diag.addTest('terrain', 'Địa hình', (v) => { terrain.group.visible = v; });
+diag.addTest('water', 'Mặt nước', (v) => { ocean.group.visible = v; });
+diag.addTest('scenery', 'Cột đèn + cảnh ven đường', (v) => { for (const c of scenery.chunks.values()) c.visible = v; });
+diag.addTest('res', 'Độ nét đầy đủ', (v) => { renderer.setPixelRatio(v ? pixelRatio : pixelRatio * 0.5); resize(); });
 const dalatScene = new DalatScene(scene, (x, z) => demAt(dalatDem(), x, z));
 dalatScene.initTraffic(cityTraffic, VEHICLE_TYPES, VEHICLE_COLORS, 24);   // xe trên đường phụ Đà Lạt (số xe theo chất lượng: applyMap)        // map Hồ Xuân Hương: nhà / hồ / cây thông thật (urban:EXPORT), đường phụ OSM
 dalatScene.diag = diag; dalatScene.renderer = renderer;   // renderer: chụp impostor cây xa
@@ -771,7 +781,7 @@ const applyMap = () => {
   const dm = (n) => { if (!diagOn) return; const t = performance.now(); diag.mark(n, t - dT); dT = t; };
   const mapId = MAPS[state.map].id, id = mapKind(mapId), isHlg = mapId === 'hlg', isNyc = mapId === 'nyc', isSgn = mapId === 'sgn', isDalat = mapId === 'dalat';
   const diagOn = isDalat && curMapId !== mapId;                   // chẩn đoán: chỉ lúc mới vào map Đà Lạt
-  if (isDalat) diag.on = true; else diag.on = false;
+  if (isDalat) diag.on = true; else { diag.resetTests(); diag.on = false; }
   if (isHlg && curMapId !== 'hlg') hlgDir = hlgLayout(false);
   setTerrainMap(id);            // đổi tham số địa hình (đồi thấp / đồi núi)
   dm('setTerrainMap');
@@ -2466,7 +2476,7 @@ function frame(now) {
   env.mistCover = mistCover; env.mistDens = mistDens;                // sương phủ cả bầu trời
 
   // đường ướt: vẽ ảnh phản chiếu cho vũng nước (chỉ khi mưa)
-  if (onDalat() && ocean.u.uLake.value > 0.5) {                // hồ Xuân Hương: vẽ cảnh đối xứng qua mặt hồ mỗi khung (ẩn mặt nước khi vẽ)
+  if (onDalat() && ocean.u.uLake.value > 0.5 && diag.t.refl) {                // hồ Xuân Hương: vẽ cảnh đối xứng qua mặt hồ mỗi khung (ẩn mặt nước khi vẽ)
     // ẩn khi vẽ ảnh phản chiếu: mặt nước, quầng sáng giả + vũng sáng giả của đèn đường (cộng sáng => thành mảng sáng to sau hàng cây)
     const ov = ocean.group.visible, gv = scenery.glowMat.visible, pv = scenery.poolMat.visible;
     ocean.group.visible = false; scenery.glowMat.visible = scenery.poolMat.visible = false;
@@ -2489,6 +2499,10 @@ function frame(now) {
   wipers.update(dt, stop.active ? 0 : st.rain, drive.v);
   const glassAmt = inCabin ? wipers.wet : 0;
   if (cars.shield) cars.setWiper(wipers.angle(cars.shield.sweep));
+  if (diag.on) {                                                       // nút thử: tắt đèn đường thật / cảnh ven đường (cả chunk mới dựng)
+    for (const l of scenery.lampLights) l.visible = diag.t.lamps;
+    if (!diag.t.scenery) for (const c of scenery.chunks.values()) c.visible = false;
+  }
   post.begin();
   diag.lap('logic trước render');
   renderer.render(scene, camera);
