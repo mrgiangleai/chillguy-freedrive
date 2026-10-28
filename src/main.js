@@ -6,7 +6,7 @@ import { NYC, NYC_DIM, nycLoop, nycStreet, NycWorks } from './nyc.js';
 import { SGN, sgnLoop, sgnStreet, sgnZone, SgnScene } from './sgn.js';
 import { SgnEnv } from './sgnEnv.js';
 import { SgnCity } from './sgnCity.js';
-import { DALAT, dalatLoop, dalatDem, DalatScene, WATER_DROP, DALAT_ENV, BRIDGES, FAKE_LIGHT, addFakeLight, noCenterLineNearRoundabout, RB_ON, nearRoundabout } from './dalat.js';
+import { DALAT, dalatLoop, dalatDem, DalatScene, WATER_DROP, DALAT_ENV, FAKE_LIGHT, addFakeLight, CANAL_CUT, addCanalCut, noCenterLineNearRoundabout, RB_ON, nearRoundabout } from './dalat.js';
 import { Diag } from './diag.js';
 import { TimesSquare } from './timesSquare.js';
 import { NycBuildings } from './nycBuildings.js';
@@ -96,7 +96,7 @@ camera.layers.enable(3);   // layer 3: mặt đường, cỏ, cây, mưa — ch�
 const road = new Road();
 const scenery = new Scenery(scene, road, renderer);
 const terrain = new Terrain(scene, road, renderer);
-addFakeLight(terrain.mat); addFakeLight(scenery.roadMat); noCenterLineNearRoundabout(scenery.roadMat);   // ánh sáng giả đèn đường (map Đà Lạt; map khác uFakeK = 0)
+addFakeLight(terrain.mat); addCanalCut(terrain.mat); addFakeLight(scenery.roadMat); noCenterLineNearRoundabout(scenery.roadMat);   // ánh sáng giả đèn đường (map Đà Lạt; map khác uFakeK = 0)
 const env = new Environment(renderer, scene, camera);
 env.starPx = renderer.getPixelRatio();          // cỡ sao theo độ phân giải (điện thoại ×2–3)
 const reeds = new ReedField(scene, renderer);
@@ -791,7 +791,7 @@ const applyMap = () => {
   dm('road.setShape');
   // New York: vào map ở đầu Times Square (7th Ave 46 – 45 St), chạy làn ngoài phải
   if (isNyc && curMapId !== mapId) { drive.s = NYC.length + NYC.start; drive.d = CITY.lanes[1]; nycTurn = null; }
-  if (isDalat) { dalatScene.buildBridge(road); dalatScene.buildSidewalk(road, (s) => BRIDGES.some((b) => s > b.s0 - 4 && s < b.s1 + 4)); dalatScene.buildStream(); }   // + vỉa hè ven hồ, suối Cam Ly   // + vỉa hè ven hồ                     // lan can cầu Sắt (1 lần, theo tuyến vòng hồ)
+  if (isDalat) { dalatScene.buildBridge(road); dalatScene.buildSidewalk(road); dalatScene.buildStream(); }   // + vỉa hè ven hồ, suối Cam Ly   // + vỉa hè ven hồ                     // lan can cầu Sắt (1 lần, theo tuyến vòng hồ)
   if (isDalat && curMapId !== mapId) drive.s = DALAT.length + DALAT.start;   // Hồ Xuân Hương: bờ nam (Trần Quốc Toản), chiều kim đồng hồ
   if (isSgn && curMapId !== mapId) { drive.s = SGN.length + SGN.start; drive.d = CITY.lanes[1]; sgnName = null; }   // Landmark: Nguyễn Hữu Cảnh, về phía Ba Son
   if (isAvenue && curMapId !== mapId) { drive.s = isHlg ? HLG.start : 150; drive.ramp = null; }   // vào đại lộ: luôn từ đầu đường (cầu cao ở 700 m, cầu sông 2.2 km)
@@ -852,6 +852,7 @@ const applyMap = () => {
   if ((tuneKind === 'trees' || tuneKind === 'water') && !isDalat) closeTune();
   dalatScene.visible = isDalat;
   if (!isDalat) FAKE_LIGHT.uFakeK.value = 0;
+  CANAL_CUT.uCutOn.value = isDalat ? 1 : 0;
   dm('dalatScene.visible');
   if (isSgn) { sgnEnv.onReady(); sgnCity.onReady(); }           // camera không xuyên tháp / nhà thật (khi đã tải)
   fireflies.ground.clear();     // độ cao mặt đất nhớ theo hình đường cũ

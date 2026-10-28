@@ -4,7 +4,7 @@
 
 > Đọc trước khi sửa. Xong: 1 dòng **Nhật ký** + tăng bộ đếm; đủ 10 => gộp vào mục trạng thái, đặt lại 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 27/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 28/10**
 
 ## 1. Tổng quan
 
@@ -155,3 +155,4 @@
 - **#25 — Đà Lạt vỉa hè ven hồ (28/10/2026)**: `buildSidewalk(road, skip)` phía hồ (bên phải xe), rộng 3 m, cao +0.15 m, gạch lát canvas, bó vỉa đứng + mép ngoài thả 1.5 m; bỏ 5 vòng xoay OSM trên tuyến (`LOOP_ROUNDABOUTS`, r + 12 m) và đoạn cầu Sắt.
 - **#26 — Đà Lạt đập hạ nguồn + thung lũng (28/10/2026)**: OSM (cache `valley`): suối Cam Ly chui cống dưới đường vòng hồ (s ≈ 475) vào Công viên Ánh Sáng (way 99660966). `fetch-dalat.mjs`: trong đa giác công viên đất hạ tới −20 m dưới mặt đường (sâu dần trong 25 m từ mép), lòng suối −1.5; bỏ nhà trong công viên; data `park` / `stream`. `DAM` s 428–502: lan can + thân đập bê tông 4 m (`BRIDGES`), vỉa hè bỏ qua; `buildStream` dải nước trôi (offset texture) bám đáy, đoạn dốc trắng như thác. Vào map Đà Lạt luôn Hoàng hôn + Trời trong.
 - **#27 — Đà Lạt Công viên Ánh Sáng theo ảnh (28/10/2026)**: `buildStream` = kênh bê tông hình thang (đáy 6 m, miệng 12 m, sâu 3.5 m, miệng mượt + chỉ xuống dốc), nước trôi, bậc tràn mỗi 40 m, lan can thép 2 bên, cửa cống ở chân đập; 3 lối bậc thang bê tông + hàng rào cây xén từ mép đường xuống đáy. `fetch-dalat`: thung lũng = công viên ∪ dải 25 m quanh suối (x −1215…−835), lòng kênh −5 m; bỏ nhà / cây trong đó.
+- **#28 — Đà Lạt (28/10/2026)**: suối Cam Ly làm thẳng (Douglas–Peucker 7 m, `fetch-dalat`), `CANAL_CUT` + `addCanalCut(terrain.mat)`: mặt nạ dải ±5.9 m dọc kênh, shader địa hình discard => cỏ không trồi qua nước; tường đầu kênh vừa mặt cắt; bậc thang rộng 5 m. Cầu / đập: vỉa hè 3 m cả 2 bên, lan can dời ra mép ngoài (`RO` 3.2); vỉa hè ven hồ liền qua cầu, đầu đoạn bịt kín.

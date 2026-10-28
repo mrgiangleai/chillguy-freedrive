@@ -145,6 +145,23 @@ export function addFakeLight(mat) {
   mat.needsUpdate = true;
 }
 
+// khoét đất trong lòng kênh suối Cam Ly: ảnh mặt nạ (canvas, buildStream vẽ) — shader địa hình bỏ điểm ảnh trong kênh
+// (lưới địa hình 10 m không vẽ được lòng kênh 12 m => cỏ trồi xuyên qua nước / mái bê tông)
+export const CANAL_CUT = { uCutM: { value: null }, uCutB: { value: new THREE.Vector4(0, 0, 1, 1) }, uCutOn: { value: 0 } };
+export function addCanalCut(mat) {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = function (sh, r) {
+    if (prev) prev.call(this, sh, r);
+    Object.assign(sh.uniforms, CANAL_CUT);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vCutW;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvCutW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vCutW;\nuniform sampler2D uCutM;\nuniform vec4 uCutB;\nuniform float uCutOn;')
+      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+      if (uCutOn > 0.5) { vec2 cu = (vCutW.xz - uCutB.xy) / (uCutB.zw - uCutB.xy); if (cu.x > 0.0 && cu.y > 0.0 && cu.x < 1.0 && cu.y < 1.0 && texture2D(uCutM, cu).r > 0.5) discard; }`);
+  };
+  mat.needsUpdate = true;
+}
+
 let LOOP = null;
 export function dalatLoop() {
   if (LOOP) return LOOP;
@@ -648,7 +665,7 @@ export class DalatScene {
   // mặt bên bê tông thả xuống `depth` m (che khe dưới mép đường). road: Road của game (loop đã đặt)
   buildBridge(road) {
     if (this.bridge) return;
-    const HW = 4.6, step = 2, p = {}, q = {};
+    const HW = 4.6, RO = 3.2, step = 2, p = {}, q = {};                // RO: lan can ngoài mép vỉa hè cầu (3 m)
     road.ensure(Math.max(...BRIDGES.map((b) => b.s1)) + 10);
     const conc = [], steel = [];
     const seg = (out, s, off, w, h, y0) => {                        // hộp nối 2 điểm lệch ngang `off` tại s và s + step
@@ -659,15 +676,15 @@ export class DalatScene {
     };
     for (const B of BRIDGES) for (const side of [-1, 1]) {
       for (let s = B.s0; s < B.s1; s += step) {
-        seg(conc, s, side * (HW + 0.2), 0.4, 0.45, 0);                 // gờ bê tông
-        seg(conc, s, side * (HW + 0.42), 0.12, B.depth, -B.depth);     // mặt bên bản cầu / thân đập
-        seg(steel, s, side * (HW + 0.2), 0.07, 0.07, 1.05);            // tay vịn
-        seg(steel, s, side * (HW + 0.2), 0.05, 0.05, 0.75);            // thanh giữa
+        seg(conc, s, side * (HW + RO), 0.4, 0.45, 0.15);               // gờ bê tông (ngoài vỉa hè 3 m)
+        seg(conc, s, side * (HW + RO + 0.22), 0.12, B.depth, -B.depth); // mặt bên bản cầu / thân đập
+        seg(steel, s, side * (HW + RO), 0.07, 0.07, 1.2);              // tay vịn
+        seg(steel, s, side * (HW + RO), 0.05, 0.05, 0.9);              // thanh giữa
       }
       for (let s = B.s0; s <= B.s1; s += 2.5) {
         road.at(s, p);
-        const x = p.x + Math.cos(p.th) * side * (HW + 0.2), z = p.z - Math.sin(p.th) * side * (HW + 0.2);
-        steel.push(new THREE.BoxGeometry(0.09, 0.7, 0.09).translate(x, p.y + 0.45 + 0.35, z));
+        const x = p.x + Math.cos(p.th) * side * (HW + RO), z = p.z - Math.sin(p.th) * side * (HW + RO);
+        steel.push(new THREE.BoxGeometry(0.09, 0.7, 0.09).translate(x, p.y + 0.6 + 0.35, z));
       }
     }
     const mk = (parts, mat) => { const m = new THREE.Mesh(mergeGeometries(parts.map((g) => g.toNonIndexed())), mat); m.castShadow = m.receiveShadow = true; m.matrixAutoUpdate = false; return m; };
@@ -678,27 +695,31 @@ export class DalatScene {
   }
 
   // vỉa hè ven hồ: phía hồ (bên phải xe) của đường vòng hồ, rộng 3 m, cao hơn mặt đường 15 cm, gạch lát xám nhạt; mép trong là bó vỉa đứng,
-  // mép ngoài thả xuống 1.5 m (che đất dốc xuống hồ). Bỏ qua vòng xoay (r + 12 m) và các đoạn cầu (`skip(s)`)
-  buildSidewalk(road, skip = () => false) {
+  // mép ngoài thả xuống 1.5 m (che đất dốc xuống hồ). Bỏ qua vòng xoay (r + 12 m); trên cầu / đập có cả 2 bên; đầu đoạn được bịt kín
+  buildSidewalk(road) {
     if (this.sidewalk) return;
     const L = DALAT.length, HW = 4.6, W = 3, H = 0.15, step = 2, p = {};
     road.ensure(L + 10);
     const off = (pp, o, dy) => [pp.x + Math.cos(pp.th) * o, pp.y + dy, pp.z - Math.sin(pp.th) * o];
     const top = [], tuv = [], side = [];
     const inRb = (x, z) => LOOP_ROUNDABOUTS.some(([cx, cz, r]) => Math.hypot(x - cx, z - cz) < r + 12);
-    let prev = null;
-    for (let s = 0; s <= L; s += step) {
-      road.at(s, p);
-      const a = off(p, HW + 0.05, H), b = off(p, HW + W, H), c = off(p, HW + 0.05, -0.05), e = off(p, HW + W, -1.5);
-      const ok = !skip(s) && !inRb(a[0], a[2]) && !inRb(b[0], b[2]);
-      const cur = { a, b, c, e, s, ok };
-      if (prev && prev.ok && ok) {
-        top.push(...prev.a, ...cur.a, ...prev.b, ...prev.b, ...cur.a, ...cur.b);
-        const v0 = prev.s / 3, v1 = s / 3; tuv.push(0, v0, 0, v1, 1, v0, 1, v0, 0, v1, 1, v1);
-        side.push(...prev.c, ...prev.a, ...cur.c, ...cur.c, ...prev.a, ...cur.a);   // bó vỉa
-        side.push(...prev.b, ...prev.e, ...cur.b, ...cur.b, ...prev.e, ...cur.e);   // mép ngoài
+    const onBridge = (s) => BRIDGES.some((b) => s >= b.s0 - 2 && s <= b.s1 + 2);
+    for (const sd of [1, -1]) {                                       // +1: phía hồ (cả vòng), −1: phía ngoài (chỉ trên cầu / đập)
+      let prev = null;
+      for (let s = 0; s <= L; s += step) {
+        road.at(s, p);
+        const a = off(p, sd * (HW + 0.05), H), b = off(p, sd * (HW + W), H), c = off(p, sd * (HW + 0.05), -0.05), e = off(p, sd * (HW + W), -1.5);
+        const ok = (sd > 0 || onBridge(s)) && !inRb(a[0], a[2]) && !inRb(b[0], b[2]);
+        const cur = { a, b, c, e, s, ok };
+        if (prev && prev.ok && ok) {
+          top.push(...prev.a, ...cur.a, ...prev.b, ...prev.b, ...cur.a, ...cur.b);
+          const v0 = prev.s / 3, v1 = s / 3; tuv.push(0, v0, 0, v1, 1, v0, 1, v0, 0, v1, 1, v1);
+          side.push(...prev.c, ...prev.a, ...cur.c, ...cur.c, ...prev.a, ...cur.a);   // bó vỉa
+          side.push(...prev.b, ...prev.e, ...cur.b, ...cur.b, ...prev.e, ...cur.e);   // mép ngoài
+        }
+        if (prev && prev.ok !== ok) { const q = ok ? cur : prev; side.push(...q.c, ...q.a, ...q.e, ...q.e, ...q.a, ...q.b); }   // bịt đầu vỉa hè
+        prev = cur;
       }
-      prev = cur;
     }
     const cv = document.createElement('canvas'); cv.width = 128; cv.height = 128;
     const c = cv.getContext('2d');
@@ -720,7 +741,7 @@ export class DalatScene {
 
   // suối Cam Ly trong Công viên Ánh Sáng (theo ảnh chú gửi): kênh bê tông hình thang (đáy 6 m, miệng 12 m, sâu 3.5 m), nước chảy
   // (texture trôi), bậc tràn mỗi ~40 m (vệt bọt trắng), lan can thép 2 bên miệng kênh, cửa cống ở chân đập; trên mái cỏ thung lũng:
-  // 3 lối bậc thang bê tông từ mép đường xuống đáy, 2 hàng rào cây xén thấp dọc mỗi lối. Chỉ đoạn trong công viên (DATA.park)
+  // 3 lối bậc thang bê tông rộng 5 m từ mép đường xuống đáy, 2 hàng rào cây xén thấp dọc mỗi lối. Chỉ đoạn trong công viên (DATA.park)
   buildStream() {
     if (this.stream) return;
     const S = DATA.stream, park = DATA.park, G = dalatGround, Q = [];
@@ -771,6 +792,21 @@ export class DalatScene {
         const T = P(a, u, a.top); steel.push(new THREE.BoxGeometry(0.07, 1.05, 0.07).translate(T[0], T[1] + 0.52, T[2]));
       }
     }
+    if (C.length > 1) {                                                // mặt nạ khoét đất: dải |u| ≤ 6 m dọc kênh
+      let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+      for (const q of C) { x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); z0 = Math.min(z0, q.z); z1 = Math.max(z1, q.z); }
+      x0 -= 12; z0 -= 12; x1 += 12; z1 += 12;
+      const N = 1024, cv2 = document.createElement('canvas'); cv2.width = cv2.height = N;
+      const g2 = cv2.getContext('2d'), sx = N / (x1 - x0), sz = N / (z1 - z0);
+      g2.fillStyle = '#000'; g2.fillRect(0, 0, N, N); g2.fillStyle = '#fff';
+      for (let i = 0; i + 1 < C.length; i++) {
+        const a = C[i], b = C[i + 1]; if (Math.hypot(b.x - a.x, b.z - a.z) > 4) continue;
+        const pts = [P(a, 5.9, 0), P(a, -5.9, 0), P(b, -5.9, 0), P(b, 5.9, 0)];
+        g2.beginPath(); pts.forEach((q, k) => (k ? g2.lineTo : g2.moveTo).call(g2, (q[0] - x0) * sx, (q[2] - z0) * sz)); g2.closePath(); g2.fill();
+      }
+      const mt = new THREE.CanvasTexture(cv2); mt.flipY = false; mt.colorSpace = THREE.NoColorSpace; mt.minFilter = mt.magFilter = THREE.NearestFilter; mt.generateMipmaps = false;
+      CANAL_CUT.uCutM.value = mt; CANAL_CUT.uCutB.value.set(x0, z0, x1, z1);
+    }
     const geo = (pos, uv) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); if (uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.computeVertexNormals(); return g; };
     const mesh = (g, m) => { const o = new THREE.Mesh(g, m); o.receiveShadow = true; o.matrixAutoUpdate = false; return o; };
     const conc = withMist(new THREE.MeshStandardMaterial({ color: 0xa9a49a, roughness: 0.95, envMapIntensity: DALAT_ENV, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
@@ -790,8 +826,8 @@ export class DalatScene {
     if (C.length) {
       const h = C[0], g = new THREE.Group(); g.position.set(h.x - h.dx * 1, h.top - 3.5, h.z - h.dz * 1); g.rotation.y = Math.atan2(h.dx, h.dz);
       const box = (w, hh, d, col, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, hh, d), withMist(new THREE.MeshStandardMaterial({ color: col, roughness: 0.9, envMapIntensity: DALAT_ENV }))); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; g.add(m); };
-      box(14, 5, 2, 0x9d988e, 0, 2.5, -1);
-      box(4.5, 2.4, 0.3, 0x15191a, 0, 1.3, 0.05);
+      box(12.4, 3.6, 0.6, 0x9d988e, 0, 1.8, -0.3);                      // tường đầu kênh vừa khít mặt cắt kênh (không nhô lên mặt cỏ)
+      box(4, 2, 0.1, 0x15191a, 0, 1.2, 0.02);
       this.stream.add(g);
     }
     // bậc thang + hàng rào cây xén trên mái cỏ: từ mép công viên phía đường xuống đáy, theo dalatGround mỗi 0.45 m
@@ -804,8 +840,8 @@ export class DalatScene {
       const yaw = Math.atan2(nx, nz);
       for (let t = 1; t < 30; t += 0.45) {
         const x = x0 + nx * t, z = z0 + nz * t, y = G(x, z);
-        steps.push(new THREE.BoxGeometry(2.4, 0.5, 0.5).rotateY(yaw).translate(x, y - 0.1, z));
-        if (Math.round(t / 0.45) % 3 === 0) for (const sd of [-1.9, 1.9]) {
+        steps.push(new THREE.BoxGeometry(5, 0.5, 0.5).rotateY(yaw).translate(x, y - 0.1, z));
+        if (Math.round(t / 0.45) % 3 === 0) for (const sd of [-3.3, 3.3]) {
           const hx = x + nz * sd, hz = z - nx * sd;
           hedge.push(new THREE.BoxGeometry(0.8, 0.7, 1.5).rotateY(yaw).translate(hx, G(hx, hz) + 0.25, hz));
         }

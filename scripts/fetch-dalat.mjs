@@ -47,7 +47,19 @@ const pr = (g) => [(g.lon - lon0) * KE, (g.lat - lat0) * KN];
 const osmV = (await overpass('valley', `[out:json][timeout:60];(way["waterway"](11.9380,108.4300,11.9520,108.4440);way["leisure"="park"](11.9380,108.4300,11.9520,108.4440););out body geom;`)).elements;
 const PARK = osmV.find((e) => e.id === 99660966).geometry.map(pr);                      // Công viên Ánh Sáng (E, N)
 const streamD = (x, y) => { let d = Infinity; for (let i = 0; i + 1 < STREAM.length; i++) { const ax = STREAM[i][0], ay = STREAM[i][1], vx = STREAM[i + 1][0] - ax, vy = STREAM[i + 1][1] - ay, l = vx * vx + vy * vy || 1; const t = Math.max(0, Math.min(1, ((x - ax) * vx + (y - ay) * vy) / l)); d = Math.min(d, Math.hypot(x - ax - vx * t, y - ay - vy * t)); } return d; };
-const STREAM = [...osmV.find((e) => e.id === 708032746).geometry, ...osmV.find((e) => e.id === 708032747).geometry.slice(1)].map(pr);   // cống + suối Cam Ly
+// cống + suối Cam Ly, làm thẳng (Douglas–Peucker 7 m): kênh bê tông thật chạy thẳng từng đoạn, không uốn theo nét vẽ OSM
+const STREAM = (() => {
+  const P = [...osmV.find((e) => e.id === 708032746).geometry, ...osmV.find((e) => e.id === 708032747).geometry.slice(1)].map(pr);
+  const dp = (a, b) => {
+    let best = -1, bi = -1;
+    for (let i = a + 1; i < b; i++) {
+      const [x, y] = P[i], [ax, ay] = P[a], [bx, by] = P[b], vx = bx - ax, vy = by - ay, l = Math.hypot(vx, vy) || 1;
+      const d = Math.abs((x - ax) * vy - (y - ay) * vx) / l; if (d > best) { best = d; bi = i; }
+    }
+    return best > 7 ? [...dp(a, bi), ...dp(bi, b).slice(1)] : [P[a], P[b]];
+  };
+  return dp(0, P.length - 1);
+})();
 
 const inPoly = (x, y, P) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) if ((P[i][1] > y) !== (P[j][1] > y) && x < P[i][0] + (P[j][0] - P[i][0]) * (y - P[i][1]) / (P[j][1] - P[i][1])) c = !c; return c; };
 const polyDist = (x, y, P) => {
