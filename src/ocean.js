@@ -74,6 +74,8 @@ uniform vec4 uRivPF;                 // tâm sông (x, z) + hướng ngang sông
 uniform float uLake;                 // chế độ hồ (map Đà Lạt, cùng uRiv = 1): chỉ trong mặt nạ hình hồ, sóng rất nhỏ, xanh lá đậm, ít lóa
 uniform sampler2D uLakeM;            // mặt nạ hồ (R > 0.5 = nước) phủ khung uLakeB = (x0, z0, x1, z1)
 uniform vec4 uLakeB;
+uniform vec3 uLakeDeep;              // hồ (bảng 💧): màu nước, soi trời, nhuộm soi trời theo màu nước, nắng, gợn sóng
+uniform float uLakeSky, uLakeTint, uLakeSun, uLakeWave;
 uniform sampler2D uReflTex;          // hồ: ảnh phản chiếu phẳng (WetReflection) — như vũng nước mưa: méo theo gợn, độ rõ uReflK
 uniform mat4 uReflMat;
 uniform float uReflK;
@@ -122,7 +124,7 @@ function oceanMaterial(u) {
         vec3 wv = waveAt(ow.xz);
         float fadeH = 1.0 - smoothstep(80.0, 112.0, camD);           // xa: chỉ còn pháp tuyến, mặt phẳng (lưới gần rộng ±120 m)
         if (uRiv > 0.5) fadeH *= 0.35;                              // sông: sóng nhỏ hơn biển
-        if (uLake > 0.5) fadeH *= 0.4;                              // hồ: gợn ±0.3 m
+        if (uLake > 0.5) fadeH *= uLakeWave;                        // hồ: gợn nhỏ (mặc định 0.4 => ±0.3 m)
         transformed.y += wv.x * fadeH;
         // độ sâu ước lượng: khoảng cách tới tim đường + cao độ đường => cao độ đê (cùng công thức xẻ đường của terrain.js)
         float dm = 1e9, ry = uSea + 10.0;
@@ -157,16 +159,17 @@ function oceanMaterial(u) {
         // bọt: ven bờ (nước rất nông, vỗ theo nhịp sóng) + đầu ngọn sóng cao
         oFoam = clamp((1.0 - smoothstep(0.0, 0.9 + 0.5 * n, dep)) * (0.55 + 0.45 * n) + crest * smoothstep(0.62, 0.9, n) * 0.5, 0.0, 1.0);
         vec3 deep = mix(vec3(0.010, 0.050, 0.065), vec3(0.008, 0.026, 0.024), uRiv), turq = mix(vec3(0.05, 0.30, 0.30), vec3(0.03, 0.10, 0.08), uRiv);   // sông: sẫm hơn biển
-        if (uLake > 0.5) { deep = vec3(0.011, 0.045, 0.019); turq = vec3(0.04, 0.13, 0.06); }   // hồ: màu đáy sâu tối, ven bờ sáng hơn   // hồ: xanh lá đậm
+        if (uLake > 0.5) { deep = uLakeDeep; turq = uLakeDeep * 2.8; }
         diffuseColor.rgb = mix(mix(deep, turq, shallow), vec3(0.75, 0.80, 0.82), oFoam);
         diffuseColor.a = mix(mix(1.0, 0.55, shallow), 0.95, oFoam);`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor + smoothstep(150.0, 1500.0, camD) * 0.12 + uRiv * 0.24, 0.85, oFoam);')
       // sông: bớt soi trời (trước như tấm gương trắng bạc, sáng hơn cả cỏ) + bớt vệt nắng chói
-      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nif (uRiv > 0.5) { reflectedLight.indirectSpecular *= 0.4; reflectedLight.directSpecular *= 0.45; }\nif (uLake > 0.5) { float skyL = dot(reflectedLight.indirectSpecular, vec3(0.3, 0.59, 0.11)); reflectedLight.indirectSpecular = skyL * vec3(0.35, 0.6, 0.4) * 0.12; reflectedLight.directSpecular *= 0.15; }   // hồ: soi trời rất ít + nhuộm xanh lá (không xanh dương như biển), vệt nắng mờ')
+      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nif (uRiv > 0.5) { reflectedLight.indirectSpecular *= 0.4; reflectedLight.directSpecular *= 0.45; }\nif (uLake > 0.5) { float skyL = dot(reflectedLight.indirectSpecular, vec3(0.3, 0.59, 0.11)); vec3 tint = skyL * normalize(uLakeDeep + 1e-4) * 1.7; reflectedLight.indirectSpecular = mix(reflectedLight.indirectSpecular, tint, uLakeTint) * uLakeSky; reflectedLight.directSpecular *= uLakeSun; }')
       .replace('#include <opaque_fragment>', `
         if (uLake > 0.5 && uReflK > 0.0) {
           vec4 rc = uReflMat * vec4(vOW.x, uSea, vOW.z, 1.0);
-          vec3 rcol = texture2D(uReflTex, rc.xy / rc.w + wv.yz * 0.02).rgb * vec3(0.6, 0.8, 0.6);   // ảnh phản chiếu ngả xanh lá (trời không thành xanh dương)
+          vec3 rcol = texture2D(uReflTex, rc.xy / rc.w + wv.yz * 0.02).rgb;
+          rcol = mix(rcol, dot(rcol, vec3(0.3, 0.59, 0.11)) * normalize(uLakeDeep + 1e-4) * 1.7, uLakeTint * 0.6);
           outgoingLight = mix(outgoingLight, rcol, uReflK * (1.0 - oFoam));
         }
         #include <opaque_fragment>`)
@@ -191,6 +194,7 @@ export class Ocean {
     this.u = { uWave: { value: null }, uFrame: { value: 0 }, uFrameB: { value: 0 }, uWA: { value: 1 }, uWB: { value: 0 }, uT: { value: 0 }, uSea: { value: 0 }, uLod: { value: 3000 }, uCamW: { value: new THREE.Vector3() }, uRoad: { value: this.roadPts },
       uRiv: { value: 0 }, uRivHW: { value: 100 }, uRivM: { value: 40 }, uRivPF: { value: new THREE.Vector4() },
       uLake: { value: 0 }, uLakeM: { value: null }, uLakeB: { value: new THREE.Vector4() },
+      uLakeDeep: { value: new THREE.Color(0.011, 0.045, 0.019) }, uLakeSky: { value: 0.12 }, uLakeTint: { value: 1 }, uLakeSun: { value: 0.15 }, uLakeWave: { value: 0.4 },
       uReflTex: { value: null }, uReflMat: { value: new THREE.Matrix4() }, uReflK: { value: 0 } };
     this.material = null;
     this._p = {};
@@ -241,7 +245,13 @@ export class Ocean {
     this.level = level; this.group.visible = true;
   }
 
-  // hồ (Đà Lạt): gắn ảnh phản chiếu phẳng (refl đã render; null => tắt), k = độ rõ (Đà Lạt: 0.07)
+  // hồ (Đà Lạt): chỉnh nước theo bảng 💧 — T = { color '#rrggbb' (sRGB), bright, sky, tint, sun, wave }
+  setLakeLook(T) {
+    const u = this.u;
+    u.uLakeDeep.value.set(T.color).multiplyScalar(T.bright);
+    u.uLakeSky.value = T.sky; u.uLakeTint.value = T.tint; u.uLakeSun.value = T.sun; u.uLakeWave.value = T.wave;
+  }
+  // hồ (Đà Lạt): gắn ảnh phản chiếu phẳng (refl đã render; null => tắt), k = độ rõ
   setLakeReflection(refl, k = 0.1) {
     const u = this.u; u.uReflK.value = refl && refl.active ? k : 0;
     if (refl) { u.uReflTex.value = refl.rt.texture; u.uReflMat.value.copy(refl.texMatrix); }

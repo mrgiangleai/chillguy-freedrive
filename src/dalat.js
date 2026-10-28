@@ -122,6 +122,10 @@ function pineGeometry() {
 export const DALAT_TREE_DEFAULTS = { high: { on: 1, model3d: 0, density: 100, lodR: 60, far: 700, maxHi: 120 }, low: { on: 1, model3d: 0, density: 60, lodR: 30, far: 400, maxHi: 40 } };
 // model3d = 1: cây xa là ảnh chụp chính model cây thông chú đưa (impostor 2 tấm chéo, 4 tam giác, không đổ bóng) thay cây nón demo
 const TREE_KEY = 'chilldrive.dalat.trees', HI_CAP = 1500;
+// nước hồ (bảng 💧 Nước hồ; lưu `chilldrive.dalat.water`): màu (sRGB), độ sáng ×, soi trời ×, nhuộm soi trời theo màu nước (0..1),
+// nắng ×, phản chiếu cảnh %, gợn sóng ×
+export const DALAT_WATER_DEFAULTS = { color: '#1b3c26', bright: 1, sky: 0.12, tint: 1, sun: 0.15, refl: 10, wave: 0.4 };
+const WATER_KEY = 'chilldrive.dalat.water';
 
 export class DalatScene {
   // groundAt(x, z): độ cao địa hình (DEM) — dải đường phụ / cây đặt theo đó
@@ -145,6 +149,8 @@ export class DalatScene {
     this.lake = null;
     this.jobs = [];                            // việc dựng chia nhỏ, mỗi khung làm tới ~6 ms (vào map không đứng hình)
     this.tune = { ...DALAT_TREE_DEFAULTS.high };
+    this.water = { ...DALAT_WATER_DEFAULTS };
+    try { Object.assign(this.water, JSON.parse(localStorage.getItem(WATER_KEY) || '{}')); } catch { /* chế độ riêng tư */ }
   }
   set visible(v) { this.group.visible = v; if (v && this.state === 'idle') this._load(); }
   get visible() { return this.group.visible; }
@@ -157,6 +163,8 @@ export class DalatScene {
     try { saved = JSON.parse(localStorage.getItem(TREE_KEY) || 'null'); } catch { /* chế độ riêng tư */ }
     this.setTune({ ...DALAT_TREE_DEFAULTS[low ? 'low' : 'high'], ...(saved || {}) }, false);
   }
+  setWater(patch) { Object.assign(this.water, patch); try { localStorage.setItem(WATER_KEY, JSON.stringify(this.water)); } catch { /* chế độ riêng tư */ } }
+  resetWater() { Object.assign(this.water, DALAT_WATER_DEFAULTS); try { localStorage.removeItem(WATER_KEY); } catch { /* chế độ riêng tư */ } }
   resetTune() { try { localStorage.removeItem(TREE_KEY); } catch { /* chế độ riêng tư */ } this.loadTune(this._low); }
   setTune(patch, save = true) {
     Object.assign(this.tune, patch);

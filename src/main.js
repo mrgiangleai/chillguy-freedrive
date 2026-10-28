@@ -632,6 +632,7 @@ function refreshUI() {
   $('b-animals').classList.toggle('on', tuneKind === 'animals');
   $('b-nature').classList.toggle('on', tuneKind === 'nature');
   $('b-trees').classList.toggle('on', tuneKind === 'trees');
+  $('b-water').classList.toggle('on', tuneKind === 'water');
   $('b-park').classList.toggle('on', tuneKind === 'park');
   setBtn($('b-people'), '🚶', 'Người 3D: ' + (cityPeople.detailed ? 'Bật' : 'Tắt'));
   $('b-people').classList.toggle('on', cityPeople.detailed);
@@ -795,7 +796,8 @@ const applyMap = () => {
   if (id === 'sea') { road.ensure(drive.s + 120000); let lo = Infinity; for (const p of road.pts) lo = Math.min(lo, p.y); TP.seaLevel = lo - 3; }
   ocean.setMap(id === 'sea', TP.seaLevel);
   dm('ocean.setMap/setLake');
-  if (isDalat && dalatScene.lake) ocean.setLake(true, WATER_DROP, dalatScene.lake.tex, dalatScene.lake.bounds);   // chưa tải: onLake bật sau
+  if (isDalat && dalatScene.lake) ocean.setLake(true, WATER_DROP, dalatScene.lake.tex, dalatScene.lake.bounds);
+  if (isDalat) ocean.setLakeLook(dalatScene.water);   // chưa tải: onLake bật sau
   avenue.visible = isAvenue;    // trước địa hình: khung nút giao để đào kênh đường ngang / nền nhánh rẽ
   avenue.prime(drive.s);
   drive.ramp = null;
@@ -836,8 +838,8 @@ const applyMap = () => {
   sgnEnv.visible = isSgn;
   const dalatLow = state.quality === QUALITY.findIndex((q) => q.id === 'low');
   dalatScene.loadTune(dalatLow);               // cài đặt cây (bảng 🌲 Cây; chưa lưu => mặc định theo chất lượng)
-  $('b-trees').hidden = !isDalat;
-  if (tuneKind === 'trees' && !isDalat) closeTune();
+  $('b-trees').hidden = $('b-water').hidden = !isDalat;
+  if ((tuneKind === 'trees' || tuneKind === 'water') && !isDalat) closeTune();
   dalatScene.visible = isDalat;
   dm('dalatScene.visible');
   if (isSgn) { sgnEnv.onReady(); sgnCity.onReady(); }           // camera không xuyên tháp / nhà thật (khi đã tải)
@@ -1559,6 +1561,19 @@ renderTune = () => {
     addNumber({ label: 'Độ dài pha đèn (×)', min: 0.3, max: 3, step: 0.1, get: () => trafficTune.signal, set: (v) => { trafficTune.signal = v; applyTrafficTune(); } });
     return;
   }
+  if (tuneKind === 'water') {                                        // map Đà Lạt: chỉnh nước hồ Xuân Hương (đổi tức thì, lưu chilldrive.dalat.water)
+    tuneMode.hidden = true;
+    $('tune-title').textContent = 'Nước hồ · Đà Lạt';
+    const W = dalatScene.water, put = (k) => (v) => { dalatScene.setWater({ [k]: v }); ocean.setLakeLook(W); };
+    addColor({ label: 'Màu nước', get: () => W.color, set: put('color') });
+    addNumber({ label: 'Độ sáng nước (×)', min: 0.1, max: 5, step: 0.05, get: () => W.bright, set: put('bright') });
+    addNumber({ label: 'Soi trời (×)', min: 0, max: 1, step: 0.01, get: () => W.sky, set: put('sky') });
+    addNumber({ label: 'Nhuộm soi trời theo màu nước (%)', min: 0, max: 100, step: 5, get: () => Math.round(W.tint * 100), set: (v) => put('tint')(v / 100) });
+    addNumber({ label: 'Ánh nắng trên mặt nước (×)', min: 0, max: 1, step: 0.01, get: () => W.sun, set: put('sun') });
+    addNumber({ label: 'Phản chiếu cảnh (%)', min: 0, max: 60, step: 1, get: () => W.refl, set: put('refl') });
+    addNumber({ label: 'Gợn sóng (×)', min: 0, max: 1.5, step: 0.05, get: () => W.wave, set: put('wave') });
+    return;
+  }
   if (tuneKind === 'trees') {                                        // map Đà Lạt: thử hiển thị cây (đổi tức thì, lưu chilldrive.dalat.trees)
     tuneMode.hidden = true;
     $('tune-title').textContent = 'Cây · Đà Lạt';
@@ -1710,6 +1725,7 @@ $('tune-reset').onclick = () => {
   // về số gốc trong code rồi phủ bộ mặc định của chú (`DEF`, theo nhóm Chill / Drive)
   const D = defSet(), g = isDriveMap(state.map) ? 'drive' : 'chill';
   if (tuneKind === 'trees') dalatScene.resetTune();
+  else if (tuneKind === 'water') { dalatScene.resetWater(); ocean.setLakeLook(dalatScene.water); }
   else if (tuneKind === 'camera') { const id = CAMERAS[state.cam].id; rig.resetTune(id); Object.assign(rig.tune[id], D.camera?.[id] || {}); rig.setMode(state.cam); onCamChange(); }
   else if (tuneKind === 'weather') {
     const w = WEATHERS[state.weather].id === 'auto' ? env.weather : WEATHERS[state.weather].id; env.resetWeather(w); Object.assign(env.weatherProfiles[w] || {}, D.weather?.[w] || {});
@@ -1736,6 +1752,7 @@ $('b-lighting').onclick = () => (tuneKind === 'lighting' ? closeTune() : openTun
 $('b-animals').onclick = () => (tuneKind === 'animals' ? closeTune() : openTune('animals'));
 $('b-nature').onclick = () => (tuneKind === 'nature' ? closeTune() : openTune('nature'));
 $('b-trees').onclick = () => (tuneKind === 'trees' ? closeTune() : openTune('trees'));
+$('b-water').onclick = () => (tuneKind === 'water' ? closeTune() : openTune('water'));
 $('b-mode').onclick = () => { if (state.started) setGameMode(state.mode === 'drive' ? 'chill' : 'drive'); };
 $('b-park').onclick = () => (tuneKind === 'park' ? closeTune() : openTune('park'));
 el.music.onclick = nextMusic;
@@ -2423,7 +2440,7 @@ function frame(now) {
     const ov = ocean.group.visible; ocean.group.visible = false;
     lakeRefl.render(scene, camera, WATER_DROP);
     ocean.group.visible = ov;
-    ocean.setLakeReflection(lakeRefl, 0.1);                     // trộn vào chính mặt nước gợn sóng, độ rõ 10 % (chú chốt; như vũng nước mưa)
+    ocean.setLakeReflection(lakeRefl, dalatScene.water.refl / 100);   // trộn vào chính mặt nước gợn sóng (như vũng nước mưa), độ rõ theo bảng 💧
   } else if (lakeRefl.active) { lakeRefl.active = false; ocean.setLakeReflection(null); }
   diag.lap('phản chiếu hồ');
   if (st.wet > 0.001) refl.render(scene, camera, drive.pos.y + 0.05);
