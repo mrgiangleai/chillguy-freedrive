@@ -39,6 +39,9 @@ export const RB_ON = { value: 0 };                 // main bật khi ở map Đ�
 export const nearRoundabout = (x, z, pad = 6) => Math.hypot(x - ROUNDABOUT.x, z - ROUNDABOUT.z) < ROUNDABOUT.r + ROUNDABOUT.hw + pad;
 // cầu Sắt — đường vòng hồ qua đập đầu hồ phía bắc (OSM way 301084151, s ≈ 2 910–2 930; mặt đường cao hơn lòng suối tới 3.8 m ở s 2 865–2 950)
 export const BRIDGE = { s0: 2862, s1: 2952 };
+// đập hạ nguồn: đường vòng hồ qua cống suối Cam Ly (s ≈ 475), bên ngoài là thung lũng Công viên Ánh Sáng sâu ~20 m
+export const DAM = { s0: 428, s1: 502 };
+export const BRIDGES = [{ ...BRIDGE, depth: 1.6 }, { ...DAM, depth: 4 }];
 // các vòng xoay OSM trên tuyến vòng hồ [x, z, r] (vỉa hè hồ dừng trước vòng xoay)
 export const LOOP_ROUNDABOUTS = [[-870.3, 513.8, 19.1 + 7], [-412.8, 692.5, 13.6], [666.1, -685.1, 10.8], [-556.5, 286.5, 10.0], [-765.9, 617.9, 12.0]];
 export const WATER_DROP = -3;
@@ -440,6 +443,7 @@ export class DalatScene {
   // mỗi khung: làm việc dựng còn chờ (≤ ~6 ms); camera đi > 8 m (hoặc 0.6 s) => chia lại cây gần (GLB, gần nhất trước, tối đa maxHi) / xa (nón)
   update(dt, cam) {
     if (!this.group.visible) return;
+    if (this.streamTex) this.streamTex.offset.y -= dt * 0.35;          // nước suối trôi theo dòng
     const t0 = performance.now();
     while (this.jobs.length && performance.now() - t0 < 6) {
       const j = this.jobs.shift();
@@ -638,12 +642,12 @@ export class DalatScene {
     this.group.add(grp);
   }
 
-  // lan can cầu Sắt (2 bên đường vòng hồ, s0..s1): gờ bê tông 0.45 m + trụ thép mỗi 2.5 m + 2 thanh ngang (cao 1.1 m),
-  // mặt bên bản cầu bê tông thả xuống 1.6 m (che khe dưới mép đường). road: Road của game (loop đã đặt)
+  // lan can cầu Sắt + đập hạ nguồn (`BRIDGES`, 2 bên đường vòng hồ, s0..s1): gờ bê tông 0.45 m + trụ thép mỗi 2.5 m + 2 thanh ngang (cao 1.1 m),
+  // mặt bên bê tông thả xuống `depth` m (che khe dưới mép đường). road: Road của game (loop đã đặt)
   buildBridge(road) {
     if (this.bridge) return;
-    const HW = 4.6, B = BRIDGE, step = 2, p = {}, q = {};
-    road.ensure(B.s1 + 10);
+    const HW = 4.6, step = 2, p = {}, q = {};
+    road.ensure(Math.max(...BRIDGES.map((b) => b.s1)) + 10);
     const conc = [], steel = [];
     const seg = (out, s, off, w, h, y0) => {                        // hộp nối 2 điểm lệch ngang `off` tại s và s + step
       road.at(s, p); road.at(s + step, q);
@@ -651,10 +655,10 @@ export class DalatScene {
       const dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz) + 0.05;
       out.push(new THREE.BoxGeometry(w, h, len).rotateY(Math.atan2(dx, dz)).translate((ax + bx) / 2, (p.y + q.y) / 2 + y0 + h / 2, (az + bz) / 2));
     };
-    for (const side of [-1, 1]) {
+    for (const B of BRIDGES) for (const side of [-1, 1]) {
       for (let s = B.s0; s < B.s1; s += step) {
         seg(conc, s, side * (HW + 0.2), 0.4, 0.45, 0);                 // gờ bê tông
-        seg(conc, s, side * (HW + 0.42), 0.12, 1.6, -1.6);             // mặt bên bản cầu
+        seg(conc, s, side * (HW + 0.42), 0.12, B.depth, -B.depth);     // mặt bên bản cầu / thân đập
         seg(steel, s, side * (HW + 0.2), 0.07, 0.07, 1.05);            // tay vịn
         seg(steel, s, side * (HW + 0.2), 0.05, 0.05, 0.75);            // thanh giữa
       }
@@ -710,6 +714,46 @@ export class DalatScene {
     this.sidewalk = new THREE.Group();
     this.sidewalk.add(mk(top, tuv, tm), mk(side, null, sm));
     this.group.add(this.sidewalk);
+  }
+
+  // suối Cam Ly sau đập: dải nước chảy (texture vệt trôi theo dòng) bám đáy thung lũng, đoạn dốc trắng xoá như thác;
+  // bỏ đoạn trong hồ và dưới đường (cống). update: trôi texture
+  buildStream() {
+    if (this.stream) return;
+    const S = DATA.stream, lake = DATA.lake, Q = [];
+    const inLake = (x, z) => { let c = false; for (let i = 0, j = lake.length - 1; i < lake.length; j = i++) if ((lake[i][1] > z) !== (lake[j][1] > z) && x < lake[i][0] + (lake[j][0] - lake[i][0]) * (z - lake[i][1]) / (lake[j][1] - lake[i][1])) c = !c; return c; };
+    for (let i = 0; i + 1 < S.length; i++) {
+      const [ax, az] = S[i], [bx, bz] = S[i + 1], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 2));
+      for (let k = 0; k < n; k++) Q.push([ax + (bx - ax) * k / n, az + (bz - az) * k / n]);
+    }
+    Q.push(S.at(-1));
+    const pos = [], uv = [], col = [], W = 1.6;
+    let prev = null, v = 0;
+    for (let i = 0; i < Q.length; i++) {
+      const [x, z] = Q[i], ok = !inLake(x, z) && loopNear(x, z)[0] > 9 && Math.abs(x) < 1250 && Math.abs(z) < 1250;
+      const a = Q[Math.max(0, i - 1)], b = Q[Math.min(Q.length - 1, i + 1)];
+      let dx = b[0] - a[0], dz = b[1] - a[1]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+      if (i) v += Math.hypot(Q[i][0] - Q[i - 1][0], Q[i][1] - Q[i - 1][1]);
+      const y = dalatGround(x, z) + 0.25, cur = { ok, v, y, L: [x - dz * W, y, z + dx * W], R: [x + dz * W, y, z - dx * W] };
+      if (prev && prev.ok && ok) {
+        const steep = Math.min(1, Math.abs(prev.y - y) / Math.max(0.5, Math.hypot(x - Q[i - 1][0], z - Q[i - 1][1])) * 1.5), c = [0.55 + 0.45 * steep, 0.7 + 0.3 * steep, 0.62 + 0.38 * steep];
+        pos.push(...prev.L, ...prev.R, ...cur.L, ...cur.L, ...prev.R, ...cur.R);
+        uv.push(0, prev.v / 6, 1, prev.v / 6, 0, v / 6, 0, v / 6, 1, prev.v / 6, 1, v / 6);
+        for (let k = 0; k < 6; k++) col.push(...c);
+      }
+      prev = cur;
+    }
+    const cv = document.createElement('canvas'); cv.width = 32; cv.height = 128;
+    const c = cv.getContext('2d'); c.fillStyle = '#3d6a5a'; c.fillRect(0, 0, 32, 128);
+    for (let i = 0; i < 60; i++) { c.fillStyle = `rgba(230,240,235,${0.15 + Math.random() * 0.35})`; c.fillRect(Math.random() * 32, Math.random() * 128, 1 + Math.random() * 2, 6 + Math.random() * 18); }
+    const tex = this.streamTex = new THREE.CanvasTexture(cv); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.colorSpace = THREE.SRGBColorSpace;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.computeVertexNormals();
+    const m = new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, roughness: 0.25, envMapIntensity: DALAT_ENV, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    withMist(m);
+    this.stream = new THREE.Mesh(g, m); this.stream.receiveShadow = true; this.stream.matrixAutoUpdate = false;
+    this.group.add(this.stream);
   }
 
   // xe chạy trên đường phụ: dùng lại hình xe dựng sẵn của map Phố (cityTraffic: sedan / kei / taxi / van / xe máy, đèn tự sáng ban đêm),

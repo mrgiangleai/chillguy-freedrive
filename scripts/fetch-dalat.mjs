@@ -43,6 +43,10 @@ async function overpass(name, query) {
 }
 const osm = (await overpass('all', `[out:json][timeout:120];(way["highway"](${BB});way["natural"="water"](${BB});relation["natural"="water"](${BB}););out body geom;`)).elements;
 const pr = (g) => [(g.lon - lon0) * KE, (g.lat - lat0) * KN];
+// hạ nguồn: suối Cam Ly chui cống dưới đường vòng hồ (s ≈ 475) rồi chảy qua Công viên Ánh Sáng (thung lũng thấp hơn đường ~20 m)
+const osmV = (await overpass('valley', `[out:json][timeout:60];(way["waterway"](11.9380,108.4300,11.9520,108.4440);way["leisure"="park"](11.9380,108.4300,11.9520,108.4440););out body geom;`)).elements;
+const PARK = osmV.find((e) => e.id === 99660966).geometry.map(pr);                      // Công viên Ánh Sáng (E, N)
+const STREAM = [...osmV.find((e) => e.id === 708032746).geometry, ...osmV.find((e) => e.id === 708032747).geometry.slice(1)].map(pr);   // cống + suối Cam Ly
 
 const inPoly = (x, y, P) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) if ((P[i][1] > y) !== (P[j][1] > y) && x < P[i][0] + (P[j][0] - P[i][0]) * (y - P[i][1]) / (P[j][1] - P[i][1])) c = !c; return c; };
 const polyDist = (x, y, P) => {
@@ -219,6 +223,17 @@ raster(WV, WT, (i, j, z) => { const k = j * NX + i; wet[k] = 1; dem[k] = Math.mi
   }
   console.log('Vòng xoay: san phẳng ở', H.toFixed(2), 'm');
 }
+// thung lũng Công viên Ánh Sáng: trong đa giác công viên đất hạ sâu dần (20 m khi cách mép ≥ 25 m) dưới mặt đường (0.8), dọc suối thêm lòng suối 1.5 m
+{
+  const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const segD = (x, y, P) => { let d = Infinity; for (let i = 0; i + 1 < P.length; i++) { const ax = P[i][0], ay = P[i][1], vx = P[i + 1][0] - ax, vy = P[i + 1][1] - ay, l = vx * vx + vy * vy || 1; const t = Math.max(0, Math.min(1, ((x - ax) * vx + (y - ay) * vy) / l)); d = Math.min(d, Math.hypot(x - ax - vx * t, y - ay - vy * t)); } return d; };
+  for (let j = 0; j < NX; j++) for (let i = 0; i < NX; i++) {
+    const x = X0 + i * CELL, y = X0 + j * CELL, k = j * NX + i;
+    if (!inPoly(x, y, PARK)) continue;
+    const d = polyDist(x, y, PARK), floor = 0.8 - 20 * ss(0, 25, d) - 1.5 * (1 - ss(2, 7, segD(x, y, STREAM)));
+    dem[k] = Math.min(dem[k], floor);
+  }
+}
 const demAt = (x, y) => {   // x đông, y bắc
   const fx = Math.min(NX - 1.001, Math.max(0, (x - X0) / CELL)), fy = Math.min(NX - 1.001, Math.max(0, (y - X0) / CELL));
   const i = Math.floor(fx), j = Math.floor(fy), tx = fx - i, ty = fy - j, k = j * NX + i;
@@ -297,7 +312,7 @@ for (const name of CATS) {
   const pos = [];
   for (const tris of comps.values()) {
     let hit = false;
-    for (const t of tris) { for (let k = 0; k < 3; k++) { const i = T[t * 3 + k]; if (loopDist(V[i * 3], -V[i * 3 + 1]) < NO_HOUSE) { hit = true; break; } } if (hit) break; }
+    for (const t of tris) { for (let k = 0; k < 3; k++) { const i = T[t * 3 + k]; if (loopDist(V[i * 3], -V[i * 3 + 1]) < NO_HOUSE || inPoly(V[i * 3], V[i * 3 + 1], PARK)) { hit = true; break; } } if (hit) break; }
     if (hit) { dropped++; continue; }
     kept++;
     for (const t of tris) for (let k = 0; k < 3; k++) { const i = T[t * 3 + k]; pos.push(V[i * 3], V[i * 3 + 2] - L0, -V[i * 3 + 1]); }
@@ -370,7 +385,7 @@ const data = {
   source: SOURCE, origin: [lat0, lon0], KE, KN, lakeLevel: L0,
   step: +step.toFixed(4), length: +L.toFixed(1), turn: +TURN.toFixed(5), start: 40,
   dem: { x0: X0, z0: -(X0 + (NX - 1) * CELL), cell: CELL, nx: NX, nz: NX, scale: 0.1, b64: Buffer.from(g16.buffer).toString('base64') },
-  lake: lakeG, elev, road: prof.map((v) => +v.toFixed(2)).concat(+prof[0].toFixed(2)), x: X, z: Z, heading,
+  lake: lakeG, park: PARK.map(([e, n]) => [+e.toFixed(1), +(-n).toFixed(1)]), stream: STREAM.map(([e, n]) => [+e.toFixed(1), +(-n).toFixed(1)]), elev, road: prof.map((v) => +v.toFixed(2)).concat(+prof[0].toFixed(2)), x: X, z: Z, heading,
 };
 fs.writeFileSync(path.join(ROOT, 'src/dalat-data.json'), JSON.stringify(data));
 console.log('Ghi src/dalat-data.json', (fs.statSync(path.join(ROOT, 'src/dalat-data.json')).size / 1024).toFixed(0), 'KB');

@@ -4,7 +4,7 @@
 
 > Đọc trước khi sửa. Xong: 1 dòng **Nhật ký** + tăng bộ đếm; đủ 10 => gộp vào mục trạng thái, đặt lại 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 25/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 26/10**
 
 ## 1. Tổng quan
 
@@ -153,3 +153,4 @@
 - **#23 — Đà Lạt vòng xoay (28/10/2026)**: DEM san phẳng ở 0.8 m trong 50 m quanh tâm (về địa hình gốc tới 85 m, `fetch-dalat.mjs`) => vành / nhánh / đường vòng hồ cùng mặt phẳng; vành vòng xoay 1 cao độ (+0.18), đảo giữa cao hơn 20 cm + thành bó vỉa đứng + mặt bó vỉa sáng. `noCenterLineNearRoundabout(scenery.roadMat)`: bỏ vạch vàng đường chính trong 70 m (`RB_ON`); `scenery.lampSkip` = không cột đèn trên vòng xoay.
 - **#24 — Đà Lạt (28/10/2026)**: bỏ vạch mép trắng đường vòng hồ (shader roadMat khi `RB_ON`, u < 0.075 / > 0.925 lấy màu nhựa), đường phụ + vòng xoay nhựa trơn không vạch (`streetTexture` dùng chung). Cầu Sắt (đập đầu hồ bắc, OSM 301084151): `BRIDGE` s 2 862–2 952, `buildBridge(road)` gờ bê tông + trụ / tay vịn thép + mặt bên bản cầu, gọi trong applyMap.
 - **#25 — Đà Lạt vỉa hè ven hồ (28/10/2026)**: `buildSidewalk(road, skip)` phía hồ (bên phải xe), rộng 3 m, cao +0.15 m, gạch lát canvas, bó vỉa đứng + mép ngoài thả 1.5 m; bỏ 5 vòng xoay OSM trên tuyến (`LOOP_ROUNDABOUTS`, r + 12 m) và đoạn cầu Sắt.
+- **#26 — Đà Lạt đập hạ nguồn + thung lũng (28/10/2026)**: OSM (cache `valley`): suối Cam Ly chui cống dưới đường vòng hồ (s ≈ 475) vào Công viên Ánh Sáng (way 99660966). `fetch-dalat.mjs`: trong đa giác công viên đất hạ tới −20 m dưới mặt đường (sâu dần trong 25 m từ mép), lòng suối −1.5; bỏ nhà trong công viên; data `park` / `stream`. `DAM` s 428–502: lan can + thân đập bê tông 4 m (`BRIDGES`), vỉa hè bỏ qua; `buildStream` dải nước trôi (offset texture) bám đáy, đoạn dốc trắng như thác. Vào map Đà Lạt luôn Hoàng hôn + Trời trong.

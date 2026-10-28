@@ -6,7 +6,7 @@ import { NYC, NYC_DIM, nycLoop, nycStreet, NycWorks } from './nyc.js';
 import { SGN, sgnLoop, sgnStreet, sgnZone, SgnScene } from './sgn.js';
 import { SgnEnv } from './sgnEnv.js';
 import { SgnCity } from './sgnCity.js';
-import { DALAT, dalatLoop, dalatDem, DalatScene, WATER_DROP, DALAT_ENV, BRIDGE, FAKE_LIGHT, addFakeLight, noCenterLineNearRoundabout, RB_ON, nearRoundabout } from './dalat.js';
+import { DALAT, dalatLoop, dalatDem, DalatScene, WATER_DROP, DALAT_ENV, BRIDGES, FAKE_LIGHT, addFakeLight, noCenterLineNearRoundabout, RB_ON, nearRoundabout } from './dalat.js';
 import { Diag } from './diag.js';
 import { TimesSquare } from './timesSquare.js';
 import { NycBuildings } from './nycBuildings.js';
@@ -791,7 +791,7 @@ const applyMap = () => {
   dm('road.setShape');
   // New York: vào map ở đầu Times Square (7th Ave 46 – 45 St), chạy làn ngoài phải
   if (isNyc && curMapId !== mapId) { drive.s = NYC.length + NYC.start; drive.d = CITY.lanes[1]; nycTurn = null; }
-  if (isDalat) { dalatScene.buildBridge(road); dalatScene.buildSidewalk(road, (s) => s > BRIDGE.s0 - 4 && s < BRIDGE.s1 + 4); }   // + vỉa hè ven hồ                     // lan can cầu Sắt (1 lần, theo tuyến vòng hồ)
+  if (isDalat) { dalatScene.buildBridge(road); dalatScene.buildSidewalk(road, (s) => BRIDGES.some((b) => s > b.s0 - 4 && s < b.s1 + 4)); dalatScene.buildStream(); }   // + vỉa hè ven hồ, suối Cam Ly   // + vỉa hè ven hồ                     // lan can cầu Sắt (1 lần, theo tuyến vòng hồ)
   if (isDalat && curMapId !== mapId) drive.s = DALAT.length + DALAT.start;   // Hồ Xuân Hương: bờ nam (Trần Quốc Toản), chiều kim đồng hồ
   if (isSgn && curMapId !== mapId) { drive.s = SGN.length + SGN.start; drive.d = CITY.lanes[1]; sgnName = null; }   // Landmark: Nguyễn Hữu Cảnh, về phía Ba Son
   if (isAvenue && curMapId !== mapId) { drive.s = isHlg ? HLG.start : 150; drive.ramp = null; }   // vào đại lộ: luôn từ đầu đường (cầu cao ở 700 m, cầu sông 2.2 km)
@@ -889,6 +889,8 @@ const applyMap = () => {
     if (isSgn) { restoreScope({ ...(scopes.sgn || scopes.city || DEF.scopes.city || cityDefaults()), weather: WEATHERS.findIndex((w) => w.id === 'cloudy'), time: TIMES.findIndex((t) => t.id === 'sunset') }); env.snapWeather('cloudy'); }
     else if (SCOPED[mapId]) restoreScope(scopes[mapId] || DEF.scopes[mapId] || (isHlg && scopes.avenue) || ((isAvenue || isNyc || isSgn) && scopes.city) || ((isNyc || isSgn) && DEF.scopes.city) || cityDefaults());
     else if (SCOPED[prevMap] && scopes.world) restoreScope(scopes.world);
+    // Đà Lạt: vào map luôn Hoàng hôn + Trời trong (chú dặn); camera giữ nguyên
+    if (isDalat) { setWeatherIdx(WEATHERS.findIndex((w) => w.id === 'clear')); env.snapWeather('clear'); state.time = TIMES.findIndex((t) => t.id === 'sunset'); env.setTime(TIMES[state.time].hour); }
   }
   rig.sideDist = isCity ? 13 : isAvenue ? 17 : null;   // phố / đại lộ: camera bên hông đứng trên đường (không chui vào nhà / ra ngoài hộ lan)
   rig.orbitR = isCity ? 10 : null;
