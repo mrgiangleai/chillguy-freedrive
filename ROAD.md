@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 7/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 8/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -575,6 +575,27 @@
   khoá ngang (Android), gợi ý xoay ngang khi cầm dọc; iPhone: "Thêm vào MH chính" (manifest fullscreen/landscape).
 
 ## 5. Việc còn mở / cần chú ý
+- **PLAN (28/10/2026, chú duyệt hướng, CHƯA làm — phiên mới làm tiếp): xen model tòa nhà thật vào phố New York cho đỡ nhàm.**
+  Nguồn: `/Volumes/SSD 1TB/VIBE CODING/3d model/city/` (24 .glb, 349 MB, ổ ngoài — giữ file gốc, không đưa file gốc vào repo).
+  - **Chọn**: hợp NYC = `brooklyn_street_{building, cornerhouse, row_buildings 1k, twin_buildings 1k}_low_poly`, `brownstone_building_set`, `downtown_buildings_set`,
+    `high_rise_building_improved_sketchup_reupload`, có thể `3d_building`. Bỏ: asian / soviet / russian / rural / torre_garten (không hợp), `timesquare.glb`,
+    `city.glb`, `city_infrastructure_*` (cả khu / bản đồ, quá nặng). Bản 1k thay 2k khi có. Trước khi dùng: ghi license / tác giả (Sketchfab CC-BY?) vào README + ⓘ.
+  - **B1 — chuẩn bị model** (worker, script node): `scripts/prepare-city-models.mjs`: tách bộ set (brownstone / downtown) thành từng tòa (theo node gốc),
+    chuẩn hoá: đơn vị m, đáy tại y = 0, mặt tiền quay +Z, tâm đáy ở gốc; đo bbox (rộng × sâu × cao) ghi `docs/assets/models/nyc-city/index.json`
+    ({ tên, file, w, d, h, tris, bytes }). Nén: `npx @gltf-transform/cli@4 webp --quality 82` (texture ≤ 1024) rồi `meshopt`; mục tiêu mỗi tòa ≤ 1.5 MB,
+    ≤ 30k tam giác (quá thì `simplify` nhẹ). Kiểm: glTF-Validator 0 lỗi, in bảng trước / sau.
+  - **B2 — chọn chỗ đặt** (`nycBuildings.js`): thay một phần nhà OSM bằng model: chỉ nhà mặt tiền ra tuyến (như rule mái hiên: cách tim ~FRONT, pháp tuyến
+    quay về đường), footprint OSM khớp model (tỉ lệ rộng / sâu lệch ≤ 25 %, chiều cao OSM ±40 %; scale đều ≤ ±20 %, không méo), xoay mặt tiền về phố,
+    ~20–30 % nhà đủ điều kiện, tránh 2 model giống nhau cạnh nhau. Không đặt ở Times Square (đã có nhà riêng), Koreatown, quanh tòa nổi tiếng (`lmRects`).
+    Nhà OSM bị thay thì không dựng khối hộp đó (giữ obb camera + footprint bản đồ tròn). Ưu tiên phố: brownstone / brooklyn cho phố ngang (32 St, 55 St…),
+    downtown / high_rise cho đại lộ.
+  - **B3 — vẽ nhẹ**: mỗi loại model 1 InstancedMesh (gộp mesh con, 1 vật liệu / atlas nếu được), chỉ tải khi vào map New York (thêm vào
+    `BY_MAP.nyc` của preload + `assets-manifest`), LOD: xa > ~250 m dùng lại khối hộp OSM (hoặc ẩn chi tiết). Ban đêm: cửa sổ sáng giả (emissive theo
+    `lamps`) nếu texture có cửa sổ, không thì giữ như cũ. `withMist` + `withWetGlass` cho vật liệu kính.
+  - **B4 — kiểm**: `scripts/check-nyc-citymodels.mjs` (node): model không đè phố nycNet (dùng lại `obbHit` / logic `check-nyc-landmark-roads`), không chồng tòa
+    nổi tiếng / nhà khác, không lấn vỉa hè tuyến; đếm số nhà thay, tổng tam giác thêm (mục tiêu ≤ +300k), dung lượng tải thêm (≤ ~15 MB). Build +
+    `check-nyc`, `check-nyc-landmark-roads`, `check-nyc-props` PASS. Không tự chụp — chú xem trên máy thật.
+  - Chia worker (DeepSeek API `--model deepseek/deepseek-flash` nếu free hết): B1 một worker; B2 + B3 + B4 một worker sau khi B1 xong (cần index.json).
 - **HANDOFF Map New York (22/10/2026 tối — phiên sau làm tiếp từ đây)**:
   - **Đã gộp (23/10/2026)**: tòa nổi tiếng không đè phố (xem mục New York). Chưa chụp xem Waldorf / Seagram / Macy's sau khi dời / nén.
   - **Nhánh worker CHƯA gộp**: `worker/debug-20261022-190719` — bậc lùi (`src/bld/tiers.js`), gờ mái (`cornice.js`), bồn nước + máy + ăng-ten (`roof.js`)
@@ -638,3 +659,4 @@
   (Setting 🚶 Người 3D tắt); bật Người 3D thì vẫn dáng tự làm của streetModels.
 - **#7 — Người 3D đi theo clip nhân vật chính (28/10/2026)**: Claude tự làm; shader kiểm glslangValidator, check-people-walk / ped-walk / nyc /
   ped-yield / traffic / sgn-park PASS. Có thể thấy nách / háng hơi dãn ở vài model (racer, ff-jota, ff-skyler) — chú tự test.
+- **Plan model tòa nhà NYC (28/10/2026)**: ghi plan B1–B4 ở đầu mục 5 (nguồn ổ SSD `3d model/city`), chưa làm — phiên mới làm tiếp.
