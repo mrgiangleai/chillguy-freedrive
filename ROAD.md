@@ -4,7 +4,7 @@
 
 > Đọc trước khi sửa. Xong: 1 dòng **Nhật ký** + tăng bộ đếm; đủ 10 => gộp vào mục trạng thái, đặt lại 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 17/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 18/10**
 
 ## 1. Tổng quan
 
@@ -145,3 +145,4 @@
 - **#15 — Sao trời đêm (28/10/2026, mọi map)**: `world.js` sao = ShaderMaterial chấm tròn mềm 2 600 sao, cỡ 0.6–1.7 px × pixel ratio (`env.starPx`), độ sáng lệch (đa số mờ), lấp lánh nhẹ; thay PointsMaterial vuông 2.1 px.
 - **#16 — (28/10/2026)**: sao 1 200, lấp lánh chậm (0.25–0.7 rad/s). Vệt đèn trên hồ Đà Lạt: bỏ cách lấy từ ảnh phản chiếu (lệch chỗ), thay `dalatScene.updateStreaks` — quad instanced mỗi bóng đèn tại giao điểm tia camera → ảnh ảo (x, 2y0 − y, z) với mặt nước, kéo dài về phía camera, mặt nạ hồ, cộng sáng × `water.lamp` × mức bật đèn.
 - **#17 — Đà Lạt (28/10/2026)**: mảng sáng lạ trên hồ = quầng / vũng sáng giả đèn đường (cộng sáng) lọt vào `lakeRefl` => ẩn `scenery.glowMat` / `poolMat` khi vẽ phản chiếu, ảnh phản chiếu cắt ≤ 1.
+- **#18 — (28/10/2026)**: bỏ vệt đèn trên hồ (`updateStreaks`, chỉ thấy chấm bóng đèn, chú bỏ). Phạm vi đèn đường thật: thanh tới 800 m, mặc định `range` 800.

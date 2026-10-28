@@ -1575,7 +1575,6 @@ renderTune = () => {
     addNumber({ label: 'Ánh nắng trên mặt nước (×)', min: 0, max: 1, step: 0.01, get: () => W.sun, set: put('sun') });
     addNumber({ label: 'Phản chiếu cảnh (%)', min: 0, max: 60, step: 1, get: () => W.refl, set: put('refl') });
     addNumber({ label: 'Gợn sóng (×)', min: 0, max: 1.5, step: 0.05, get: () => W.wave, set: put('wave') });
-    addNumber({ label: 'Vệt đèn đường trên hồ (×, ban đêm)', min: 0, max: 8, step: 0.1, get: () => W.lamp ?? 2, set: put('lamp') });
     return;
   }
   if (tuneKind === 'trees') {                                        // map Đà Lạt: thử hiển thị cây (đổi tức thì, lưu chilldrive.dalat.trees)
@@ -1655,7 +1654,7 @@ renderTune = () => {
     addColor({ label: 'Màu đèn pha', get: () => H.color, set: (v) => { H.color = v; } });
     addHeading('Đèn đường');
     [['intensity','Cường độ',0,500,1],['distance','Tầm phủ (m)',10,250,1],['angle','Góc mở (rad)',.1,1.55,.01],['glowOpacity','Độ sáng quầng',0,2,.01],['glowSize','Kích thước quầng',1,24,.1],
-      ['range','Phạm vi đèn sáng thật quanh camera (m)',20,200,5], [onDalat() ? 'countDalat' : 'count', 'Số đèn sáng thật' + (onDalat() ? ' (Đà Lạt)' : '') + ' — nhiều thì nặng', 0, 24, 1]]
+      ['range','Phạm vi đèn sáng thật quanh camera (m)',20,800,10], [onDalat() ? 'countDalat' : 'count', 'Số đèn sáng thật' + (onDalat() ? ' (Đà Lạt)' : '') + ' — nhiều thì nặng', 0, 24, 1]]
       .forEach(([key,label,min,max,step]) => addNumber({ label,min,max,step,get:()=>Lp[key] ?? STREETLIGHT_DEFAULTS[key],set:(v)=>{ Lp[key]=v; } }));
     addColor({ label: 'Màu đèn đường', get: () => Lp.color, set: (v) => { Lp.color = v; } });
     addHeading('Map Phố');
@@ -2367,7 +2366,6 @@ function frame(now) {
   if (sgnEnv.visible) { sgnEnv.winK = lightTune.windows; sgnEnv.setLamps(st.lamps); sgnEnv.update(dt, camera.position); }
   if (sgnCity.visible) sgnCity.setLamps(st.lamps * lightTune.windows);
   if (dalatScene.visible) { dalatScene.setLamps(st.lamps * lightTune.windows); diag.lap('trước dalatScene'); dalatScene.update(dt, camera.position);
-    dalatScene.updateStreaks(dt, () => { const out = []; for (const c of scenery.chunks.values()) for (const L of c.userData.lamps || []) out.push(L[0]); return out; }, (dalatScene.water.lamp ?? 2) * scenery.lampOn, scenery.lampTune.color);
     diag.lap('dalatScene'); }
   if (sgnScene.visible) sgnScene.setLamps(st.lamps * lightTune.signs);   // LED dọc Landmark 81 theo đèn đêm × "biển hiệu" bảng Lighting
   if (sgnWorks.visible) { sgnWorks.setLamps(st.lamps); sgnWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
@@ -2444,11 +2442,11 @@ function frame(now) {
 
   // đường ướt: vẽ ảnh phản chiếu cho vũng nước (chỉ khi mưa)
   if (onDalat() && ocean.u.uLake.value > 0.5) {                // hồ Xuân Hương: vẽ cảnh đối xứng qua mặt hồ mỗi khung (ẩn mặt nước khi vẽ)
-    // ẩn khi vẽ ảnh phản chiếu: mặt nước, vệt đèn trên hồ, quầng sáng giả + vũng sáng giả của đèn đường (cộng sáng => thành mảng sáng to sau hàng cây)
-    const ov = ocean.group.visible, sv = dalatScene.streak?.visible, gv = scenery.glowMat.visible, pv = scenery.poolMat.visible;
-    ocean.group.visible = false; if (dalatScene.streak) dalatScene.streak.visible = false; scenery.glowMat.visible = scenery.poolMat.visible = false;
+    // ẩn khi vẽ ảnh phản chiếu: mặt nước, quầng sáng giả + vũng sáng giả của đèn đường (cộng sáng => thành mảng sáng to sau hàng cây)
+    const ov = ocean.group.visible, gv = scenery.glowMat.visible, pv = scenery.poolMat.visible;
+    ocean.group.visible = false; scenery.glowMat.visible = scenery.poolMat.visible = false;
     lakeRefl.render(scene, camera, WATER_DROP);
-    ocean.group.visible = ov; if (dalatScene.streak) dalatScene.streak.visible = sv; scenery.glowMat.visible = gv; scenery.poolMat.visible = pv;
+    ocean.group.visible = ov; scenery.glowMat.visible = gv; scenery.poolMat.visible = pv;
     ocean.setLakeReflection(lakeRefl, dalatScene.water.refl / 100);   // trộn vào chính mặt nước gợn sóng (như vũng nước mưa), độ rõ theo bảng 💧
   } else if (lakeRefl.active) { lakeRefl.active = false; ocean.setLakeReflection(null); }
   diag.lap('phản chiếu hồ');

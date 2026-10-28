@@ -124,7 +124,7 @@ export const DALAT_TREE_DEFAULTS = { high: { on: 1, model3d: 0, density: 100, lo
 const TREE_KEY = 'chilldrive.dalat.trees', HI_CAP = 1500;
 // nước hồ (bảng 💧 Nước hồ; lưu `chilldrive.dalat.water`): màu (sRGB), độ sáng ×, soi trời ×, nhuộm soi trời theo màu nước (0..1),
 // nắng ×, phản chiếu cảnh %, gợn sóng ×
-export const DALAT_WATER_DEFAULTS = { color: '#1b3c26', bright: 1, sky: 0.12, tint: 1, sun: 0.15, refl: 10, wave: 0.4, lamp: 2 };   // lamp: vệt đèn đường in xuống hồ (×)
+export const DALAT_WATER_DEFAULTS = { color: '#1b3c26', bright: 1, sky: 0.12, tint: 1, sun: 0.15, refl: 10, wave: 0.4 };
 const WATER_KEY = 'chilldrive.dalat.water';
 
 export class DalatScene {
@@ -307,61 +307,6 @@ export class DalatScene {
     });
     return out;
   }
-  // vệt đèn đường in xuống hồ (ban đêm), tính hình học: ảnh ảo bóng đèn đối xứng qua mặt nước V = (x, 2·y0 − y, z); vệt đặt tại
-  // giao điểm tia camera → V với mặt nước, kéo dài về phía camera (gợn sóng làm vệt dọc), chỉ trong mặt nạ hồ, cộng sáng.
-  // bulbs(): mảng [x, y, z] mọi bóng đèn (scenery); k = độ sáng × mức bật đèn; color = màu đèn đường
-  updateStreaks(dt, bulbs, k, color) {
-    if (!this.lake) return;
-    if (!this.streak) {
-      const g = new THREE.InstancedBufferGeometry();
-      g.setAttribute('position', new THREE.Float32BufferAttribute([-1, -0.35, 0, 1, -0.35, 0, 1, 1, 0, -1, -0.35, 0, 1, 1, 0, -1, 1, 0], 3));
-      g.setAttribute('aL', new THREE.InstancedBufferAttribute(new Float32Array(3 * 512), 3));
-      g.instanceCount = 0;
-      const [x0, z0, x1, z1] = this.lake.bounds;
-      this.streakU = { uY: { value: WATER_DROP }, uK: { value: 0 }, uCol: { value: new THREE.Color() }, uLM: { value: this.lake.tex }, uLB: { value: new THREE.Vector4(x0, z0, x1, z1) } };
-      const m = new THREE.ShaderMaterial({
-        uniforms: this.streakU, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-        vertexShader: `attribute vec3 aL; uniform float uY; varying vec2 vC, vXZ; varying float vD;
-          void main() {
-            vec3 C = cameraPosition, V = vec3(aL.x, 2.0 * uY - aL.y, aL.z);
-            float t = (C.y - uY) / max(C.y - V.y, 1e-3);
-            vec3 P = C + (V - C) * t;
-            vec2 dir = C.xz - P.xz; float dl = length(dir); dir = dl > 1e-3 ? dir / dl : vec2(0.0, 1.0);
-            vec2 sd = vec2(-dir.y, dir.x);
-            float dist = length(C - P);
-            float len = 1.5 + dist * 0.05, w = 0.35 + dist * 0.0035;
-            vec2 xz = P.xz + sd * position.x * w + dir * position.y * len;
-            vC = position.xy; vXZ = xz; vD = (C.y > uY + 0.3) ? dist : 1e6;
-            gl_Position = projectionMatrix * viewMatrix * vec4(xz.x, uY + 0.34, xz.y, 1.0);
-          }`,
-        fragmentShader: `uniform float uK; uniform vec3 uCol; uniform sampler2D uLM; uniform vec4 uLB; varying vec2 vC, vXZ; varying float vD;
-          void main() {
-            vec2 lu = (vXZ - uLB.xy) / (uLB.zw - uLB.xy);
-            if (lu.x < 0.0 || lu.y < 0.0 || lu.x > 1.0 || lu.y > 1.0 || texture2D(uLM, lu).r < 0.5) discard;
-            float a = exp(-vC.x * vC.x * 5.0) * (1.0 - smoothstep(0.0, 1.0, abs(vC.y))) * exp(-vD / 1800.0) * uK;
-            if (a < 0.002) discard;
-            gl_FragColor = vec4(uCol * a, 1.0);
-          }`,
-      });
-      this.streak = new THREE.Mesh(g, m);
-      this.streak.frustumCulled = false; this.streak.renderOrder = 3;
-      this.group.add(this.streak);
-    }
-    this.streak.visible = k > 0.001;
-    this.streakU.uK.value = k; this.streakU.uCol.value.set(color);
-    this._stT = (this._stT || 0) + dt;
-    if (this.streak.visible && this._stT > 0.5) {                     // danh sách đèn đổi theo chunk scenery: cập nhật mỗi 0.5 s
-      this._stT = 0;
-      const A = this.streak.geometry.attributes.aL, seen = new Set(); let n = 0;
-      for (const b of bulbs()) {
-        const key = Math.round(b[0]) + ',' + Math.round(b[2]);          // chunk trùng vòng (s và s + L) => bỏ đèn lặp
-        if (seen.has(key) || n >= 512) continue;
-        seen.add(key); A.setXYZ(n++, b[0], b[1], b[2]);
-      }
-      A.needsUpdate = true; this.streak.geometry.instanceCount = n;
-    }
-  }
-
   // impostor: chụp model cây (nhìn ngang, ánh sáng đều) vào ảnh 256 × 400 có kênh alpha => 2 tấm chéo nhau, pháp tuyến hướng lên
   // (sáng đều mọi hướng nắng). Gốc (0, 0, 0), cao 1 m như model đã chuẩn hoá
   _impostor(parts) {
