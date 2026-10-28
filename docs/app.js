@@ -4260,10 +4260,10 @@ float oFoam = 0.0;
         diffuseColor.a = mix(mix(1.0, 0.55, shallow), 0.95, oFoam);`).replace("#include <roughnessmap_fragment>",`#include <roughnessmap_fragment>
 roughnessFactor = mix(roughnessFactor + smoothstep(150.0, 1500.0, camD) * 0.12 + uRiv * 0.24, 0.85, oFoam);`).replace("#include <lights_fragment_end>",`#include <lights_fragment_end>
 if (uRiv > 0.5) { reflectedLight.indirectSpecular *= 0.4; reflectedLight.directSpecular *= 0.45; }
-if (uLake > 0.5) { reflectedLight.indirectSpecular *= 0.2; reflectedLight.directSpecular *= 0.15; }   // hồ: ít soi trời, vệt nắng mờ`).replace("#include <opaque_fragment>",`
+if (uLake > 0.5) { float skyL = dot(reflectedLight.indirectSpecular, vec3(0.3, 0.59, 0.11)); reflectedLight.indirectSpecular = skyL * vec3(0.35, 0.6, 0.4) * 0.12; reflectedLight.directSpecular *= 0.15; }   // hồ: soi trời rất ít + nhuộm xanh lá (không xanh dương như biển), vệt nắng mờ`).replace("#include <opaque_fragment>",`
         if (uLake > 0.5 && uReflK > 0.0) {
           vec4 rc = uReflMat * vec4(vOW.x, uSea, vOW.z, 1.0);
-          vec3 rcol = texture2D(uReflTex, rc.xy / rc.w + wv.yz * 0.02).rgb;
+          vec3 rcol = texture2D(uReflTex, rc.xy / rc.w + wv.yz * 0.02).rgb * vec3(0.6, 0.8, 0.6);   // ảnh phản chiếu ngả xanh lá (trời không thành xanh dương)
           outgoingLight = mix(outgoingLight, rcol, uReflK * (1.0 - oFoam));
         }
         #include <opaque_fragment>`).replace("#include <normal_fragment_maps>",`#include <normal_fragment_maps>
