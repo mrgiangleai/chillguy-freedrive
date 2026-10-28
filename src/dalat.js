@@ -723,8 +723,8 @@ export class DalatScene {
     }
     const cv = document.createElement('canvas'); cv.width = 128; cv.height = 128;
     const c = cv.getContext('2d');
-    c.fillStyle = '#a7a39b'; c.fillRect(0, 0, 128, 128);
-    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { const g = 150 + Math.floor(Math.random() * 30); c.fillStyle = `rgb(${g},${g - 4},${g - 10})`; c.fillRect(i * 32 + 1, j * 32 + 1, 30, 30); }
+    c.fillStyle = '#5f5d59'; c.fillRect(0, 0, 128, 128);   // gạch xám tối (gần màu nhựa, không tách khỏi mặt đường)
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { const g = 92 + Math.floor(Math.random() * 18); c.fillStyle = `rgb(${g},${g - 4},${g - 10})`; c.fillRect(i * 32 + 1, j * 32 + 1, 30, 30); }
     const tex = new THREE.CanvasTexture(cv); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.colorSpace = THREE.SRGBColorSpace; tex.repeat.set(3, 1);
     const mk = (pos, uv, mat) => {
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -733,15 +733,15 @@ export class DalatScene {
       const m = new THREE.Mesh(g, mat); m.receiveShadow = true; m.matrixAutoUpdate = false; return m;
     };
     const tm = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, envMapIntensity: DALAT_ENV, side: THREE.DoubleSide }); addFakeLight(tm); withMist(tm);
-    const sm = new THREE.MeshStandardMaterial({ color: 0xc9c5bc, roughness: 0.85, envMapIntensity: DALAT_ENV, side: THREE.DoubleSide }); addFakeLight(sm); withMist(sm);
+    const sm = new THREE.MeshStandardMaterial({ color: 0x8a8781, roughness: 0.85, envMapIntensity: DALAT_ENV, side: THREE.DoubleSide }); addFakeLight(sm); withMist(sm);
     this.sidewalk = new THREE.Group();
     this.sidewalk.add(mk(top, tuv, tm), mk(side, null, sm));
     this.group.add(this.sidewalk);
   }
 
-  // suối Cam Ly trong Công viên Ánh Sáng (theo ảnh chú gửi): kênh bê tông hình thang (đáy 6 m, miệng 12 m, sâu 3.5 m), nước chảy
-  // (texture trôi), bậc tràn mỗi ~40 m (vệt bọt trắng), lan can thép 2 bên miệng kênh, cửa cống ở chân đập; trên mái cỏ thung lũng:
-  // 3 lối bậc thang bê tông rộng 5 m từ mép đường xuống đáy, 2 hàng rào cây xén thấp dọc mỗi lối. Chỉ đoạn trong công viên (DATA.park)
+  // suối Cam Ly trong Công viên Ánh Sáng (theo ảnh chú gửi): chân đập => máng thác đổ xuống hồ đón nước rộng (20 × 26 m) => kênh bê tông
+  // hình thang (đáy 8 m, miệng 14 m, sâu 3.5 m, xám tối), nước chảy (texture trôi), bậc tràn mỗi ~40 m, lan can thép; trên mái cỏ thung lũng:
+  // 3 lối bậc thang bê tông rộng 5 m từ mép đường xuống đáy. Chỉ đoạn trong công viên (DATA.park)
   buildStream() {
     if (this.stream) return;
     const S = DATA.stream, park = DATA.park, G = dalatGround, Q = [];
@@ -764,52 +764,81 @@ export class DalatScene {
     for (let i = 1; i < C.length; i++) C[i].top = Math.min(C[i].top, C[i - 1].top);      // kênh chỉ xuống dốc theo dòng
     const wall = [], water = [], wuv = [], foam = [], steel = [];
     const P = (c, u, y) => [c.x - c.dz * u, y, c.z + c.dx * u];        // u > 0: bên trái dòng chảy
-    let v = 0, nextWeir = 20;
-    for (let i = 0; i + 1 < C.length; i++) {
+    const BW = 4, TW = 7, DEP = 3.5;                                  // kênh: nửa đáy 4 m, nửa miệng 7 m, sâu 3.5 m
+    const cum = [0]; for (let i = 1; i < C.length; i++) cum.push(cum[i - 1] + Math.min(4, Math.hypot(C[i].x - C[i - 1].x, C[i].z - C[i - 1].z)));
+    const idx = (d) => { let i = 0; while (i < C.length - 1 && cum[i] < d) i++; return i; };
+    const bs = idx(8), be = idx(34);                                   // hồ đón nước: từ 8 m tới 34 m sau chân đập
+    const quad = (out, A, B, C2, D) => out.push(...A, ...B, ...C2, ...C2, ...B, ...D);
+    const rail = (A, B) => {                                           // lan can thép: tay vịn + thanh giữa
+      for (const h of [1.0, 0.55]) {
+        const dx = B[0] - A[0], dz = B[2] - A[2], len = Math.hypot(dx, dz) + 0.04;
+        steel.push(new THREE.BoxGeometry(0.06, 0.06, len).rotateY(Math.atan2(dx, dz)).translate((A[0] + B[0]) / 2, (A[1] + B[1]) / 2 + h, (A[2] + B[2]) / 2));
+      }
+      steel.push(new THREE.BoxGeometry(0.07, 1.05, 0.07).translate(A[0], A[1] + 0.52, A[2]));
+    };
+    let basin = null;
+    if (C.length > be + 2 && be > bs) {
+      // đập đổ xuống 1 hồ đón nước rộng (20 × 26 m, sâu 3 m) rồi mới chảy tiếp vào kênh
+      const top = C[be].top, fl = top - 3, wl = top - 1.2, m = C[Math.round((bs + be) / 2)], hl = (cum[be] - cum[bs]) / 2, HB = 10;
+      const ctr = { x: (C[bs].x + C[be].x) / 2, z: (C[bs].z + C[be].z) / 2, dx: m.dx, dz: m.dz };
+      const Bp = (u, w, y) => [ctr.x + ctr.dx * w - ctr.dz * u, y, ctr.z + ctr.dz * w + ctr.dx * u];   // w dọc dòng, u ngang
+      quad(wall, Bp(HB, -hl, fl), Bp(-HB, -hl, fl), Bp(HB, hl, fl), Bp(-HB, hl, fl));                  // đáy
+      for (const u of [HB, -HB]) { quad(wall, Bp(u, -hl, top), Bp(u, -hl, fl), Bp(u, hl, top), Bp(u, hl, fl)); rail(Bp(u * 1.04, -hl, top), Bp(u * 1.04, hl, top)); }
+      quad(wall, Bp(HB, -hl, top), Bp(HB, -hl, fl), Bp(-HB, -hl, top), Bp(-HB, -hl, fl));             // thành phía đập
+      for (const [u0, u1] of [[HB, TW], [-TW, -HB]]) quad(wall, Bp(u0, hl, top), Bp(u0, hl, fl), Bp(u1, hl, top), Bp(u1, hl, fl));   // thành cuối (chừa cửa kênh)
+      quad(water, Bp(HB, -hl, wl), Bp(-HB, -hl, wl), Bp(HB, hl, wl), Bp(-HB, hl, wl));
+      wuv.push(0, 0, 3, 0, 0, 4, 0, 4, 3, 0, 3, 4);
+      quad(foam, Bp(BW + 1, -hl + 0.2, wl + 0.04), Bp(-BW - 1, -hl + 0.2, wl + 0.04), Bp(BW + 1, -hl + 5, wl + 0.04), Bp(-BW - 1, -hl + 5, wl + 0.04));   // bọt chân thác
+      // thác: dải nước từ chân đập (C[0]) đổ xuống mặt hồ đón; 2 thành bê tông 2 bên máng thác
+      const y0 = C[0].top - 0.3, A = C[0], E = { ...ctr, x: ctr.x - ctr.dx * hl, z: ctr.z - ctr.dz * hl };
+      quad(water, P(A, BW, y0), P(A, -BW, y0), P(E, BW, wl), P(E, -BW, wl));
+      wuv.push(0, 0, 1, 0, 0, 3, 0, 3, 1, 0, 1, 3);
+      quad(foam, P(A, BW, y0 + 0.05), P(A, -BW, y0 + 0.05), P(E, BW, wl + 0.2), P(E, -BW, wl + 0.2));
+      for (const u of [BW + 0.6, -BW - 0.6]) { quad(wall, P(A, u, y0 + 0.8), P(A, u, fl), P(E, u, top + 0.2), P(E, u, fl)); rail(P(A, u * 1.08, y0 + 0.8), P(E, u * 1.08, top + 0.2)); }
+      quad(wall, P(A, BW + 0.6, y0 + 0.8), P(A, BW + 0.6, y0 - 0.6), P(A, -BW - 0.6, y0 + 0.8), P(A, -BW - 0.6, y0 - 0.6));   // ngưỡng tràn
+      basin = { Bp, hl, HB, A, E, y0 };
+      for (let i = be; i < C.length; i++) C[i].top = Math.min(C[i].top, top);
+    }
+    let v = 0, nextWeir = 30;
+    for (let i = basin ? be : 0; i + 1 < C.length; i++) {
       const a = C[i], b = C[i + 1], d = Math.hypot(b.x - a.x, b.z - a.z);
       if (d > 4) continue;                                             // đứt đoạn (ra ngoài công viên rồi vào lại)
-      const ya = a.top - 3.5, yb = b.top - 3.5;
-      for (const [u0, u1] of [[6, 3], [-3, -6]]) {                     // 2 mái bê tông
-        const A0 = P(a, u0, u0 === 6 || u0 === -6 ? a.top : ya), A1 = P(a, u1, u1 === 6 || u1 === -6 ? a.top : ya);
-        const B0 = P(b, u0, u0 === 6 || u0 === -6 ? b.top : yb), B1 = P(b, u1, u1 === 6 || u1 === -6 ? b.top : yb);
-        wall.push(...A0, ...A1, ...B0, ...B0, ...A1, ...B1);
+      const ya = a.top - DEP, yb = b.top - DEP;
+      for (const [u0, u1] of [[TW, BW], [-BW, -TW]]) {                 // 2 mái bê tông
+        const yA0 = Math.abs(u0) === TW ? a.top : ya, yA1 = Math.abs(u1) === TW ? a.top : ya, yB0 = Math.abs(u0) === TW ? b.top : yb, yB1 = Math.abs(u1) === TW ? b.top : yb;
+        quad(wall, P(a, u0, yA0), P(a, u1, yA1), P(b, u0, yB0), P(b, u1, yB1));
       }
-      wall.push(...P(a, 3, ya), ...P(a, -3, ya), ...P(b, 3, yb), ...P(b, 3, yb), ...P(a, -3, ya), ...P(b, -3, yb));   // đáy
-      const wa = ya + 0.55, wb = yb + 0.55, wu = 3.25 - 0.55 * 0.86;   // mặt nước (mái 3 m ngang / 3.5 m cao)
-      water.push(...P(a, wu, wa), ...P(a, -wu, wa), ...P(b, wu, wb), ...P(b, wu, wb), ...P(a, -wu, wa), ...P(b, -wu, wb));
+      quad(wall, P(a, BW, ya), P(a, -BW, ya), P(b, BW, yb), P(b, -BW, yb));   // đáy
+      const wa = ya + 0.55, wb = yb + 0.55, wu = BW + 0.55 * (TW - BW) / DEP;   // mặt nước
+      quad(water, P(a, wu, wa), P(a, -wu, wa), P(b, wu, wb), P(b, -wu, wb));
       wuv.push(0, v / 6, 1, v / 6, 0, (v + d) / 6, 0, (v + d) / 6, 1, v / 6, 1, (v + d) / 6);
       v += d;
-      if (v > nextWeir) {                                              // bậc tràn: dải bọt trắng ngang kênh
-        nextWeir = v + 40;
-        const f0 = P(a, wu, wa + 0.03), f1 = P(a, -wu, wa + 0.03), f2 = P(b, wu, wb + 0.03), f3 = P(b, -wu, wb + 0.03);
-        foam.push(...f0, ...f1, ...f2, ...f2, ...f1, ...f3);
-      }
-      for (const u of [6.4, -6.4]) {                                    // lan can miệng kênh: tay vịn + thanh giữa, trụ mỗi ~2 m
-        for (const h of [1.0, 0.55]) {
-          const A = P(a, u, a.top + h), B = P(b, u, b.top + h), dx = B[0] - A[0], dz = B[2] - A[2], len = Math.hypot(dx, dz) + 0.04;
-          steel.push(new THREE.BoxGeometry(0.06, 0.06, len).rotateY(Math.atan2(dx, dz)).translate((A[0] + B[0]) / 2, (A[1] + B[1]) / 2, (A[2] + B[2]) / 2));
-        }
-        const T = P(a, u, a.top); steel.push(new THREE.BoxGeometry(0.07, 1.05, 0.07).translate(T[0], T[1] + 0.52, T[2]));
-      }
+      if (v > nextWeir) { nextWeir = v + 40; quad(foam, P(a, wu, wa + 0.03), P(a, -wu, wa + 0.03), P(b, wu, wb + 0.03), P(b, -wu, wb + 0.03)); }   // bậc tràn
+      if (Math.round(v / 2) % 1 === 0) for (const u of [TW + 0.4, -TW - 0.4]) rail(P(a, u, a.top), P(b, u, b.top));
     }
-    if (C.length > 1) {                                                // mặt nạ khoét đất: dải |u| ≤ 6 m dọc kênh
+    if (C.length > 1) {                                                // mặt nạ khoét đất: kênh |u| ≤ 6.9 m, máng thác, hồ đón
       let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
       for (const q of C) { x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); z0 = Math.min(z0, q.z); z1 = Math.max(z1, q.z); }
-      x0 -= 12; z0 -= 12; x1 += 12; z1 += 12;
+      x0 -= 16; z0 -= 16; x1 += 16; z1 += 16;
       const N = 1024, cv2 = document.createElement('canvas'); cv2.width = cv2.height = N;
       const g2 = cv2.getContext('2d'), sx = N / (x1 - x0), sz = N / (z1 - z0);
+      const poly = (pts) => { g2.beginPath(); pts.forEach((q, k) => (k ? g2.lineTo : g2.moveTo).call(g2, (q[0] - x0) * sx, (q[2] - z0) * sz)); g2.closePath(); g2.fill(); };
       g2.fillStyle = '#000'; g2.fillRect(0, 0, N, N); g2.fillStyle = '#fff';
-      for (let i = 0; i + 1 < C.length; i++) {
+      for (let i = basin ? be : 0; i + 1 < C.length; i++) {
         const a = C[i], b = C[i + 1]; if (Math.hypot(b.x - a.x, b.z - a.z) > 4) continue;
-        const pts = [P(a, 5.9, 0), P(a, -5.9, 0), P(b, -5.9, 0), P(b, 5.9, 0)];
-        g2.beginPath(); pts.forEach((q, k) => (k ? g2.lineTo : g2.moveTo).call(g2, (q[0] - x0) * sx, (q[2] - z0) * sz)); g2.closePath(); g2.fill();
+        poly([P(a, TW - 0.1, 0), P(a, -TW + 0.1, 0), P(b, -TW + 0.1, 0), P(b, TW - 0.1, 0)]);
+      }
+      if (basin) {
+        const { Bp, hl, HB, A, E } = basin;
+        poly([Bp(HB - 0.1, -hl, 0), Bp(-HB + 0.1, -hl, 0), Bp(-HB + 0.1, hl, 0), Bp(HB - 0.1, hl, 0)]);
+        poly([P(A, BW + 0.5, 0), P(A, -BW - 0.5, 0), P(E, -BW - 0.5, 0), P(E, BW + 0.5, 0)]);
       }
       const mt = new THREE.CanvasTexture(cv2); mt.flipY = false; mt.colorSpace = THREE.NoColorSpace; mt.minFilter = mt.magFilter = THREE.NearestFilter; mt.generateMipmaps = false;
       CANAL_CUT.uCutM.value = mt; CANAL_CUT.uCutB.value.set(x0, z0, x1, z1);
     }
     const geo = (pos, uv) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); if (uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.computeVertexNormals(); return g; };
     const mesh = (g, m) => { const o = new THREE.Mesh(g, m); o.receiveShadow = true; o.matrixAutoUpdate = false; return o; };
-    const conc = withMist(new THREE.MeshStandardMaterial({ color: 0xa9a49a, roughness: 0.95, envMapIntensity: DALAT_ENV, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    const conc = withMist(new THREE.MeshStandardMaterial({ color: 0x6e6b66, roughness: 0.95, envMapIntensity: DALAT_ENV, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
     addFakeLight(conc);
     const cv = document.createElement('canvas'); cv.width = 32; cv.height = 128;
     const c = cv.getContext('2d'); c.fillStyle = '#4e5a3c'; c.fillRect(0, 0, 32, 128);
@@ -826,8 +855,8 @@ export class DalatScene {
     if (C.length) {
       const h = C[0], g = new THREE.Group(); g.position.set(h.x - h.dx * 1, h.top - 3.5, h.z - h.dz * 1); g.rotation.y = Math.atan2(h.dx, h.dz);
       const box = (w, hh, d, col, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, hh, d), withMist(new THREE.MeshStandardMaterial({ color: col, roughness: 0.9, envMapIntensity: DALAT_ENV }))); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; g.add(m); };
-      box(12.4, 3.6, 0.6, 0x9d988e, 0, 1.8, -0.3);                      // tường đầu kênh vừa khít mặt cắt kênh (không nhô lên mặt cỏ)
-      box(4, 2, 0.1, 0x15191a, 0, 1.2, 0.02);
+      box(2 * BW + 1.4, 2.2, 0.6, 0x6e6b66, 0, 1.1, -0.3);                // đầu cống sau ngưỡng tràn (thấp, không nhô lên mặt cỏ)
+      box(2 * BW - 1, 1.6, 0.1, 0x15191a, 0, 1.0, 0.02);
       this.stream.add(g);
     }
     // bậc thang + hàng rào cây xén trên mái cỏ: từ mép công viên phía đường xuống đáy, theo dalatGround mỗi 0.45 m
@@ -841,17 +870,11 @@ export class DalatScene {
       for (let t = 1; t < 30; t += 0.45) {
         const x = x0 + nx * t, z = z0 + nz * t, y = G(x, z);
         steps.push(new THREE.BoxGeometry(5, 0.5, 0.5).rotateY(yaw).translate(x, y - 0.1, z));
-        if (Math.round(t / 0.45) % 3 === 0) for (const sd of [-3.3, 3.3]) {
-          const hx = x + nz * sd, hz = z - nx * sd;
-          hedge.push(new THREE.BoxGeometry(0.8, 0.7, 1.5).rotateY(yaw).translate(hx, G(hx, hz) + 0.25, hz));
-        }
       }
     }
     if (steps.length) {
       const st = mesh(mergeGeometries(steps.map((g) => g.toNonIndexed())), withMist(new THREE.MeshStandardMaterial({ color: 0xc4c0b6, roughness: 0.9, envMapIntensity: DALAT_ENV })));
       st.castShadow = true; this.stream.add(st);
-      const hg = mesh(mergeGeometries(hedge.map((g) => g.toNonIndexed())), withMist(new THREE.MeshStandardMaterial({ color: 0x5f7f2e, roughness: 0.95, envMapIntensity: DALAT_ENV })));
-      hg.castShadow = true; this.stream.add(hg);
     }
     this.group.add(this.stream);
   }
