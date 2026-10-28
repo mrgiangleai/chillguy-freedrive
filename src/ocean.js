@@ -157,12 +157,12 @@ function oceanMaterial(u) {
         // bọt: ven bờ (nước rất nông, vỗ theo nhịp sóng) + đầu ngọn sóng cao
         oFoam = clamp((1.0 - smoothstep(0.0, 0.9 + 0.5 * n, dep)) * (0.55 + 0.45 * n) + crest * smoothstep(0.62, 0.9, n) * 0.5, 0.0, 1.0);
         vec3 deep = mix(vec3(0.010, 0.050, 0.065), vec3(0.008, 0.026, 0.024), uRiv), turq = mix(vec3(0.05, 0.30, 0.30), vec3(0.03, 0.10, 0.08), uRiv);   // sông: sẫm hơn biển
-        if (uLake > 0.5) { deep = vec3(0.008, 0.032, 0.012); turq = vec3(0.02, 0.07, 0.03); }   // hồ: xanh lá đậm
+        if (uLake > 0.5) { deep = vec3(0.018, 0.068, 0.03); turq = vec3(0.04, 0.13, 0.06); }   // hồ: xanh lá đậm
         diffuseColor.rgb = mix(mix(deep, turq, shallow), vec3(0.75, 0.80, 0.82), oFoam);
         diffuseColor.a = mix(mix(1.0, 0.55, shallow), 0.95, oFoam);`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor + smoothstep(150.0, 1500.0, camD) * 0.12 + uRiv * 0.24, 0.85, oFoam);')
       // sông: bớt soi trời (trước như tấm gương trắng bạc, sáng hơn cả cỏ) + bớt vệt nắng chói
-      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nif (uRiv > 0.5) { reflectedLight.indirectSpecular *= 0.4; reflectedLight.directSpecular *= 0.45; }\nif (uLake > 0.5) { reflectedLight.indirectSpecular *= 0.3; reflectedLight.directSpecular *= 0.35; }')
+      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nif (uRiv > 0.5) { reflectedLight.indirectSpecular *= 0.4; reflectedLight.directSpecular *= 0.45; }\nif (uLake > 0.5) { reflectedLight.indirectSpecular *= 0.4; reflectedLight.directSpecular *= 0.35; }')
       .replace('#include <opaque_fragment>', `
         if (uLake > 0.5 && uReflK > 0.0) {
           vec4 rc = uReflMat * vec4(vOW.x, uSea, vOW.z, 1.0);
@@ -242,7 +242,7 @@ export class Ocean {
   }
 
   // hồ (Đà Lạt): gắn ảnh phản chiếu phẳng (refl đã render; null => tắt), k = độ rõ (Đà Lạt: 0.07)
-  setLakeReflection(refl, k = 0.07) {
+  setLakeReflection(refl, k = 0.1) {
     const u = this.u; u.uReflK.value = refl && refl.active ? k : 0;
     if (refl) { u.uReflTex.value = refl.rt.texture; u.uReflMat.value.copy(refl.texMatrix); }
   }

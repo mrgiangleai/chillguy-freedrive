@@ -2423,7 +2423,7 @@ function frame(now) {
     const ov = ocean.group.visible; ocean.group.visible = false;
     lakeRefl.render(scene, camera, WATER_DROP);
     ocean.group.visible = ov;
-    ocean.setLakeReflection(lakeRefl, 0.07);                    // trộn vào chính mặt nước gợn sóng, độ rõ 7 % (chú chốt; như vũng nước mưa)
+    ocean.setLakeReflection(lakeRefl, 0.1);                     // trộn vào chính mặt nước gợn sóng, độ rõ 10 % (chú chốt; như vũng nước mưa)
   } else if (lakeRefl.active) { lakeRefl.active = false; ocean.setLakeReflection(null); }
   diag.lap('phản chiếu hồ');
   if (st.wet > 0.001) refl.render(scene, camera, drive.pos.y + 0.05);
