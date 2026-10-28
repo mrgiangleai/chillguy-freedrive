@@ -71,6 +71,9 @@ uniform float uFrame, uFrameB, uWA, uWB, uSea, uLod, uT;
 uniform vec3 uCamW;
 uniform float uRiv, uRivHW, uRivM;   // chế độ sông (map Đại lộ): 1 = bật; nửa bề rộng sông; biên độ uốn
 uniform vec4 uRivPF;                 // tâm sông (x, z) + hướng ngang sông f (x, z)
+uniform float uLake;                 // chế độ hồ (map Đà Lạt, cùng uRiv = 1): chỉ trong mặt nạ hình hồ, sóng rất nhỏ, xanh lá đậm, ít lóa
+uniform sampler2D uLakeM;            // mặt nạ hồ (R > 0.5 = nước) phủ khung uLakeB = (x0, z0, x1, z1)
+uniform vec4 uLakeB;
 // khoảng cách có dấu tới tim sông (đã trừ độ uốn 40·sin(u/300) như avenue.js)
 float rivA(vec2 p) { vec2 d = p - uRivPF.xy, f = uRivPF.zw, r = vec2(-f.y, f.x); float u = dot(d, r); return dot(d, f) - uRivM * sin(u / 300.0); }
 uniform vec3 uRoad[${ROAD_N}];
@@ -116,6 +119,7 @@ function oceanMaterial(u) {
         vec3 wv = waveAt(ow.xz);
         float fadeH = 1.0 - smoothstep(80.0, 112.0, camD);           // xa: chỉ còn pháp tuyến, mặt phẳng (lưới gần rộng ±120 m)
         if (uRiv > 0.5) fadeH *= 0.35;                              // sông: sóng nhỏ hơn biển
+        if (uLake > 0.5) fadeH *= 0.4;                              // hồ: gợn ±0.3 m
         transformed.y += wv.x * fadeH;
         // độ sâu ước lượng: khoảng cách tới tim đường + cao độ đường => cao độ đê (cùng công thức xẻ đường của terrain.js)
         float dm = 1e9, ry = uSea + 10.0;
@@ -135,7 +139,10 @@ function oceanMaterial(u) {
         float oNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
           return mix(mix(oHash(i), oHash(i + vec2(1.0, 0.0)), f.x), mix(oHash(i + vec2(0.0, 1.0)), oHash(i + vec2(1.0, 1.0)), f.x), f.y); }`)
       .replace('#include <map_fragment>', `
-        if (uRiv > 0.5 && abs(rivA(vOW.xz)) > uRivHW) discard;      // sông: chỉ trong dải nước
+        if (uLake > 0.5) {                                          // hồ: chỉ trong mặt nạ hình hồ
+          vec2 lu = (vOW.xz - uLakeB.xy) / (uLakeB.zw - uLakeB.xy);
+          if (lu.x < 0.0 || lu.y < 0.0 || lu.x > 1.0 || lu.y > 1.0 || texture2D(uLakeM, lu).r < 0.5) discard;
+        } else if (uRiv > 0.5 && abs(rivA(vOW.xz)) > uRivHW) discard;      // sông: chỉ trong dải nước
         float camD = length(vOW.xz - uCamW.xz);
         oLod = clamp(log2(camD * camD / uLod), 0.0, 2.5);           // xa / nhìn xiên: mipmap thô hơn (ô 128 px có viền đệm => tối đa ~2.5)
         vec3 wv = waveAt(vOW.xz);
@@ -147,11 +154,12 @@ function oceanMaterial(u) {
         // bọt: ven bờ (nước rất nông, vỗ theo nhịp sóng) + đầu ngọn sóng cao
         oFoam = clamp((1.0 - smoothstep(0.0, 0.9 + 0.5 * n, dep)) * (0.55 + 0.45 * n) + crest * smoothstep(0.62, 0.9, n) * 0.5, 0.0, 1.0);
         vec3 deep = mix(vec3(0.010, 0.050, 0.065), vec3(0.008, 0.026, 0.024), uRiv), turq = mix(vec3(0.05, 0.30, 0.30), vec3(0.03, 0.10, 0.08), uRiv);   // sông: sẫm hơn biển
+        if (uLake > 0.5) { deep = vec3(0.008, 0.032, 0.012); turq = vec3(0.02, 0.07, 0.03); }   // hồ: xanh lá đậm
         diffuseColor.rgb = mix(mix(deep, turq, shallow), vec3(0.75, 0.80, 0.82), oFoam);
         diffuseColor.a = mix(mix(1.0, 0.55, shallow), 0.95, oFoam);`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor + smoothstep(150.0, 1500.0, camD) * 0.12 + uRiv * 0.24, 0.85, oFoam);')
       // sông: bớt soi trời (trước như tấm gương trắng bạc, sáng hơn cả cỏ) + bớt vệt nắng chói
-      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nif (uRiv > 0.5) { reflectedLight.indirectSpecular *= 0.4; reflectedLight.directSpecular *= 0.45; }')
+      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nif (uRiv > 0.5) { reflectedLight.indirectSpecular *= 0.4; reflectedLight.directSpecular *= 0.45; }\nif (uLake > 0.5) { reflectedLight.indirectSpecular *= 0.55; reflectedLight.directSpecular *= 0.35; }')
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         {
           vec2 sl = wv.yz / (1.0 + camD / 400.0) * (1.0 - 0.55 * uRiv);   // xa: dịu pháp tuyến (đỡ lấp lánh răng cưa); sông êm hơn
@@ -171,7 +179,8 @@ export class Ocean {
     this.level = 0;
     this.roadPts = Array.from({ length: ROAD_N }, () => new THREE.Vector3());
     this.u = { uWave: { value: null }, uFrame: { value: 0 }, uFrameB: { value: 0 }, uWA: { value: 1 }, uWB: { value: 0 }, uT: { value: 0 }, uSea: { value: 0 }, uLod: { value: 3000 }, uCamW: { value: new THREE.Vector3() }, uRoad: { value: this.roadPts },
-      uRiv: { value: 0 }, uRivHW: { value: 100 }, uRivM: { value: 40 }, uRivPF: { value: new THREE.Vector4() } };
+      uRiv: { value: 0 }, uRivHW: { value: 100 }, uRivM: { value: 40 }, uRivPF: { value: new THREE.Vector4() },
+      uLake: { value: 0 }, uLakeM: { value: null }, uLakeB: { value: new THREE.Vector4() } };
     this.material = null;
     this._p = {};
   }
@@ -194,7 +203,7 @@ export class Ocean {
 
   // on: map biển; level: mực nước (m)
   setMap(on, level = 0) {
-    this.u.uRiv.value = 0;
+    this.u.uRiv.value = 0; this.u.uLake.value = 0;
     this.group.visible = on;
     this.level = level;
     if (on && !this.material) this._build();
@@ -203,13 +212,22 @@ export class Ocean {
   // map Đại lộ: mặt sông (sóng biển nhỏ lại, nước sẫm), chỉ trong dải |a| < hw quanh tim sông P, hướng ngang sông f
   setRiver(on, level = 0, P = null, f = null, hw = 100, mA = 40) {
     if (!on && this.u.uRiv.value < 0.5) return;                     // đang không ở chế độ sông: không đụng tới map Biển
-    this.u.uRiv.value = on ? 1 : 0;
+    this.u.uRiv.value = on ? 1 : 0; this.u.uLake.value = 0;
     this.group.visible = on;
     if (!on) return;
     if (!this.material) this._build();
     this.level = level;
     this.u.uRivHW.value = hw; this.u.uRivM.value = mA;
     this.u.uRivPF.value.set(P.x, P.z, f.x, f.z);
+  }
+
+  // map Đà Lạt: mặt hồ ở cao độ level, chỉ trong mặt nạ tex (CanvasTexture, R > 0.5 = nước) phủ khung bounds [x0, z0, x1, z1]
+  setLake(on, level = 0, tex = null, bounds = null) {
+    if (!on) { if (this.u.uLake.value > 0.5) { this.u.uLake.value = 0; this.u.uRiv.value = 0; this.group.visible = false; } return; }
+    if (!this.material) this._build();
+    this.u.uRiv.value = 1; this.u.uLake.value = 1;
+    this.u.uLakeM.value = tex; this.u.uLakeB.value.set(...bounds);
+    this.level = level; this.group.visible = true;
   }
 
   update(time, cam, road, s) {

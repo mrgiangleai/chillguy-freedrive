@@ -181,6 +181,7 @@ sgnScene.place = () => {
 const sgnEnv = new SgnEnv(scene, (x, z) => terrain.heightAt(x, z));       // map Landmark: khu Vinhomes (tháp chung cư, biệt thự, công viên, hồ, sông, cây — OSM)
 const sgnCity = new SgnCity(scene, (x, z) => terrain.heightAt(x, z));     // nhà / sông / cây thật quanh Landmark 81 (urban:EXPORT)
 const dalatScene = new DalatScene(scene, (x, z) => demAt(dalatDem(), x, z));        // map Hồ Xuân Hương: nhà / hồ / cây thông thật (urban:EXPORT), đường phụ OSM
+dalatScene.onLake = (tex, b) => { if (onDalat()) ocean.setLake(true, 0, tex, b); };   // mặt hồ Xuân Hương = nước map Biển (chế độ hồ)
 sgnEnv.city = sgnCity;                                                    // sgnEnv chờ cây của sgnCity rồi dựng chung
 const sgnObb = () => { if (sgnEnv.visible) city.extraObb = sgnEnv.obb.concat(sgnCity.obb); };
 sgnEnv.onReady = sgnObb;
@@ -776,6 +777,7 @@ const applyMap = () => {
   // map Biển: mực nước thấp hơn chỗ thấp nhất của đường 3 m (xét 120 km đường phía trước)
   if (id === 'sea') { road.ensure(drive.s + 120000); let lo = Infinity; for (const p of road.pts) lo = Math.min(lo, p.y); TP.seaLevel = lo - 3; }
   ocean.setMap(id === 'sea', TP.seaLevel);
+  if (isDalat && dalatScene.lake) ocean.setLake(true, 0, dalatScene.lake.tex, dalatScene.lake.bounds);   // chưa tải: onLake bật sau
   avenue.visible = isAvenue;    // trước địa hình: khung nút giao để đào kênh đường ngang / nền nhánh rẽ
   avenue.prime(drive.s);
   drive.ramp = null;
@@ -811,7 +813,9 @@ const applyMap = () => {
   sgnScene.visible = isSgn;
   sgnCity.visible = isSgn;                                     // bắt đầu tải trước khi sgnEnv dựng cây
   sgnEnv.visible = isSgn;
-  dalatScene.treeStride = state.quality === QUALITY.findIndex((q) => q.id === 'low') ? 2 : 1;   // Low: nửa số cây (áp dụng khi dựng lần đầu)
+  const dalatLow = state.quality === QUALITY.findIndex((q) => q.id === 'low');
+  dalatScene.treeStride = dalatLow ? 2 : 1;   // Low: nửa số cây (áp dụng khi dựng lần đầu)
+  dalatScene.lodR = dalatLow ? 45 : 90;        // cây thông GLB chi tiết quanh camera
   dalatScene.visible = isDalat;
   if (isSgn) { sgnEnv.onReady(); sgnCity.onReady(); }           // camera không xuyên tháp / nhà thật (khi đã tải)
   fireflies.ground.clear();     // độ cao mặt đất nhớ theo hình đường cũ
@@ -2299,7 +2303,7 @@ function frame(now) {
   if (nycWorks.visible) { nycWorks.setLamps(st.lamps); nycWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
   if (sgnEnv.visible) { sgnEnv.winK = lightTune.windows; sgnEnv.setLamps(st.lamps); sgnEnv.update(dt, camera.position); }
   if (sgnCity.visible) sgnCity.setLamps(st.lamps * lightTune.windows);
-  if (dalatScene.visible) dalatScene.setLamps(st.lamps * lightTune.windows);
+  if (dalatScene.visible) { dalatScene.setLamps(st.lamps * lightTune.windows); dalatScene.update(dt, camera.position); }
   if (sgnScene.visible) sgnScene.setLamps(st.lamps * lightTune.signs);   // LED dọc Landmark 81 theo đèn đêm × "biển hiệu" bảng Lighting
   if (sgnWorks.visible) { sgnWorks.setLamps(st.lamps); sgnWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
   minimap.update(dt);

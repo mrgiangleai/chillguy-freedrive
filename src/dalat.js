@@ -60,6 +60,10 @@ export class DalatScene {
     this.state = 'idle';
     this.lampU = { value: 0 };
     this.treeStride = 1;                       // Low: 2 => nửa số cây
+    this.lodR = 90;                            // cây thông GLB chi tiết trong bán kính này quanh camera (Low: 45), xa hơn => cây nón code
+    this.lodU = { value: new THREE.Vector3(0, 0, 0) };   // (x, z, R) — tâm + bán kính vùng chi tiết lúc chia gần nhất (shader cây xa bỏ cây trong vùng)
+    this.onLake = null;                        // (tex, bounds) khi tách xong mặt hồ Xuân Hương (main => ocean.setLake)
+    this.lake = null;
   }
   set visible(v) { this.group.visible = v; if (v && this.state === 'idle') this._load(); }
   get visible() { return this.group.visible; }
@@ -69,17 +73,21 @@ export class DalatScene {
     this.state = 'loading';
     const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
     loader.load('assets/dalat/dalat-city.glb', (gltf) => this._city(gltf.scene), undefined, (e) => console.warn('dalat-city', e));
+    loader.load('assets/models/dalat/pine.glb', (gltf) => this._pine(gltf.scene), undefined, (e) => console.warn('dalat-pine', e));
     fetch('assets/dalat/dalat-trees.json').then((r) => r.json()).then((T) => this._trees(T)).catch((e) => console.warn('dalat-trees', e));
     fetch('assets/dalat/dalat-streets.json').then((r) => r.json()).then((S) => this._streets(S.s)).catch((e) => console.warn('dalat-streets', e));
   }
 
   _city(root) {
     const winShader = (shader) => SgnCity.prototype._shader.call({ lampU: this.lampU }, shader);   // cửa sổ sáng ban đêm như map Landmark
+    root.updateMatrixWorld(true);
     root.traverse((o) => {
       if (!o.isMesh) return;
       const name = o.material.name || o.name, color = o.material.color.clone();
       if (name === 'WATER') {
-        o.material = new THREE.MeshStandardMaterial({ color: 0x35596a, roughness: 0.1, metalness: 0.25, side: THREE.DoubleSide,
+        this._splitLake(o);
+        // ao / hồ nhỏ khác (cao độ khác mặt hồ): xanh lá đậm, ít lóa
+        o.material = new THREE.MeshStandardMaterial({ color: 0x1d3a22, roughness: 0.3, metalness: 0, side: THREE.DoubleSide,
           polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
         o.receiveShadow = true;
       } else {
@@ -93,9 +101,111 @@ export class DalatScene {
     this.state = 'ready';
   }
 
-  // cây theo ô 300 m (mỗi ô 1 InstancedMesh => frustum culling theo ô)
+  // tách tam giác mặt hồ Xuân Hương (y ≈ 0, trong đa giác hồ) khỏi lưới WATER => vẽ mặt nạ canvas cho nước map Biển (ocean.setLake)
+  _splitLake(o) {
+    const g = o.geometry, P = g.attributes.position, ix = g.index, n = ix ? ix.count : P.count, v = new THREE.Vector3();
+    const keep = [], lake = [], poly = DATA.lake;
+    const inPoly = (x, z) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) if ((poly[i][1] > z) !== (poly[j][1] > z) && x < poly[i][0] + (poly[j][0] - poly[i][0]) * (z - poly[i][1]) / (poly[j][1] - poly[i][1])) c = !c; return c; };
+    for (let t = 0; t < n; t += 3) {
+      const tri = [];
+      for (let k = 0; k < 3; k++) { v.fromBufferAttribute(P, ix ? ix.getX(t + k) : t + k).applyMatrix4(o.matrixWorld); tri.push(v.x, v.y, v.z); }
+      const cx = (tri[0] + tri[3] + tri[6]) / 3, cy = (tri[1] + tri[4] + tri[7]) / 3, cz = (tri[2] + tri[5] + tri[8]) / 3;
+      (Math.abs(cy) < 0.4 && inPoly(cx, cz) ? lake : keep).push(...tri);
+    }
+    const ng = new THREE.BufferGeometry();
+    ng.setAttribute('position', new THREE.BufferAttribute(new Float32Array(keep), 3)); ng.computeVertexNormals();
+    o.geometry = ng; o.position.set(0, 0, 0); o.scale.set(1, 1, 1); o.quaternion.identity();   // toạ độ đã là thế giới (bỏ khử lượng tử meshopt của node)
+    if (!lake.length) return;
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (let i = 0; i < lake.length; i += 3) { x0 = Math.min(x0, lake[i]); x1 = Math.max(x1, lake[i]); z0 = Math.min(z0, lake[i + 2]); z1 = Math.max(z1, lake[i + 2]); }
+    x0 -= 20; z0 -= 20; x1 += 20; z1 += 20;
+    const W = 1024, H = Math.round(W * (z1 - z0) / (x1 - x0)), cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const c = cv.getContext('2d'), sx = W / (x1 - x0), sz = H / (z1 - z0);
+    c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+    c.fillStyle = '#fff'; c.strokeStyle = '#fff'; c.lineWidth = 2; c.lineJoin = 'round';   // nét viền 2 px (~3 m): nước lấn dưới mép bờ, không hở
+    for (let i = 0; i < lake.length; i += 9) {
+      c.beginPath();
+      c.moveTo((lake[i] - x0) * sx, (lake[i + 2] - z0) * sz); c.lineTo((lake[i + 3] - x0) * sx, (lake[i + 5] - z0) * sz); c.lineTo((lake[i + 6] - x0) * sx, (lake[i + 8] - z0) * sz);
+      c.closePath(); c.fill(); c.stroke();
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.flipY = false; tex.colorSpace = THREE.NoColorSpace; tex.generateMipmaps = false; tex.minFilter = tex.magFilter = THREE.LinearFilter;
+    this.lake = { tex, bounds: [x0, z0, x1, z1] };
+    if (this.onLake) this.onLake(tex, this.lake.bounds);
+  }
+
+  // cây thông GLB ("pine tree" — bolojun, Sketchfab, CC-BY-SA-4.0; simplify 12 % + WebP 512 + meshopt): chuẩn hoá cao 1 m, gốc thân về (0, 0, 0)
+  _pine(root) {
+    root.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(root), k = 1 / ((box.max.y - box.min.y) || 1);
+    const norm = new THREE.Matrix4().makeScale(k, k, k).multiply(new THREE.Matrix4().makeTranslation(-(box.min.x + box.max.x) / 2, -box.min.y, -(box.min.z + box.max.z) / 2));
+    this.pineParts = [];
+    root.traverse((o) => {
+      if (!o.isMesh) return;
+      const g = o.geometry.clone();
+      for (const name of Object.keys(g.attributes)) {                // meshopt: số nguyên rút gọn => Float32 trước khi applyMatrix4
+        const A = g.attributes[name]; if (A.array instanceof Float32Array && !A.isInterleavedBufferAttribute) continue;
+        const n = A.itemSize, f = new Float32Array(A.count * n);
+        for (let i = 0; i < A.count; i++) for (let c = 0; c < n; c++) f[i * n + c] = A.getComponent(i, c);
+        g.setAttribute(name, new THREE.BufferAttribute(f, n));
+      }
+      g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(norm, o.matrixWorld));
+      const m = o.material.clone();
+      if (m.transparent || m.alphaTest > 0) { m.alphaTest = 0.5; m.transparent = false; m.depthWrite = true; }
+      m.side = THREE.DoubleSide; m.shadowSide = THREE.DoubleSide;
+      const im = new THREE.InstancedMesh(g, m, 1500);
+      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      im.count = 0; im.frustumCulled = false; im.castShadow = true; im.receiveShadow = true;
+      this.group.add(im); this.pineParts.push(im);
+    });
+    this._lodAt = null;
+  }
+
+  // mỗi khung: camera đi > 8 m (hoặc 0.6 s) => chia lại cây gần (GLB) / xa (nón)
+  update(dt, cam) {
+    if (!this.group.visible || !this.pineParts || !this.tx) return;
+    this._lodT = (this._lodT || 0) + dt;
+    if (this._lodAt && this._lodT < 0.6 && (cam.x - this._lodAt.x) ** 2 + (cam.z - this._lodAt.z) ** 2 < 64) return;
+    this._lodT = 0; this._lodAt = { x: cam.x, z: cam.z };
+    const R = this.lodR, R2 = R * R, C = 50, m4 = this._m4 || (this._m4 = new THREE.Matrix4()), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), sc = new THREE.Vector3();
+    const cap = this.pineParts[0].instanceMatrix.count;
+    let n = 0;
+    const gx = Math.floor(cam.x / C), gz = Math.floor(cam.z / C), r = Math.ceil(R / C);
+    for (let a = -r; a <= r && n < cap; a++) for (let b = -r; b <= r && n < cap; b++) {
+      for (const i of this.tcell.get((gx + a) + ',' + (gz + b)) || []) {
+        const x = this.tx[i], z = this.tz[i];
+        if ((x - cam.x) ** 2 + (z - cam.z) ** 2 > R2) continue;
+        const h = this.th[i] * (0.9 + ((i * 7919) % 100) / 500);
+        q.setFromAxisAngle(up, (i * 2.399) % 6.283);
+        m4.compose(p.set(x, this.ty[i], z), q, sc.set(h, h, h));
+        for (const im of this.pineParts) im.setMatrixAt(n, m4);
+        if (++n >= cap) break;
+      }
+    }
+    for (const im of this.pineParts) { im.count = n; im.instanceMatrix.needsUpdate = true; }
+    this.lodU.value.set(cam.x, cam.z, n < cap ? R : 0);                // tràn chỗ (rừng quá dày) => tắt bỏ cây xa, chấp nhận chồng
+  }
+
+  // cây xa: nón code theo ô 300 m (mỗi ô 1 InstancedMesh => frustum culling theo ô); shader bỏ cây trong vùng GLB chi tiết (lodU)
   _trees(T) {
     const geo = pineGeometry(), mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
+    const lodU = this.lodU, lodHook = (sh) => {
+      sh.uniforms.uDalatLod = lodU;
+      sh.vertexShader = 'uniform vec3 uDalatLod;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+        { vec2 ip = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz - uDalatLod.xy;
+          if (dot(ip, ip) < uDalatLod.z * uDalatLod.z) transformed *= 0.0; }`);
+    };
+    mat.onBeforeCompile = lodHook;
+    const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }); depth.onBeforeCompile = lodHook;
+    const nT = T.length / 3;
+    this.tx = new Float32Array(nT); this.tz = new Float32Array(nT); this.ty = new Float32Array(nT); this.th = new Float32Array(nT); this.tcell = new Map();
+    for (let i = 0, k = 0; i < T.length; i += 3, k++) {
+      this.tx[k] = T[i]; this.tz[k] = T[i + 1]; this.th[k] = T[i + 2]; this.ty[k] = this.groundAt(T[i], T[i + 1]) - 0.2;
+      if (k % this.treeStride) continue;
+      const key = Math.floor(T[i] / 50) + ',' + Math.floor(T[i + 1] / 50);
+      (this.tcell.get(key) || this.tcell.set(key, []).get(key)).push(k);
+    }
     const C = 300, cells = new Map(), stride = this.treeStride;
     for (let i = 0, k = 0; i < T.length; i += 3, k++) {
       if (k % stride) continue;
@@ -111,7 +221,7 @@ export class DalatScene {
         m4.compose(p.set(x, this.groundAt(x, z) - 0.2, z), q, sc.set(w, h, w));
         im.setMatrixAt(n, m4);
       });
-      im.castShadow = true; im.receiveShadow = true;
+      im.castShadow = true; im.receiveShadow = true; im.customDepthMaterial = depth;
       im.computeBoundingSphere();
       this.group.add(im);
     }

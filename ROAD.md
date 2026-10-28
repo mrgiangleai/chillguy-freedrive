@@ -3,7 +3,7 @@
 > Đọc file này trước khi sửa. Mỗi lần sửa xong: ghi 1 mục vào **Nhật ký** (cuối file) và tăng bộ đếm.
 > Bộ đếm đủ 10 => đọc lại cả file, gộp nhật ký vào các mục "Trạng thái", xoá nhật ký cũ, đặt bộ đếm về 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 9/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 10/10**
 
 ## 1. Tổng quan
 - Game lái xe thư giãn 3D trên trình duyệt: three.js **0.160**, JS thuần, WebAudio. Mã nguồn `src/` → gộp bằng esbuild
@@ -437,6 +437,11 @@
   `src/dalat.js` `DalatScene`: cửa sổ đêm dùng `SgnCity._shader`, cây thông code (InstancedMesh theo ô 300 m, Low = nửa số cây). FBX không
   có lưới đường => đường lấy OSM. Không cọc tiêu (scenery). `BY_MAP.dalat`. `scripts/check-dalat.mjs` PASS. Chưa: nhà thật chi tiết,
   vỉa hè, đèn / cảnh quanh hồ, đồi xa ngoài vùng 2.5 km (DEM giữ giá trị mép), Stop đỗ bên phải có thể sát mép hồ.
+  **Cây + nước (28/10)**: cây thông `docs/assets/models/dalat/pine.glb` ("pine tree" bolojun, CC-BY-SA-4.0, gốc ổ SSD `3d model/tree/pine tree/`;
+  simplify 0.12 + WebP 512 + meshopt, 475 KB, 11k tam giác): `DalatScene.update` chia mỗi 8 m / 0.6 s, cây trong `lodR` (90 m, Low 45) => InstancedMesh
+  GLB (cap 1 500), xa => nón code; shader nón (cả customDepthMaterial) bỏ cây trong vùng `lodU` (x, z, R). Mặt hồ Xuân Hương = nước map Biển chế độ
+  hồ (`ocean.setLake`: `uRiv` = 1 + `uLake` = 1, mặt nạ CanvasTexture vẽ từ tam giác WATER y ≈ 0 trong đa giác hồ, gợn ×0.4, màu xanh lá đậm,
+  specular trực tiếp ×0.35 / gián tiếp ×0.55); ao khác giữ lưới FBX màu 0x1d3a22.
   **Map Đại lộ** (`avenue`, 🛣️, nhóm Drive cùng Phố; M trong Drive: Phố ↔ Đại lộ): cao tốc 6 làn (`AVENUE`: tâm làn ±2.25 / ±5.75 /
   ±9.25, dải phân cách ±0.5, mép làn ±11, lề khẩn cấp tới ±13), đường cong rất thoải (bán kính ≥ ~2 km), địa hình `avenue` (đồi cỏ
   thấp, cỏ cao `meadow` hai bên), hộ lan thép 2 bên, đèn đường 2 bên xen kẽ. Xe: `cityTraffic` chế độ avenue (3 làn mỗi chiều, tốc
@@ -674,3 +679,4 @@
 - **Plan model tòa nhà NYC (28/10/2026)**: ghi plan B1–B4 ở đầu mục 5 (nguồn ổ SSD `3d model/city`), chưa làm — phiên mới làm tiếp.
 - **#9 — Map Hồ Xuân Hương – Đà Lạt bản nhanh (28/10/2026)**: Claude tự làm từ FBX urban:EXPORT + OSM (mục map ở trên); check-dalat /
   nyc / sgn / minimap-jump / steering PASS; chưa thử trình duyệt — chú tự test trên điện thoại.
+- **#10 — Đà Lạt: cây thông GLB + nước hồ kiểu map Biển (28/10/2026)**: Claude tự làm; check-dalat / ocean-loop PASS, chưa thử trình duyệt.
