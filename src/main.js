@@ -21,7 +21,7 @@ import * as preload from './preload.js';
 import { Avenue } from './avenue.js';
 import { Minimap } from './minimap.js';
 import { City, SIGNAL } from './city.js';
-import { CityTraffic } from './cityTraffic.js';
+import { CityTraffic, VEHICLE_TYPES, VEHICLE_COLORS } from './cityTraffic.js';
 import { loadNpcCars } from './npcCars.js';
 import { CityPeople } from './cityPeople.js';
 import { CityIncident } from './cityIncident.js';
@@ -188,7 +188,8 @@ let fakeT = 1;
 const diag = new Diag();                                                 // chẩn đoán map Đà Lạt (tạm thời, tới khi hết đơ)
 let diagTris = '';
 diag.info = () => diagTris;
-const dalatScene = new DalatScene(scene, (x, z) => demAt(dalatDem(), x, z));        // map Hồ Xuân Hương: nhà / hồ / cây thông thật (urban:EXPORT), đường phụ OSM
+const dalatScene = new DalatScene(scene, (x, z) => demAt(dalatDem(), x, z));
+dalatScene.initTraffic(cityTraffic, VEHICLE_TYPES, VEHICLE_COLORS, 24);   // xe trên đường phụ Đà Lạt (số xe theo chất lượng: applyMap)        // map Hồ Xuân Hương: nhà / hồ / cây thông thật (urban:EXPORT), đường phụ OSM
 dalatScene.diag = diag; dalatScene.renderer = renderer;   // renderer: chụp impostor cây xa
 dalatScene.onLake = (tex, b) => { if (onDalat()) diag.time('ocean.setLake', () => ocean.setLake(true, WATER_DROP, tex, b)); };   // mặt hồ Xuân Hương = nước map Biển (chế độ hồ)
 sgnEnv.city = sgnCity;                                                    // sgnEnv chờ cây của sgnCity rồi dựng chung
@@ -842,7 +843,8 @@ const applyMap = () => {
   sgnCity.visible = isSgn;                                     // bắt đầu tải trước khi sgnEnv dựng cây
   sgnEnv.visible = isSgn;
   const dalatLow = state.quality === QUALITY.findIndex((q) => q.id === 'low');
-  dalatScene.loadTune(dalatLow);               // cài đặt cây (bảng 🌲 Cây; chưa lưu => mặc định theo chất lượng)
+  dalatScene.loadTune(dalatLow);
+  dalatScene.carN = dalatLow ? 10 : 24; if (dalatScene.sideCars?.length > dalatScene.carN) dalatScene.sideCars.length = dalatScene.carN;   // xe đường phụ               // cài đặt cây (bảng 🌲 Cây; chưa lưu => mặc định theo chất lượng)
   $('b-trees').hidden = $('b-water').hidden = !isDalat;
   if ((tuneKind === 'trees' || tuneKind === 'water') && !isDalat) closeTune();
   dalatScene.visible = isDalat;
@@ -2368,7 +2370,7 @@ function frame(now) {
   if (nycWorks.visible) { nycWorks.setLamps(st.lamps); nycWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
   if (sgnEnv.visible) { sgnEnv.winK = lightTune.windows; sgnEnv.setLamps(st.lamps); sgnEnv.update(dt, camera.position); }
   if (sgnCity.visible) sgnCity.setLamps(st.lamps * lightTune.windows);
-  if (dalatScene.visible) { dalatScene.setLamps(st.lamps * lightTune.windows); diag.lap('trước dalatScene'); dalatScene.update(dt, camera.position);
+  if (dalatScene.visible) { dalatScene.setLamps(st.lamps * lightTune.windows); diag.lap('trước dalatScene'); dalatScene.update(dt, camera.position); dalatScene.updateTraffic(dt, camera.position, st.lamps);
     if ((fakeT += dt) > 1) { fakeT = 0; const L = []; for (const c of scenery.chunks.values()) for (const l of c.userData.lamps || []) L.push(l[0]); dalatScene.updateFakeLight(L, scenery.lampTune.fakeR ?? 18); }
     FAKE_LIGHT.uFakeK.value = (scenery.lampTune.fakeK ?? 3) * scenery.lampOn; FAKE_LIGHT.uFakeCol.value.set(scenery.lampTune.color);
     diag.lap('dalatScene'); }

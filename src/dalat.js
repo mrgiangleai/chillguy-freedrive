@@ -8,6 +8,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { SgnCity } from './sgnCity.js';
 import { demAt } from './terrain-noise.js';
+import { withMist } from './mist.js';
 
 export const DALAT = { data: DATA, length: DATA.length, start: DATA.start };
 export const WATER_DROP = -3;                 // mặt nước game thấp hơn mặt nước FBX 3 m (đáy DEM: −5.5 m)
@@ -486,10 +487,12 @@ export class DalatScene {
     this._lodAt = null;
   }
 
-  // các đường khác trong vùng: dải nhựa phủ trên địa hình (cao hơn mặt đất 0.15 m), lấy mẫu mỗi 4 m
+  // các đường khác trong vùng (OSM): dải nhựa phủ trên địa hình (cao hơn mặt đất 0.15 m), lấy mẫu mỗi 4 m; texture nhựa + vạch mép trắng,
+  // đường ≥ 6.4 m có vạch tim đứt (u ngang 0..1, v dọc = mét / 8)
   _streets(S) {
     this.streets = S;                                                 // bản đồ tròn vẽ lại
-    const pos = [], G = dalatGround;
+    const G = dalatGround, buf = [{ pos: [], uv: [] }, { pos: [], uv: [] }];
+    this.lanes = [];                                                   // đường cho xe chạy: { hw, P: [[x, z]], cum: [m], len, bb }
     for (const st of S) {
       const hw = st[0], P = [];
       for (let k = 1; k + 1 < st.length; k += 2) P.push([st[k], st[k + 1]]);
@@ -499,23 +502,130 @@ export class DalatScene {
         for (let k = 0; k < n; k++) Q.push([ax + (bx - ax) * k / n, az + (bz - az) * k / n]);
       }
       Q.push(P.at(-1));
-      let prev = null;
+      const B = buf[hw >= 3.2 ? 1 : 0];
+      let prev = null, v = 0, pv = 0;
+      const cum = [0];
       for (let i = 0; i < Q.length; i++) {
         const a = Q[Math.max(0, i - 1)], b = Q[Math.min(Q.length - 1, i + 1)];
         let dx = b[0] - a[0], dz = b[1] - a[1]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+        if (i) { v += Math.hypot(Q[i][0] - Q[i - 1][0], Q[i][1] - Q[i - 1][1]); cum.push(v); }
         const [x, z] = Q[i], nx = -dz * hw, nz = dx * hw;
         const cur = [x + nx, G(x + nx, z + nz) + 0.15, z + nz, x - nx, G(x - nx, z - nz) + 0.15, z - nz];
-        if (prev) pos.push(...prev.slice(0, 3), ...prev.slice(3), ...cur.slice(0, 3), ...cur.slice(0, 3), ...prev.slice(3), ...cur.slice(3));
-        prev = cur;
+        if (prev) {
+          B.pos.push(...prev.slice(0, 3), ...prev.slice(3), ...cur.slice(0, 3), ...cur.slice(0, 3), ...prev.slice(3), ...cur.slice(3));
+          const v0 = pv / 8, v1 = v / 8;
+          B.uv.push(1, v0, 0, v0, 1, v1, 1, v1, 0, v0, 0, v1);
+        }
+        prev = cur; pv = v;
+      }
+      if (hw >= 2.6 && v > 60) {
+        let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+        for (const [x, z] of Q) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+        this.lanes.push({ hw, P: Q, cum, len: v, bb: [x0, z0, x1, z1] });
       }
     }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
-    geo.computeVertexNormals();
-    const mat = new THREE.MeshStandardMaterial({ color: 0x4a4a4c, roughness: 0.92, side: THREE.DoubleSide,
-      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
-    const m = new THREE.Mesh(geo, mat);
-    m.receiveShadow = true; m.matrixAutoUpdate = false;
-    this.group.add(m);
+    buf.forEach((B, k) => {
+      if (!B.pos.length) return;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(B.pos), 3));
+      geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(B.uv), 2));
+      geo.computeVertexNormals();
+      const mat = new THREE.MeshStandardMaterial({ map: streetTexture(k === 1), roughness: 0.9, side: THREE.DoubleSide,
+        polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+      addFakeLight(mat);                                              // ánh sáng giả đèn đường cả trên đường phụ
+      withMist(mat);
+      const m = new THREE.Mesh(geo, mat);
+      m.receiveShadow = true; m.matrixAutoUpdate = false;
+      this.group.add(m);
+    });
   }
+
+  // xe chạy trên đường phụ: dùng lại hình xe dựng sẵn của map Phố (cityTraffic: sedan / kei / taxi / van / xe máy, đèn tự sáng ban đêm),
+  // mỗi loại 1 InstancedMesh riêng (vật liệu chung của cityTraffic). Mỗi xe chạy dọc 1 đường, làn phải, hết đường hoặc xa camera > 550 m
+  // thì sinh lại ở đường khác trong 450 m quanh camera; bám xe trước cùng chiều (giữ ≥ 12 m)
+  initTraffic(cityTraffic, types, colors, count) {
+    this.ct = cityTraffic; this.carN = count;
+    const MIX = [['sedan', 0.3], ['kei', 0.2], ['taxi', 0.08], ['van', 0.1], ['scooter', 0.32]];
+    this.carMix = MIX; this.carTypes = types; this.carColors = colors;
+    this.carMesh = {};
+    for (const [k] of MIX) {
+      const src = cityTraffic.meshes[k].geometry, g = new THREE.BufferGeometry();
+      for (const name of ['position', 'normal', 'color', 'aTint', 'aGlow', 'aGloss', 'aFlash']) g.setAttribute(name, src.attributes[name]);
+      const cap = count;
+      g.setAttribute('aHonk', new THREE.InstancedBufferAttribute(new Float32Array(cap), 1));
+      g.setAttribute('aBlink', new THREE.InstancedBufferAttribute(new Float32Array(cap), 1));
+      const im = new THREE.InstancedMesh(g, cityTraffic.mat, cap);
+      im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3);
+      im.count = 0; im.castShadow = true; im.frustumCulled = false;
+      this.group.add(im); this.carMesh[k] = im;
+    }
+    this.sideCars = [];
+  }
+  _spawnCar(c, cam) {
+    const L = this.lanes, near = [];
+    for (let i = 0; i < L.length; i++) {
+      const b = L[i].bb, dx = Math.max(b[0] - cam.x, 0, cam.x - b[2]), dz = Math.max(b[1] - cam.z, 0, cam.z - b[3]);
+      if (dx * dx + dz * dz < 450 * 450) near.push(i);
+    }
+    if (!near.length) { c.on = false; return; }
+    for (let tries = 0; tries < 6; tries++) {
+      const li = near[Math.floor(Math.random() * near.length)], ln = L[li], dir = Math.random() < 0.5 ? 1 : -1, s = Math.random() * ln.len;
+      if (this.sideCars.some((o) => o !== c && o.on && o.li === li && Math.abs(o.s - s) < 25)) continue;
+      let r = Math.random(), type = this.carMix[0][0];
+      for (const [k, p] of this.carMix) { if ((r -= p) <= 0) { type = k; break; } }
+      const T = this.carTypes[type], cols = this.carColors[type];
+      Object.assign(c, { on: true, li, dir, s, type, len: T.len, vMax: (T.v[0] + Math.random() * (T.v[1] - T.v[0])) * 0.75 / 3.6, color: new THREE.Color(cols[Math.floor(Math.random() * cols.length)]) });
+      c.v = c.vMax;
+      return;
+    }
+    c.on = false;
+  }
+  _at(ln, s, out) {
+    const C = ln.cum; s = Math.max(0, Math.min(ln.len, s));
+    let lo = 0, hi = C.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (C[m] <= s) lo = m; else hi = m; }
+    const t = (s - C[lo]) / ((C[hi] - C[lo]) || 1), a = ln.P[lo], b = ln.P[hi];
+    out[0] = a[0] + (b[0] - a[0]) * t; out[1] = a[1] + (b[1] - a[1]) * t;
+    return out;
+  }
+  updateTraffic(dt, cam, lamps) {
+    if (!this.ct || !this.lanes) return;
+    this.ct.uLamp.value = lamps;
+    while (this.sideCars.length < this.carN) { const c = {}; this._spawnCar(c, cam); this.sideCars.push(c); }
+    const pA = [0, 0], pB = [0, 0], m4 = this._cm || (this._cm = new THREE.Matrix4()), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), v = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
+    for (const k in this.carMesh) this.carMesh[k].count = 0;
+    for (const c of this.sideCars) {
+      if (!c.on) { if (Math.random() < dt) this._spawnCar(c, cam); continue; }
+      const ln = this.lanes[c.li];
+      let gap = Infinity;                                               // xe trước cùng đường, cùng chiều
+      for (const o of this.sideCars) if (o !== c && o.on && o.li === c.li && o.dir === c.dir) { const d = (o.s - c.s) * c.dir; if (d > 0 && d < gap) gap = d; }
+      const want = gap < 12 ? 0 : gap < 30 ? c.vMax * (gap - 12) / 18 : c.vMax;
+      c.v += Math.max(-6 * dt, Math.min(2 * dt, want - c.v));
+      c.s += c.dir * c.v * dt;
+      this._at(ln, c.s, pA);
+      if (c.s < 0 || c.s > ln.len || (pA[0] - cam.x) ** 2 + (pA[1] - cam.z) ** 2 > 550 * 550) { this._spawnCar(c, cam); continue; }
+      this._at(ln, c.s + c.dir * 3, pB);
+      let dx = pB[0] - pA[0], dz = pB[1] - pA[1]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+      const off = c.type === 'scooter' ? ln.hw * 0.7 : ln.hw * 0.42;  // làn phải (xe máy sát lề)
+      const x = pA[0] - dz * off, z = pA[1] + dx * off;
+      q.setFromAxisAngle(up, Math.atan2(-dx, -dz));
+      m4.compose(v.set(x, dalatGround(x, z) + 0.15, z), q, one);
+      const im = this.carMesh[c.type], n = im.count++;
+      im.setMatrixAt(n, m4); im.setColorAt(n, c.color);
+    }
+    for (const k in this.carMesh) { const im = this.carMesh[k]; im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
+  }
+}
+
+// texture đường phụ: nhựa xám lấm tấm + vạch mép trắng liền; center = vạch tim trắng đứt (4 m vạch / 4 m trống trên chu kỳ 8 m)
+function streetTexture(center) {
+  const W = 64, H = 256, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const c = cv.getContext('2d');
+  c.fillStyle = '#4b4b4d'; c.fillRect(0, 0, W, H);
+  for (let i = 0; i < 1400; i++) { const g = 60 + Math.random() * 30; c.fillStyle = `rgb(${g},${g},${g + 2})`; c.fillRect(Math.random() * W, Math.random() * H, 1, 1); }
+  c.fillStyle = '#d9d7cf';
+  c.fillRect(2, 0, 2, H); c.fillRect(W - 4, 0, 2, H);
+  if (center) c.fillRect(W / 2 - 1, 0, 2, H / 2);
+  const t = new THREE.CanvasTexture(cv);
+  t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
 }

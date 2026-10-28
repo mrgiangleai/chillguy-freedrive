@@ -238,6 +238,9 @@ const COLORS = {
   container: ['#b03a2e', '#1f5fa6', '#d4772c', '#2e7d4f', '#7a7d80', '#c9a227'],
 };
 
+// dùng lại cho xe đường phụ map Đà Lạt (dalat.js)
+export { TYPES as VEHICLE_TYPES, COLORS as VEHICLE_COLORS };
+
 export class CityTraffic {
   constructor(scene, road, city) {
     this.road = road;
