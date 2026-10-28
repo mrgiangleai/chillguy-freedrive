@@ -4,7 +4,7 @@
 
 > Đọc trước khi sửa. Xong: 1 dòng **Nhật ký** + tăng bộ đếm; đủ 10 => gộp vào mục trạng thái, đặt lại 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 1/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 2/10**
 
 ## 1. Tổng quan
 
@@ -99,7 +99,7 @@
   `docs/assets/dalat/`: `dalat-city.glb` (nhà bỏ trong 45 m quanh tuyến + trong thung lũng), `dalat-trees.json`, `dalat-streets.json`.
   `src/dalat.js` `DalatScene` (dựng chia `jobs` ≤ 6 ms/khung, lỗi job không dừng vòng vẽ): nhà màu trầm theo toà + cửa sổ đêm; mặt nước hạ 3 m (`WATER_DROP`).
   **Cây**: `dalatTreeMix` (thưa < 120 m bờ, thêm cây > 250 / 600 m), `dalatGround` (DEM + xẻ / đắp như terrain); gần = `pine.glb` (bolojun CC-BY-SA, `_extract`
-  getX/Y/Z — attribute meshopt interleaved), xa = nón hoặc impostor chụp từ pine.glb (`model3d`); bảng 🌲 (`chilldrive.dalat.trees`; `LOOK`: size, mip, cut/cutFar/cutD, leaf/trunk, farBright, shadow; HI_CAP 3000).
+  getX/Y/Z — attribute meshopt interleaved), xa = nón hoặc impostor chụp từ pine.glb (`model3d`); bảng 🌲 (`chilldrive.dalat.trees`; `LOOK`: size, mip, cut/cutFar/cutD, leaf/trunk, farBright, shadow, leafMax; HI_CAP 3000).
   Lá xa: `_leafHook` bù alpha theo mức mipmap (× 1 + mức·mip) + ngưỡng cắt giảm theo khoảng cách; đổi độ sáng lá/thân => `_shoot` chụp lại impostor.
   **Hồ**: nước map Biển chế độ hồ (`ocean.setLake` + `setLakeLook`; bảng 💧 `chilldrive.dalat.water`: màu, sáng, soi trời, nhuộm, nắng, phản chiếu %, gợn);
   phản chiếu `lakeRefl` (WetReflection, ẩn quầng / vũng sáng giả, cắt ≤ 1) trộn trong nước. **Đường**: đường phụ OSM nhựa trơn (nhánh vòng xoay rộng 13 m),
@@ -140,3 +140,4 @@
 
 - Đã tóm tắt tới commit 2b86e57 (28/10/2026, Đà Lạt tới Công viên Ánh Sáng). Bản đầy đủ trước khi nén: ROAD-ARCHIVE.md (chỉ tra khi ROAD.md thiếu).
 - 28/10: Đà Lạt — lá cây xa không còn trơ cành (bù alpha theo mipmap + ngưỡng cắt theo khoảng cách); bảng 🌲 thêm cỡ cây, lá xa, độ sáng lá/thân/cây xa, đổ bóng; nới giới hạn (chi tiết 600 m / 3000 cây, xa 5000 m).
+- 28/10: Đà Lạt — lá cây không sáng hơn cỏ: `_leafHook` chặn độ chói lá ≤ cỏ sáng nhất #6f9850 × leafMax (bảng 🌲 "Lá sáng tối đa").

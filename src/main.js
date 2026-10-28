@@ -1607,6 +1607,7 @@ renderTune = () => {
     addNumber({ label: 'Lá xa từ khoảng (m)', min: 5, max: 600, step: 5, get: () => T.cutD, set: put('cutD') });
     addHeading('Màu');
     addNumber({ label: 'Độ sáng lá (×)', min: 0.3, max: 3, step: 0.05, get: () => T.leaf, set: put('leaf') });
+    addNumber({ label: 'Lá sáng tối đa (so với cỏ ×)', min: 0.3, max: 2, step: 0.05, get: () => T.leafMax, set: put('leafMax') });
     addNumber({ label: 'Độ sáng thân (×)', min: 0.1, max: 2, step: 0.05, get: () => T.trunk, set: put('trunk') });
     addNumber({ label: 'Độ sáng cây xa model 3D (×)', min: 0.3, max: 2.5, step: 0.05, get: () => T.farBright, set: put('farBright') });
     addHeading('Cây chi tiết ~11k tam giác/cây; cây xa: nón ~80, model 3D (ảnh chụp model) 4 tam giác/cây. Giữ lá dày ↑ / ngưỡng lá xa ↓ => tán xa dày hơn');

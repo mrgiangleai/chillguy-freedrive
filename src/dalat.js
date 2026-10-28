@@ -197,11 +197,12 @@ function pineGeometry() {
 // khoảng cách xa nhất còn vẽ cây nón (m), số cây GLB tối đa. Mặc định thấp vì máy điện thoại treo khi vẽ đủ 20 485 cây + 129 cây GLB × 11k tam giác
 // lá ở xa (alpha-test + mipmap làm lá mỏng dần => cây trơ cành): mip = độ dày bù theo mức mipmap (alpha × (1 + mức × mip)),
 // cut / cutFar = ngưỡng cắt lá ở gần / ở cutD m trở ra; size = cỡ cây ×; leaf / trunk = độ sáng lá / thân (chụp lại cây xa khi đổi);
-// farBright = độ sáng cây xa model 3D; shadow = cây chi tiết đổ bóng
-const LOOK = { size: 1, mip: 0.35, cut: 0.5, cutFar: 0.3, cutD: 60, leaf: 1.4, trunk: 0.45, farBright: 1, shadow: 1 };
+// farBright = độ sáng cây xa model 3D; shadow = cây chi tiết đổ bóng; leafMax = độ sáng tối đa của lá so với cỏ sáng nhất (#6f9850)
+const LOOK = { size: 1, mip: 0.35, cut: 0.5, cutFar: 0.3, cutD: 60, leaf: 1.4, trunk: 0.45, farBright: 1, shadow: 1, leafMax: 1 };
 export const DALAT_TREE_DEFAULTS = { high: { on: 1, model3d: 0, density: 100, lodR: 60, far: 700, maxHi: 120, ...LOOK }, low: { on: 1, model3d: 0, density: 60, lodR: 30, far: 400, maxHi: 40, ...LOOK } };
 // model3d = 1: cây xa là ảnh chụp chính model cây thông chú đưa (impostor 2 tấm chéo, 4 tam giác, không đổ bóng) thay cây nón demo
 const TREE_KEY = 'chilldrive.dalat.trees', HI_CAP = 3000;
+const LEAF_MAX = 0.264;                        // độ chói (linear) của cỏ sáng nhất #6f9850 (terrain.js PAL dalat)
 // nước hồ (bảng 💧 Nước hồ; lưu `chilldrive.dalat.water`): màu (sRGB), độ sáng ×, soi trời ×, nhuộm soi trời theo màu nước (0..1),
 // nắng ×, phản chiếu cảnh %, gợn sóng ×
 export const DALAT_WATER_DEFAULTS = { color: '#1b3c26', bright: 1, sky: 0.12, tint: 1, sun: 0.15, refl: 10, wave: 0.4 };
@@ -229,16 +230,17 @@ export class DalatScene {
     };
     // lá (alpha-test): bù độ phủ theo mức mipmap (ảnh lá thu nhỏ ở xa bị pha nền trong suốt => alpha tụt dưới ngưỡng, lá biến mất),
     // ngưỡng cắt giảm dần theo khoảng cách camera (vViewPosition)
-    this.leafU = { uLeafMip: { value: LOOK.mip }, uLeafCut: { value: new THREE.Vector3(LOOK.cut, LOOK.cutFar, LOOK.cutD) } };
+    this.leafU = { uLeafMax: { value: LEAF_MAX * LOOK.leafMax }, uLeafMip: { value: LOOK.mip }, uLeafCut: { value: new THREE.Vector3(LOOK.cut, LOOK.cutFar, LOOK.cutD) } };
     this._leafHook = (sh) => {
       Object.assign(sh.uniforms, this.leafU);
-      sh.fragmentShader = 'uniform float uLeafMip;\nuniform vec3 uLeafCut;\n' + sh.fragmentShader.replace('#include <alphatest_fragment>', `
+      sh.fragmentShader = 'uniform float uLeafMip;\nuniform float uLeafMax;\nuniform vec3 uLeafCut;\n' + sh.fragmentShader.replace('#include <alphatest_fragment>', `
         #ifdef USE_MAP
         { vec2 tu = vMapUv * vec2(textureSize(map, 0)), dx = dFdx(tu), dy = dFdy(tu);
           diffuseColor.a *= 1.0 + max(0.0, 0.5 * log2(max(dot(dx, dx), dot(dy, dy)))) * uLeafMip; }
         #endif
         if (diffuseColor.a < mix(uLeafCut.x, uLeafCut.y, smoothstep(0.0, uLeafCut.z, length(vViewPosition)))) discard;
-        diffuseColor.a = 1.0;`);
+        diffuseColor.a = 1.0;
+        diffuseColor.rgb *= min(1.0, uLeafMax / max(dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)), 1e-4));`);
     };
     this.onLake = null;                        // (tex, bounds) khi tách xong mặt hồ Xuân Hương (main => ocean.setLake)
     this.lake = null;
@@ -278,7 +280,7 @@ export class DalatScene {
   // thông số nhìn của cây (bảng 🌲): lá xa, cỡ, độ sáng, bóng. Đổi độ sáng lá / thân => chụp lại ảnh cây xa (impostor)
   _applyLook() {
     const T = this.tune;
-    this.sizeU.value = T.size;
+    this.sizeU.value = T.size; this.leafU.uLeafMax.value = LEAF_MAX * T.leafMax;
     this.leafU.uLeafMip.value = T.mip; this.leafU.uLeafCut.value.set(T.cut, T.cutFar, Math.max(1, T.cutD));
     for (const { m, base, leaf } of this._mats || []) m.color.copy(base).multiplyScalar(leaf ? T.leaf : T.trunk);
     for (const m of this._farMats || []) m.color.setScalar(T.farBright);
