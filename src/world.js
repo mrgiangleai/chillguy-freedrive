@@ -214,8 +214,8 @@ export class Environment {
     this.envKey = '';
 
     // --- sao / trăng ---
-    // sao: chấm tròn mềm (không vuông), cỡ 0.6–1.7 px theo độ phân giải CSS, sáng khác nhau (đa số mờ, ít sao sáng), lấp lánh nhẹ
-    const NS = 2600, sp = new Float32Array(NS * 3), sz = new Float32Array(NS), br = new Float32Array(NS);
+    // sao: chấm tròn mềm (không vuông), cỡ 0.6–1.7 px theo độ phân giải CSS, sáng khác nhau (đa số mờ, ít sao sáng), lấp lánh chậm
+    const NS = 1200, sp = new Float32Array(NS * 3), sz = new Float32Array(NS), br = new Float32Array(NS);
     for (let i = 0; i < NS; i++) {
       const v = new THREE.Vector3().randomDirection();
       v.y = Math.abs(v.y) * 0.9 + 0.1;
@@ -235,7 +235,7 @@ export class Environment {
       vertexShader: `attribute float aSize, aBright; uniform float uPx, uT; varying float vB;
         void main() {
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          float tw = 0.8 + 0.2 * sin(uT * (1.3 + fract(aBright * 91.7) * 2.0) + position.x * 0.01);
+          float tw = 0.85 + 0.15 * sin(uT * (0.25 + fract(aBright * 91.7) * 0.45) + position.x * 0.01);
           vB = aBright * tw;
           gl_PointSize = max(1.0, aSize * uPx * 1.6);
         }`,

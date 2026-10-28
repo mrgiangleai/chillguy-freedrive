@@ -1575,7 +1575,7 @@ renderTune = () => {
     addNumber({ label: 'Ánh nắng trên mặt nước (×)', min: 0, max: 1, step: 0.01, get: () => W.sun, set: put('sun') });
     addNumber({ label: 'Phản chiếu cảnh (%)', min: 0, max: 60, step: 1, get: () => W.refl, set: put('refl') });
     addNumber({ label: 'Gợn sóng (×)', min: 0, max: 1.5, step: 0.05, get: () => W.wave, set: put('wave') });
-    addNumber({ label: 'Đèn đường in xuống hồ (×, ban đêm)', min: 0, max: 8, step: 0.1, get: () => W.lamp ?? 2, set: put('lamp') });
+    addNumber({ label: 'Vệt đèn đường trên hồ (×, ban đêm)', min: 0, max: 8, step: 0.1, get: () => W.lamp ?? 2, set: put('lamp') });
     return;
   }
   if (tuneKind === 'trees') {                                        // map Đà Lạt: thử hiển thị cây (đổi tức thì, lưu chilldrive.dalat.trees)
@@ -2366,7 +2366,9 @@ function frame(now) {
   if (nycWorks.visible) { nycWorks.setLamps(st.lamps); nycWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
   if (sgnEnv.visible) { sgnEnv.winK = lightTune.windows; sgnEnv.setLamps(st.lamps); sgnEnv.update(dt, camera.position); }
   if (sgnCity.visible) sgnCity.setLamps(st.lamps * lightTune.windows);
-  if (dalatScene.visible) { dalatScene.setLamps(st.lamps * lightTune.windows); diag.lap('trước dalatScene'); dalatScene.update(dt, camera.position); diag.lap('dalatScene'); }
+  if (dalatScene.visible) { dalatScene.setLamps(st.lamps * lightTune.windows); diag.lap('trước dalatScene'); dalatScene.update(dt, camera.position);
+    dalatScene.updateStreaks(dt, () => { const out = []; for (const c of scenery.chunks.values()) for (const L of c.userData.lamps || []) out.push(L[0]); return out; }, (dalatScene.water.lamp ?? 2) * scenery.lampOn, scenery.lampTune.color);
+    diag.lap('dalatScene'); }
   if (sgnScene.visible) sgnScene.setLamps(st.lamps * lightTune.signs);   // LED dọc Landmark 81 theo đèn đêm × "biển hiệu" bảng Lighting
   if (sgnWorks.visible) { sgnWorks.setLamps(st.lamps); sgnWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
   diag.lap('traffic + khác'); minimap.update(dt); diag.lap('minimap');
@@ -2442,10 +2444,10 @@ function frame(now) {
 
   // đường ướt: vẽ ảnh phản chiếu cho vũng nước (chỉ khi mưa)
   if (onDalat() && ocean.u.uLake.value > 0.5) {                // hồ Xuân Hương: vẽ cảnh đối xứng qua mặt hồ mỗi khung (ẩn mặt nước khi vẽ)
-    const ov = ocean.group.visible; ocean.group.visible = false;
+    const ov = ocean.group.visible, sv = dalatScene.streak?.visible; ocean.group.visible = false; if (dalatScene.streak) dalatScene.streak.visible = false;
     lakeRefl.render(scene, camera, WATER_DROP);
-    ocean.group.visible = ov;
-    ocean.setLakeReflection(lakeRefl, dalatScene.water.refl / 100, (dalatScene.water.lamp ?? 2) * scenery.lampOn);   // trộn vào chính mặt nước gợn sóng (như vũng nước mưa), độ rõ theo bảng 💧
+    ocean.group.visible = ov; if (dalatScene.streak) dalatScene.streak.visible = sv;
+    ocean.setLakeReflection(lakeRefl, dalatScene.water.refl / 100);   // trộn vào chính mặt nước gợn sóng (như vũng nước mưa), độ rõ theo bảng 💧
   } else if (lakeRefl.active) { lakeRefl.active = false; ocean.setLakeReflection(null); }
   diag.lap('phản chiếu hồ');
   if (st.wet > 0.001) refl.render(scene, camera, drive.pos.y + 0.05);

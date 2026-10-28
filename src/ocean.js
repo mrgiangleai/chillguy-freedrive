@@ -78,7 +78,7 @@ uniform vec3 uLakeDeep;              // hồ (bảng 💧): màu nước, soi tr
 uniform float uLakeSky, uLakeTint, uLakeSun, uLakeWave;
 uniform sampler2D uReflTex;          // hồ: ảnh phản chiếu phẳng (WetReflection) — như vũng nước mưa: méo theo gợn, độ rõ uReflK
 uniform mat4 uReflMat;
-uniform float uReflK, uReflOn, uLakeLamp;   // uLakeLamp: độ sáng vệt đèn đường in xuống hồ (đã nhân mức bật đèn)
+uniform float uReflK, uReflOn;
 // khoảng cách có dấu tới tim sông (đã trừ độ uốn 40·sin(u/300) như avenue.js)
 float rivA(vec2 p) { vec2 d = p - uRivPF.xy, f = uRivPF.zw, r = vec2(-f.y, f.x); float u = dot(d, r); return dot(d, f) - uRivM * sin(u / 300.0); }
 uniform vec3 uRoad[${ROAD_N}];
@@ -170,12 +170,6 @@ function oceanMaterial(u) {
           vec4 rc = uReflMat * vec4(vOW.x, uSea, vOW.z, 1.0);
           vec2 ruv = rc.xy / rc.w + wv.yz * 0.02;
           vec3 rcol = texture2D(uReflTex, ruv).rgb;
-          // đèn đường / cửa sổ sáng: lấy sáng nhất theo dọc ảnh (vệt dài như đèn in trên mặt nước), chỉ phần rất sáng, cộng thêm
-          if (uLakeLamp > 0.0) {
-            vec3 hi = rcol;
-            for (int k = 1; k <= 4; k++) { float o = float(k) * 0.009; hi = max(hi, max(texture2D(uReflTex, ruv + vec2(0.0, o)).rgb, texture2D(uReflTex, ruv - vec2(0.0, o)).rgb) * (1.0 - float(k) * 0.12)); }
-            outgoingLight += max(hi - 0.8, 0.0) * uLakeLamp * (1.0 - oFoam);
-          }
           rcol = mix(rcol, dot(rcol, vec3(0.3, 0.59, 0.11)) * normalize(uLakeDeep + 1e-4) * 1.7, uLakeTint * 0.6);
           outgoingLight = mix(outgoingLight, rcol, uReflK * (1.0 - oFoam));
         }
@@ -202,7 +196,7 @@ export class Ocean {
       uRiv: { value: 0 }, uRivHW: { value: 100 }, uRivM: { value: 40 }, uRivPF: { value: new THREE.Vector4() },
       uLake: { value: 0 }, uLakeM: { value: null }, uLakeB: { value: new THREE.Vector4() },
       uLakeDeep: { value: new THREE.Color(0.011, 0.045, 0.019) }, uLakeSky: { value: 0.12 }, uLakeTint: { value: 1 }, uLakeSun: { value: 0.15 }, uLakeWave: { value: 0.4 },
-      uReflTex: { value: null }, uReflMat: { value: new THREE.Matrix4() }, uReflK: { value: 0 }, uReflOn: { value: 0 }, uLakeLamp: { value: 0 } };
+      uReflTex: { value: null }, uReflMat: { value: new THREE.Matrix4() }, uReflK: { value: 0 }, uReflOn: { value: 0 } };
     this.material = null;
     this._p = {};
   }
@@ -259,8 +253,8 @@ export class Ocean {
     u.uLakeSky.value = T.sky; u.uLakeTint.value = T.tint; u.uLakeSun.value = T.sun; u.uLakeWave.value = T.wave;
   }
   // hồ (Đà Lạt): gắn ảnh phản chiếu phẳng (refl đã render; null => tắt), k = độ rõ
-  setLakeReflection(refl, k = 0.1, lamp = 0) {
-    const u = this.u, on = !!(refl && refl.active); u.uReflOn.value = on ? 1 : 0; u.uReflK.value = k; u.uLakeLamp.value = lamp;
+  setLakeReflection(refl, k = 0.1) {
+    const u = this.u, on = !!(refl && refl.active); u.uReflOn.value = on ? 1 : 0; u.uReflK.value = k;
     if (refl) { u.uReflTex.value = refl.rt.texture; u.uReflMat.value.copy(refl.texMatrix); }
   }
 
