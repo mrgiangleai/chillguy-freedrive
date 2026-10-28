@@ -1594,11 +1594,22 @@ renderTune = () => {
     const T = dalatScene.tune, put = (k) => (v) => dalatScene.setTune({ [k]: v });
     addToggle({ label: 'Hiện cây', get: () => T.on, set: put('on') });
     addToggle({ label: 'Cây xa', get: () => T.model3d, set: put('model3d'), names: ['Demo (nón)', 'Model 3D'] });
-    addNumber({ label: 'Mật độ cây (%)', min: 0, max: 100, step: 5, get: () => T.density, set: put('density') });
-    addNumber({ label: 'Cây model chi tiết trong (m)', min: 0, max: 200, step: 5, get: () => T.lodR, set: put('lodR') });
-    addNumber({ label: 'Số cây chi tiết tối đa', min: 0, max: 1500, step: 10, get: () => T.maxHi, set: put('maxHi') });
-    addNumber({ label: 'Vẽ cây xa tới (m)', min: 50, max: 2500, step: 50, get: () => T.far, set: put('far') });
-    addHeading('Cây chi tiết ~11k tam giác/cây; cây xa: nón ~80, model 3D (ảnh chụp model) 4 tam giác/cây');
+    addToggle({ label: 'Cây chi tiết đổ bóng', get: () => T.shadow, set: put('shadow') });
+    addNumber({ label: 'Mật độ cây (%)', min: 0, max: 100, step: 1, get: () => T.density, set: put('density') });
+    addNumber({ label: 'Cỡ cây (×)', min: 0.3, max: 3, step: 0.05, get: () => T.size, set: put('size') });
+    addNumber({ label: 'Cây model chi tiết trong (m)', min: 0, max: 600, step: 5, get: () => T.lodR, set: put('lodR') });
+    addNumber({ label: 'Số cây chi tiết tối đa', min: 0, max: 3000, step: 10, get: () => T.maxHi, set: put('maxHi') });
+    addNumber({ label: 'Vẽ cây xa tới (m)', min: 50, max: 5000, step: 50, get: () => T.far, set: put('far') });
+    addHeading('Lá ở xa (chống cây trơ cành)');
+    addNumber({ label: 'Giữ lá dày khi xa (×)', min: 0, max: 2, step: 0.05, get: () => T.mip, set: put('mip') });
+    addNumber({ label: 'Ngưỡng cắt lá gần', min: 0.05, max: 0.95, step: 0.01, get: () => T.cut, set: put('cut') });
+    addNumber({ label: 'Ngưỡng cắt lá xa', min: 0.02, max: 0.95, step: 0.01, get: () => T.cutFar, set: put('cutFar') });
+    addNumber({ label: 'Lá xa từ khoảng (m)', min: 5, max: 600, step: 5, get: () => T.cutD, set: put('cutD') });
+    addHeading('Màu');
+    addNumber({ label: 'Độ sáng lá (×)', min: 0.3, max: 3, step: 0.05, get: () => T.leaf, set: put('leaf') });
+    addNumber({ label: 'Độ sáng thân (×)', min: 0.1, max: 2, step: 0.05, get: () => T.trunk, set: put('trunk') });
+    addNumber({ label: 'Độ sáng cây xa model 3D (×)', min: 0.3, max: 2.5, step: 0.05, get: () => T.farBright, set: put('farBright') });
+    addHeading('Cây chi tiết ~11k tam giác/cây; cây xa: nón ~80, model 3D (ảnh chụp model) 4 tam giác/cây. Giữ lá dày ↑ / ngưỡng lá xa ↓ => tán xa dày hơn');
     return;
   }
   if (tuneKind === 'nature') {

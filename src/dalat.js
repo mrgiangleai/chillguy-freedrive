@@ -195,9 +195,13 @@ function pineGeometry() {
 
 // cài đặt cây (bảng 🌲 Cây, chỉ map Đà Lạt; lưu `chilldrive.dalat.trees`): bật / tắt, mật độ %, bán kính cây GLB chi tiết (m),
 // khoảng cách xa nhất còn vẽ cây nón (m), số cây GLB tối đa. Mặc định thấp vì máy điện thoại treo khi vẽ đủ 20 485 cây + 129 cây GLB × 11k tam giác
-export const DALAT_TREE_DEFAULTS = { high: { on: 1, model3d: 0, density: 100, lodR: 60, far: 700, maxHi: 120 }, low: { on: 1, model3d: 0, density: 60, lodR: 30, far: 400, maxHi: 40 } };
+// lá ở xa (alpha-test + mipmap làm lá mỏng dần => cây trơ cành): mip = độ dày bù theo mức mipmap (alpha × (1 + mức × mip)),
+// cut / cutFar = ngưỡng cắt lá ở gần / ở cutD m trở ra; size = cỡ cây ×; leaf / trunk = độ sáng lá / thân (chụp lại cây xa khi đổi);
+// farBright = độ sáng cây xa model 3D; shadow = cây chi tiết đổ bóng
+const LOOK = { size: 1, mip: 0.35, cut: 0.5, cutFar: 0.3, cutD: 60, leaf: 1.4, trunk: 0.45, farBright: 1, shadow: 1 };
+export const DALAT_TREE_DEFAULTS = { high: { on: 1, model3d: 0, density: 100, lodR: 60, far: 700, maxHi: 120, ...LOOK }, low: { on: 1, model3d: 0, density: 60, lodR: 30, far: 400, maxHi: 40, ...LOOK } };
 // model3d = 1: cây xa là ảnh chụp chính model cây thông chú đưa (impostor 2 tấm chéo, 4 tam giác, không đổ bóng) thay cây nón demo
-const TREE_KEY = 'chilldrive.dalat.trees', HI_CAP = 1500;
+const TREE_KEY = 'chilldrive.dalat.trees', HI_CAP = 3000;
 // nước hồ (bảng 💧 Nước hồ; lưu `chilldrive.dalat.water`): màu (sRGB), độ sáng ×, soi trời ×, nhuộm soi trời theo màu nước (0..1),
 // nắng ×, phản chiếu cảnh %, gợn sóng ×
 export const DALAT_WATER_DEFAULTS = { color: '#1b3c26', bright: 1, sky: 0.12, tint: 1, sun: 0.15, refl: 10, wave: 0.4 };
@@ -215,11 +219,26 @@ export class DalatScene {
     this.lodU = { value: new THREE.Vector3(0, 0, 0) };   // (x, z, R) — tâm + bán kính vùng GLB lúc chia gần nhất (shader nón bỏ cây trong vùng)
     this.kU = { value: new THREE.Vector2(1, 700) };      // (mật độ 0..1, khoảng cách xa nhất cây nón)
     // shader cây xa (nón / model nhẹ): bỏ cây trong vùng GLB chi tiết (lodU), xa hơn kU.y, hoặc aRnd > mật độ kU.x
+    this.sizeU = { value: 1 };
     this._lodHook = (sh) => {
-      sh.uniforms.uDalatLod = this.lodU; sh.uniforms.uDalatK = this.kU;
-      sh.vertexShader = 'uniform vec3 uDalatLod;\nuniform vec2 uDalatK;\nattribute float aRnd;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      sh.uniforms.uDalatLod = this.lodU; sh.uniforms.uDalatK = this.kU; sh.uniforms.uDalatS = this.sizeU;
+      sh.vertexShader = 'uniform vec3 uDalatLod;\nuniform vec2 uDalatK;\nuniform float uDalatS;\nattribute float aRnd;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+        transformed *= uDalatS;
         { vec2 ip = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz - uDalatLod.xy; float d2 = dot(ip, ip);
           if (d2 < uDalatLod.z * uDalatLod.z || d2 > uDalatK.y * uDalatK.y || aRnd > uDalatK.x) transformed *= 0.0; }`);
+    };
+    // lá (alpha-test): bù độ phủ theo mức mipmap (ảnh lá thu nhỏ ở xa bị pha nền trong suốt => alpha tụt dưới ngưỡng, lá biến mất),
+    // ngưỡng cắt giảm dần theo khoảng cách camera (vViewPosition)
+    this.leafU = { uLeafMip: { value: LOOK.mip }, uLeafCut: { value: new THREE.Vector3(LOOK.cut, LOOK.cutFar, LOOK.cutD) } };
+    this._leafHook = (sh) => {
+      Object.assign(sh.uniforms, this.leafU);
+      sh.fragmentShader = 'uniform float uLeafMip;\nuniform vec3 uLeafCut;\n' + sh.fragmentShader.replace('#include <alphatest_fragment>', `
+        #ifdef USE_MAP
+        { vec2 tu = vMapUv * vec2(textureSize(map, 0)), dx = dFdx(tu), dy = dFdy(tu);
+          diffuseColor.a *= 1.0 + max(0.0, 0.5 * log2(max(dot(dx, dx), dot(dy, dy)))) * uLeafMip; }
+        #endif
+        if (diffuseColor.a < mix(uLeafCut.x, uLeafCut.y, smoothstep(0.0, uLeafCut.z, length(vViewPosition)))) discard;
+        diffuseColor.a = 1.0;`);
     };
     this.onLake = null;                        // (tex, bounds) khi tách xong mặt hồ Xuân Hương (main => ocean.setLake)
     this.lake = null;
@@ -251,8 +270,32 @@ export class DalatScene {
     this.cones.visible = !far3d; this.farModels.visible = far3d;
     if (T.model3d) this._buildFar();
     this.kU.value.set(T.density / 100, T.far);
-    this._lodAt = null;                                              // chia lại ngay khung sau
+    this._applyLook();
+    this._lodAt = null;                                             // chia lại ngay khung sau
     if (save) try { localStorage.setItem(TREE_KEY, JSON.stringify(T)); } catch { /* chế độ riêng tư */ }
+  }
+
+  // thông số nhìn của cây (bảng 🌲): lá xa, cỡ, độ sáng, bóng. Đổi độ sáng lá / thân => chụp lại ảnh cây xa (impostor)
+  _applyLook() {
+    const T = this.tune;
+    this.sizeU.value = T.size;
+    this.leafU.uLeafMip.value = T.mip; this.leafU.uLeafCut.value.set(T.cut, T.cutFar, Math.max(1, T.cutD));
+    for (const { m, base, leaf } of this._mats || []) m.color.copy(base).multiplyScalar(leaf ? T.leaf : T.trunk);
+    for (const m of this._farMats || []) m.color.setScalar(T.farBright);
+    for (const im of this.pineParts || []) im.castShadow = !!T.shadow;
+    const key = T.leaf + ':' + T.trunk;
+    if (this._src && this._lookKey && key !== this._lookKey) {
+      clearTimeout(this._reshoot);                                   // kéo thanh trượt liên tục => chụp 1 lần khi dừng
+      this._reshoot = setTimeout(() => { try { this._shoot(); } catch (e) { console.warn('dalat impostor', e); } }, 300);
+    }
+    this._lookKey = key;
+  }
+  // chụp lại ảnh cây xa vào đúng render target cũ (vật liệu cây xa giữ nguyên)
+  _shoot() {
+    if (!this.renderer || !this._src) return;
+    const fresh = this._impostor(this._src, this._rt);
+    this._lookKey = this.tune.leaf + ':' + this.tune.trunk;
+    return fresh;
   }
 
   _load() {
@@ -345,15 +388,15 @@ export class DalatScene {
 
   // cây thông GLB ("pine tree" — bolojun, Sketchfab, CC-BY-SA-4.0; simplify 12 % + WebP 512 + meshopt): chuẩn hoá cao 1 m, gốc thân về (0, 0, 0)
   _pine(root) {
-    const src = this._extract(root);
-    if (this.renderer) try { this.farParts = this._impostor(src); this.setTune({}, false); } catch (e) { console.warn('dalat impostor', e); this.diag?.step('LỖI impostor: ' + e.message); }
+    const src = this._src = this._extract(root);
+    if (this.renderer) try { this.farParts = this._impostor(src); this._lookKey = this.tune.leaf + ':' + this.tune.trunk; this.setTune({}, false); } catch (e) { console.warn('dalat impostor', e); this.diag?.step('LỖI impostor: ' + e.message); }
     this.pineParts = src.map(({ g, m }) => {
       const im = new THREE.InstancedMesh(g, m, HI_CAP);
       im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       im.count = 0; im.frustumCulled = false; im.castShadow = true; im.receiveShadow = true;
       this.trees.add(im); return im;
     });
-    this._lodAt = null;
+    this.setTune({}, false);
   }
   // gộp transform vào geometry, chuẩn hoá cao 1 m, gốc thân về (0, 0, 0); lá trong suốt => cắt alpha + 2 mặt
   _extract(root) {
@@ -373,10 +416,11 @@ export class DalatScene {
       g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(norm, o.matrixWorld));
       const m = o.material.clone();
       const leaf = m.transparent || m.alphaTest > 0;
-      if (leaf) { m.alphaTest = 0.5; m.transparent = false; m.depthWrite = true; }
+      if (leaf) { m.alphaTest = 0.5; m.transparent = false; m.depthWrite = true; m.onBeforeCompile = this._leafHook; m.customProgramCacheKey = () => 'dalat-leaf'; }
       m.side = THREE.DoubleSide; m.shadowSide = THREE.DoubleSide;
       // thân / cành (vật liệu đục) sáng hơn lá nhiều => thân tối lại, lá sáng lên; bớt bóng loáng (KHR_materials_specular)
-      m.color.multiplyScalar(leaf ? 1.4 : 0.45);
+      (this._mats || (this._mats = [])).push({ m, base: m.color.clone(), leaf });
+      m.color.multiplyScalar(leaf ? this.tune.leaf : this.tune.trunk);
       m.roughness = 1; m.metalness = 0;
       if (m.specularIntensity !== undefined) m.specularIntensity = leaf ? 0.3 : 0.15;
       out.push({ g, m });
@@ -408,9 +452,9 @@ export class DalatScene {
 
   // impostor: chụp model cây (nhìn ngang, ánh sáng đều) vào ảnh 256 × 400 có kênh alpha => 2 tấm chéo nhau, pháp tuyến hướng lên
   // (sáng đều mọi hướng nắng). Gốc (0, 0, 0), cao 1 m như model đã chuẩn hoá
-  _impostor(parts) {
+  _impostor(parts, old) {
     const R = this.renderer, HW = 0.32, W = 256, H = Math.round(W / (2 * HW));
-    const rt = new THREE.WebGLRenderTarget(W, H);
+    const rt = old || (this._rt = new THREE.WebGLRenderTarget(W, H));
     rt.texture.generateMipmaps = true; rt.texture.minFilter = THREE.LinearMipmapLinearFilter;
     const sc = new THREE.Scene();
     for (const { g, m } of parts) sc.add(new THREE.Mesh(g, m));
@@ -421,6 +465,7 @@ export class DalatScene {
     R.shadowMap.autoUpdate = false;
     R.setRenderTarget(rt); R.setClearColor(0x000000, 0); R.clear(); R.render(sc, cam);
     R.setRenderTarget(prev); R.setClearColor(pc, pa); R.shadowMap.autoUpdate = auto;
+    if (old) return null;                                            // chụp lại: vật liệu cây xa dùng chung texture này
     const a = new THREE.PlaneGeometry(2 * HW, 1).translate(0, 0.5, 0), b = a.clone().rotateY(Math.PI / 2);
     const pos = [...a.toNonIndexed().attributes.position.array, ...b.toNonIndexed().attributes.position.array];
     const uv = [...a.toNonIndexed().attributes.uv.array, ...b.toNonIndexed().attributes.uv.array];
@@ -436,7 +481,8 @@ export class DalatScene {
     if (this._farBuilt || !this.farParts || !this.cells || !this.tune.model3d) return;
     this._farBuilt = true;
     const parts = this.farParts.map(({ g, m }, k) => {
-      const mm = m.clone(); mm.onBeforeCompile = this._lodHook; mm.customProgramCacheKey = () => 'dalat-far-' + k;
+      const mm = m.clone(); mm.onBeforeCompile = (sh) => { this._lodHook(sh); this._leafHook(sh); }; mm.customProgramCacheKey = () => 'dalat-far-' + k;
+      mm.color.setScalar(this.tune.farBright); (this._farMats || (this._farMats = [])).push(mm);
       return { g, m: mm };
     });
     for (const idx of this.cells) this.jobs.push({ name: 'ô cây model xa', quiet: true, f: () => {
@@ -490,7 +536,7 @@ export class DalatScene {
     if (cand.length > T.maxHi) { cand.sort((a, b) => a - b); cand.length = T.maxHi; Reff = Math.sqrt(Math.floor(cand[T.maxHi - 1] / 65536)) + 0.01; }
     const m4 = this._m4 || (this._m4 = new THREE.Matrix4()), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), sc = new THREE.Vector3();
     cand.forEach((key, n) => {
-      const i = key % 65536, h = this.th[i] * (0.9 + ((i * 7919) % 100) / 500);
+      const i = key % 65536, h = this.th[i] * (0.9 + ((i * 7919) % 100) / 500) * T.size;
       q.setFromAxisAngle(up, (i * 2.399) % 6.283);
       m4.compose(p.set(this.tx[i], this.ty[i], this.tz[i]), q, sc.set(h, h, h));
       for (const im of parts) im.setMatrixAt(n, m4);
