@@ -660,3 +660,28 @@
 - **#7 — Người 3D đi theo clip nhân vật chính (28/10/2026)**: Claude tự làm; shader kiểm glslangValidator, check-people-walk / ped-walk / nyc /
   ped-yield / traffic / sgn-park PASS. Có thể thấy nách / háng hơi dãn ở vài model (racer, ff-jota, ff-skyler) — chú tự test.
 - **Plan model tòa nhà NYC (28/10/2026)**: ghi plan B1–B4 ở đầu mục 5 (nguồn ổ SSD `3d model/city`), chưa làm — phiên mới làm tiếp.
+
+## Bổ sung sau khi nén (Đà Lạt, 28/10/2026 — nguyên văn)
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 10/10**
+  `check-stopscene.mjs`, `check-hlg.mjs`, `check-nyc.mjs`, `check-sgn.mjs`, `check-dalat.mjs`, `check-nyc-wave.mjs`, `check-nyc-buildings.mjs`, `check-nyc-sound.mjs`, `check-nyc-landmark-roads.mjs`, `check-ped-yield.mjs`, `check-nyc-props.mjs`, `check-nyc-sidecam.mjs`, `check-mustang-grip.mjs`, `check-mazda.mjs`, `check-chisa.mjs`, `check-male.mjs`, `check-car-switch.mjs`, `check-ocean-loop.mjs`,
+  ocean-waves.png; hlg: hlg-env.json; nyc: nyc-buildings / nyc-streets.json; dalat: assets/dalat/*) — thêm map / tài nguyên mới thì nhớ thêm vào đây. Màn hình
+  **Map Hồ Xuân Hương – Đà Lạt** (`dalat`, 🌲, nhóm Chill, cuối `MAPS`; `mapKind` = 'dalat'; 28/10 bản nhanh, Claude): vòng khép kín 4.91 km
+  quanh hồ theo đường OSM thật (Trần Quốc Toản…, chiều kim đồng hồ, hồ bên phải, s = 0 ở bờ nam). `scripts/fetch-dalat.mjs [fbx]` (FBX gốc
+  `/Volumes/SSD 1TB/VIBE CODING/3d model/saigon/(ho xuan huong DL)urban-export_11.9449_108.4456_2520m.fbx`, chép `.scratch/dalat.fbx`):
+  FBX X đông / Y bắc khớp phép chiếu OSM cos(lat) không cần offset => game x = X, z = −Y, y = Z − mặt hồ (86.3). Tuyến = chu trình ngắn nhất
+  cắt tia từ tâm hồ số lẻ lần (đồ thị đường xe trong 300 m quanh hồ), làm mượt vị trí (TB trượt 29 m × 3, R ≥ 28 m). `src/dalat-data.json`:
+  tuyến 5 m + `road` (cao độ tuyệt đối = DEM dọc tuyến làm mượt, ≥ mặt hồ + 0.8, dốc ≤ 6.8 %) + DEM 10 m (Int16 dm base64) => `TP.dem`
+  (terrain `dalat`: low/det/mount 0 => địa hình đúng FBX; đáy nước −1.5 m). road.js `_loopPt`: `loop.abs(s)` cho cao độ tuyệt đối, đất bám
+  mặt đường trừ chỗ cao > 1.5–3.5 m (cầu). `docs/assets/dalat/`: `dalat-city.glb` (6 071 toà 5 loại + cầu + nước, GLB tự ghi → meshopt 1.07 MB),
+  `dalat-trees.json` (20 485 cây [x, z, cao], bỏ trên đường / dưới nước), `dalat-streets.json` (548 đường OSM khác => dải nhựa trên DEM).
+  `src/dalat.js` `DalatScene`: cửa sổ đêm dùng `SgnCity._shader`, cây thông code (InstancedMesh theo ô 300 m, Low = nửa số cây). FBX không
+  có lưới đường => đường lấy OSM. Không cọc tiêu (scenery). `BY_MAP.dalat`. `scripts/check-dalat.mjs` PASS. Chưa: nhà thật chi tiết,
+  vỉa hè, đèn / cảnh quanh hồ, đồi xa ngoài vùng 2.5 km (DEM giữ giá trị mép), Stop đỗ bên phải có thể sát mép hồ.
+  **Cây + nước (28/10)**: cây thông `docs/assets/models/dalat/pine.glb` ("pine tree" bolojun, CC-BY-SA-4.0, gốc ổ SSD `3d model/tree/pine tree/`;
+  simplify 0.12 + WebP 512 + meshopt, 475 KB, 11k tam giác): `DalatScene.update` chia mỗi 8 m / 0.6 s, cây trong `lodR` (90 m, Low 45) => InstancedMesh
+  GLB (cap 1 500), xa => nón code; shader nón (cả customDepthMaterial) bỏ cây trong vùng `lodU` (x, z, R). Mặt hồ Xuân Hương = nước map Biển chế độ
+  hồ (`ocean.setLake`: `uRiv` = 1 + `uLake` = 1, mặt nạ CanvasTexture vẽ từ tam giác WATER y ≈ 0 trong đa giác hồ, gợn ×0.4, màu xanh lá đậm,
+  specular trực tiếp ×0.35 / gián tiếp ×0.55); ao khác giữ lưới FBX màu 0x1d3a22.
+- **#9 — Map Hồ Xuân Hương – Đà Lạt bản nhanh (28/10/2026)**: Claude tự làm từ FBX urban:EXPORT + OSM (mục map ở trên); check-dalat /
+  nyc / sgn / minimap-jump / steering PASS; chưa thử trình duyệt — chú tự test trên điện thoại.
+- **#10 — Đà Lạt: cây thông GLB + nước hồ kiểu map Biển (28/10/2026)**: Claude tự làm; check-dalat / ocean-loop PASS, chưa thử trình duyệt.
