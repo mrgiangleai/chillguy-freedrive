@@ -39,6 +39,8 @@ export const RB_ON = { value: 0 };                 // main bật khi ở map Đ�
 export const nearRoundabout = (x, z, pad = 6) => Math.hypot(x - ROUNDABOUT.x, z - ROUNDABOUT.z) < ROUNDABOUT.r + ROUNDABOUT.hw + pad;
 // cầu Sắt — đường vòng hồ qua đập đầu hồ phía bắc (OSM way 301084151, s ≈ 2 910–2 930; mặt đường cao hơn lòng suối tới 3.8 m ở s 2 865–2 950)
 export const BRIDGE = { s0: 2862, s1: 2952 };
+// các vòng xoay OSM trên tuyến vòng hồ [x, z, r] (vỉa hè hồ dừng trước vòng xoay)
+export const LOOP_ROUNDABOUTS = [[-870.3, 513.8, 19.1 + 7], [-412.8, 692.5, 13.6], [666.1, -685.1, 10.8], [-556.5, 286.5, 10.0], [-765.9, 617.9, 12.0]];
 export const WATER_DROP = -3;
 export const DALAT_ENV = 0.4;                // mặt đường / đất ở Đà Lạt: bớt ánh trời (envMap) — trời trong không ám xanh dương xuống đường                 // mặt nước game thấp hơn mặt nước FBX 3 m (đáy DEM: −5.5 m)
 
@@ -667,6 +669,47 @@ export class DalatScene {
     this.bridge.add(mk(conc, withMist(new THREE.MeshStandardMaterial({ color: 0xbdb8ae, roughness: 0.9, envMapIntensity: DALAT_ENV }))),
       mk(steel, withMist(new THREE.MeshStandardMaterial({ color: 0x3b4a44, roughness: 0.5, metalness: 0.6, envMapIntensity: DALAT_ENV }))));
     this.group.add(this.bridge);
+  }
+
+  // vỉa hè ven hồ: phía hồ (bên phải xe) của đường vòng hồ, rộng 3 m, cao hơn mặt đường 15 cm, gạch lát xám nhạt; mép trong là bó vỉa đứng,
+  // mép ngoài thả xuống 1.5 m (che đất dốc xuống hồ). Bỏ qua vòng xoay (r + 12 m) và các đoạn cầu (`skip(s)`)
+  buildSidewalk(road, skip = () => false) {
+    if (this.sidewalk) return;
+    const L = DALAT.length, HW = 4.6, W = 3, H = 0.15, step = 2, p = {};
+    road.ensure(L + 10);
+    const off = (pp, o, dy) => [pp.x + Math.cos(pp.th) * o, pp.y + dy, pp.z - Math.sin(pp.th) * o];
+    const top = [], tuv = [], side = [];
+    const inRb = (x, z) => LOOP_ROUNDABOUTS.some(([cx, cz, r]) => Math.hypot(x - cx, z - cz) < r + 12);
+    let prev = null;
+    for (let s = 0; s <= L; s += step) {
+      road.at(s, p);
+      const a = off(p, HW + 0.05, H), b = off(p, HW + W, H), c = off(p, HW + 0.05, -0.05), e = off(p, HW + W, -1.5);
+      const ok = !skip(s) && !inRb(a[0], a[2]) && !inRb(b[0], b[2]);
+      const cur = { a, b, c, e, s, ok };
+      if (prev && prev.ok && ok) {
+        top.push(...prev.a, ...cur.a, ...prev.b, ...prev.b, ...cur.a, ...cur.b);
+        const v0 = prev.s / 3, v1 = s / 3; tuv.push(0, v0, 0, v1, 1, v0, 1, v0, 0, v1, 1, v1);
+        side.push(...prev.c, ...prev.a, ...cur.c, ...cur.c, ...prev.a, ...cur.a);   // bó vỉa
+        side.push(...prev.b, ...prev.e, ...cur.b, ...cur.b, ...prev.e, ...cur.e);   // mép ngoài
+      }
+      prev = cur;
+    }
+    const cv = document.createElement('canvas'); cv.width = 128; cv.height = 128;
+    const c = cv.getContext('2d');
+    c.fillStyle = '#a7a39b'; c.fillRect(0, 0, 128, 128);
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { const g = 150 + Math.floor(Math.random() * 30); c.fillStyle = `rgb(${g},${g - 4},${g - 10})`; c.fillRect(i * 32 + 1, j * 32 + 1, 30, 30); }
+    const tex = new THREE.CanvasTexture(cv); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.colorSpace = THREE.SRGBColorSpace; tex.repeat.set(3, 1);
+    const mk = (pos, uv, mat) => {
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      if (uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      g.computeVertexNormals();
+      const m = new THREE.Mesh(g, mat); m.receiveShadow = true; m.matrixAutoUpdate = false; return m;
+    };
+    const tm = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, envMapIntensity: DALAT_ENV, side: THREE.DoubleSide }); addFakeLight(tm); withMist(tm);
+    const sm = new THREE.MeshStandardMaterial({ color: 0xc9c5bc, roughness: 0.85, envMapIntensity: DALAT_ENV, side: THREE.DoubleSide }); addFakeLight(sm); withMist(sm);
+    this.sidewalk = new THREE.Group();
+    this.sidewalk.add(mk(top, tuv, tm), mk(side, null, sm));
+    this.group.add(this.sidewalk);
   }
 
   // xe chạy trên đường phụ: dùng lại hình xe dựng sẵn của map Phố (cityTraffic: sedan / kei / taxi / van / xe máy, đèn tự sáng ban đêm),
