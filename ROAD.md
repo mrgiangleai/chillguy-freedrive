@@ -4,7 +4,7 @@
 
 > Đọc trước khi sửa. Xong: 1 dòng **Nhật ký** + tăng bộ đếm; đủ 10 => gộp vào mục trạng thái, đặt lại 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 13/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 14/10**
 
 ## 1. Tổng quan
 
@@ -141,3 +141,4 @@
 - **#11 — Đà Lạt (28/10/2026)**: nước hồ: đáy sâu tối hơn (deep 0.011/0.045/0.019), soi trời ×0.2, nắng ×0.15.
 - **#12 — Đà Lạt (28/10/2026)**: hồ vẫn xanh dương do soi trời (Fresnel góc xiên) => soi trời = độ sáng × xanh lá × 0.12, ảnh phản chiếu nhuộm xanh lá.
 - **#13 — Đà Lạt bảng 💧 Nước hồ (28/10/2026)**: `b-water` (chỉ Đà Lạt, `chilldrive.dalat.water`, `DALAT_WATER_DEFAULTS`): màu, độ sáng, soi trời, nhuộm soi trời theo màu nước, nắng, phản chiếu cảnh %, gợn sóng => `ocean.setLakeLook` (uniform uLakeDeep/Sky/Tint/Sun/Wave).
+- **#14 — Đèn đường (28/10/2026)**: `STREETLIGHT_DEFAULTS` thêm `count` 3 / `countDalat` 10 / `range` 200 (💡 Lighting: số SpotLight thật + phạm vi, `_setLampCount` đổi số đèn => biên dịch lại 1 lần). Đà Lạt: đèn mỗi 40 m, vũng sáng giả, `scenery.ahead/behind` 21/20 = dựng cả vòng (prime chỉ cửa sổ gần, còn lại 2 chunk/khung); hồ cộng vệt đèn sáng từ ảnh phản chiếu (lấy max dọc 9 mẫu, phần > 0.8) × `water.lamp` (2) × mức bật đèn — bảng 💧.

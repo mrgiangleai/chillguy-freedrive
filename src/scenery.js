@@ -6,7 +6,7 @@ import { withMist } from './mist.js';
 
 const { chunkLen: L, step: STEP } = ROAD;
 let HW = ROAD.halfWidth;                // đổi theo map (đọc lại ở setMap)
-const AHEAD = 7;   // số chunk đường dựng phía trước xe
+const AHEAD = 7;   // số chunk đường dựng phía trước xe (mặc định; map Đà Lạt: cả vòng hồ — `ahead` / `behind`)
 const BEHIND = 1;
 
 function tint(geo, hex) {
@@ -153,6 +153,7 @@ const LAMP_LIGHTS = 3;
 export const STREETLIGHT_DEFAULTS = Object.freeze({
   intensity: 28, distance: 118, angle: 1.2, penumbra: 0.8, decay: 0.6,
   glowOpacity: 0.9, glowSize: 9, color: '#ffc98a',
+  count: 3, countDalat: 10, range: 200,   // số SpotLight thật (map Đà Lạt riêng: ưu tiên ánh sáng) gán cho cột gần camera trong phạm vi `range` m
 });
 
 function lampGeometry() {
@@ -303,11 +304,9 @@ export class Scenery {
       blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 });
     this.poolGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
     this.lampTune = { ...STREETLIGHT_DEFAULTS };
-    this.lampLights = Array.from({ length: LAMP_LIGHTS }, () => {
-      const l = new THREE.SpotLight(0xffc98a, 0, 80, 1.2, 0.8, 0.6);
-      this.scene.add(l, l.target);
-      return l;
-    });
+    this.ahead = AHEAD; this.behind = BEHIND;
+    this.lampLights = [];
+    this._setLampCount(LAMP_LIGHTS);
     this._lampList = [];
     this.lampGeo = lampGeometry();
     this.railPostGeo = new THREE.BoxGeometry(0.12, 0.8, 0.12).translate(0, 0.4, 0);
@@ -330,6 +329,7 @@ export class Scenery {
   update(s, budget = 2) {
     this.lastS = s;
     const k = Math.floor(s / L);
+    const AHEAD = this.ahead, BEHIND = this.behind;
     for (let i = Math.max(0, k - BEHIND); i <= k + AHEAD; i++) {
       if (!this.chunks.has(i) && !this.queue.includes(i)) this.queue.push(i);
     }
@@ -343,7 +343,13 @@ export class Scenery {
     }
   }
 
-  prime(s) { this.update(s, 999); }
+  // dựng ngay các chunk gần (cửa sổ mặc định); phần còn lại (Đà Lạt: cả vòng) dựng dần trong update, mỗi khung 2 chunk
+  prime(s) {
+    const a = this.ahead, b = this.behind;
+    this.ahead = Math.min(a, AHEAD); this.behind = Math.min(b, BEHIND);
+    this.update(s, 999);
+    this.ahead = a; this.behind = b;
+  }
 
   apply(st) {
     const on = st.lamps;
@@ -367,7 +373,16 @@ export class Scenery {
 
   // gán SpotLight cho các cột đèn gần camera nhất. Mức sáng của đèn thứ i giảm dần khi khoảng cách của nó tiến tới khoảng
   // cách cột kế tiếp (cột sẽ thay chỗ) => lúc đổi cột cả hai đều ~0, không thấy chớp.
+  // đổi số SpotLight thật (đổi số đèn => three biên dịch lại shader 1 lần)
+  _setLampCount(n) {
+    n = Math.max(0, Math.min(24, Math.round(n)));
+    while (this.lampLights.length < n) { const l = new THREE.SpotLight(0xffc98a, 0, 80, 1.2, 0.8, 0.6); this.scene.add(l, l.target); this.lampLights.push(l); }
+    while (this.lampLights.length > n) { const l = this.lampLights.pop(); this.scene.remove(l, l.target); l.dispose(); }
+  }
   updateLights(cam) {
+    const T = this.lampTune, want = this.map === 'dalat' ? T.countDalat ?? T.count : T.count ?? LAMP_LIGHTS;
+    if (want !== this.lampLights.length) this._setLampCount(want);
+    const R = T.range ?? Infinity;
     const list = this._lampList; list.length = 0;
     for (const c of this.chunks.values()) for (const L of c.userData.lamps || []) {
       const [b] = L;
@@ -375,9 +390,9 @@ export class Scenery {
     }
     if (this.extraLamps) for (const L of this.extraLamps()) { const [b] = L; list.push({ L, d: Math.hypot(b[0] - cam.x, b[1] - cam.y, b[2] - cam.z) }); }   // đèn góc ngã tư (map Phố)
     list.sort((a, b) => a.d - b.d);
-    const dNext = list.length > LAMP_LIGHTS ? list[LAMP_LIGHTS].d : Infinity;
+    const N = this.lampLights.length, dNext = Math.min(list.length > N ? list[N].d : Infinity, R);   // ngoài phạm vi: mờ dần về 0 ở mép
     this.lampLights.forEach((l, i) => {
-      const e = list[i];
+      const e = list[i] && list[i].d < R ? list[i] : null;
       if (!e || this.lampOn <= 0) { l.intensity = 0; return; }
       const fade = dNext === Infinity ? 1 : Math.min(1, Math.max(0, (dNext - e.d) / (0.3 * dNext)));
       const [b, t] = e.L;
@@ -497,7 +512,7 @@ export class Scenery {
     // đèn đường (xen kẽ hai bên)
     const lamps = [], bulbs = [], targets = [];
     const city = this.map === 'city';
-    const lampN = city ? 4 : this.map === 'reed' || this.map === 'avenue' ? 2 : 1, lampGap = L / lampN;
+    const lampN = city ? 4 : this.map === 'reed' || this.map === 'avenue' ? 2 : this.map === 'dalat' ? 3 : 1, lampGap = L / lampN;   // Đà Lạt: mỗi 40 m
     for (let i = 0; i < lampN; i++) {
       const s = s0 + i * lampGap + (city ? 21 : 6);          // phố: lệch khỏi cột điện (mỗi 30 m, ở +8)
       if (road.dirtAt(s) > 0.05) continue;          // đường đất: không có đèn đường
@@ -527,7 +542,7 @@ export class Scenery {
     lm.castShadow = true;
     group.add(lm);
     // vũng sáng trên mặt đường dưới bóng đèn (Ø ~ 13 m × K)
-    const poolM = new THREE.InstancedMesh(this.poolGeo, this.poolMat, city || this.map === 'avenue' ? bulbs.length : 0), R = 13 * this.lampK;   // chỉ map Drive
+    const poolM = new THREE.InstancedMesh(this.poolGeo, this.poolMat, city || this.map === 'avenue' || this.map === 'dalat' ? bulbs.length : 0), R = 13 * this.lampK;   // map Drive + Đà Lạt
     if (poolM.count) bulbs.forEach(([x, , z], i) => { const t = targets[i]; m4.compose(v.set((x + t[0]) / 2, t[1] + 0.07, (z + t[2]) / 2), q.identity(), up.clone().set(R, 1, R)); poolM.setMatrixAt(i, m4); });
     poolM.renderOrder = 2; poolM.frustumCulled = false;
     group.add(poolM);

@@ -124,7 +124,7 @@ export const DALAT_TREE_DEFAULTS = { high: { on: 1, model3d: 0, density: 100, lo
 const TREE_KEY = 'chilldrive.dalat.trees', HI_CAP = 1500;
 // nước hồ (bảng 💧 Nước hồ; lưu `chilldrive.dalat.water`): màu (sRGB), độ sáng ×, soi trời ×, nhuộm soi trời theo màu nước (0..1),
 // nắng ×, phản chiếu cảnh %, gợn sóng ×
-export const DALAT_WATER_DEFAULTS = { color: '#1b3c26', bright: 1, sky: 0.12, tint: 1, sun: 0.15, refl: 10, wave: 0.4 };
+export const DALAT_WATER_DEFAULTS = { color: '#1b3c26', bright: 1, sky: 0.12, tint: 1, sun: 0.15, refl: 10, wave: 0.4, lamp: 2 };   // lamp: vệt đèn đường in xuống hồ (×)
 const WATER_KEY = 'chilldrive.dalat.water';
 
 export class DalatScene {
