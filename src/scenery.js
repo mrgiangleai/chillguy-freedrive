@@ -525,6 +525,7 @@ export class Scenery {
       const off = road.hwAt(s) + (city ? 0.9 : this.map === 'avenue' ? 1.0 : 1.4);
       const x = p.x + Math.cos(p.th) * off * side;
       const z = p.z - Math.sin(p.th) * off * side;
+      if (this.lampSkip && this.lampSkip(x, z)) continue;   // Đà Lạt: không cột đèn trên vòng xoay
       // tay đòn hướng về tim đường: side=+1 (bên phải) => local -x => yaw = th ; bên trái => xoay thêm PI
       const yaw = p.th + (side === 1 ? 0 : Math.PI);
       lamps.push([x, p.y, z, yaw]);

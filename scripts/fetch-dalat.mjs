@@ -206,6 +206,19 @@ raster(WV, WT, (i, j, z) => { const k = j * NX + i; wet[k] = 1; dem[k] = Math.mi
     else if (d < 10) dem[k] = Math.min(dem0[k], -3.3 + (dem0[k] + 3.3) * ss(0, 10, d));
   }
 }
+// vòng xoay chính (OSM 51561593, tâm game −870.9 / 514.5 => đông −870.9, bắc −514.5): mặt đất bằng phẳng trong 50 m (cao độ TB đất gốc
+// trong 40 m), chuyển dần về địa hình gốc tới 85 m => vành vòng xoay / nhánh / đường vòng hồ cùng một mặt phẳng, không đất trồi lên
+{
+  const RX = -870.9, RN = -514.5, ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  let sum = 0, n = 0;
+  for (let j = 0; j < NX; j++) for (let i = 0; i < NX; i++) { const x = X0 + i * CELL, y = X0 + j * CELL; if (Math.hypot(x - RX, y - RN) < 40) { sum += dem0[j * NX + i]; n++; } }
+  const H = Math.max(sum / n, 0.8);                               // không thấp hơn mặt đường vòng hồ (≥ mặt hồ cũ + 0.8)
+  for (let j = 0; j < NX; j++) for (let i = 0; i < NX; i++) {
+    const x = X0 + i * CELL, y = X0 + j * CELL, d = Math.hypot(x - RX, y - RN), k = j * NX + i;
+    if (d < 85 && !wet[k]) dem[k] = H + (dem[k] - H) * ss(50, 85, d);
+  }
+  console.log('Vòng xoay: san phẳng ở', H.toFixed(2), 'm');
+}
 const demAt = (x, y) => {   // x đông, y bắc
   const fx = Math.min(NX - 1.001, Math.max(0, (x - X0) / CELL)), fy = Math.min(NX - 1.001, Math.max(0, (y - X0) / CELL));
   const i = Math.floor(fx), j = Math.floor(fy), tx = fx - i, ty = fy - j, k = j * NX + i;

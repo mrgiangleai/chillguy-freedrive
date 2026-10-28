@@ -14,6 +14,25 @@ export const DALAT = { data: DATA, length: DATA.length, start: DATA.start };
 // vòng xoay chính (OSM way 51561593, giao Trần Quốc Toản / Nguyễn Thị Minh Khai / Nguyễn Văn Cừ / Lê Đại Hành, cạnh chợ Đà Lạt):
 // tim vòng r 19 m, mặt đường rộng 14 m (12–26 m), đảo giữa: lát đá + bồn hoa đỏ + hồ nước + tiểu cảnh; các nhánh trong 160 m nở rộng 13 m
 export const ROUNDABOUT = { x: -870.9, z: 514.5, r: 19.1, hw: 7, arm: 6.5, near: 160 };
+// đường vòng hồ gần vòng xoay (≤ 70 m): bỏ vạch vàng tim đường (vạch ở u ≈ 0.5 của texture đường chính => lấy màu nhựa ở u 0.35)
+export function noCenterLineNearRoundabout(mat) {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = function (sh, r) {
+    if (prev) prev.call(this, sh, r);
+    sh.uniforms.uRB = { value: new THREE.Vector4(ROUNDABOUT.x, ROUNDABOUT.z, 70, 0) }; sh.uniforms.uRBOn = RB_ON;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vRBW;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvRBW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vRBW;\nuniform vec4 uRB;\nuniform float uRBOn;')
+      .replace('#include <map_fragment>', `#include <map_fragment>
+      #ifdef USE_MAP
+      if (uRBOn > 0.5 && length(vRBW.xz - uRB.xy) < uRB.z && abs(vMapUv.x - 0.5) < 0.05) diffuseColor.rgb = texture2D(map, vec2(0.35, vMapUv.y)).rgb;
+      #endif`);
+  };
+  mat.needsUpdate = true;
+}
+export const RB_ON = { value: 0 };                 // main bật khi ở map Đà Lạt
+// cột đèn đường không đặt trên vòng xoay (đường vòng hồ đi sát mép vòng)
+export const nearRoundabout = (x, z, pad = 6) => Math.hypot(x - ROUNDABOUT.x, z - ROUNDABOUT.z) < ROUNDABOUT.r + ROUNDABOUT.hw + pad;
 export const WATER_DROP = -3;
 export const DALAT_ENV = 0.4;                // mặt đường / đất ở Đà Lạt: bớt ánh trời (envMap) — trời trong không ám xanh dương xuống đường                 // mặt nước game thấp hơn mặt nước FBX 3 m (đáy DEM: −5.5 m)
 
@@ -554,7 +573,8 @@ export class DalatScene {
   // hồ nước + thành bể trắng, tiểu cảnh cây / hoa ở tâm. Cao độ theo dalatGround (+0.18 => phủ lên mặt đường vòng hồ chỗ chồng)
   _roundabout() {
     const RB = ROUNDABOUT, G = dalatGround, N = 72, r0 = RB.r - RB.hw, r1 = RB.r + RB.hw, ring = { pos: [], uv: [] };
-    const P = (r, a, dy = 0.18) => { const x = RB.x + Math.cos(a) * r, z = RB.z + Math.sin(a) * r; return [x, G(x, z) + dy, z]; };
+    const Y = G(RB.x, RB.z);                                           // đất đã san phẳng quanh vòng xoay (fetch-dalat) => 1 cao độ
+    const P = (r, a, dy = 0.18) => [RB.x + Math.cos(a) * r, Y + dy, RB.z + Math.sin(a) * r];
     for (let i = 0; i < N; i++) {
       const a0 = i / N * Math.PI * 2, a1 = (i + 1) / N * Math.PI * 2, v0 = a0 * RB.r / 8, v1 = a1 * RB.r / 8;
       const A = P(r1, a0), B = P(r0, a0), C = P(r1, a1), D = P(r0, a1);
@@ -581,29 +601,31 @@ export class DalatScene {
       c.beginPath(); c.arc(128, 128, 118, a, a + 0.42); c.arc(128, 128, 78, a + 0.42, a, true); c.closePath(); c.fill();
     }
     const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const ISL = 0.18 + 0.2;                                           // đảo giữa cao hơn mặt vòng xoay 20 cm (như bậc vỉa hè)
     const isl = { pos: [], uv: [] };
     for (let i = 0; i < N; i++) {
-      const a0 = i / N * Math.PI * 2, a1 = (i + 1) / N * Math.PI * 2, O = P(0, 0, 0.3);
-      const A = P(r0, a0, 0.3), C = P(r0, a1, 0.3);
+      const a0 = i / N * Math.PI * 2, a1 = (i + 1) / N * Math.PI * 2, O = P(0, 0, ISL);
+      const A = P(r0, a0, ISL), C = P(r0, a1, ISL);
       isl.pos.push(...O, ...C, ...A);
       isl.uv.push(0.5, 0.5, 0.5 + Math.cos(a1) * 0.5, 0.5 + Math.sin(a1) * 0.5, 0.5 + Math.cos(a0) * 0.5, 0.5 + Math.sin(a0) * 0.5);
     }
     const islMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, envMapIntensity: DALAT_ENV }); addFakeLight(islMat); withMist(islMat);
     mk(isl.pos, isl.uv, islMat);
-    const y0 = G(RB.x, RB.z), grp = new THREE.Group(); grp.position.set(RB.x, y0, RB.z);
+    const grp = new THREE.Group(); grp.position.set(RB.x, Y, RB.z);
     const std = (color, o = {}) => withMist(new THREE.MeshStandardMaterial({ color, roughness: 0.8, envMapIntensity: DALAT_ENV, ...o }));
     const add = (geo, mat, y) => { const m = new THREE.Mesh(geo, mat); m.position.y = y; m.castShadow = m.receiveShadow = true; grp.add(m); return m; };
-    add(new THREE.CylinderGeometry(r0 + 0.25, r0 + 0.35, 0.32, 64, 1, true), std(0xd6d3cc), 0.16);           // bó vỉa
-    add(new THREE.CylinderGeometry(6.4, 6.6, 0.6, 48), std(0xeceae4), 0.3);                                // thành bể
-    add(new THREE.CylinderGeometry(6.0, 6.0, 0.04, 48), std(0x2c5a6a, { roughness: 0.15, metalness: 0.2 }), 0.62);   // mặt nước
-    add(new THREE.CylinderGeometry(1.4, 1.8, 1.2, 16), std(0xd9d4c8), 1.2);                                // bệ tiểu cảnh
+    add(new THREE.CylinderGeometry(r0 + 0.02, r0 + 0.02, 0.34, 64, 1, true), std(0xd6d3cc), 0.21);           // bó vỉa: thành đứng từ mặt đường lên mặt đảo
+    add(new THREE.RingGeometry(r0 - 0.35, r0 + 0.02, 64).rotateX(-Math.PI / 2), std(0xe2dfd8), ISL + 0.005); // mặt bó vỉa sáng
+    add(new THREE.CylinderGeometry(6.4, 6.6, 0.6, 48), std(0xeceae4), ISL + 0.3);                          // thành bể
+    add(new THREE.CylinderGeometry(6.0, 6.0, 0.04, 48), std(0x2c5a6a, { roughness: 0.15, metalness: 0.2 }), ISL + 0.62);   // mặt nước
+    add(new THREE.CylinderGeometry(1.4, 1.8, 1.2, 16), std(0xd9d4c8), ISL + 1.2);                          // bệ tiểu cảnh
     for (let k = 0; k < 5; k++) {                                   // tiểu cảnh: khối cây xanh tỉa + hoa
       const a = k / 5 * Math.PI * 2, r = k ? 1.1 : 0;
-      const m = add(new THREE.IcosahedronGeometry(k ? 0.7 : 1.0, 1), std(0x3f7a35), k ? 2.3 : 2.9);
+      const m = add(new THREE.IcosahedronGeometry(k ? 0.7 : 1.0, 1), std(0x3f7a35), ISL + (k ? 2.3 : 2.9));
       m.position.x = Math.cos(a) * r; m.position.z = Math.sin(a) * r; m.scale.y = 1.4;
     }
     for (let k = 0; k < 14; k++) {
-      const a = k / 14 * Math.PI * 2, m = add(new THREE.SphereGeometry(0.28, 8, 6), std([0xd8323a, 0xf2c12e, 0xe86fa8][k % 3]), 2.0 + (k % 3) * 0.5);
+      const a = k / 14 * Math.PI * 2, m = add(new THREE.SphereGeometry(0.28, 8, 6), std([0xd8323a, 0xf2c12e, 0xe86fa8][k % 3]), ISL + 2.0 + (k % 3) * 0.5);
       m.position.x = Math.cos(a) * 1.6; m.position.z = Math.sin(a) * 1.6;
     }
     this.group.add(grp);

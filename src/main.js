@@ -6,7 +6,7 @@ import { NYC, NYC_DIM, nycLoop, nycStreet, NycWorks } from './nyc.js';
 import { SGN, sgnLoop, sgnStreet, sgnZone, SgnScene } from './sgn.js';
 import { SgnEnv } from './sgnEnv.js';
 import { SgnCity } from './sgnCity.js';
-import { DALAT, dalatLoop, dalatDem, DalatScene, WATER_DROP, DALAT_ENV, FAKE_LIGHT, addFakeLight } from './dalat.js';
+import { DALAT, dalatLoop, dalatDem, DalatScene, WATER_DROP, DALAT_ENV, FAKE_LIGHT, addFakeLight, noCenterLineNearRoundabout, RB_ON, nearRoundabout } from './dalat.js';
 import { Diag } from './diag.js';
 import { TimesSquare } from './timesSquare.js';
 import { NycBuildings } from './nycBuildings.js';
@@ -96,7 +96,7 @@ camera.layers.enable(3);   // layer 3: mặt đường, cỏ, cây, mưa — ch�
 const road = new Road();
 const scenery = new Scenery(scene, road, renderer);
 const terrain = new Terrain(scene, road, renderer);
-addFakeLight(terrain.mat); addFakeLight(scenery.roadMat);   // ánh sáng giả đèn đường (map Đà Lạt; map khác uFakeK = 0)
+addFakeLight(terrain.mat); addFakeLight(scenery.roadMat); noCenterLineNearRoundabout(scenery.roadMat);   // ánh sáng giả đèn đường (map Đà Lạt; map khác uFakeK = 0)
 const env = new Environment(renderer, scene, camera);
 env.starPx = renderer.getPixelRatio();          // cỡ sao theo độ phân giải (điện thoại ×2–3)
 const reeds = new ReedField(scene, renderer);
@@ -808,6 +808,7 @@ const applyMap = () => {
   drive.ramp = null;
   scenery.lampK = isNyc ? 1.35 : 1;   // New York: cột đèn ~15 m, cần vươn dài (đường 18 m)
   scenery.ahead = isDalat ? 21 : 7; scenery.behind = isDalat ? 20 : 1;   // Đà Lạt: dựng đường + đèn cả vòng hồ 4.9 km (nhìn qua hồ thấy đèn bờ bên kia)
+  scenery.lampSkip = isDalat ? (x, z) => nearRoundabout(x, z) : null; RB_ON.value = isDalat ? 1 : 0;
   scenery.setMap(id);
   scenery.roadMat.envMapIntensity = isDalat ? DALAT_ENV : 1; terrain.mat.envMapIntensity = isDalat ? DALAT_ENV : 0.8;   // Đà Lạt: bớt ám xanh trời
   dm('scenery.setMap');
