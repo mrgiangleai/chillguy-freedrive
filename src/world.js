@@ -214,17 +214,38 @@ export class Environment {
     this.envKey = '';
 
     // --- sao / trăng ---
-    const sp = new Float32Array(1800 * 3);
-    for (let i = 0; i < 1800; i++) {
+    // sao: chấm tròn mềm (không vuông), cỡ 0.6–1.7 px theo độ phân giải CSS, sáng khác nhau (đa số mờ, ít sao sáng), lấp lánh nhẹ
+    const NS = 2600, sp = new Float32Array(NS * 3), sz = new Float32Array(NS), br = new Float32Array(NS);
+    for (let i = 0; i < NS; i++) {
       const v = new THREE.Vector3().randomDirection();
       v.y = Math.abs(v.y) * 0.9 + 0.1;
       v.normalize().multiplyScalar(3200);
       sp.set([v.x, v.y, v.z], i * 3);
+      const r = Math.random();
+      sz[i] = 0.6 + 1.1 * r * r * r;
+      br[i] = 0.25 + 0.75 * Math.pow(Math.random(), 2.5);
     }
     const sg = new THREE.BufferGeometry();
     sg.setAttribute('position', new THREE.BufferAttribute(sp, 3));
-    this.stars = new THREE.Points(sg, new THREE.PointsMaterial({
-      color: 0xdfe8ff, size: 2.1, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false, fog: false,
+    sg.setAttribute('aSize', new THREE.BufferAttribute(sz, 1));
+    sg.setAttribute('aBright', new THREE.BufferAttribute(br, 1));
+    this.starU = { uOp: { value: 0 }, uPx: { value: 1 }, uT: { value: 0 } };
+    this.stars = new THREE.Points(sg, new THREE.ShaderMaterial({
+      uniforms: this.starU, transparent: true, depthWrite: false, fog: false,
+      vertexShader: `attribute float aSize, aBright; uniform float uPx, uT; varying float vB;
+        void main() {
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          float tw = 0.8 + 0.2 * sin(uT * (1.3 + fract(aBright * 91.7) * 2.0) + position.x * 0.01);
+          vB = aBright * tw;
+          gl_PointSize = max(1.0, aSize * uPx * 1.6);
+        }`,
+      fragmentShader: `uniform float uOp; varying float vB;
+        void main() {
+          vec2 c = gl_PointCoord - 0.5; float d = dot(c, c) * 4.0;
+          float a = exp(-d * 3.5) * vB * uOp;
+          if (a < 0.003) discard;
+          gl_FragColor = vec4(vec3(0.86, 0.9, 1.0) * a * 1.6, a);
+        }`,
     }));
     this.stars.renderOrder = 1;
     this.stars.frustumCulled = false;
@@ -534,8 +555,9 @@ export class Environment {
     this.haze.position.y = hazeH / 2 - 60;
     this.haze.material.uniforms.uColor.value.copy(this.state.fogColor);
 
-    this.stars.material.opacity = night * (1 - over * 0.95);
-    this.stars.visible = this.stars.material.opacity > 0.01;
+    const sOp = night * (1 - over * 0.95);
+    this.starU.uOp.value = sOp; this.starU.uPx.value = this.starPx || 1; this.starU.uT.value = performance.now() / 1000;
+    this.stars.visible = sOp > 0.01;
 
 
     // ---- mây ----

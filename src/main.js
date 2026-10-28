@@ -97,6 +97,7 @@ const road = new Road();
 const scenery = new Scenery(scene, road, renderer);
 const terrain = new Terrain(scene, road, renderer);
 const env = new Environment(renderer, scene, camera);
+env.starPx = renderer.getPixelRatio();          // cỡ sao theo độ phân giải (điện thoại ×2–3)
 const reeds = new ReedField(scene, renderer);
 const grass = new ReedField(scene, renderer, 'grass');   // búi cỏ cho map đồi thông
 const meadow = new ReedField(scene, renderer, 'meadow'); // cỏ cao cho map đồi cỏ
@@ -664,6 +665,7 @@ function applyQuality(save = true) {
   if (IS_PHONE && q.id === 'good') pixelRatio = Math.min(pixelRatio, 1.25);   // màn hình điện thoại nhỏ: đủ nét, nhẹ GPU hơn
   if (!state.started) pixelRatio = Math.min(pixelRatio, PREVIEW.ratio);       // màn hình chờ: nền bị làm mờ => vẽ thưa điểm ảnh
   renderer.setPixelRatio(pixelRatio);
+  env.starPx = pixelRatio;
   post.setSamples(q.msaa);
   resize();
   for (const f of [reeds, grass, meadow]) { f.setView(q.view); f.setDensity(q.veg); }
