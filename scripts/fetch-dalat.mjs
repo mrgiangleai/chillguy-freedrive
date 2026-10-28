@@ -46,6 +46,7 @@ const pr = (g) => [(g.lon - lon0) * KE, (g.lat - lat0) * KN];
 // hạ nguồn: suối Cam Ly chui cống dưới đường vòng hồ (s ≈ 475) rồi chảy qua Công viên Ánh Sáng (thung lũng thấp hơn đường ~20 m)
 const osmV = (await overpass('valley', `[out:json][timeout:60];(way["waterway"](11.9380,108.4300,11.9520,108.4440);way["leisure"="park"](11.9380,108.4300,11.9520,108.4440););out body geom;`)).elements;
 const PARK = osmV.find((e) => e.id === 99660966).geometry.map(pr);                      // Công viên Ánh Sáng (E, N)
+const streamD = (x, y) => { let d = Infinity; for (let i = 0; i + 1 < STREAM.length; i++) { const ax = STREAM[i][0], ay = STREAM[i][1], vx = STREAM[i + 1][0] - ax, vy = STREAM[i + 1][1] - ay, l = vx * vx + vy * vy || 1; const t = Math.max(0, Math.min(1, ((x - ax) * vx + (y - ay) * vy) / l)); d = Math.min(d, Math.hypot(x - ax - vx * t, y - ay - vy * t)); } return d; };
 const STREAM = [...osmV.find((e) => e.id === 708032746).geometry, ...osmV.find((e) => e.id === 708032747).geometry.slice(1)].map(pr);   // cống + suối Cam Ly
 
 const inPoly = (x, y, P) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) if ((P[i][1] > y) !== (P[j][1] > y) && x < P[i][0] + (P[j][0] - P[i][0]) * (y - P[i][1]) / (P[j][1] - P[i][1])) c = !c; return c; };
@@ -223,14 +224,17 @@ raster(WV, WT, (i, j, z) => { const k = j * NX + i; wet[k] = 1; dem[k] = Math.mi
   }
   console.log('Vòng xoay: san phẳng ở', H.toFixed(2), 'm');
 }
-// thung lũng Công viên Ánh Sáng: trong đa giác công viên đất hạ sâu dần (20 m khi cách mép ≥ 25 m) dưới mặt đường (0.8), dọc suối thêm lòng suối 1.5 m
+// thung lũng Công viên Ánh Sáng: trong đa giác công viên đất hạ sâu dần (20 m khi cách mép ≥ 25 m) dưới mặt đường (0.8), dọc suối đào lòng kênh sâu thêm 5 m (rộng ~10 m)
 {
   const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
   const segD = (x, y, P) => { let d = Infinity; for (let i = 0; i + 1 < P.length; i++) { const ax = P[i][0], ay = P[i][1], vx = P[i + 1][0] - ax, vy = P[i + 1][1] - ay, l = vx * vx + vy * vy || 1; const t = Math.max(0, Math.min(1, ((x - ax) * vx + (y - ay) * vy) / l)); d = Math.min(d, Math.hypot(x - ax - vx * t, y - ay - vy * t)); } return d; };
   for (let j = 0; j < NX; j++) for (let i = 0; i < NX; i++) {
     const x = X0 + i * CELL, y = X0 + j * CELL, k = j * NX + i;
-    if (!inPoly(x, y, PARK)) continue;
-    const d = polyDist(x, y, PARK), floor = 0.8 - 20 * ss(0, 25, d) - 1.5 * (1 - ss(2, 7, segD(x, y, STREAM)));
+    // thung lũng = công viên ∪ dải 25 m quanh suối (đoạn qua công viên, x −1215…−835): suối phía tây chạy sát / ngoài mép đa giác OSM
+    const inP = inPoly(x, y, PARK), sd = segD(x, y, STREAM), alongPark = x > -1215 && x < -835;
+    if (!inP && !(alongPark && sd < 25)) continue;
+    const dd = Math.max(inP ? polyDist(x, y, PARK) : 0, alongPark ? 25 - sd : 0);
+    const floor = 0.8 - 20 * ss(0, 25, dd) - 5 * (1 - ss(5, 9, sd));   // lòng kênh bê tông (dalat.js buildStream)
     dem[k] = Math.min(dem[k], floor);
   }
 }
@@ -312,7 +316,7 @@ for (const name of CATS) {
   const pos = [];
   for (const tris of comps.values()) {
     let hit = false;
-    for (const t of tris) { for (let k = 0; k < 3; k++) { const i = T[t * 3 + k]; if (loopDist(V[i * 3], -V[i * 3 + 1]) < NO_HOUSE || inPoly(V[i * 3], V[i * 3 + 1], PARK)) { hit = true; break; } } if (hit) break; }
+    for (const t of tris) { for (let k = 0; k < 3; k++) { const i = T[t * 3 + k]; if (loopDist(V[i * 3], -V[i * 3 + 1]) < NO_HOUSE || inPoly(V[i * 3], V[i * 3 + 1], PARK) || (V[i * 3] > -1215 && V[i * 3] < -835 && streamD(V[i * 3], V[i * 3 + 1]) < 25)) { hit = true; break; } } if (hit) break; }
     if (hit) { dropped++; continue; }
     kept++;
     for (const t of tris) for (let k = 0; k < 3; k++) { const i = T[t * 3 + k]; pos.push(V[i * 3], V[i * 3 + 2] - L0, -V[i * 3 + 1]); }
