@@ -32,7 +32,7 @@ for (let s = 0; s < 2 * L; s += 2) {
 ok(gap < 0.1, `đường liên tục (bước lệch ${gap.toFixed(3)} m)`);
 ok(minY >= 0.7, `mặt đường cao hơn mặt hồ ≥ 0.7 m (thấp nhất ${minY.toFixed(2)} m)`);
 ok(grade < 0.1, `dốc tối đa ${(grade * 100).toFixed(1)} %`);
-ok(dev < 4, `mặt đường lệch địa hình DEM tối đa ${dev.toFixed(2)} m`);
+ok(dev < 5, `mặt đường lệch địa hình DEM tối đa ${dev.toFixed(2)} m (cầu / đập qua nước: đáy DEM sâu 3.5 m)`);
 ok(kmax < 1 / 25, `bán kính cua nhỏ nhất ${(1 / kmax).toFixed(1)} m`);
 ok(right / n > 0.6, `hồ bên phải xe ở ${(100 * right / n).toFixed(0)} % số điểm (mỗi 50 m)`);
 const pre = fs.readFileSync(new URL('../src/preload.js', import.meta.url), 'utf8');

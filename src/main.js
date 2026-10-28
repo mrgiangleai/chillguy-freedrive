@@ -6,7 +6,7 @@ import { NYC, NYC_DIM, nycLoop, nycStreet, NycWorks } from './nyc.js';
 import { SGN, sgnLoop, sgnStreet, sgnZone, SgnScene } from './sgn.js';
 import { SgnEnv } from './sgnEnv.js';
 import { SgnCity } from './sgnCity.js';
-import { DALAT, dalatLoop, dalatDem, DalatScene } from './dalat.js';
+import { DALAT, dalatLoop, dalatDem, DalatScene, WATER_DROP } from './dalat.js';
 import { Diag } from './diag.js';
 import { TimesSquare } from './timesSquare.js';
 import { NycBuildings } from './nycBuildings.js';
@@ -122,6 +122,8 @@ const audio = new ChillAudio();
 const nycSound = new NycSound(audio);                         // map New York: còi xe xa, còi hụ, đám đông Times Square
 const post = new Post(renderer, QUALITY[QUALITY_DEFAULT].msaa);
 const refl = new WetReflection(renderer);
+let lakeReflN = 0;
+const lakeRefl = new WetReflection(renderer);   // map Đà Lạt: phản chiếu cảnh trên mặt hồ Xuân Hương (theo cài đặt phản chiếu của chất lượng)
 const person = new Person();
 const stop = new StopScene(cars, person);
 const showroom = new Showroom(renderer, post);   // chế độ Race!: showroom chọn xe + người lái (src/showroom.js)
@@ -186,7 +188,7 @@ let diagTris = '';
 diag.info = () => diagTris;
 const dalatScene = new DalatScene(scene, (x, z) => demAt(dalatDem(), x, z));        // map Hồ Xuân Hương: nhà / hồ / cây thông thật (urban:EXPORT), đường phụ OSM
 dalatScene.diag = diag; dalatScene.renderer = renderer;   // renderer: chụp impostor cây xa
-dalatScene.onLake = (tex, b) => { if (onDalat()) diag.time('ocean.setLake', () => ocean.setLake(true, 0, tex, b)); };   // mặt hồ Xuân Hương = nước map Biển (chế độ hồ)
+dalatScene.onLake = (tex, b) => { if (onDalat()) diag.time('ocean.setLake', () => ocean.setLake(true, WATER_DROP, tex, b)); };   // mặt hồ Xuân Hương = nước map Biển (chế độ hồ)
 sgnEnv.city = sgnCity;                                                    // sgnEnv chờ cây của sgnCity rồi dựng chung
 const sgnObb = () => { if (sgnEnv.visible) city.extraObb = sgnEnv.obb.concat(sgnCity.obb); };
 sgnEnv.onReady = sgnObb;
@@ -380,7 +382,7 @@ function resize() {
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   post.resize();
-  refl.resize();
+  refl.resize(); lakeRefl.resize();
   layoutBars();
 }
 // dải đen letterbox: tỉ lệ khung ~2.39:1 (tối đa 13.5% chiều cao mỗi dải; màn hình rất rộng thì không có dải)
@@ -668,6 +670,7 @@ function applyQuality(save = true) {
   terrain.setView(q.view, camera.position);       // phạm vi hiển thị (Ultra: xa gấp đôi) — đổi lúc đang chạy thì dựng lại địa hình
   env.setShadowSize(q.shadow);
   refl.enabled = q.refl;
+  lakeRefl.div = q.refl ? 2 : 4; lakeRefl.resize();   // hồ Đà Lạt: luôn có phản chiếu (Low: 1/4 độ phân giải)
   nature.setRadius(q.trees);
   if (onSgn()) cityPeople.parkCount = q.id === 'low' ? 35 : 70;   // Low: nửa số người dạo công viên
   if (save) try { localStorage.setItem('chilldrive.quality', q.id); } catch { /* bỏ qua */ }
@@ -793,7 +796,7 @@ const applyMap = () => {
   if (id === 'sea') { road.ensure(drive.s + 120000); let lo = Infinity; for (const p of road.pts) lo = Math.min(lo, p.y); TP.seaLevel = lo - 3; }
   ocean.setMap(id === 'sea', TP.seaLevel);
   dm('ocean.setMap/setLake');
-  if (isDalat && dalatScene.lake) ocean.setLake(true, 0, dalatScene.lake.tex, dalatScene.lake.bounds);   // chưa tải: onLake bật sau
+  if (isDalat && dalatScene.lake) ocean.setLake(true, WATER_DROP, dalatScene.lake.tex, dalatScene.lake.bounds);   // chưa tải: onLake bật sau
   avenue.visible = isAvenue;    // trước địa hình: khung nút giao để đào kênh đường ngang / nền nhánh rẽ
   avenue.prime(drive.s);
   drive.ramp = null;
@@ -2417,6 +2420,15 @@ function frame(now) {
   env.mistCover = mistCover; env.mistDens = mistDens;                // sương phủ cả bầu trời
 
   // đường ướt: vẽ ảnh phản chiếu cho vũng nước (chỉ khi mưa)
+  if (onDalat() && ocean.u.uLake.value > 0.5) {                // hồ Xuân Hương: vẽ cảnh đối xứng qua mặt hồ (ẩn mặt nước khi vẽ), mỗi 2 khung
+    if ((lakeReflN = (lakeReflN + 1) % 2) === 0 || !lakeRefl.active) {
+      const ov = ocean.group.visible; ocean.group.visible = false;
+      lakeRefl.render(scene, camera, WATER_DROP);
+      ocean.group.visible = ov;
+    }
+    ocean.setLakeReflection(lakeRefl);
+  } else if (lakeRefl.active) { lakeRefl.active = false; ocean.setLakeReflection(null); }
+  diag.lap('phản chiếu hồ');
   if (st.wet > 0.001) refl.render(scene, camera, drive.pos.y + 0.05);
   else refl.active = false;
   scenery.setReflection(refl, simNow / 1000);

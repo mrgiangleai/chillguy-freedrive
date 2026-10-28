@@ -15,6 +15,7 @@ export class WetReflection {
     this.planeY = 0;
     this.active = false;
     this.enabled = true;
+    this.div = 2;                                 // độ phân giải = màn hình / div
     this._v = new THREE.Vector3();
     this._d = new THREE.Vector3();
     this._u = new THREE.Vector3();
@@ -26,7 +27,7 @@ export class WetReflection {
 
   resize() {
     this.renderer.getDrawingBufferSize(this._size);
-    this.rt.setSize(Math.max(16, Math.floor(this._size.x / 2)), Math.max(16, Math.floor(this._size.y / 2)));
+    this.rt.setSize(Math.max(16, Math.floor(this._size.x / this.div)), Math.max(16, Math.floor(this._size.y / this.div)));
   }
 
   render(scene, camera, planeY) {

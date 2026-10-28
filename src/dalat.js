@@ -7,8 +7,10 @@ import DATA from './dalat-data.json' with { type: 'json' };
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { SgnCity } from './sgnCity.js';
+import { demAt } from './terrain-noise.js';
 
 export const DALAT = { data: DATA, length: DATA.length, start: DATA.start };
+export const WATER_DROP = -1;                 // mặt nước game thấp hơn mặt nước FBX 1 m (đáy DEM: −3.5 m)
 
 let DEM = null;
 // lưới độ cao { x0, z0, cell, nx, nz, h } cho `TP.dem` (demAt nội suy song tuyến)
@@ -19,6 +21,69 @@ export function dalatDem() {
   const q = new Int16Array(u8.buffer), h = new Float32Array(q.length);
   for (let i = 0; i < q.length; i++) h[i] = q[i] * D.scale;
   return (DEM = { x0: D.x0, z0: D.z0, cell: D.cell, nx: D.nx, nz: D.nz, h });
+}
+
+// mặt đất như terrain.js vẽ: DEM, riêng sát vòng hồ thì xẻ / đắp về mặt đường (t = sstep(hw + 1.2, hw + 16, d), đất dưới cầu giữ thấp)
+// => cây / dải đường phụ không lơ lửng hay chìm ở chỗ đường đào / đắp
+const sst = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+let SEG = null;
+function loopNear(x, z) {
+  if (!SEG) {
+    SEG = new Map();
+    for (let i = 0; i + 1 < DATA.x.length; i++) {
+      const k = Math.floor(DATA.x[i] / 40) + ',' + Math.floor(DATA.z[i] / 40);
+      (SEG.get(k) || SEG.set(k, []).get(k)).push(i);
+    }
+  }
+  const gx = Math.floor(x / 40), gz = Math.floor(z / 40);
+  let bd = Infinity, bi = 0, bt = 0;
+  for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const i of SEG.get((gx + a) + ',' + (gz + b)) || []) {
+    const ax = DATA.x[i], az = DATA.z[i], vx = DATA.x[i + 1] - ax, vz = DATA.z[i + 1] - az, l = vx * vx + vz * vz || 1;
+    const t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / l)), d = Math.hypot(x - ax - vx * t, z - az - vz * t);
+    if (d < bd) { bd = d; bi = i; bt = t; }
+  }
+  return [bd, bi, bt];
+}
+const loopDist = (x, z) => loopNear(x, z)[0];
+export function dalatGround(x, z) {
+  const D = dalatDem(), h = demAt(D, x, z), HW = 4.6, [bd, bi, bt] = loopNear(x, z);
+  if (bd >= HW + 16) return h;
+  const r = DATA.road[bi] + (DATA.road[bi + 1] - DATA.road[bi]) * bt;
+  const cx = DATA.x[bi] + (DATA.x[bi + 1] - DATA.x[bi]) * bt, cz = DATA.z[bi] + (DATA.z[bi + 1] - DATA.z[bi]) * bt, u = r - demAt(D, cx, cz);
+  const ry = r - u * sst(1.5, 3.5, u) - 0.02;
+  return ry + (h - ry) * sst(HW + 1.2, HW + 16, bd);
+}
+
+// mật độ cây theo khoảng cách tới bờ hồ (chú dặn): sát bờ (< 120 m) giữ ~45 %, xa > 250 m thêm 1 cây mọc kèm, > 600 m thêm 2
+// (lệch 5–10 m quanh cây gốc của FBX — chỗ đó vốn không có nhà / nước), cách tim vòng hồ ≥ 12 m
+export function dalatTreeMix(T) {
+  const P = DATA.lake, out = [];
+  const hash = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  let bx0 = Infinity, bz0 = Infinity, bx1 = -Infinity, bz1 = -Infinity;
+  for (const [x, z] of P) { bx0 = Math.min(bx0, x); bx1 = Math.max(bx1, x); bz0 = Math.min(bz0, z); bz1 = Math.max(bz1, z); }
+  const lakeD = (x, z) => {
+    const ob = Math.hypot(Math.max(bx0 - x, 0, x - bx1), Math.max(bz0 - z, 0, z - bz1));
+    if (ob > 600) return ob;                                            // xa khung hồ: đủ biết > 600 m
+    let d = Infinity;
+    for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+      const ax = P[j][0], az = P[j][1], vx = P[i][0] - ax, vz = P[i][1] - az, l = vx * vx + vz * vz || 1;
+      const t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / l));
+      d = Math.min(d, Math.hypot(x - ax - vx * t, z - az - vz * t));
+    }
+    return d;
+  };
+  for (let k = 0; k < T.length; k += 3) {
+    const x = T[k], z = T[k + 1], h = T[k + 2], d = lakeD(x, z);
+    if (d < 120 && hash(x, z) > 0.45) continue;
+    out.push(x, z, h);
+    const extra = d > 600 ? 2 : d > 250 ? 1 : 0;
+    for (let e = 0; e < extra; e++) {
+      const a = hash(x + e, z) * 6.283, r = 5 + 5 * hash(z, x + e), nx = x + Math.cos(a) * r, nz = z + Math.sin(a) * r;
+      if (loopDist(nx, nz) < 12) continue;
+      out.push(+nx.toFixed(1), +nz.toFixed(1), +(h * (0.75 + 0.4 * hash(nx, nz))).toFixed(1));
+    }
+  }
+  return out;
 }
 
 let LOOP = null;
@@ -141,6 +206,7 @@ export class DalatScene {
         // ao / hồ nhỏ khác (cao độ khác mặt hồ): xanh lá đậm, ít lóa
         o.material = new THREE.MeshStandardMaterial({ color: 0x1d3a22, roughness: 0.3, metalness: 0, side: THREE.DoubleSide,
           polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+        o.position.y = WATER_DROP;                                    // mọi mặt nước hạ 1 m (bờ cao hơn, hồ trông sâu)
         o.receiveShadow = true;
       } else {
         const bld = name.startsWith('BUILDINGS');
@@ -218,8 +284,13 @@ export class DalatScene {
       }
       g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(norm, o.matrixWorld));
       const m = o.material.clone();
-      if (m.transparent || m.alphaTest > 0) { m.alphaTest = 0.5; m.transparent = false; m.depthWrite = true; }
+      const leaf = m.transparent || m.alphaTest > 0;
+      if (leaf) { m.alphaTest = 0.5; m.transparent = false; m.depthWrite = true; }
       m.side = THREE.DoubleSide; m.shadowSide = THREE.DoubleSide;
+      // thân / cành (vật liệu đục) sáng hơn lá nhiều => thân tối lại, lá sáng lên; bớt bóng loáng (KHR_materials_specular)
+      m.color.multiplyScalar(leaf ? 1.4 : 0.45);
+      m.roughness = 1; m.metalness = 0;
+      if (m.specularIntensity !== undefined) m.specularIntensity = leaf ? 0.3 : 0.15;
       out.push({ g, m });
     });
     return out;
@@ -318,7 +389,8 @@ export class DalatScene {
 
   // cây xa: nón code theo ô 300 m (mỗi ô 1 InstancedMesh => frustum culling theo ô), dựng dần mỗi ô 1 việc;
   // shader bỏ cây trong vùng GLB (lodU), xa hơn kU.y, hoặc số ngẫu nhiên aRnd > mật độ kU.x
-  _trees(T) {
+  _trees(T0) {
+    const T = dalatTreeMix(T0);
     const geo = pineGeometry(), mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
     const lodHook = this._lodHook;
     mat.onBeforeCompile = lodHook;
@@ -331,7 +403,7 @@ export class DalatScene {
     const cells = new Map();
     for (let k = 0; k < nT; k++) {
       const x = T[k * 3], z = T[k * 3 + 1];
-      this.tx[k] = x; this.tz[k] = z; this.th[k] = T[k * 3 + 2]; this.ty[k] = this.groundAt(x, z) - 0.2;
+      this.tx[k] = x; this.tz[k] = z; this.th[k] = T[k * 3 + 2]; this.ty[k] = dalatGround(x, z) - 0.35;   // gốc cắm sâu 0.35 m (lưới địa hình thô hơn)
       const r = Math.sin(k * 12.9898 + 78.233) * 43758.5453; this.trnd[k] = r - Math.floor(r);
       const key = Math.floor(x / 50) + ',' + Math.floor(z / 50);
       (this.tcell.get(key) || this.tcell.set(key, []).get(key)).push(k);
@@ -362,7 +434,7 @@ export class DalatScene {
   // các đường khác trong vùng: dải nhựa phủ trên địa hình (cao hơn mặt đất 0.15 m), lấy mẫu mỗi 4 m
   _streets(S) {
     this.streets = S;                                                 // bản đồ tròn vẽ lại
-    const pos = [], G = this.groundAt;
+    const pos = [], G = dalatGround;
     for (const st of S) {
       const hw = st[0], P = [];
       for (let k = 1; k + 1 < st.length; k += 2) P.push([st[k], st[k + 1]]);

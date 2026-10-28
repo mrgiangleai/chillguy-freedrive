@@ -22,7 +22,7 @@ const CACHE = path.join(process.env.HLG_CACHE || path.join(os.tmpdir(), 'chilldr
 const lat0 = 11.9449, lon0 = 108.4456, HALF = 1260;
 const KE = Math.cos(lat0 * Math.PI / 180) * 111320, KN = 110574;
 const BB = '11.9335,108.4340,11.9563,108.4572';
-const STEP = 5, HW = 4.6;
+const STEP = 5, HW = 4.6, NO_HOUSE = 45;   // NO_HOUSE: bỏ toà có phần nào cách tim vòng hồ < 45 m (thực tế quanh hồ chỉ thấy nhà ở xa)
 const SOURCE = 'OpenStreetMap contributors (ODbL), Overture Maps, Copernicus DEM — via urban:EXPORT';
 fs.mkdirSync(OUT, { recursive: true }); fs.mkdirSync(CACHE, { recursive: true });
 
@@ -190,9 +190,9 @@ for (let pass = 0; pass < 6; pass++) for (let j = 0; j < NX; j++) for (let i = 0
   if (n) dem[k] = a / n;
 }
 for (let k = 0; k < dem.length; k++) if (Number.isNaN(dem[k])) dem[k] = 0;
-// đáy nước: dưới mặt nước 1.5 m (đỡ chập mặt)
+// đáy nước: thấp hơn mặt nước FBX 3.5 m
 const wet = new Uint8Array(NX * NX);
-raster(WV, WT, (i, j, z) => { const k = j * NX + i; wet[k] = 1; dem[k] = Math.min(dem[k], z - L0 - 1.5); });
+raster(WV, WT, (i, j, z) => { const k = j * NX + i; wet[k] = 1; dem[k] = Math.min(dem[k], z - L0 - 3.5); });   // mặt nước game hạ 1 m (dalat.js) => đáy sâu 2.5 m dưới mặt nước
 const demAt = (x, y) => {   // x đông, y bắc
   const fx = Math.min(NX - 1.001, Math.max(0, (x - X0) / CELL)), fy = Math.min(NX - 1.001, Math.max(0, (y - X0) / CELL));
   const i = Math.floor(fx), j = Math.floor(fy), tx = fx - i, ty = fy - j, k = j * NX + i;
@@ -216,7 +216,7 @@ for (let i = 0; i < Nout; i++) {
 }
 function loopDist(x, z) {
   const gx = Math.floor(x / RG), gz = Math.floor(z / RG); let best = 1e9;
-  for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const i of segGrid.get((gx + a) + ',' + (gz + b)) || []) {
+  for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) for (const i of segGrid.get((gx + a) + ',' + (gz + b)) || []) {
     const ax = X[i], az = Z[i], vx = X[i + 1] - ax, vz = Z[i + 1] - az, l = vx * vx + vz * vz || 1;
     const t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / l));
     best = Math.min(best, Math.hypot(x - ax - vx * t, z - az - vz * t));
@@ -271,7 +271,7 @@ for (const name of CATS) {
   const pos = [];
   for (const tris of comps.values()) {
     let hit = false;
-    for (const t of tris) { for (let k = 0; k < 3; k++) { const i = T[t * 3 + k]; if (loopDist(V[i * 3], -V[i * 3 + 1]) < HW + 2.5) { hit = true; break; } } if (hit) break; }
+    for (const t of tris) { for (let k = 0; k < 3; k++) { const i = T[t * 3 + k]; if (loopDist(V[i * 3], -V[i * 3 + 1]) < NO_HOUSE) { hit = true; break; } } if (hit) break; }
     if (hit) { dropped++; continue; }
     kept++;
     for (const t of tris) for (let k = 0; k < 3; k++) { const i = T[t * 3 + k]; pos.push(V[i * 3], V[i * 3 + 2] - L0, -V[i * 3 + 1]); }
