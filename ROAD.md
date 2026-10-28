@@ -4,7 +4,7 @@
 
 > Đọc trước khi sửa. Xong: 1 dòng **Nhật ký** + tăng bộ đếm; đủ 10 => gộp vào mục trạng thái, đặt lại 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 29/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 30/10**
 
 ## 1. Tổng quan
 
@@ -157,3 +157,4 @@
 - **#27 — Đà Lạt Công viên Ánh Sáng theo ảnh (28/10/2026)**: `buildStream` = kênh bê tông hình thang (đáy 6 m, miệng 12 m, sâu 3.5 m, miệng mượt + chỉ xuống dốc), nước trôi, bậc tràn mỗi 40 m, lan can thép 2 bên, cửa cống ở chân đập; 3 lối bậc thang bê tông + hàng rào cây xén từ mép đường xuống đáy. `fetch-dalat`: thung lũng = công viên ∪ dải 25 m quanh suối (x −1215…−835), lòng kênh −5 m; bỏ nhà / cây trong đó.
 - **#28 — Đà Lạt (28/10/2026)**: suối Cam Ly làm thẳng (Douglas–Peucker 7 m, `fetch-dalat`), `CANAL_CUT` + `addCanalCut(terrain.mat)`: mặt nạ dải ±5.9 m dọc kênh, shader địa hình discard => cỏ không trồi qua nước; tường đầu kênh vừa mặt cắt; bậc thang rộng 5 m. Cầu / đập: vỉa hè 3 m cả 2 bên, lan can dời ra mép ngoài (`RO` 3.2); vỉa hè ven hồ liền qua cầu, đầu đoạn bịt kín.
 - **#29 — Đà Lạt Công viên Ánh Sáng (28/10/2026)**: chân đập => máng thác (2 thành + lan can, bọt) đổ xuống hồ đón nước 20 × 26 m sâu 3 m (8–34 m sau chân đập, có lan can 2 bên) rồi mới vào kênh; kênh rộng thêm 2 m (đáy 8, miệng 14), bê tông xám tối 0x6e6b66; bỏ hàng rào cây; mặt nạ khoét đất phủ cả máng + hồ đón. Vỉa hè gạch xám tối (#5f5d59) gần màu nhựa.
+- **#30 — Đà Lạt Công viên Ánh Sáng (28/10/2026)**: chân đập => máng thác (2 thành + lan can, bọt) đổ xuống hồ đón nước 20 × 26 m sâu 3 m (8–34 m sau chân đập) rồi mới vào kênh; kênh rộng thêm 2 m (đáy 8, miệng 14), bê tông xám tối 0x6e6b66; bỏ hàng rào cây; mặt nạ khoét đất phủ cả máng + hồ đón. Vỉa hè gạch xám tối (#5f5d59).
