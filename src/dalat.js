@@ -127,19 +127,29 @@ export function dalatTreeMix(T) {
 
 // ánh sáng giả của đèn đường (Đà Lạt, ban đêm): ảnh xám 1024² phủ khung uFakeB, mỗi cột đèn 1 vệt tròn mềm bán kính R m (cộng dồn);
 // shader mặt đất + mặt đường cộng thêm màu đèn × albedo × độ sáng => nhìn từ xa vẫn thấy cả vòng hồ sáng mà không cần đèn thật
-export const FAKE_LIGHT = { uFakeTex: { value: null }, uFakeB: { value: new THREE.Vector4(-1300, -1300, 1300, 1300) }, uFakeK: { value: 0 }, uFakeCol: { value: new THREE.Color(1, 0.8, 0.55) } };
-export function addFakeLight(mat) {
-  const prev = mat.onBeforeCompile;
+export const FAKE_LIGHT = { uFakeTex: { value: null }, uFakeB: { value: new THREE.Vector4(-1300, -1300, 1300, 1300) }, uFakeK: { value: 0 }, uFakeO: { value: 1 }, uFakeH: { value: 10 }, uFakeCol: { value: new THREE.Color(1, 0.8, 0.55) } };
+// mode '' = mặt đất/mặt đường (như cũ); 'inst' = InstancedMesh (cây: cao theo gốc cây), 'attr' = nhà (cao theo attribute aFakeH);
+// 'inst'/'attr': ánh sáng nhân uFakeO và tắt dần theo độ cao (mốc 0.35·uFakeH … uFakeH)
+export function addFakeLight(mat, mode = '') {
+  const prev = mat.onBeforeCompile, pk = mat.customProgramCacheKey();   // giữ khoá shader cũ: hook khác nhau không được dùng chung chương trình
+  const inst = mode === 'inst', obj = inst || mode === 'attr';
+  mat.customProgramCacheKey = () => pk + '#fake' + mode;
   mat.onBeforeCompile = function (sh, r) {
     if (prev) prev.call(this, sh, r);
     Object.assign(sh.uniforms, FAKE_LIGHT);
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vFakeW;')
-      .replace('#include <project_vertex>', '#include <project_vertex>\nvFakeW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vFakeW;\nuniform sampler2D uFakeTex;\nuniform vec4 uFakeB;\nuniform float uFakeK;\nuniform vec3 uFakeCol;')
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vFakeW;\nvarying float vFakeH;' + (mode === 'attr' ? '\nattribute float aFakeH;' : ''))
+      .replace('#include <project_vertex>', `#include <project_vertex>
+      { vec4 fw = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+        fw = instanceMatrix * fw;
+        #endif
+        vFakeW = (modelMatrix * fw).xyz;
+        ${inst ? 'vFakeH = vFakeW.y - modelMatrix[3].y;\n        #ifdef USE_INSTANCING\n        vFakeH = vFakeW.y - (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).y;\n        #endif\n' : mode === 'attr' ? 'vFakeH = aFakeH;' : 'vFakeH = 0.0;'} }`);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vFakeW;\nvarying float vFakeH;\nuniform sampler2D uFakeTex;\nuniform vec4 uFakeB;\nuniform float uFakeK;\nuniform float uFakeO;\nuniform float uFakeH;\nuniform vec3 uFakeCol;')
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
       if (uFakeK > 0.0) {
         vec2 fu = (vFakeW.xz - uFakeB.xy) / (uFakeB.zw - uFakeB.xy);
-        if (fu.x > 0.0 && fu.y > 0.0 && fu.x < 1.0 && fu.y < 1.0) totalEmissiveRadiance += uFakeCol * diffuseColor.rgb * texture2D(uFakeTex, fu).r * uFakeK;
+        if (fu.x > 0.0 && fu.y > 0.0 && fu.x < 1.0 && fu.y < 1.0) totalEmissiveRadiance += uFakeCol * diffuseColor.rgb * texture2D(uFakeTex, fu).r * uFakeK${obj ? ' * uFakeO * (1.0 - smoothstep(0.35 * uFakeH, uFakeH, vFakeH))' : ''};
       }`);
   };
   mat.needsUpdate = true;
@@ -198,7 +208,8 @@ function pineGeometry() {
 // lá ở xa (alpha-test + mipmap làm lá mỏng dần => cây trơ cành): mip = độ dày bù theo mức mipmap (alpha × (1 + mức × mip)),
 // cut / cutFar = ngưỡng cắt lá ở gần / ở cutD m trở ra; size = cỡ cây ×; leaf / trunk = độ sáng lá / thân (chụp lại cây xa khi đổi);
 // farBright = độ sáng cây xa model 3D; shadow = cây chi tiết đổ bóng; leafMax = độ sáng tối đa của lá so với cỏ sáng nhất (#6f9850)
-const LOOK = { size: 1, mip: 0.35, cut: 0.5, cutFar: 0.3, cutD: 60, leaf: 1.4, trunk: 0.45, farBright: 1, shadow: 1, leafMax: 1 };
+const LOOK = { size: 1, mip: 0.35, cut: 0.5, cutFar: 0.3, cutD: 60, leaf: 1.4, trunk: 0.45, farBright: 1, shadow: 1, leafMax: 1,
+  hBright: 1, hAO: 0.55, hEnvDay: 0.45, hEnvNight: 0.08, hNight: 0.6, fakeObj: 1, fakeH: 10 };
 export const DALAT_TREE_DEFAULTS = { high: { on: 1, model3d: 0, density: 100, lodR: 60, far: 700, maxHi: 120, ...LOOK }, low: { on: 1, model3d: 0, density: 60, lodR: 30, far: 400, maxHi: 40, ...LOOK } };
 // model3d = 1: cây xa là ảnh chụp chính model cây thông chú đưa (impostor 2 tấm chéo, 4 tam giác, không đổ bóng) thay cây nón demo
 const TREE_KEY = 'chilldrive.dalat.trees', HI_CAP = 3000;
@@ -246,12 +257,16 @@ export class DalatScene {
     this.lake = null;
     this.jobs = [];                            // việc dựng chia nhỏ, mỗi khung làm tới ~6 ms (vào map không đứng hình)
     this.tune = { ...DALAT_TREE_DEFAULTS.high };
+    // nhà: màu tường nhân bình phương (sRGB→linear), tối chân tường; _night đổi theo đèn đêm (main truyền st.lamps)
+    this.houseU = { uHouse: { value: new THREE.Vector2(LOOK.hBright, LOOK.hAO) }, uHouseN: { value: 1 } };
+    this._houseMats = []; this._night = 0;
     this.water = { ...DALAT_WATER_DEFAULTS };
     try { Object.assign(this.water, JSON.parse(localStorage.getItem(WATER_KEY) || '{}')); } catch { /* chế độ riêng tư */ }
   }
   set visible(v) { this.group.visible = v; if (v && this.state === 'idle') this._load(); }
   get visible() { return this.group.visible; }
   setLamps(k) { this.lampU.value = Math.max(0, k); }
+  setNight(n) { this._night = Math.min(1, Math.max(0, n || 0)); }   // 0 ngày … 1 đêm
 
   // nạp cài đặt đã lưu (không có => mặc định theo chất lượng)
   loadTune(low) {
@@ -285,6 +300,7 @@ export class DalatScene {
     for (const { m, base, leaf } of this._mats || []) m.color.copy(base).multiplyScalar(leaf ? T.leaf : T.trunk);
     for (const m of this._farMats || []) m.color.setScalar(T.farBright);
     for (const im of this.pineParts || []) im.castShadow = !!T.shadow;
+    FAKE_LIGHT.uFakeO.value = T.fakeObj; FAKE_LIGHT.uFakeH.value = T.fakeH;
     const key = T.leaf + ':' + T.trunk;
     if (this._src && this._lookKey && key !== this._lookKey) {
       clearTimeout(this._reshoot);                                   // kéo thanh trượt liên tục => chụp 1 lần khi dừng
@@ -316,17 +332,21 @@ export class DalatScene {
     // mái (pháp tuyến hướng lên) ngói đỏ sẫm / tôn xám
     const winShader = (shader) => {
       SgnCity.prototype._shader.call({ lampU: this.lampU }, shader);
-      shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      Object.assign(shader.uniforms, this.houseU);
+      shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec2 uHouse;\nuniform float uHouseN;')
+        .replace('#include <color_fragment>', `#include <color_fragment>
       {
         vec2 cell = floor(vCityW.xz / 14.0);
         float h = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
         vec3 pal = h < 0.25 ? vec3(0.62, 0.52, 0.32) : h < 0.42 ? vec3(0.55, 0.40, 0.33) : h < 0.57 ? vec3(0.42, 0.47, 0.42)
           : h < 0.72 ? vec3(0.52, 0.38, 0.28) : h < 0.86 ? vec3(0.40, 0.44, 0.50) : vec3(0.56, 0.54, 0.48);
         if (vCityN.y > 0.6) pal = h < 0.55 ? vec3(0.36, 0.14, 0.08) : vec3(0.22, 0.23, 0.25);
-        diffuseColor.rgb *= pal;
+        diffuseColor.rgb *= pal * pal * uHouse.x;                     // pal² ≈ sRGB→linear (màu tường không lóa)
+        diffuseColor.rgb *= mix(uHouse.y, 1.0, smoothstep(0.0, 3.0, vFakeH)) * uHouseN;   // tối chân tường + độ sáng ban đêm
       }`);
     };
     root.updateMatrixWorld(true);
+    const v = new THREE.Vector3();
     root.traverse((o) => {
       if (!o.isMesh) return;
       const name = o.material.name || o.name, color = o.material.color.clone();
@@ -340,7 +360,15 @@ export class DalatScene {
       } else {
         const bld = name.startsWith('BUILDINGS');
         o.material = new THREE.MeshStandardMaterial({ color: bld ? 0xffffff : color, roughness: 0.92, metalness: 0, envMapIntensity: 0.45 });
-        if (bld) o.material.onBeforeCompile = winShader;
+        if (bld) {
+          // aFakeH: cao độ đỉnh so với mặt đất (DEM) — shader tắt dần ánh sáng giả + tối chân tường
+          const g = o.geometry, P = g.attributes.position, cnt = P.count, a = new Float32Array(cnt);
+          for (let i = 0; i < cnt; i++) { v.fromBufferAttribute(P, i).applyMatrix4(o.matrixWorld); a[i] = Math.max(0, v.y - this.groundAt(v.x, v.z)); }
+          const gc = g.clone(); gc.setAttribute('aFakeH', new THREE.BufferAttribute(a, 1)); o.geometry = gc;
+          o.material.onBeforeCompile = winShader;
+          addFakeLight(o.material, 'attr'); withMist(o.material);
+          this._houseMats.push(o.material);
+        }
         o.castShadow = o.receiveShadow = true;
       }
       o.matrixAutoUpdate = false; o.updateMatrix();
@@ -419,6 +447,7 @@ export class DalatScene {
       const m = o.material.clone();
       const leaf = m.transparent || m.alphaTest > 0;
       if (leaf) { m.alphaTest = 0.5; m.transparent = false; m.depthWrite = true; m.onBeforeCompile = this._leafHook; m.customProgramCacheKey = () => 'dalat-leaf'; }
+      addFakeLight(m, 'inst');                                        // đèn đường giả hắt lên cây (tắt dần theo độ cao)
       m.side = THREE.DoubleSide; m.shadowSide = THREE.DoubleSide;
       // thân / cành (vật liệu đục) sáng hơn lá nhiều => thân tối lại, lá sáng lên; bớt bóng loáng (KHR_materials_specular)
       (this._mats || (this._mats = [])).push({ m, base: m.color.clone(), leaf });
@@ -484,6 +513,7 @@ export class DalatScene {
     this._farBuilt = true;
     const parts = this.farParts.map(({ g, m }, k) => {
       const mm = m.clone(); mm.onBeforeCompile = (sh) => { this._lodHook(sh); this._leafHook(sh); }; mm.customProgramCacheKey = () => 'dalat-far-' + k;
+      addFakeLight(mm, 'inst');
       mm.color.setScalar(this.tune.farBright); (this._farMats || (this._farMats = [])).push(mm);
       return { g, m: mm };
     });
@@ -510,6 +540,10 @@ export class DalatScene {
   // mỗi khung: làm việc dựng còn chờ (≤ ~6 ms); camera đi > 8 m (hoặc 0.6 s) => chia lại cây gần (GLB, gần nhất trước, tối đa maxHi) / xa (nón)
   update(dt, cam) {
     if (!this.group.visible) return;
+    const n = this._night, T0 = this.tune;                            // nhà: ánh trời + độ sáng ban đêm theo mức đèn đêm
+    for (const m of this._houseMats) m.envMapIntensity = T0.hEnvDay + (T0.hEnvNight - T0.hEnvDay) * n;
+    this.houseU.uHouseN.value = 1 + (T0.hNight - 1) * n;
+    this.houseU.uHouse.value.set(T0.hBright, T0.hAO);
     if (this.streamTex) this.streamTex.offset.y -= dt * 0.35;          // nước suối trôi theo dòng
     const t0 = performance.now();
     while (this.jobs.length && performance.now() - t0 < 6) {
@@ -555,6 +589,7 @@ export class DalatScene {
     const lodHook = this._lodHook;
     mat.onBeforeCompile = lodHook;
     mat.customProgramCacheKey = () => 'dalat-cone';
+    addFakeLight(mat, 'inst');                                          // đèn đường giả trên cây nón xa
     const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }); depth.onBeforeCompile = lodHook;
     depth.customProgramCacheKey = () => 'dalat-cone-depth';
     const nT = T.length / 3;

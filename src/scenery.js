@@ -153,7 +153,7 @@ const LAMP_LIGHTS = 3;
 export const STREETLIGHT_DEFAULTS = Object.freeze({
   intensity: 28, distance: 118, angle: 1.2, penumbra: 0.8, decay: 0.6,
   glowOpacity: 0.9, glowSize: 9, color: '#ffc98a',
-  count: 3, countDalat: 10, range: 800,
+  count: 3, countDalat: 3, range: 800,
   fakeK: 3, fakeR: 18,   // ánh sáng giả quanh cột đèn (map Đà Lạt): độ sáng, bán kính (m)   // số SpotLight thật (map Đà Lạt riêng: ưu tiên ánh sáng) gán cho cột gần camera trong phạm vi `range` m
 });
 

@@ -614,6 +614,7 @@ try {
   for (const g of ['chill', 'drive']) loadMist(g, savedTuning?.mist?.[g]);
   if (savedTuning?.carLights) Object.assign(cars.headlights.tune, savedTuning.carLights);
   if (savedTuning?.streetLights) Object.assign(scenery.lampTune, savedTuning.streetLights);
+  if (scenery.lampTune.countDalat === 10) scenery.lampTune.countDalat = 3;   // bản cũ lưu 10 => Đà Lạt còn 3 đèn thật
 } catch { /* thông số cũ/hỏng: dùng mặc định trong code */ }
 rig.setMode(state.cam);
 state.fstop = FSTOPS.indexOf(rig.aperture);
@@ -1601,7 +1602,7 @@ renderTune = () => {
   }
   if (tuneKind === 'trees') {                                        // map Đà Lạt: thử hiển thị cây (đổi tức thì, lưu chilldrive.dalat.trees)
     tuneMode.hidden = true;
-    $('tune-title').textContent = 'Cây · Đà Lạt';
+    $('tune-title').textContent = 'Cây + nhà · Đà Lạt';
     const T = dalatScene.tune, put = (k) => (v) => dalatScene.setTune({ [k]: v });
     addToggle({ label: 'Hiện cây', get: () => T.on, set: put('on') });
     addToggle({ label: 'Cây xa', get: () => T.model3d, set: put('model3d'), names: ['Demo (nón)', 'Model 3D'] });
@@ -1621,6 +1622,15 @@ renderTune = () => {
     addNumber({ label: 'Lá sáng tối đa (so với cỏ ×)', min: 0.3, max: 2, step: 0.05, get: () => T.leafMax, set: put('leafMax') });
     addNumber({ label: 'Độ sáng thân (×)', min: 0.1, max: 2, step: 0.05, get: () => T.trunk, set: put('trunk') });
     addNumber({ label: 'Độ sáng cây xa model 3D (×)', min: 0.3, max: 2.5, step: 0.05, get: () => T.farBright, set: put('farBright') });
+    addHeading('Nhà');
+    addNumber({ label: 'Độ sáng tường (×)', min: 0.3, max: 2, step: 0.05, get: () => T.hBright, set: put('hBright') });
+    addNumber({ label: 'Tối chân tường (0 = tối hẳn, 1 = không)', min: 0, max: 1, step: 0.05, get: () => T.hAO, set: put('hAO') });
+    addNumber({ label: 'Ánh trời lên nhà ban ngày', min: 0, max: 1.5, step: 0.05, get: () => T.hEnvDay, set: put('hEnvDay') });
+    addNumber({ label: 'Ánh trời lên nhà ban đêm', min: 0, max: 1, step: 0.01, get: () => T.hEnvNight, set: put('hEnvNight') });
+    addNumber({ label: 'Độ sáng nhà ban đêm (×)', min: 0.1, max: 1.5, step: 0.05, get: () => T.hNight, set: put('hNight') });
+    addHeading('Ánh sáng giả đèn đường lên nhà + cây');
+    addNumber({ label: 'Độ sáng (×)', min: 0, max: 3, step: 0.05, get: () => T.fakeObj, set: put('fakeObj') });
+    addNumber({ label: 'Cao tối đa (m)', min: 2, max: 30, step: 0.5, get: () => T.fakeH, set: put('fakeH') });
     addHeading('Cây chi tiết ~11k tam giác/cây; cây xa: nón ~80, model 3D (ảnh chụp model) 4 tam giác/cây. Giữ lá dày ↑ / ngưỡng lá xa ↓ => tán xa dày hơn');
     return;
   }
@@ -2399,7 +2409,7 @@ function frame(now) {
   if (nycWorks.visible) { nycWorks.setLamps(st.lamps); nycWorks.update(drive.pos, sstep(-1.5, -4.5, road.elevAt(drive.s))); }
   if (sgnEnv.visible) { sgnEnv.winK = lightTune.windows; sgnEnv.setLamps(st.lamps); sgnEnv.update(dt, camera.position); }
   if (sgnCity.visible) sgnCity.setLamps(st.lamps * lightTune.windows);
-  if (dalatScene.visible) { dalatScene.setLamps(st.lamps * lightTune.windows); diag.lap('trước dalatScene'); dalatScene.update(dt, camera.position); dalatScene.updateTraffic(dt, camera.position, st.lamps);
+  if (dalatScene.visible) { dalatScene.setLamps(st.lamps * lightTune.windows); dalatScene.setNight(st.lamps); diag.lap('trước dalatScene'); dalatScene.update(dt, camera.position); dalatScene.updateTraffic(dt, camera.position, st.lamps);
     if ((fakeT += dt) > 1) { fakeT = 0; const L = []; for (const c of scenery.chunks.values()) for (const l of c.userData.lamps || []) L.push(l[0]); dalatScene.updateFakeLight(L, scenery.lampTune.fakeR ?? 18); }
     FAKE_LIGHT.uFakeK.value = (scenery.lampTune.fakeK ?? 3) * scenery.lampOn; FAKE_LIGHT.uFakeCol.value.set(scenery.lampTune.color);
     diag.lap('dalatScene'); }
