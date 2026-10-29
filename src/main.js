@@ -85,6 +85,7 @@ const canvas = $('c');
 // cảnh luôn vẽ vào render target của hậu kỳ (có MSAA riêng) => canvas không cần khử răng cưa
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
 let pixelRatio = 1;
+let diagHalf = false;   // nút thử 'res': vẽ nửa độ phân giải
 renderer.setPixelRatio(pixelRatio);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -197,7 +198,7 @@ diag.addTest('trees', 'Cây', (v) => { dalatScene.trees.visible = v && !!dalatSc
 diag.addTest('terrain', 'Địa hình', (v) => { terrain.group.visible = v; });
 diag.addTest('water', 'Mặt nước', (v) => { ocean.group.visible = v; });
 diag.addTest('scenery', 'Cột đèn + cảnh ven đường', (v) => { for (const c of scenery.chunks.values()) c.visible = v; });
-diag.addTest('res', 'Độ nét đầy đủ', (v) => { renderer.setPixelRatio(v ? pixelRatio : pixelRatio * 0.5); resize(); });
+diag.addTest('res', 'Độ nét đầy đủ', (v) => { diagHalf = !v; resize(); });
 const dalatScene = new DalatScene(scene, (x, z) => demAt(dalatDem(), x, z));
 dalatScene.initTraffic(cityTraffic, VEHICLE_TYPES, VEHICLE_COLORS, 24);   // xe trên đường phụ Đà Lạt (số xe theo chất lượng: applyMap)        // map Hồ Xuân Hương: nhà / hồ / cây thông thật (urban:EXPORT), đường phụ OSM
 dalatScene.diag = diag; dalatScene.renderer = renderer;   // renderer: chụp impostor cây xa
@@ -389,8 +390,21 @@ const cows = new Cows(scene);                 // map đồi cỏ: đàn bò sữ
 cars.tilt.add(dash.group);
 cars.tilt.add(mirror.group);
 
+// ngân sách điểm ảnh mỗi khung: màn hình lớn / Retina giảm tỉ lệ để GPU không vẽ quá nhiều
+const PIXEL_BUDGET = { good: 2.6e6, ultra: 4.5e6 };   // low: không giới hạn
+function calcPixelRatio() {
+  const q = QUALITY[state.quality];
+  let r = q.id === 'low' ? q.ratio : Math.min(q.ratio, Math.max(1, window.devicePixelRatio || 1));
+  if (IS_PHONE && q.id === 'good') r = Math.min(r, 1.25);                     // điện thoại: đủ nét, nhẹ GPU
+  if (PIXEL_BUDGET[q.id]) r = Math.min(r, Math.max(0.75, Math.sqrt(PIXEL_BUDGET[q.id] / (window.innerWidth * window.innerHeight))));
+  if (!state.started) r = Math.min(r, PREVIEW.ratio);                         // màn hình chờ: nền mờ => vẽ thưa
+  return r;
+}
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
+  pixelRatio = calcPixelRatio();
+  renderer.setPixelRatio(diagHalf ? pixelRatio * 0.5 : pixelRatio);
+  env.starPx = pixelRatio;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
@@ -447,7 +461,6 @@ $('rotate-ok').addEventListener('click', () => { rotateOk = true; updateRotate()
 $('rotate').querySelector('.ios').hidden = !(IS_IOS && !CAN_FS && !navigator.standalone);
 window.addEventListener('resize', updateRotate);
 updateRotate();
-resize();
 
 // ---------- trạng thái lái xe ----------
 const drive = {
@@ -475,6 +488,7 @@ let openingElapsed = null; // tính thời gian chạy sau khi bấm Start
 // Chất lượng Good, không giảm điểm ảnh (ratio 2 = không giới hạn; 0.5 khi muốn nhẹ). Nhạc nền + âm thanh bật ngay (trình duyệt chặn => mở ở lần chạm / bấm đầu).
 // (Sau này chú sẽ thay bằng video cắt ghép.)
 const PREVIEW = { map: 'meadow', time: 'night', weather: 'cloudy', cam: 'orbit', speed: 25 * KMH, quality: 'good', ratio: 2 };
+resize();   // sau khi có state / PREVIEW: tỉ lệ điểm ảnh theo ngân sách
 let openingCameraPending = false;
 const QUICK_OPENING = true;          // TẠM: đầu game rút còn 0.5 s (đặt false để có lại đoạn 3 s ở 180 km/h rồi giảm tốc)
 const TUNE_KEY = 'chilldrive.tuning.v1';
@@ -675,13 +689,8 @@ function loadQuality() {
 // áp dụng mức chất lượng người chơi chọn (Low / Mid / Good / Ultra)
 function applyQuality(save = true) {
   const q = QUALITY[state.quality];
-  pixelRatio = q.id === 'low' ? q.ratio : Math.min(q.ratio, Math.max(1, window.devicePixelRatio || 1));
-  if (IS_PHONE && q.id === 'good') pixelRatio = Math.min(pixelRatio, 1.25);   // màn hình điện thoại nhỏ: đủ nét, nhẹ GPU hơn
-  if (!state.started) pixelRatio = Math.min(pixelRatio, PREVIEW.ratio);       // màn hình chờ: nền bị làm mờ => vẽ thưa điểm ảnh
-  renderer.setPixelRatio(pixelRatio);
-  env.starPx = pixelRatio;
+  resize();   // tính lại tỉ lệ điểm ảnh theo ngân sách + kích thước cửa sổ
   post.setSamples(q.msaa);
-  resize();
   for (const f of [reeds, grass, meadow]) { f.setView(q.view); f.setDensity(q.veg); }
   terrain.setView(q.view, camera.position);       // phạm vi hiển thị (Ultra: xa gấp đôi) — đổi lúc đang chạy thì dựng lại địa hình
   env.setShadowSize(q.shadow);
@@ -1086,21 +1095,53 @@ function showModeName(mode) {
   e.classList.add('show');
   clearTimeout(modeNameT); modeNameT = setTimeout(() => e.classList.remove('show'), 1000);
 }
+// ---------- đổi map: phủ màn hình, chờ map dựng xong mới bỏ ----------
+let switching = false;
+const nextFrame = () => new Promise((r) => requestAnimationFrame(r));
+async function coverSwitch(fn) {
+  if (!state.started) return fn();
+  if (switching) return;                    // đang chuyển map: bỏ yêu cầu mới
+  switching = true;
+  const fade = $('fade');
+  fade.textContent = 'Đang chuyển map…';
+  fade.style.transition = 'none';           // #fade mờ dần 1.2 s: hiện ngay để che lúc dựng map
+  fade.classList.add('show');
+  await nextFrame(); await nextFrame();     // để tấm phủ kịp vẽ
+  fade.style.transition = '';               // ẩn vẫn mờ dần như cũ
+  try {
+    fn();
+    const t0 = performance.now();
+    while (performance.now() - t0 < 8000) {
+      const dalatOk = !dalatScene.visible || (dalatScene.state === 'ready' && dalatScene.jobs.length === 0);
+      const sgnOk = !sgnEnv.visible || (sgnEnv.state === 'ready' && (!sgnCity.visible || sgnCity.state === 'ready'));
+      if (dalatOk && sgnOk) break;
+      await nextFrame();                    // game loop vẫn chạy: dựng tiếp việc còn lại
+    }
+    try { await compileFor(post.sceneRT, camera); } catch (e) { console.warn('cover compile', e); }
+    await nextFrame(); await nextFrame();
+  } finally {
+    fade.classList.remove('show');
+    switching = false;
+  }
+}
 // đổi chế độ trong game (nút 🔀 trong Setting): Drive => map Phố; Chill => map ngắm cảnh lần trước
 function setGameMode(mode) {
-  if (state.mode === mode) return;
+  if (state.mode === mode || switching) return;
   if (state.mode === 'chill') lastChillMap = state.map; else lastDriveMap = state.map;
   const leftDrive = state.mode === 'drive' && session.dist > 300 && trafficTune.score;
   state.mode = mode;
   state.map = mode === 'drive' ? lastDriveMap : lastChillMap;
-  applyMap(); refreshUI(); showModeName(mode);
+  coverSwitch(() => { applyMap(); refreshUI(); });
+  showModeName(mode);
   if (leftDrive) { renderScore(); $('score').hidden = false; }   // rời Drive: hiện bảng điểm buổi vừa lái
   if (mode === 'drive') { session = newSession(); violations = 0; }
 }
 const nextMap = () => {
+  if (switching) return;
   // Chill: các map ngắm cảnh; Drive: Phố ↔ Đại lộ
   do state.map = (state.map + 1) % MAPS.length; while (state.mode && isDriveMap(state.map) !== (state.mode === 'drive'));
-  applyMap(); refreshUI(); say('Map · ' + MAPS[state.map].name);
+  coverSwitch(() => { applyMap(); refreshUI(); });
+  say('Map · ' + MAPS[state.map].name);
 };
 function onCamChange() {
   state.fstop = Math.max(0, FSTOPS.indexOf(rig.aperture));
