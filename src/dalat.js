@@ -127,9 +127,9 @@ export function dalatTreeMix(T) {
 
 // ánh sáng giả của đèn đường (Đà Lạt, ban đêm): ảnh xám 1024² phủ khung uFakeB, mỗi cột đèn 1 vệt tròn mềm bán kính R m (cộng dồn);
 // shader mặt đất + mặt đường cộng thêm màu đèn × albedo × độ sáng => nhìn từ xa vẫn thấy cả vòng hồ sáng mà không cần đèn thật
-export const FAKE_LIGHT = { uFakeTex: { value: null }, uFakeB: { value: new THREE.Vector4(-1300, -1300, 1300, 1300) }, uFakeK: { value: 0 }, uFakeO: { value: 1 }, uFakeH: { value: 10 }, uFakeCol: { value: new THREE.Color(1, 0.8, 0.55) } };
-// mode '' = mặt đất/mặt đường (như cũ); 'inst' = InstancedMesh (cây: cao theo gốc cây), 'attr' = nhà (cao theo attribute aFakeH);
-// 'inst'/'attr': ánh sáng nhân uFakeO và tắt dần theo độ cao (mốc 0.35·uFakeH … uFakeH)
+export const FAKE_LIGHT = { uFakeTex: { value: null }, uFakeB: { value: new THREE.Vector4(-1300, -1300, 1300, 1300) }, uFakeK: { value: 0 }, uFakeO: { value: 1 }, uFakeH: { value: 10 }, uFakeT: { value: 0.7 }, uFakeCol: { value: new THREE.Color(1, 0.8, 0.55) } };
+// mode '' = mặt đất/mặt đường (như cũ); 'inst' = InstancedMesh (cây: vFakeH = phần chiều cao CỦA TỪNG CÂY 0..1, tắt dần 0.35·uFakeT … uFakeT),
+// 'attr' = nhà (vFakeH = m trên mặt đất, attribute aFakeH; tắt dần 0.35·uFakeH … uFakeH); cả hai nhân uFakeO
 export function addFakeLight(mat, mode = '') {
   const prev = mat.onBeforeCompile, pk = mat.customProgramCacheKey();   // giữ khoá shader cũ: hook khác nhau không được dùng chung chương trình
   const inst = mode === 'inst', obj = inst || mode === 'attr';
@@ -144,12 +144,12 @@ export function addFakeLight(mat, mode = '') {
         fw = instanceMatrix * fw;
         #endif
         vFakeW = (modelMatrix * fw).xyz;
-        ${inst ? 'vFakeH = vFakeW.y - modelMatrix[3].y;\n        #ifdef USE_INSTANCING\n        vFakeH = vFakeW.y - (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).y;\n        #endif\n' : mode === 'attr' ? 'vFakeH = aFakeH;' : 'vFakeH = 0.0;'} }`);
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vFakeW;\nvarying float vFakeH;\nuniform sampler2D uFakeTex;\nuniform vec4 uFakeB;\nuniform float uFakeK;\nuniform float uFakeO;\nuniform float uFakeH;\nuniform vec3 uFakeCol;')
+        ${inst ? 'vFakeH = (vFakeW.y - modelMatrix[3].y) / max(length(modelMatrix[1].xyz), 0.01);\n        #ifdef USE_INSTANCING\n        { mat4 im = modelMatrix * instanceMatrix; vFakeH = (vFakeW.y - im[3].y) / max(length(im[1].xyz), 0.01); }\n        #endif\n' : mode === 'attr' ? 'vFakeH = aFakeH;' : 'vFakeH = 0.0;'} }`);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vFakeW;\nvarying float vFakeH;\nuniform sampler2D uFakeTex;\nuniform vec4 uFakeB;\nuniform float uFakeK;\nuniform float uFakeO;\nuniform float uFakeH;\nuniform float uFakeT;\nuniform vec3 uFakeCol;')
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
       if (uFakeK > 0.0) {
         vec2 fu = (vFakeW.xz - uFakeB.xy) / (uFakeB.zw - uFakeB.xy);
-        if (fu.x > 0.0 && fu.y > 0.0 && fu.x < 1.0 && fu.y < 1.0) totalEmissiveRadiance += uFakeCol * diffuseColor.rgb * texture2D(uFakeTex, fu).r * uFakeK${obj ? ' * uFakeO * (1.0 - smoothstep(0.35 * uFakeH, uFakeH, vFakeH))' : ''};
+        if (fu.x > 0.0 && fu.y > 0.0 && fu.x < 1.0 && fu.y < 1.0) totalEmissiveRadiance += uFakeCol * diffuseColor.rgb * texture2D(uFakeTex, fu).r * uFakeK${inst ? ' * uFakeO * (1.0 - smoothstep(0.35 * uFakeT, uFakeT, vFakeH))' : obj ? ' * uFakeO * (1.0 - smoothstep(0.35 * uFakeH, uFakeH, vFakeH))' : ''};
       }`);
   };
   mat.needsUpdate = true;
@@ -209,7 +209,7 @@ function pineGeometry() {
 // cut / cutFar = ngưỡng cắt lá ở gần / ở cutD m trở ra; size = cỡ cây ×; leaf / trunk = độ sáng lá / thân (chụp lại cây xa khi đổi);
 // farBright = độ sáng cây xa model 3D; shadow = cây chi tiết đổ bóng; leafMax = độ sáng tối đa của lá so với cỏ sáng nhất (#6f9850)
 const LOOK = { size: 1, mip: 0.35, cut: 0.5, cutFar: 0.3, cutD: 60, leaf: 1.4, trunk: 0.45, farBright: 1, shadow: 1, leafMax: 1,
-  hBright: 1, hAO: 0.55, hEnvDay: 0.45, hEnvNight: 0.08, hNight: 0.6, fakeObj: 1, fakeH: 10 };
+  hBright: 1, hAO: 0.55, hEnvDay: 0.45, hEnvNight: 0.08, hNight: 0.6, fakeObj: 1, fakeH: 10, fakeT: 70 };
 export const DALAT_TREE_DEFAULTS = { high: { on: 1, model3d: 0, density: 100, lodR: 60, far: 700, maxHi: 120, ...LOOK }, low: { on: 1, model3d: 0, density: 60, lodR: 30, far: 400, maxHi: 40, ...LOOK } };
 // model3d = 1: cây xa là ảnh chụp chính model cây thông chú đưa (impostor 2 tấm chéo, 4 tam giác, không đổ bóng) thay cây nón demo
 const TREE_KEY = 'chilldrive.dalat.trees', HI_CAP = 3000;
@@ -300,7 +300,7 @@ export class DalatScene {
     for (const { m, base, leaf } of this._mats || []) m.color.copy(base).multiplyScalar(leaf ? T.leaf : T.trunk);
     for (const m of this._farMats || []) m.color.setScalar(T.farBright);
     for (const im of this.pineParts || []) im.castShadow = !!T.shadow;
-    FAKE_LIGHT.uFakeO.value = T.fakeObj; FAKE_LIGHT.uFakeH.value = T.fakeH;
+    FAKE_LIGHT.uFakeO.value = T.fakeObj; FAKE_LIGHT.uFakeH.value = T.fakeH; FAKE_LIGHT.uFakeT.value = Math.max(0.05, T.fakeT / 100);
     const key = T.leaf + ':' + T.trunk;
     if (this._src && this._lookKey && key !== this._lookKey) {
       clearTimeout(this._reshoot);                                   // kéo thanh trượt liên tục => chụp 1 lần khi dừng

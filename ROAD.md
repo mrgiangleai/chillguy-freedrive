@@ -4,7 +4,7 @@
 
 > Đọc trước khi sửa. Xong: 1 dòng **Nhật ký** + tăng bộ đếm; đủ 10 => gộp vào mục trạng thái, đặt lại 0.
 
-**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 5/10**
+**Bộ đếm cập nhật kể từ lần tóm tắt gần nhất: 6/10**
 
 ## 1. Tổng quan
 
@@ -144,3 +144,4 @@
 - 28/10: bảng chẩn đoán (`diag.addTest`, main.js) thêm nút thử nhanh: phản chiếu hồ, đèn đường thật, vẽ bóng (shadowMap.autoUpdate), nhà (`dalatScene.cityRoot`), cây, địa hình, mặt nước, cảnh ven đường, độ nét ½; rời map => bật lại hết.
 - 28/10: bảng chẩn đoán dùng cho mọi map (tiêu đề = tên map, xoá bước cũ + bật lại nút thử khi đổi map); chỉ đo khi bảng đang hiện (`diag._meas`).
 - 29/10: Đà Lạt — nhà: màu pal² (sRGB→linear) × hBright, tối chân tường (aFakeH = cao so với DEM, hAO), withMist, envMap ngày/đêm (hEnvDay/hEnvNight) + hNight theo `setNight(st.lamps)`; `addFakeLight(mat, mode)` 'attr' (nhà) / 'inst' (cây GLB, xa, nón) tắt dần theo cao (fakeObj, fakeH); bảng 'Cây + nhà'; countDalat 3 (bản lưu 10 => 3). Làm bởi worker DeepSeek.
+- 29/10: ánh sáng giả lên cây tính theo chiều cao từng cây (vFakeH = phần 0..1 theo scale instance, uFakeT = fakeT %, mặc định 70 %); nhà vẫn theo m (fakeH).

@@ -1630,7 +1630,8 @@ renderTune = () => {
     addNumber({ label: 'Độ sáng nhà ban đêm (×)', min: 0.1, max: 1.5, step: 0.05, get: () => T.hNight, set: put('hNight') });
     addHeading('Ánh sáng giả đèn đường lên nhà + cây');
     addNumber({ label: 'Độ sáng (×)', min: 0, max: 3, step: 0.05, get: () => T.fakeObj, set: put('fakeObj') });
-    addNumber({ label: 'Cao tối đa (m)', min: 2, max: 30, step: 0.5, get: () => T.fakeH, set: put('fakeH') });
+    addNumber({ label: 'Nhà: sáng tới cao (m)', min: 2, max: 30, step: 0.5, get: () => T.fakeH, set: put('fakeH') });
+    addNumber({ label: 'Cây: sáng tới (% chiều cao mỗi cây)', min: 10, max: 100, step: 5, get: () => T.fakeT, set: put('fakeT') });
     addHeading('Cây chi tiết ~11k tam giác/cây; cây xa: nón ~80, model 3D (ảnh chụp model) 4 tam giác/cây. Giữ lá dày ↑ / ngưỡng lá xa ↓ => tán xa dày hơn');
     return;
   }
